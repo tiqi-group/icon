@@ -1,0 +1,89 @@
+[tool.poetry]
+name = "icon"
+version = "0.1.0"
+description = ""
+authors = ["Mose Mueller <mosemueller@gmail.com>"]
+readme = "README.md"
+packages = [{include = "icon", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pydase = { git = "https://github.com/tiqi-group/pydase.git", branch = "main" }
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.1.1"
+pyright = "^1.1.323"
+ruff = "^0.1.5"
+types-pytz = "^2024.1.0.20240203"
+pytest-docker = "^3.1.1"
+types-psutil = "^5.9.5.20240106"
+pytest = "^8.1.1"
+requests = "^2.31.0"
+podman-compose = "^1.0.6"
+types-requests = "^2.31.0.20240406"
+
+
+[tool.pyright]
+include = ["src/icon", "tests"]
+typeCheckingMode = "basic"
+
+
+[tool.ruff]
+target-version = "py310" # Always generate Python 3.10-compatible code
+select = [
+    "ASYNC", # flake8-async
+    "C4",    # flake8-comprehensions
+    "C901",  # mccabe complex-structure
+    "E",     # pycodestyle errors
+    "ERA",   # eradicate
+    "F",     # pyflakes
+    "FLY",   # flynt
+    "G",     # flake8-logging-format
+    "I",     # isort
+    "ICN",   # flake8-import-conventions
+    "INP",   # flake8-no-pep420
+    "ISC",   # flake8-implicit-str-concat
+    "N",     # pep8-naming
+    "NPY",   # NumPy-specific rules
+    "PERF",  # perflint
+    "PIE",   # flake8-pie
+    "PL",    # pylint
+    "PYI",   # flake8-pyi
+    "Q",     # flake8-quotes
+    "RET",   # flake8-return
+    "RUF",   # Ruff-specific rules
+    "SIM",   # flake8-simplify
+    "TID",   # flake8-tidy-imports
+    "TCH",   # flake8-type-checking
+    "UP",    # pyupgrade
+    "YTT",   # flake8-2020
+    "W",     # pycodestyle warnings
+]
+ignore = [
+    "E203",     # whitespace-before-punctuation
+    "W292",     # missing-newline-at-end-of-file
+    "PERF203",  # try-except-in-loop
+]
+extend-exclude = [
+  "docs"
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 7
+
+
+[tool.mypy]
+disallow_untyped_defs = true
+disallow_untyped_calls = true
+disallow_incomplete_defs = true
+disallow_any_generics = true
+check_untyped_defs = true
+ignore_missing_imports = false
