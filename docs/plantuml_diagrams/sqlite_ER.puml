@@ -1,0 +1,67 @@
+@startuml
+skinparam linetype ortho
+
+entity "Experiment" as experiment {
+    *experiment_id: number <<generated>>
+    ---
+    *file_path: text (relative within repository)
+    *name: text (class name)
+}
+
+entity "Experiment Job" as job {
+    *job_id: number <<generated>>
+    *created: timestamp
+    ---
+    *user_id: number <<FK>>
+    *experiment_id: number <<FK>>
+    *status: text (submitted / processing / done)
+    *git_commit_hash: text
+    *priority: int between 0 and 20
+    *local_parameters_timestamp: timestamp
+    *auto_calibration: bool
+}
+
+entity "Experiment Job Execution History" as history {
+    *job_execution_id: number <<generated>>
+    *scheduled_time: timestamp
+    ---
+    *job_id: int <<FK>>
+    *status: text (pending / processing / failed / cancelled / done)
+    log: text (job information)
+}
+
+entity "User" as user {
+    *user_id: number <<generated>>
+    --
+    *name: text
+    *created: timestamp
+    priority?
+}
+
+entity "Scan Parameter" as scan_param {
+    *scan_parameter_id: number <<generated>>
+    --
+    *job_id: int <<FK>>
+    *variable_name: text
+    *scan_values: list of numbers
+    *remote_source_id: number <<FK>>
+}
+
+entity "Remote Source (Service or DB)" as remote {
+    *remote_source_id: number <<generated>>
+    *name: text  <<unique>>
+    --
+    *hostname: text
+    *port: int
+    *active: bool
+    description: text
+}
+
+
+job }o..|| user
+job ||..o{ scan_param
+experiment ||.o{ job
+job ||..o{ history
+remote ||..o{ scan_param
+
+@enduml

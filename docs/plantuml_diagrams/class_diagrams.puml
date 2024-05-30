@@ -1,0 +1,195 @@
+@startuml
+
+enum JobHistoryStatus {
+    PENDING
+    PROCESSING
+    FAILED
+    CANCELLED
+    DONE
+}
+
+enum JobStatus {
+    SUBMITTED
+    PROCESSING
+    PROCESSED
+}
+
+enum SourceType {
+    INFLUXDB
+    PYDASE_SERVICE
+    TIQI_PLUGIN
+}
+
+enum PostProcessingTaskType {
+    FIT
+    DATA_POINT
+}
+
+class JobProxy {
+    + Job job
+    + JobStatus get_status()
+    + void toggle_show_data()
+}
+
+class Job {
+    + Experiment experiment
+    + int priority
+    + datetime local_parameter_timestamp
+    + ScanInfo scan_info
+}
+
+class ScanInfo {
+    + ScanParameter[] scan_parameters
+    + bool auto_calibration
+}
+
+class Experiment {
+    + ExperimentModel metadata
+    + str description  # what for?
+    + str git_commit_hash
+}
+
+class ExperimentModel {
+    + str file_path
+    + str name
+    + int experiment_id
+}
+
+class ScanParameter {
+    + ParameterMetadata parameter
+    + number[] scan_values
+}
+
+class ParameterMetadata {
+    + str variable_name
+    + RemoteSourceModel source
+}
+
+class ScanParameterModel {
+    + int scan_parameter_id
+    + int job_id
+    + int remote_source_id
+    + str variable_name
+    + number[] scan_values
+}
+
+class RemoteSourceModel {
+    + int remote_source_id
+    + str name
+    + str hostname
+    + int port
+    + active bool
+    + str description
+    + SourceType source_type
+}
+
+class ExperimentJobModel {
+    + int job_id
+    + datetime created
+    + int user_id
+    + int experiment_id
+    + JobStatus status
+    + str git_commit_hash
+    + int priority
+    + datetime local_parameter_timestamp
+    + bool auto_calibration
+
+}
+
+class UserModel {
+    + int user_id
+    + str name
+    + datetime created
+}
+
+class ExperimentJobExecutionModel {
+    + int job_execution_id
+    + datetime scheduled_time
+    + int job_id
+    + JobHistoryStatus status
+    + str log  # job information
+}
+
+
+ExperimentJobModel -[hidden]r-> RemoteSourceModel
+ScanParameterModel -[hidden]l-> RemoteSourceModel
+ScanParameterModel -[hidden]> UserModel
+UserModel -[hidden]l> ExperimentJobModel
+UserModel -[hidden]r> ExperimentJobExecutionModel
+ExperimentJobExecutionModel --* JobHistoryStatus
+JobStatus -------* ExperimentJobModel
+
+class Parameter {
+    + ParameterMetadata metadata
+    + Any get_value()
+    + void set_value()
+}
+
+class PreProcessingTask {
+    + int job_execution_id
+    + Job job
+    + str src_dir
+}
+
+class HardwareTask {
+    + int job_execution_id
+    + Job job
+    + str src_dir
+    + dict json_sequence
+    + dict[str, datetime] generation_timestamps  # keys: param namespace
+    - DataPointId data_point_specifier
+    - Queue processing_worker_data_points_to_process
+    - Queue processing_worker_processed_data_points
+    + void requeue_in_pre_processing_worker()
+    + void mark_done()
+}
+class DataPointId{
+    + tuple identifiers
+}
+
+class ChannelData {
+    --Using lists--
+    + str[] channel_names
+    + float[] data_points
+    --Using dict--
+    + dict[str, float] channel_data
+}
+class Data {
+    + dict[DataPointId, ChannelData] data
+    + PostProcessingTaskType type
+}
+Data *-- ChannelData
+Data *-- DataPointId
+Data *-- PostProcessingTaskType
+
+class PostProcessingTask {
+    + int job_execution_id
+    + Job job
+    + str src_dir
+    + Data data
+    + dict[str, datetime] generation_timestamps  # keys: param namespace
+    - Queue processing_worker_data_points_to_process
+    - Queue processing_worker_processed_data_points
+    - Queue hardware_queue  # there is only one, so no need to pass?
+    + void requeue_in_hardware_worker()  # needed?
+    + void requeue_in_pre_processing_worker()
+    + void mark_done()
+}
+
+Job *-- Experiment
+Experiment *-- ExperimentModel
+Job *-- ScanInfo
+ScanInfo *-- "many" ScanParameter
+ScanParameter *-- ParameterMetadata
+Parameter *-- ParameterMetadata
+ParameterMetadata *-- RemoteSourceModel
+RemoteSourceModel *-- SourceType
+PreProcessingTask *-- Job
+HardwareTask *-- Job
+HardwareTask *-- DataPointId
+PostProcessingTask *-- Job
+PostProcessingTask *-- Data
+JobProxy *-- Job
+JobProxy *-- JobStatus
+
+@enduml

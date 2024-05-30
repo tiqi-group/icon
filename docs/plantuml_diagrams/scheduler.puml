@@ -1,0 +1,48 @@
+@startuml
+ 
+start
+partition #00000010 Initialization {
+    :Update Job Execution History table;
+    note left
+        Mark experiments that have
+        not finished as failed.
+    end note
+    :Update Job table;
+    note left
+        Mark processing jobs as done.
+    end note
+}
+repeat
+    if (Jobs with status "SUBMITTED" in job table?) then (yes)
+        while (Jobs to process?) is (yes)
+            partition #00000010 Job Processing {
+                :Update Job Status
+                to "PROCESSING";
+                :Write job to Job
+                Execution History table;
+                :Create "PreProcessingJob";
+                note left
+                    If in development mode,
+                    pass the dev source code
+                    directory as src_dir.
+                end note
+                note right
+                    No distinction between 
+                    real-time scan and parameter
+                    scan. Pre-processing worker
+                    will create src_dir.
+                end note
+                :Put PreProcessingJob in
+                pre-processing queue;
+            }
+        endwhile (no)
+    else (no)
+        :Wait for a
+        predefined interval;
+    endif
+repeat while (Should exit) is (no)
+
+:Shutdown Scheduler;
+
+stop
+@enduml

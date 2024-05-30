@@ -1,0 +1,81 @@
+@startuml
+start
+:Create Temporary Directory;
+repeat
+    :Get highest priority 'PreProcessingTask'
+    from pre-processing queue;
+    :Change process priority
+    depending on task priority;
+    if (src_dir is given) then (yes)
+        :Use custom 'src_dir';
+        note left
+            Useful for development mode
+            (dev source code directory)
+        end note
+    else (no)
+        :Use temporary directory as 'src_dir';
+        :Prepare 'src_dir' folder;
+        note right
+            Checks if local repository exists,
+            clones if necessary, checks
+            out the specified commit, and
+            updates the python environment.
+        end note
+    endif
+    if (cache local params locally?) then (yes)
+        :Cache local parameters
+        in valkey cache given
+        submission timestamp;
+        :Set local parameter
+        prefix to worker-id;
+        note
+            Prefix will be used when
+            querying the local params
+            when generating JSON file
+        end note
+    endif
+    while (All data points processed?) is (no)
+        :Attempt to get the next data point;
+        if (Data Point Queue is Empty?) then (yes)
+            :Continue inner loop;
+            note left
+                The hardware/post-processing
+                worker might still requeue
+                data points if necessary
+            end note
+        else (no)
+            partition #00000010 Pre-process data point{
+                note right
+                    This could also be done
+                    in separate processes.
+                    The order of the data points
+                    has to be kept, though.
+                end note
+                if (Job was cancelled?) then (yes)
+                    :Mark data point
+                    as cancelled;
+                else (no)
+                    :Create 'HardwareTask';
+                    note right
+                        Generating the json file,...
+                        Use locally cached local
+                        parameters when not
+                        scanning real-time.
+                    end note
+                    :Put 'HardwareTask' in 'hardware_queue';
+                endif
+            }
+        endif
+    endwhile (yes)
+
+    partition #00000010 Submit Fitting and Database Update {
+        :Create 'PostProcessingTask';
+        :Put 'PostProcessingTask' into 'post_processing_queue';
+    }
+    :Update Job Status
+    to "DONE";
+    note right
+        Should I update the job status
+        in the post-processing worker?
+    end note
+@enduml

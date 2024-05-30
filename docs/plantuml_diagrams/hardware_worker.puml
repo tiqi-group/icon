@@ -1,0 +1,26 @@
+@startuml
+start
+repeat :Get data point from priority 'hardware_queue';
+    if (Job was cancelled?) then (yes)
+        :Mark data point
+        as cancelled;
+    else (no)
+        note right
+            Check if the global parameters
+            and the local parameters (for
+            real-time scans) are up-to-date
+        end note
+        if (Parameters up-to-date?) then (yes)
+            repeat
+                :Process data point;
+            repeat while (Succeded or number of retries exceeded?) is (no)
+            if (Processing failed?) then (yes)
+                :Log error to Database;
+            endif
+        else (no)
+            :Requeue data point
+            to pre-processing
+            job queue;
+        endif
+    endif
+@enduml
