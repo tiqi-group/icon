@@ -1,12 +1,15 @@
 import logging
 import sys
 from types import TracebackType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import socketio  # type: ignore
 
 from icon.serialization.deserializer import loads
-from icon.serialization.serializer import SerializedIconObject, dump
+from icon.serialization.serializer import dump
+
+if TYPE_CHECKING:
+    from icon.serialization.types import SerializedIconObject
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
