@@ -11,6 +11,7 @@ python = "^3.12"
 pydase = { git = "https://github.com/tiqi-group/pydase.git", branch = "main" }
 sqlmodel = {version = "^0.0.18", optional = true}
 pytz = {version = "^2024.1", optional = true}
+redis = "^5.0.7"
 
 [tool.poetry.extras]
 server = ["sqlmodel", "pytz"]

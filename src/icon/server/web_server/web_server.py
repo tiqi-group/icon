@@ -1,19 +1,17 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import aiohttp.web
 import click
+import socketio  # type: ignore
 from pydase.data_service.data_service_observer import DataServiceObserver
 from pydase.server.web_server.sio_setup import TriggerMethodDict
 from pydase.utils.helpers import get_object_attr_from_path
 
 from icon.serialization.deserializer import loads
 from icon.serialization.serializer import dump
-
-if TYPE_CHECKING:
-    import socketio  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +37,7 @@ class WebServer:
         self.host = host
         self.frontend_src: Path = Path(__file__).parent.parent / "frontend"
         self._loop: asyncio.AbstractEventLoop
-        self.sio: socketio.AsyncServer = kwargs.pop("sio")
+        self.sio = socketio.AsyncServer(client_manager=socketio.AsyncRedisManager())
 
     async def serve(self) -> None:
         async def index(request: aiohttp.web.Request) -> aiohttp.web.FileResponse:
@@ -66,7 +64,7 @@ class WebServer:
             logging.debug("Client [%s] connected", click.style(str(sid), fg="cyan"))
 
         @self.sio.event  # type: ignore
-        async def pre_processing(sid: str, data: Any) -> None:
+        async def processing(sid: str, data: Any) -> None:
             logging.debug(
                 "Client [%s] sent message %s", click.style(str(sid), fg="cyan"), data
             )
