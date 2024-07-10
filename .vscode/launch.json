@@ -2,6 +2,16 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "server",
+            "type": "python",
+            "request": "launch",
+            "module": "icon.server",
+            "justMyCode": false,
+            "env": {
+                "ENVIRONMENT": "development"
+            }
+        },
+        {
             "name": "foo",
             "type": "python",
             "request": "launch",
