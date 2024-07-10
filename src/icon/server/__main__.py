@@ -1,11 +1,20 @@
 import pydase
 import pydase.server.web_server.sio_setup
+import socketio
 
-import icon.serialization.deserializer
-import icon.serialization.serializer
 from icon.server.api.api_service import APIService
+from icon.server.web_server.web_server import WebServer
 
-pydase.server.web_server.sio_setup.loads = icon.serialization.deserializer.loads
-pydase.server.web_server.sio_setup.dump = icon.serialization.serializer.dump
+sio = socketio.AsyncServer(async_mode="aiohttp", cors_allowed_origins="*")
 
-pydase.Server(APIService()).run()
+pydase.Server(
+    APIService(),
+    enable_web=False,
+    additional_servers=[
+        {
+            "server": WebServer,
+            "port": 8001,
+            "kwargs": {"sio": sio},
+        }
+    ],
+).run()
