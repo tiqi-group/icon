@@ -1,5 +1,7 @@
+import asyncio
 import logging
 import sys
+import threading
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
@@ -21,15 +23,25 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
+def asyncio_loop_thread(loop: asyncio.AbstractEventLoop) -> None:
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
+
+
 class Client:
     def __init__(
         self,
         url: str,
     ):
+        self._loop = asyncio.new_event_loop()
         self._url = url
-        self._sio = socketio.Client()
+        self._sio = socketio.AsyncClient()
         self._sio.on("connect", self._handle_connect)
         self._sio.on("disconnect", self._handle_disconnect)
+        self._thread = threading.Thread(
+            target=asyncio_loop_thread, args=(self._loop,), daemon=True
+        )
+        self._thread.start()
 
     def __enter__(self) -> Self:
         self.connect()
@@ -44,37 +56,55 @@ class Client:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        self.disconnect()
+        self.connect()
 
-    def _handle_connect(self) -> None:
+    async def _handle_connect(self) -> None:
         logger.debug("Connected")
 
-    def _handle_disconnect(self) -> None:
+    async def _handle_disconnect(self) -> None:
         logger.debug("Disconnected")
 
-    def connect(self) -> None:
+    async def async_connect(self) -> None:
         if not self._sio.connected:
-            self._sio.connect(
+            await self._sio.connect(
                 self._url,
                 socketio_path="/ws/socket.io",
                 transports=["websocket"],
                 retry=False,
             )
 
-    def disconnect(self) -> None:
-        if self._sio.connected:
-            self._sio.disconnect()
+    def connect(self) -> None:
+        connection_future = asyncio.run_coroutine_threadsafe(
+            self.async_connect(), self._loop
+        )
+        connection_future.result()
 
-    def get_value(self, full_access_path: str) -> Any:
-        serialized_value: SerializedIconObject | None = self._sio.call(
+    def disconnect(self) -> None:
+        connection_future = asyncio.run_coroutine_threadsafe(
+            self.async_disconnect(), self._loop
+        )
+        connection_future.result()
+
+    async def async_disconnect(self) -> None:
+        if self._sio.connected:
+            await self._sio.disconnect()
+
+    async def async_get_value(self, full_access_path: str) -> Any:
+        serialized_value: SerializedIconObject | None = await self._sio.call(
             "get_value", full_access_path
         )
         if serialized_value is not None:
             return loads(serialized_value)
         return None
 
-    def set_value(self, full_access_path: str, new_value: Any) -> Any:
-        return self._sio.call(
+    def get_value(self, full_access_path: str) -> Any:
+        get_value_future = asyncio.run_coroutine_threadsafe(
+            self.async_get_value(full_access_path), self._loop
+        )
+        return get_value_future.result()
+
+    async def async_set_value(self, full_access_path: str, new_value: Any) -> Any:
+        return await self._sio.call(
             "update_value",
             {
                 "access_path": full_access_path,
@@ -82,14 +112,20 @@ class Client:
             },
         )
 
-    def trigger_method(
+    def set_value(self, full_access_path: str, new_value: Any) -> Any:
+        set_value_future = asyncio.run_coroutine_threadsafe(
+            self.async_set_value(full_access_path, new_value), self._loop
+        )
+        return set_value_future.result()
+
+    async def async_trigger_method(
         self,
         full_access_path: str,
         *,
         args: tuple[Any, ...] = (),
         kwargs: dict[str, Any] = {},
     ) -> Any:
-        result = self._sio.call(
+        result = await self._sio.call(
             "trigger_method",
             {
                 "access_path": full_access_path,
@@ -102,3 +138,16 @@ class Client:
             return loads(serialized_object=result)
 
         return None
+
+    def trigger_method(
+        self,
+        full_access_path: str,
+        *,
+        args: tuple[Any, ...] = (),
+        kwargs: dict[str, Any] = {},
+    ) -> Any:
+        trigger_method_future = asyncio.run_coroutine_threadsafe(
+            self.async_trigger_method(full_access_path, args=args, kwargs=kwargs),
+            self._loop,
+        )
+        return trigger_method_future.result()
