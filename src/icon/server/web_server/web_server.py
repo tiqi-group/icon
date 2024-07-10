@@ -7,11 +7,12 @@ import aiohttp.web
 import click
 import socketio  # type: ignore
 from pydase.data_service.data_service_observer import DataServiceObserver
-from pydase.server.web_server.sio_setup import TriggerMethodDict
+from pydase.server.web_server.sio_setup import TriggerMethodDict, UpdateDict
 from pydase.utils.helpers import get_object_attr_from_path
 
 from icon.serialization.deserializer import loads
 from icon.serialization.serializer import dump
+from icon.serialization.types import SerializedIconObject
 
 logger = logging.getLogger(__name__)
 
@@ -64,10 +65,18 @@ class WebServer:
             logging.debug("Client [%s] connected", click.style(str(sid), fg="cyan"))
 
         @self.sio.event  # type: ignore
-        async def processing(sid: str, data: Any) -> None:
+        async def join_room(sid: str, room: str) -> None:
             logging.debug(
-                "Client [%s] sent message %s", click.style(str(sid), fg="cyan"), data
+                "Client [%s] joins room %s", click.style(str(sid), fg="cyan"), room
             )
+            await self.sio.enter_room(sid, room)
+
+        @self.sio.event  # type: ignore
+        async def leave_room(sid: str, room: str) -> None:
+            logging.debug(
+                "Client [%s] leaves room %s", click.style(str(sid), fg="cyan"), room
+            )
+            await self.sio.leave_room(sid, room)
 
         @self.sio.event  # type: ignore
         async def disconnect(sid: str) -> None:
@@ -84,4 +93,29 @@ class WebServer:
                 return dump(method(*args, **kwargs))
             except Exception as e:
                 logger.error(e)
+                return dump(e)
+
+        @self.sio.event
+        async def update_value(
+            sid: str, data: UpdateDict
+        ) -> SerializedIconObject | None:  # type: ignore
+            path = data["access_path"]
+
+            try:
+                self.state_manager.set_service_attribute_value_by_path(
+                    path=path, serialized_value=data["value"]
+                )
+                return None
+            except Exception as e:
+                logger.exception(e)
+                return dump(e)
+
+        @self.sio.event
+        async def get_value(sid: str, access_path: str) -> SerializedIconObject:
+            try:
+                return self.state_manager._data_service_cache.get_value_dict_from_cache(
+                    access_path
+                )
+            except Exception as e:
+                logger.exception(e)
                 return dump(e)
