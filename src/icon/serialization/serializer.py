@@ -11,6 +11,7 @@ import pydase.units as u
 import pydase.utils.serialization.serializer
 from pydase.data_service.abstract_data_service import AbstractDataService
 from pydase.utils.helpers import get_attribute_doc
+from pydase.utils.serialization.types import SerializedException
 
 if TYPE_CHECKING:
     from icon.serialization.types import SerializedIconObject, SerializedPydanticModel
@@ -81,6 +82,22 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
             "doc": doc,
             "full_access_path": access_path,
             "readonly": True,
+        }
+
+    @classmethod
+    def _serialize_exception(cls, obj: Exception) -> SerializedException:
+        try:
+            value = obj.args[0]
+        except Exception:
+            value = str(obj)
+
+        return {
+            "full_access_path": "",
+            "doc": None,
+            "readonly": True,
+            "type": "Exception",
+            "value": value,
+            "name": obj.__class__.__name__,
         }
 
 
