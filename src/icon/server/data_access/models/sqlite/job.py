@@ -32,11 +32,11 @@ class Job(Base):
     #     sqlalchemy.ForeignKey("user.id"),
     #     default=None,
     # )
-    experiment_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+    experiment_source_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
         sqlalchemy.ForeignKey("experiment_sources.id")
     )
-    experiment: sqlalchemy.orm.Mapped["ExperimentSource"] = sqlalchemy.orm.relationship(
-        back_populates="jobs"
+    experiment_source: sqlalchemy.orm.Mapped["ExperimentSource"] = (
+        sqlalchemy.orm.relationship(back_populates="jobs")
     )
     status: sqlalchemy.orm.Mapped[JobStatus] = sqlalchemy.orm.mapped_column(
         default=JobStatus.SUBMITTED

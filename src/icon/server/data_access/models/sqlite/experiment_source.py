@@ -23,7 +23,7 @@ class ExperimentSource(Base):
     name: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column()
     file_path: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column()
     jobs: sqlalchemy.orm.Mapped[list["Job"]] = sqlalchemy.orm.relationship(
-        back_populates="experiment"
+        back_populates="experiment_source"
     )
 
     @sqlalchemy.orm.validates("file_path")

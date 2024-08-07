@@ -37,7 +37,7 @@ class JobRepository:
             stmt = (
                 select(Job)
                 .where(Job.status == status)
-                .options(sqlalchemy.orm.joinedload(Job.experiment))
+                .options(sqlalchemy.orm.joinedload(Job.experiment_source))
                 # .options(sqlalchemy.orm.joinedload(Job.scan_parameters))
                 .order_by(Job.created.asc())
             )
