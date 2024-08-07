@@ -64,7 +64,7 @@ class Client:
     async def _handle_disconnect(self) -> None:
         logger.debug("Disconnected")
 
-    async def async_connect(self) -> None:
+    async def _async_connect(self) -> None:
         if not self._sio.connected:
             await self._sio.connect(
                 self._url,
@@ -75,21 +75,21 @@ class Client:
 
     def connect(self) -> None:
         connection_future = asyncio.run_coroutine_threadsafe(
-            self.async_connect(), self._loop
+            self._async_connect(), self._loop
         )
         connection_future.result()
 
     def disconnect(self) -> None:
         connection_future = asyncio.run_coroutine_threadsafe(
-            self.async_disconnect(), self._loop
+            self._async_disconnect(), self._loop
         )
         connection_future.result()
 
-    async def async_disconnect(self) -> None:
+    async def _async_disconnect(self) -> None:
         if self._sio.connected:
             await self._sio.disconnect()
 
-    async def async_get_value(self, full_access_path: str) -> Any:
+    async def _async_get_value(self, full_access_path: str) -> Any:
         serialized_value: SerializedIconObject | None = await self._sio.call(
             "get_value", full_access_path
         )
@@ -99,11 +99,11 @@ class Client:
 
     def get_value(self, full_access_path: str) -> Any:
         get_value_future = asyncio.run_coroutine_threadsafe(
-            self.async_get_value(full_access_path), self._loop
+            self._async_get_value(full_access_path), self._loop
         )
         return get_value_future.result()
 
-    async def async_set_value(self, full_access_path: str, new_value: Any) -> Any:
+    async def _async_set_value(self, full_access_path: str, new_value: Any) -> Any:
         return await self._sio.call(
             "update_value",
             {
@@ -114,11 +114,11 @@ class Client:
 
     def set_value(self, full_access_path: str, new_value: Any) -> Any:
         set_value_future = asyncio.run_coroutine_threadsafe(
-            self.async_set_value(full_access_path, new_value), self._loop
+            self._async_set_value(full_access_path, new_value), self._loop
         )
         return set_value_future.result()
 
-    async def async_trigger_method(
+    async def _async_trigger_method(
         self,
         full_access_path: str,
         *,
@@ -147,7 +147,7 @@ class Client:
         kwargs: dict[str, Any] = {},
     ) -> Any:
         trigger_method_future = asyncio.run_coroutine_threadsafe(
-            self.async_trigger_method(full_access_path, args=args, kwargs=kwargs),
+            self._async_trigger_method(full_access_path, args=args, kwargs=kwargs),
             self._loop,
         )
         return trigger_method_future.result()
