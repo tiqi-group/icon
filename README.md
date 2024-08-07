@@ -7,7 +7,7 @@ This repository contains the source code for the ICON Experiment Control softwar
 ## Development
 
 ```bash
-poetry install --with dev
+poetry install --with dev --all-extras
 poetry shell
 ```
 
