@@ -1,6 +1,5 @@
 import logging
 from collections.abc import Sequence
-from typing import cast
 
 import sqlalchemy.orm
 from sqlalchemy import select
@@ -51,24 +50,21 @@ class JobRepository:
     def get_job_by_experiment_source_and_status(
         *,
         experiment_source_id: int,
-        status: JobStatus | list[JobStatus] = [*JobStatus],
+        status: JobStatus | list[JobStatus] | None = None,
     ) -> Sequence[sqlalchemy.Row[tuple[Job]]]:
         """Gets all the Job instances with given experiment_source_id and status."""
 
-        if not isinstance(status, list):
-            status = [status]
-
         with sqlalchemy.orm.Session(engine) as session:
-            stmt = (
-                select(Job)
-                .where(Job.experiment_source_id == experiment_source_id)
-                .where(Job.status.in_(cast(list[JobStatus], status)))
-                .order_by(Job.priority.asc())
-                .order_by(Job.created.asc())
-                # this somehow creates a USE TEMP B-TREE FOR ORDER BY query, but it is
-                # still faster than selectinload
-                .options(sqlalchemy.orm.joinedload(Job.experiment_source))
-            )
+            stmt = select(Job).where(Job.experiment_source_id == experiment_source_id)
+
+            if status:
+                if not isinstance(status, list):
+                    status = [status]
+                stmt = stmt.where(Job.status.in_(status))
+
+            stmt = stmt.options(
+                sqlalchemy.orm.joinedload(Job.experiment_source)
+            ).order_by(Job.priority.asc(), Job.created.asc())
 
             jobs = session.execute(stmt).all()
             logger.debug("Got jobs by experiment_source_id %s", experiment_source_id)
