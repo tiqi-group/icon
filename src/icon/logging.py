@@ -30,6 +30,11 @@ LOGGING_CONFIG = {
     },
     "loggers": {
         "icon": {"handlers": ["default"], "level": LOG_LEVEL, "propagate": False},
+        "sqlalchemy.engine": {
+            "handlers": ["default"],
+            "level": logging.INFO if LOG_LEVEL == logging.DEBUG else logging.WARNING,
+            "propagate": False,
+        },
     },
 }
 
@@ -44,6 +49,6 @@ def setup_logging() -> None:
     other environments, it is set to INFO.
     """
 
-    logger.debug("Configuring pydase logging.")
-
     logging.config.dictConfig(LOGGING_CONFIG)
+
+    logger.debug("Configured icon logging.")
