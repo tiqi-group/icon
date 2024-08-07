@@ -19,7 +19,20 @@ class Job(Base):
     __tablename__ = "jobs"
     __table_args__ = (
         # used by JobRepository.get_jobs_by_status
-        sqlalchemy.Index("status_index", "status", "created"),
+        sqlalchemy.Index(
+            "status_index",
+            "status",
+            "priority",
+            "created",
+        ),
+        # used by JobRepository.get_job_by_experiment_source_and_status
+        sqlalchemy.Index(
+            "by_experiment_id_and_status",
+            "experiment_source_id",
+            "status",
+            "priority",
+            "created",
+        ),
     )
 
     id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
@@ -60,7 +73,10 @@ class Job(Base):
     # )
 
     def __repr__(self) -> str:
-        return f"<Job created={self.created}, status={self.status}>"
+        return (
+            f"<Job priority={self.priority} "
+            f"created={self.created} status={self.status}>"
+        )
 
 
 @sqlalchemy.event.listens_for(Job, "before_insert")
