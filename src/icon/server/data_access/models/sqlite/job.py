@@ -11,6 +11,7 @@ from icon.server.data_access.models.sqlite.base import Base
 
 if TYPE_CHECKING:
     from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
+    from icon.server.data_access.models.sqlite.job_iteration import JobIteration
 
 zurich_timezone = pytz.timezone("Europe/Zurich")
 
@@ -67,6 +68,9 @@ class Job(Base):
     )
     auto_calibration: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(
         default=False
+    )
+    iterations: sqlalchemy.orm.Mapped["JobIteration"] = sqlalchemy.orm.relationship(
+        back_populates="job"
     )
     # scan_parameters: sqlalchemy.orm.Mapped[list[ScanParameter]] = (
     #     sqlalchemy.orm.relationship(back_populates="job")
