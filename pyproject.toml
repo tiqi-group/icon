@@ -9,12 +9,13 @@ packages = [{include = "icon", from = "src"}]
 [tool.poetry.dependencies]
 python = "^3.12"
 pydase = { git = "https://github.com/tiqi-group/pydase.git", branch = "main" }
-sqlmodel = {version = "^0.0.18", optional = true}
-pytz = {version = "^2024.1", optional = true}
+pytz = "^2024.1"
+sqlalchemy = {version = "^2.0.32", optional = true}
 redis = "^5.0.7"
+h5py = "^3.11.0"
 
 [tool.poetry.extras]
-server = ["sqlmodel", "pytz"]
+server = ["sqlalchemy"]
 
 [build-system]
 requires = ["poetry-core"]
@@ -31,9 +32,7 @@ types-pytz = "^2024.1.0.20240203"
 pytest-docker = "^3.1.1"
 types-psutil = "^5.9.5.20240106"
 pytest = "^8.1.1"
-requests = "^2.31.0"
 podman-compose = "^1.0.6"
-types-requests = "^2.31.0.20240406"
 
 
 [tool.pyright]
