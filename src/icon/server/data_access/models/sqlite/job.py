@@ -17,6 +17,10 @@ zurich_timezone = pytz.timezone("Europe/Zurich")
 
 class Job(Base):
     __tablename__ = "jobs"
+    __table_args__ = (
+        # used by JobRepository.get_jobs_by_status
+        sqlalchemy.Index("status_index", "status", "created"),
+    )
 
     id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
         primary_key=True, autoincrement=True
