@@ -2,15 +2,14 @@ import asyncio
 import logging
 import sys
 import threading
-from datetime import datetime
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
 import socketio  # type: ignore
 
+from icon.client.api.scheduler_controller import SchedulerController
 from icon.serialization.deserializer import loads
 from icon.serialization.serializer import dump
-from icon.server.api.models.experiment import Experiment
 
 if TYPE_CHECKING:
     from icon.serialization.types import SerializedIconObject
@@ -30,29 +29,6 @@ def asyncio_loop_thread(loop: asyncio.AbstractEventLoop) -> None:
     loop.run_forever()
 
 
-class Scheduler:
-    def __init__(self, client: "Client") -> None:
-        self._client = client
-
-    def submit_job(
-        self,
-        *,
-        experiment: Experiment,
-        priority: int,
-        local_parameters_timestamp: datetime,
-        # scan_info: ScanInfo,
-    ) -> Any:
-        return self._client.trigger_method(
-            "scheduler.submit_job",
-            kwargs={
-                "experiment": experiment,
-                "priority": priority,
-                "local_parameters_timestamp": local_parameters_timestamp,
-                # "scan_info": scan_info,
-            },
-        )
-
-
 class Client:
     def __init__(
         self,
@@ -67,7 +43,7 @@ class Client:
             target=asyncio_loop_thread, args=(self._loop,), daemon=True
         )
         self._thread.start()
-        self.scheduler = Scheduler(self)
+        self.scheduler = SchedulerController(self)
 
     def __enter__(self) -> Self:
         self.connect()
