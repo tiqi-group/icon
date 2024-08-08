@@ -5,11 +5,11 @@ partition #00000010 Initialization {
     :Update Job Execution History table;
     note left
         Mark experiments that have
-        not finished as failed.
+        not finished as cancelled.
     end note
     :Update Job table;
     note left
-        Mark processing jobs as done.
+        Mark processing jobs as processed.
     end note
 }
 repeat
@@ -19,20 +19,9 @@ repeat
                 :Update Job Status
                 to "PROCESSING";
                 :Write job to Job
-                Execution History table;
-                :Create "PreProcessingJob";
-                note left
-                    If in development mode,
-                    pass the dev source code
-                    directory as src_dir.
-                end note
-                note right
-                    No distinction between 
-                    real-time scan and parameter
-                    scan. Pre-processing worker
-                    will create src_dir.
-                end note
-                :Put PreProcessingJob in
+                Iteration table;
+                :Create "PreProcessingTask";
+                :Put PreProcessingTask in
                 pre-processing queue;
             }
         endwhile (no)
