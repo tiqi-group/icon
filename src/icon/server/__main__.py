@@ -1,10 +1,9 @@
-import multiprocessing
 from pathlib import Path
 
 import pydase
 
-import icon.server.pre_processing.pre_processing
 from icon.server.api.api_service import APIService
+from icon.server.scheduler.scheduler import Scheduler
 
 
 def patch_serialization_methods() -> None:
@@ -33,8 +32,8 @@ def patch_sio_setup() -> None:
 patch_serialization_methods()
 patch_sio_setup()
 
-p = multiprocessing.Process(target=icon.server.pre_processing.pre_processing.task)
-p.start()
+scheduler = Scheduler()
+scheduler.start()
 
 
 pydase.Server(APIService(), frontend_src=Path(__file__).parent / "frontend").run()
