@@ -11,6 +11,14 @@ poetry install --with dev --all-extras
 poetry shell
 ```
 
+Initialise the database using alembic:
+
+```bash
+alembic upgrade head
+```
+
+(see [here](./alembic/README.md) for how to update the SQLite database schema)
+
 Running the server (when in the virtual environment):
 
 ```bash
