@@ -55,7 +55,6 @@ class Scheduler(multiprocessing.Process):
                     job=job_._tuple()[0], status=JobStatus.PROCESSING
                 )
                 iteration = JobIteration(
-                    priority=job.priority,
                     job_id=job.id,
                 )
                 iteration = JobIterationRepository.insert_iteration(iteration=iteration)
@@ -70,7 +69,7 @@ class Scheduler(multiprocessing.Process):
                         experiment_file_path=job.experiment_source.file_path,
                         experiment_name=job.experiment_source.name,
                         auto_calibration=job.auto_calibration,
-                        debug_mode=False,
+                        debug_mode=job.debug_mode,
                     )
                 )
             time.sleep(1)
