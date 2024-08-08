@@ -85,6 +85,9 @@ def upgrade() -> None:
             ["jobs.id"],
         ),
         sa.PrimaryKeyConstraint("id"),
+        sa.Column("priority", sa.Integer(), nullable=False),
+        sa.CheckConstraint("priority >= 0", name="priority_ge_0"),
+        sa.CheckConstraint("priority <= 20", name="priority_le_20"),
     )
     # ### end Alembic commands ###
 
