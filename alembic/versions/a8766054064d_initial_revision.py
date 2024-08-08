@@ -59,9 +59,6 @@ def upgrade() -> None:
         ["experiment_source_id", "status", "priority", "created"],
         unique=False,
     )
-    op.create_index(
-        "status_index", "jobs", ["status", "priority", "created"], unique=False
-    )
     op.create_table(
         "job_iterations",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
@@ -89,6 +86,12 @@ def upgrade() -> None:
         sa.CheckConstraint("priority >= 0", name="priority_ge_0"),
         sa.CheckConstraint("priority <= 20", name="priority_le_20"),
     )
+    op.create_index(
+        "by_job_id_and_status",
+        "job_iterations",
+        ["job_id", "status", "priority", "scheduled_time"],
+        unique=False,
+    )
     # ### end Alembic commands ###
 
 
@@ -97,7 +100,7 @@ def downgrade() -> None:
     op.drop_table("job_iterations")
     op.drop_table("jobs")
     op.drop_table("experiment_sources")
-    op.drop_index("status_index", table_name="jobs")
+    op.drop_index("by_job_id_and_status", table_name="job_iterations")
     op.drop_index("by_experiment_id_and_status", table_name="jobs")
     op.drop_constraint("priority_ge_0", table_name="jobs")
     op.drop_constraint("priority_le_20", table_name="jobs")
