@@ -13,6 +13,7 @@ pytz = "^2024.1"
 sqlalchemy = {version = "^2.0.32", optional = true}
 redis = "^5.0.7"
 h5py = "^3.11.0"
+alembic = "^1.13.2"
 
 [tool.poetry.extras]
 server = ["sqlalchemy"]
