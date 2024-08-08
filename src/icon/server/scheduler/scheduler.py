@@ -21,7 +21,7 @@ def initialise_job_table() -> None:
         JobIterationRepository.update_iteration(
             iteration=job_iteration_._tuple()[0],
             status=JobIterationStatus.CANCELLED,
-            log="Cancelled when restarting scheduler.",
+            log="Cancelled during scheduler initialization.",
         )
 
     # update jobs table
@@ -47,11 +47,24 @@ class Scheduler(multiprocessing.Process):
         while True:
             jobs = JobRepository.get_jobs_by_status(status=JobStatus.SUBMITTED)
             for job_ in jobs:
-                job = job_._tuple()[0]
-                JobRepository.update_job_status(job=job, status=JobStatus.PROCESSING)
+                job = JobRepository.update_job_status(
+                    job=job_._tuple()[0], status=JobStatus.PROCESSING
+                )
                 iteration = JobIteration(
                     priority=job.priority,
                     job_id=job.id,
                 )
                 iteration = JobIterationRepository.insert_iteration(iteration=iteration)
+
+                self._pre_processing_queue.put(
+                    PreProcessingTask(
+                        name=f"{job.id}:{iteration.id}",
+                        git_commit_hash=job.git_commit_hash,
+                        local_parameters_timestamp=job.local_parameters_timestamp,
+                        priority=job.priority,
+                        experiment_file_path=job.experiment_source.file_path,
+                        experiment_name=job.experiment_source.name,
+                        auto_calibration=job.auto_calibration,
+                    )
+                )
             time.sleep(1)
