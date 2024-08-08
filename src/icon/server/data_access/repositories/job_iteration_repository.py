@@ -29,9 +29,9 @@ class JobIterationRepository:
         return iteration
 
     @staticmethod
-    def update_iteration(
+    def update_iteration_by_id(
         *,
-        iteration: JobIteration,
+        iteration_id: int,
         status: JobIterationStatus,
         log: str | None = None,
     ) -> JobIteration:
@@ -42,7 +42,7 @@ class JobIterationRepository:
         with sqlalchemy.orm.Session(engine) as session:
             stmt = (
                 update(JobIteration)
-                .where(JobIteration.id == iteration.id)
+                .where(JobIteration.id == iteration_id)
                 .values(status=status, log=log)
                 .returning(JobIteration)
             )

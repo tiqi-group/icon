@@ -36,7 +36,11 @@ class JobRepository:
 
         with sqlalchemy.orm.Session(engine) as session:
             stmt = (
-                update(Job).where(Job.id == job.id).values(status=status).returning(Job)
+                update(Job)
+                .where(Job.id == job.id)
+                .values(status=status)
+                .returning(Job)
+                .options(sqlalchemy.orm.joinedload(Job.experiment_source))
             )
             job = session.execute(stmt).scalar_one()
             session.commit()

@@ -18,8 +18,8 @@ def initialise_job_table() -> None:
         status=[JobIterationStatus.PENDING, JobIterationStatus.PROCESSING]
     )
     for job_iteration_ in job_iterations:
-        JobIterationRepository.update_iteration(
-            iteration=job_iteration_._tuple()[0],
+        JobIterationRepository.update_iteration_by_id(
+            iteration_id=job_iteration_._tuple()[0].id,
             status=JobIterationStatus.CANCELLED,
             log="Cancelled during scheduler initialization.",
         )
