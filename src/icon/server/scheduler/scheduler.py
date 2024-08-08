@@ -58,7 +58,8 @@ class Scheduler(multiprocessing.Process):
 
                 self._pre_processing_queue.put(
                     PreProcessingTask(
-                        name=f"{job.id}:{iteration.id}",
+                        job_id=job.id,
+                        iteration_id=iteration.id,
                         git_commit_hash=job.git_commit_hash,
                         local_parameters_timestamp=job.local_parameters_timestamp,
                         priority=job.priority,

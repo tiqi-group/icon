@@ -4,6 +4,7 @@ import pydase
 
 import icon.server.queue_manager
 from icon.server.api.api_service import APIService
+from icon.server.pre_processing.pre_processing import PreProcessingWorker
 from icon.server.scheduler.scheduler import Scheduler
 
 
@@ -37,6 +38,12 @@ scheduler = Scheduler(
     pre_processing_queue=icon.server.queue_manager.pre_processing_queue
 )
 scheduler.start()
+pre_processing_worker = PreProcessingWorker(
+    worker_number=0,
+    pre_processing_queue=icon.server.queue_manager.pre_processing_queue,
+    manager=icon.server.queue_manager.manager,
+)
+pre_processing_worker.start()
 
 
 pydase.Server(APIService(), frontend_src=Path(__file__).parent / "frontend").run()

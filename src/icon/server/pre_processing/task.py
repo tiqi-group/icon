@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from datetime import datetime  # noqa: TCH003 Need this for pydantic's type inference
 
 import pydantic
 
-if TYPE_CHECKING:
-    from datetime import datetime
-
 
 class PreProcessingTask(pydantic.BaseModel):
-    name: str
+    job_id: int
+    iteration_id: int
     experiment_file_path: str
     experiment_name: str
     git_commit_hash: str | None = None
