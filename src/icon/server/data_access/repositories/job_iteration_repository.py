@@ -55,14 +55,18 @@ class JobIterationRepository:
     @staticmethod
     def get_iterations_by_status(
         *,
-        status: JobIterationStatus,
+        status: JobIterationStatus | list[JobIterationStatus],
         load_job: bool = False,
     ) -> Sequence[sqlalchemy.Row[tuple[JobIteration]]]:
         """Gets all the JobIteration instances with given status."""
+
+        if not isinstance(status, list):
+            status = [status]
+
         with sqlalchemy.orm.Session(engine) as session:
             stmt = (
                 select(JobIteration)
-                .where(JobIteration.status == status)
+                .where(JobIteration.status.in_(status))
                 .order_by(JobIteration.priority.asc())
                 .order_by(JobIteration.scheduled_time.asc())
             )
@@ -70,9 +74,7 @@ class JobIterationRepository:
             if load_job:
                 stmt = stmt.options(sqlalchemy.orm.joinedload(JobIteration.job))
 
-            iterations = session.execute(stmt).all()
-            logger.debug("Got JobIterations filtered by status %s", status)
-        return iterations
+            return session.execute(stmt).all()
 
     @staticmethod
     def get_iterations_by_job_id_and_status(
