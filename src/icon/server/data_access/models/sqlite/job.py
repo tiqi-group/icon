@@ -19,14 +19,8 @@ zurich_timezone = pytz.timezone("Europe/Zurich")
 class Job(Base):
     __tablename__ = "jobs"
     __table_args__ = (
-        # used by JobRepository.get_jobs_by_status
-        sqlalchemy.Index(
-            "status_index",
-            "status",
-            "priority",
-            "created",
-        ),
-        # used by JobRepository.get_job_by_experiment_source_and_status
+        # used by JobRepository.get_jobs_by_status and
+        # JobRepository.get_job_by_experiment_source_and_status
         sqlalchemy.Index(
             "by_experiment_id_and_status",
             "experiment_source_id",
