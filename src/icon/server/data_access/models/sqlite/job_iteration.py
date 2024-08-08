@@ -20,6 +20,13 @@ class JobIteration(Base):
     __table_args__ = (
         sqlalchemy.CheckConstraint("priority >= 0", name="priority_ge_0"),
         sqlalchemy.CheckConstraint("priority <= 20", name="priority_le_20"),
+        sqlalchemy.Index(
+            "by_job_id_and_status",
+            "job_id",
+            "status",
+            "priority",
+            "scheduled_time",
+        ),
     )
 
     id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
