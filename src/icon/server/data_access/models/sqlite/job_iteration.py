@@ -18,13 +18,10 @@ zurich_timezone = pytz.timezone("Europe/Zurich")
 class JobIteration(Base):
     __tablename__ = "job_iterations"
     __table_args__ = (
-        sqlalchemy.CheckConstraint("priority >= 0", name="priority_ge_0"),
-        sqlalchemy.CheckConstraint("priority <= 20", name="priority_le_20"),
         sqlalchemy.Index(
             "by_job_id_and_status",
             "job_id",
             "status",
-            "priority",
             "scheduled_time",
         ),
     )
@@ -34,9 +31,6 @@ class JobIteration(Base):
     )
     scheduled_time: sqlalchemy.orm.Mapped[datetime.datetime] = (
         sqlalchemy.orm.mapped_column(default=datetime.datetime.now(zurich_timezone))
-    )
-    priority: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
-        default=20,
     )
     job_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
         sqlalchemy.ForeignKey("jobs.id")

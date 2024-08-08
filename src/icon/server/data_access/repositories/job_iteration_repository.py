@@ -67,7 +67,6 @@ class JobIterationRepository:
             stmt = (
                 select(JobIteration)
                 .where(JobIteration.status.in_(status))
-                .order_by(JobIteration.priority.asc())
                 .order_by(JobIteration.scheduled_time.asc())
             )
 
@@ -94,9 +93,7 @@ class JobIterationRepository:
             if load_job:
                 stmt = stmt.options(sqlalchemy.orm.joinedload(JobIteration.job))
 
-            stmt = stmt.order_by(
-                JobIteration.priority.asc(), JobIteration.scheduled_time.asc()
-            )
+            stmt = stmt.order_by(JobIteration.scheduled_time.asc())
 
             iterations = session.execute(stmt).all()
             logger.debug("Got JobIterations by job_id %s", job_id)
