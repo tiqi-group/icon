@@ -66,6 +66,9 @@ class Job(Base):
     iterations: sqlalchemy.orm.Mapped["JobIteration"] = sqlalchemy.orm.relationship(
         back_populates="job"
     )
+    debug_mode: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(
+        default=False
+    )
     # scan_parameters: sqlalchemy.orm.Mapped[list[ScanParameter]] = (
     #     sqlalchemy.orm.relationship(back_populates="job")
     # )
