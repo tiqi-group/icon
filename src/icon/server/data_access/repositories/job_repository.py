@@ -44,16 +44,14 @@ class JobRepository:
     @staticmethod
     def get_jobs_by_status(
         *,
-        status: JobStatus | list[JobStatus],
+        status: JobStatus,
     ) -> Sequence[sqlalchemy.Row[tuple[Job]]]:
         """Gets all the Job instances with given status."""
-        if not isinstance(status, list):
-            status = [status]
 
         with sqlalchemy.orm.Session(engine) as session:
             stmt = (
                 select(Job)
-                .where(Job.status.in_(status))
+                .where(Job.status == status)
                 .options(sqlalchemy.orm.joinedload(Job.experiment_source))
                 # .options(sqlalchemy.orm.joinedload(Job.scan_parameters))
                 .order_by(Job.priority.asc())
@@ -67,7 +65,7 @@ class JobRepository:
     def get_job_by_experiment_source_and_status(
         *,
         experiment_source_id: int,
-        status: JobStatus | list[JobStatus] | None = None,
+        status: JobStatus | None = None,
     ) -> Sequence[sqlalchemy.Row[tuple[Job]]]:
         """Gets all the Job instances with given experiment_source_id and status."""
 
@@ -75,9 +73,7 @@ class JobRepository:
             stmt = select(Job).where(Job.experiment_source_id == experiment_source_id)
 
             if status:
-                if not isinstance(status, list):
-                    status = [status]
-                stmt = stmt.where(Job.status.in_(status))
+                stmt = stmt.where(Job.status == status)
 
             stmt = stmt.options(
                 sqlalchemy.orm.joinedload(Job.experiment_source)
