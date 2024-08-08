@@ -2,7 +2,7 @@ import logging
 from collections.abc import Sequence
 
 import sqlalchemy.orm
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from icon.server.data_access.db_context.sqlite import engine
 from icon.server.data_access.models.enums import JobIterationStatus
@@ -40,9 +40,14 @@ class JobIterationRepository:
         """
 
         with sqlalchemy.orm.Session(engine) as session:
-            iteration.status = status
-            iteration.log = log
-            session.flush()
+            stmt = (
+                update(JobIteration)
+                .where(JobIteration.id == iteration.id)
+                .values(status=status, log=log)
+                .returning(JobIteration)
+            )
+            iteration = session.execute(stmt).scalar_one()
+            session.commit()
 
             logger.debug("Updated iteration %s", iteration)
         return iteration

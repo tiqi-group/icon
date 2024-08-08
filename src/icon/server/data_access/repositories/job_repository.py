@@ -2,7 +2,7 @@ import logging
 from collections.abc import Sequence
 
 import sqlalchemy.orm
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from icon.server.data_access.db_context.sqlite import engine
 from icon.server.data_access.models.enums import JobStatus
@@ -35,8 +35,11 @@ class JobRepository:
         """Updates a job instance in the database and returns this instance."""
 
         with sqlalchemy.orm.Session(engine) as session:
-            job.status = status
-            session.flush()
+            stmt = (
+                update(Job).where(Job.id == job.id).values(status=status).returning(Job)
+            )
+            job = session.execute(stmt).scalar_one()
+            session.commit()
 
             logger.debug("Updated job %s", job)
         return job
@@ -58,7 +61,6 @@ class JobRepository:
                 .order_by(Job.created.asc())
             )
             jobs = session.execute(stmt).all()
-            logger.debug("Got jobs filtered by status %s", status)
         return jobs
 
     @staticmethod
