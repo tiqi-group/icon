@@ -27,16 +27,33 @@ class JobRepository:
         return job
 
     @staticmethod
+    def update_job_status(
+        *,
+        job: Job,
+        status: JobStatus,
+    ) -> Job:
+        """Updates a job instance in the database and returns this instance."""
+
+        with sqlalchemy.orm.Session(engine) as session:
+            job.status = status
+            session.flush()
+
+            logger.debug("Updated job %s", job)
+        return job
+
+    @staticmethod
     def get_jobs_by_status(
         *,
-        status: JobStatus,
+        status: JobStatus | list[JobStatus],
     ) -> Sequence[sqlalchemy.Row[tuple[Job]]]:
         """Gets all the Job instances with given status."""
+        if not isinstance(status, list):
+            status = [status]
 
         with sqlalchemy.orm.Session(engine) as session:
             stmt = (
                 select(Job)
-                .where(Job.status == status)
+                .where(Job.status.in_(status))
                 .options(sqlalchemy.orm.joinedload(Job.experiment_source))
                 # .options(sqlalchemy.orm.joinedload(Job.scan_parameters))
                 .order_by(Job.priority.asc())
