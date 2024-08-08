@@ -32,6 +32,10 @@ def initialise_job_table() -> None:
         )
 
 
+def should_exit() -> bool:
+    return False
+
+
 class Scheduler(multiprocessing.Process):
     def __init__(
         self,
@@ -44,7 +48,7 @@ class Scheduler(multiprocessing.Process):
 
     def run(self) -> None:
         initialise_job_table()
-        while True:
+        while not should_exit():
             jobs = JobRepository.get_jobs_by_status(status=JobStatus.SUBMITTED)
             for job_ in jobs:
                 job = JobRepository.update_job_status(
@@ -66,6 +70,7 @@ class Scheduler(multiprocessing.Process):
                         experiment_file_path=job.experiment_source.file_path,
                         experiment_name=job.experiment_source.name,
                         auto_calibration=job.auto_calibration,
+                        debug_mode=False,
                     )
                 )
             time.sleep(1)
