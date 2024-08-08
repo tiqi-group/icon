@@ -34,6 +34,8 @@ class Job(Base):
             "priority",
             "created",
         ),
+        sqlalchemy.CheckConstraint("priority >= 0", name="priority_ge_0"),
+        sqlalchemy.CheckConstraint("priority <= 20", name="priority_le_20"),
     )
 
     id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
@@ -59,8 +61,6 @@ class Job(Base):
         default=None
     )
     priority: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
-        sqlalchemy.CheckConstraint("priority >= 0"),
-        sqlalchemy.CheckConstraint("priority <= 20"),
         default=20,
     )
     local_parameters_timestamp: sqlalchemy.orm.Mapped[datetime.datetime] = (
