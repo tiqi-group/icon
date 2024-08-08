@@ -1,4 +1,5 @@
 import multiprocessing
+import queue
 import time
 from typing import Any
 
@@ -8,6 +9,7 @@ from icon.server.data_access.repositories.job_iteration_repository import (
     JobIterationRepository,
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
+from icon.server.pre_processing.task import PreProcessingTask
 
 
 def initialise_job_table() -> None:
@@ -31,9 +33,14 @@ def initialise_job_table() -> None:
 
 
 class Scheduler(multiprocessing.Process):
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        pre_processing_queue: queue.PriorityQueue[PreProcessingTask],
+        **kwargs: Any,
+    ) -> None:
         super().__init__()
         self.kwargs = kwargs
+        self._pre_processing_queue = pre_processing_queue
 
     def run(self) -> None:
         initialise_job_table()

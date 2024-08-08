@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pydase
 
+import icon.server.queue_manager
 from icon.server.api.api_service import APIService
 from icon.server.scheduler.scheduler import Scheduler
 
@@ -32,7 +33,9 @@ def patch_sio_setup() -> None:
 patch_serialization_methods()
 patch_sio_setup()
 
-scheduler = Scheduler()
+scheduler = Scheduler(
+    pre_processing_queue=icon.server.queue_manager.pre_processing_queue
+)
 scheduler.start()
 
 
