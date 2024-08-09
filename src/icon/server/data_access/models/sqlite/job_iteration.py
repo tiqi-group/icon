@@ -33,7 +33,7 @@ class JobIteration(Base):
         sqlalchemy.orm.mapped_column(default=datetime.datetime.now(zurich_timezone))
     )
     job_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
-        sqlalchemy.ForeignKey("jobs.id")
+        sqlalchemy.ForeignKey("job_submissions.id")
     )
     job: sqlalchemy.orm.Mapped["Job"] = sqlalchemy.orm.relationship(
         back_populates="iterations"

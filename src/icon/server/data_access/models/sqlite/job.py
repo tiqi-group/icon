@@ -17,7 +17,7 @@ zurich_timezone = pytz.timezone("Europe/Zurich")
 
 
 class Job(Base):
-    __tablename__ = "jobs"
+    __tablename__ = "job_submissions"
     __table_args__ = (
         # used by JobRepository.get_jobs_by_status and
         # JobRepository.get_job_by_experiment_source_and_status
@@ -74,7 +74,7 @@ class Job(Base):
     # )
 
     parent_job_id: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column(
-        sqlalchemy.ForeignKey("jobs.id"), nullable=True
+        sqlalchemy.ForeignKey("job_submissions.id"), nullable=True
     )
     """Job ID of the original job from which this job was resubmitted"""
     parent_job: sqlalchemy.orm.Mapped["Job | None"] = sqlalchemy.orm.relationship(
