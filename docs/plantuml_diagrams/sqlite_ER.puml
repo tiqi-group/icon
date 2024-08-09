@@ -1,32 +1,34 @@
 @startuml
 skinparam linetype ortho
 
-entity "Experiment" as experiment {
-    *experiment_id: number <<generated>>
+entity "ExperimentSource" as experiment {
+    *experiment_source_id: number <<generated>>
     ---
     *file_path: text (relative within repository)
     *name: text (class name)
 }
 
-entity "Experiment Job" as job {
+entity "Job" as job {
     *job_id: number <<generated>>
     *created: timestamp
     ---
     *user_id: number <<FK>>
-    *experiment_id: number <<FK>>
-    *status: text (submitted / processing / done)
+    *experiment_source_id: number <<FK>>
+    *status: Enum (submitted / processing / done)
     *git_commit_hash: text
-    *priority: int between 0 and 20
+    *priority: number between 0 and 20
     *local_parameters_timestamp: timestamp
     *auto_calibration: bool
+    *debug_mode: bool
+    parent_job_id: number <<FK>>
 }
 
-entity "Experiment Job Execution History" as history {
-    *job_execution_id: number <<generated>>
+entity "JobRun" as job_run {
+    *job_run_id: number <<generated>>
     *scheduled_time: timestamp
     ---
-    *job_id: int <<FK>>
-    *status: text (pending / processing / failed / cancelled / done)
+    *job_id: number <<FK>>
+    *status: Enum (pending / processing / failed / cancelled / done)
     log: text (job information)
 }
 
@@ -41,7 +43,7 @@ entity "User" as user {
 entity "Scan Parameter" as scan_param {
     *scan_parameter_id: number <<generated>>
     --
-    *job_id: int <<FK>>
+    *job_id: number <<FK>>
     *variable_name: text
     *scan_values: list of numbers
     *remote_source_id: number <<FK>>
@@ -52,7 +54,7 @@ entity "Remote Source (Service or DB)" as remote {
     *name: text  <<unique>>
     --
     *hostname: text
-    *port: int
+    *port: number
     *active: bool
     description: text
 }
@@ -61,7 +63,7 @@ entity "Remote Source (Service or DB)" as remote {
 job }o..|| user
 job ||..o{ scan_param
 experiment ||.o{ job
-job ||..o{ history
+job ||..o{ job_run
 remote ||..o{ scan_param
 
 @enduml
