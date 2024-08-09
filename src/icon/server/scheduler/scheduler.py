@@ -1,26 +1,30 @@
 import multiprocessing
 import queue
 import time
+from datetime import datetime
 from typing import Any
 
-from icon.server.data_access.models.enums import JobIterationStatus, JobStatus
-from icon.server.data_access.models.sqlite.job_iteration import JobIteration
-from icon.server.data_access.repositories.job_iteration_repository import (
-    JobIterationRepository,
+from icon.server.data_access.models.enums import JobRunStatus, JobStatus
+from icon.server.data_access.models.sqlite.job_run import (
+    JobRun,
+    zurich_timezone,
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
+from icon.server.data_access.repositories.job_run_repository import (
+    JobRunRepository,
+)
 from icon.server.pre_processing.task import PreProcessingTask
 
 
-def initialise_job_table() -> None:
-    # update job_iterations table
-    job_iterations = JobIterationRepository.get_iterations_by_status(
-        status=[JobIterationStatus.PENDING, JobIterationStatus.PROCESSING]
+def initialise_job_tables() -> None:
+    # update job_runs table
+    job_runs = JobRunRepository.get_runs_by_status(
+        status=[JobRunStatus.PENDING, JobRunStatus.PROCESSING]
     )
-    for job_iteration_ in job_iterations:
-        JobIterationRepository.update_iteration_by_id(
-            iteration_id=job_iteration_._tuple()[0].id,
-            status=JobIterationStatus.CANCELLED,
+    for job_run_ in job_runs:
+        JobRunRepository.update_run_by_id(
+            run_id=job_run_._tuple()[0].id,
+            status=JobRunStatus.CANCELLED,
             log="Cancelled during scheduler initialization.",
         )
 
@@ -47,22 +51,22 @@ class Scheduler(multiprocessing.Process):
         self._pre_processing_queue = pre_processing_queue
 
     def run(self) -> None:
-        initialise_job_table()
+        initialise_job_tables()
         while not should_exit():
             jobs = JobRepository.get_jobs_by_status(status=JobStatus.SUBMITTED)
             for job_ in jobs:
                 job = JobRepository.update_job_status(
                     job=job_._tuple()[0], status=JobStatus.PROCESSING
                 )
-                iteration = JobIteration(
-                    job_id=job.id,
+                run = JobRun(
+                    job_id=job.id, scheduled_time=datetime.now(tz=zurich_timezone)
                 )
-                iteration = JobIterationRepository.insert_iteration(iteration=iteration)
+                run = JobRunRepository.insert_run(run=run)
 
                 self._pre_processing_queue.put(
                     PreProcessingTask(
                         job_id=job.id,
-                        iteration_id=iteration.id,
+                        job_run_id=run.id,
                         git_commit_hash=job.git_commit_hash,
                         local_parameters_timestamp=job.local_parameters_timestamp,
                         priority=job.priority,

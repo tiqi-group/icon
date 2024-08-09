@@ -5,9 +5,9 @@ import tempfile
 from typing import TYPE_CHECKING
 
 # import icon.server.utils.git_helpers
-from icon.server.data_access.models.enums import JobIterationStatus
-from icon.server.data_access.repositories.job_iteration_repository import (
-    JobIterationRepository,
+from icon.server.data_access.models.enums import JobRunStatus
+from icon.server.data_access.repositories.job_run_repository import (
+    JobRunRepository,
 )
 from icon.server.pre_processing.task import PreProcessingTask
 
@@ -60,9 +60,9 @@ class PreProcessingWorker(multiprocessing.Process):
 
             while True:
                 pre_processing_task = self._queue.get()
-                JobIterationRepository.update_iteration_by_id(
-                    iteration_id=pre_processing_task.iteration_id,
-                    status=JobIterationStatus.PROCESSING,
+                JobRunRepository.update_run_by_id(
+                    run_id=pre_processing_task.job_run_id,
+                    status=JobRunStatus.PROCESSING,
                 )
 
                 # no_data_points: int = ...

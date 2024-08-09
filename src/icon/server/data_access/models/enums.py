@@ -7,7 +7,7 @@ class JobStatus(enum.Enum):
     PROCESSED = "processed"
 
 
-class JobIterationStatus(enum.Enum):
+class JobRunStatus(enum.Enum):
     PENDING = "pending"
     PROCESSING = "processing"
     FAILED = "failed"

@@ -6,7 +6,7 @@ import sqlalchemy
 import sqlalchemy.event
 import sqlalchemy.orm
 
-from icon.server.data_access.models.enums import JobIterationStatus
+from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.data_access.models.sqlite.base import Base
 
 if TYPE_CHECKING:
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 zurich_timezone = pytz.timezone("Europe/Zurich")
 
 
-class JobIteration(Base):
+class JobRun(Base):
     __tablename__ = "job_runs"
     __table_args__ = (
         sqlalchemy.Index(
@@ -36,15 +36,15 @@ class JobIteration(Base):
         sqlalchemy.ForeignKey("job_submissions.id")
     )
     job: sqlalchemy.orm.Mapped["Job"] = sqlalchemy.orm.relationship(
-        back_populates="iterations"
+        back_populates="run"
     )
-    status: sqlalchemy.orm.Mapped[JobIterationStatus] = sqlalchemy.orm.mapped_column(
-        default=JobIterationStatus.PENDING
+    status: sqlalchemy.orm.Mapped[JobRunStatus] = sqlalchemy.orm.mapped_column(
+        default=JobRunStatus.PENDING
     )
     log: sqlalchemy.orm.Mapped[str | None] = sqlalchemy.orm.mapped_column(default=None)
 
     def __repr__(self) -> str:
         return (
-            f"<JobIteration id={self.id} "
+            f"<JobRun id={self.id} "
             f"scheduled_time={self.scheduled_time} status={self.status}>"
         )

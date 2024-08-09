@@ -7,7 +7,7 @@ import pydantic
 
 class PreProcessingTask(pydantic.BaseModel):
     job_id: int
-    iteration_id: int
+    job_run_id: int
     experiment_file_path: str
     experiment_name: str
     git_commit_hash: str | None = None
