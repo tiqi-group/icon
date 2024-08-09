@@ -2,14 +2,14 @@
  
 start
 partition #00000010 Initialization {
-    :Update Job Execution History table;
+    :Update job_runs table;
     note left
         Mark experiments that have
-        not finished as cancelled.
+        not finished as CANCELLED.
     end note
-    :Update Job table;
+    :Update job_submissions table;
     note left
-        Mark processing jobs as processed.
+        Mark PROCESSING jobs as PROCESSED.
     end note
 }
 repeat
@@ -18,8 +18,8 @@ repeat
             partition #00000010 Job Processing {
                 :Update Job Status
                 to "PROCESSING";
-                :Write job to Job
-                Iteration table;
+                :Create job run and
+                insert into job_runs table;
                 :Create "PreProcessingTask";
                 :Put PreProcessingTask in
                 pre-processing queue;

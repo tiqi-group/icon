@@ -25,7 +25,7 @@ class JobRunRepository:
             session.add(run)
             session.commit()
             session.refresh(run)  # Refresh to get the ID
-            logger.debug("Created new iteration %s", run)
+            logger.debug("Created new run %s", run)
         return run
 
     @staticmethod
