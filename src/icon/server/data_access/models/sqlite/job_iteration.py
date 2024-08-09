@@ -16,7 +16,7 @@ zurich_timezone = pytz.timezone("Europe/Zurich")
 
 
 class JobIteration(Base):
-    __tablename__ = "job_iterations"
+    __tablename__ = "job_runs"
     __table_args__ = (
         sqlalchemy.Index(
             "by_job_id_and_status",
