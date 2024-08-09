@@ -73,9 +73,20 @@ class Job(Base):
     #     sqlalchemy.orm.relationship(back_populates="job")
     # )
 
+    parent_job_id: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column(
+        sqlalchemy.ForeignKey("jobs.id"), nullable=True
+    )
+    """Job ID of the original job from which this job was resubmitted"""
+    parent_job: sqlalchemy.orm.Mapped["Job | None"] = sqlalchemy.orm.relationship(
+        "Job", remote_side=[id], back_populates="resubmitted_jobs"
+    )
+    resubmitted_jobs: sqlalchemy.orm.Mapped[list["Job"]] = sqlalchemy.orm.relationship(
+        "Job", back_populates="parent_job"
+    )
+
     def __repr__(self) -> str:
         return (
-            f"<Job priority={self.priority} "
+            f"<Job id={self.id} priority={self.priority} "
             f"created={self.created} status={self.status}>"
         )
 
