@@ -27,6 +27,30 @@ class JobRepository:
         return job
 
     @staticmethod
+    def resubmit_job_by_id(*, job_id: int) -> Job:
+        """Creates a new job instance in the database, referencing the old (parent) job
+        id as parent_job_id, and returns this instance."""
+        with sqlalchemy.orm.Session(engine) as session:
+            job = session.execute(
+                sqlalchemy.select(Job).where(Job.id == job_id)
+            ).scalar_one()
+            sqlalchemy.orm.make_transient(job)
+
+            # Update the parent_job_id only if the job is not a re-submission itself
+            if not job.parent_job_id:
+                job.parent_job_id = job.id
+
+            # need to remove primary key and created as they should be set by the
+            # databse
+            job.id = None  # type: ignore
+            job.created = None  # type: ignore
+
+            session.add(job)
+            session.commit()
+            session.refresh(job)  # Refresh to get the ID
+        return job
+
+    @staticmethod
     def update_job_status(
         *,
         job: Job,
