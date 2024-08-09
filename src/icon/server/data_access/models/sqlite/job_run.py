@@ -24,6 +24,7 @@ class JobRun(Base):
             "status",
             "scheduled_time",
         ),
+        sqlalchemy.UniqueConstraint("scheduled_time", name="unique_scheduled_time"),
     )
 
     id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
