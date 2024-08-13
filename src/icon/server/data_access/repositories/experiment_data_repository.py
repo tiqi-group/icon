@@ -20,7 +20,7 @@ class ExperimentDataRepository:
     KEY = "data"
 
     @staticmethod
-    def write(
+    def write_experiment_data_by_job_id(
         *,
         job_id: int,
         data: pd.DataFrame,

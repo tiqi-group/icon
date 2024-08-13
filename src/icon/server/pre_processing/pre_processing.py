@@ -81,7 +81,7 @@ class PreProcessingWorker(multiprocessing.Process):
                         index=[i[0]],
                     )
 
-                    ExperimentDataRepository.write(
+                    ExperimentDataRepository.write_experiment_data_by_job_id(
                         job_id=pre_processing_task.job_id, data=experiment_data
                     )
 

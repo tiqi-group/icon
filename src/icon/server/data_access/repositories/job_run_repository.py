@@ -103,7 +103,7 @@ class JobRunRepository:
         *,
         job_id: int,
     ) -> datetime:
-        """Gets all the JobRun instances with given job_id and status."""
+        """Gets the scheduled time of the run with given job_id."""
 
         with sqlalchemy.orm.Session(engine) as session:
             stmt = select(JobRun.scheduled_time).where(JobRun.job_id == job_id)
