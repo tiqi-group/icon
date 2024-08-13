@@ -21,7 +21,7 @@ class SchedulerController(pydase.DataService):
         # scan_info: ScanInfo,
         priority: int = 20,
         local_parameters_timestamp: datetime = datetime.now(tz=zurich_timezone),
-    ) -> str:
+    ) -> int:
         experiment_source = ExperimentSource(
             name=experiment.name, file_path=str(experiment.file_path)
         )
@@ -37,4 +37,4 @@ class SchedulerController(pydase.DataService):
         )
         job = JobRepository.submit_job(job=job)
 
-        return f"Submitted job with job id {job.id}"
+        return job.id
