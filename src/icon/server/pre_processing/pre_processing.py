@@ -2,10 +2,18 @@ import logging
 import multiprocessing
 import queue
 import tempfile
+import time
 from typing import TYPE_CHECKING
+
+import numpy as np
+import pandas as pd
+import socketio  # type: ignore
 
 # import icon.server.utils.git_helpers
 from icon.server.data_access.models.enums import JobRunStatus
+from icon.server.data_access.repositories.experiment_data_repository import (
+    ExperimentDataRepository,
+)
 from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
 )
@@ -58,12 +66,38 @@ class PreProcessingWorker(multiprocessing.Process):
         with tempfile.TemporaryDirectory() as dir:
             logger.debug("%s - Created temp dir %s", self._worker_number, dir)
 
+            external_sio = socketio.RedisManager(write_only=True, logger=logger)
             while True:
                 pre_processing_task = self._queue.get()
                 JobRunRepository.update_run_by_id(
                     run_id=pre_processing_task.job_run_id,
                     status=JobRunStatus.PROCESSING,
                 )
+
+                for i, x in np.ndenumerate(np.linspace(0, 1, 10)):
+                    current_time = time.time()
+                    experiment_data = pd.DataFrame(
+                        {"x_0": [x], "y_0": [np.sin(x)], "timestamp": [current_time]},
+                        index=[i[0]],
+                    )
+
+                    ExperimentDataRepository.write(
+                        job_id=pre_processing_task.job_id, data=experiment_data
+                    )
+
+                    external_sio.emit(
+                        "experiment_data",
+                        {
+                            "job_id": pre_processing_task.job_id,
+                            "data": experiment_data.to_json(),
+                        },
+                        room=[
+                            f"experiment_{pre_processing_task.job_id}",
+                            "experiment_data_processing",
+                        ],
+                    )
+                    time.sleep(1)
+                external_sio.close_room(f"experiment_{pre_processing_task.job_id}")
 
                 # no_data_points: int = ...
                 # data_points_to_process: queue.Queue[DataPoint] = self._manager.Queue()
