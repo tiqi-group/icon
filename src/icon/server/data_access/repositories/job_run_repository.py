@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Sequence
+from datetime import datetime
 
 import sqlalchemy.orm
 from sqlalchemy import select, update
@@ -96,3 +97,17 @@ class JobRunRepository:
             runs = session.execute(stmt).all()
             logger.debug("Got JobRuns by job_id %s", job_id)
         return runs
+
+    @staticmethod
+    def get_scheduled_time_by_job_id(
+        *,
+        job_id: int,
+    ) -> datetime:
+        """Gets all the JobRun instances with given job_id and status."""
+
+        with sqlalchemy.orm.Session(engine) as session:
+            stmt = select(JobRun.scheduled_time).where(JobRun.job_id == job_id)
+
+            scheduled_time = session.execute(stmt).scalar_one()
+            logger.debug("Got scheduled time for job_id %s", job_id)
+        return scheduled_time
