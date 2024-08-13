@@ -5,7 +5,6 @@ import pydase.data_service.state_manager
 import pydase.server.web_server.sio_setup
 import socketio  # type: ignore
 
-from icon.serialization.serializer import dump
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataRepository,
 )
@@ -42,9 +41,9 @@ def setup_sio_events(
             "experiment_data",
             {
                 "job_id": job_id,
-                "data": dump(
-                    ExperimentDataRepository.get_experiment_data_by_id(job_id)
-                ),
+                "data": ExperimentDataRepository.get_experiment_data_by_job_id(
+                    job_id=job_id
+                ).to_json(),
             },
             to=sid,
         )
