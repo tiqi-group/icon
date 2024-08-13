@@ -2,9 +2,11 @@ import asyncio
 import logging
 import sys
 import threading
+from io import StringIO
 from types import TracebackType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
+import pandas as pd
 import socketio  # type: ignore
 
 from icon.client.api.scheduler_controller import SchedulerController
@@ -24,9 +26,17 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
+class ExperimentData(TypedDict):
+    job_id: int
+    data: str
+
+
 def asyncio_loop_thread(loop: asyncio.AbstractEventLoop) -> None:
     asyncio.set_event_loop(loop)
-    loop.run_forever()
+    try:
+        loop.run_forever()
+    except RuntimeError:
+        logger.debug("Tried starting even loop, but it is running already")
 
 
 class Client:
@@ -35,10 +45,12 @@ class Client:
         url: str,
     ):
         self._loop = asyncio.new_event_loop()
+        self._experiment_job_data: dict[int, pd.DataFrame] = {}
         self._url = url
         self._sio = socketio.AsyncClient()
         self._sio.on("connect", self._handle_connect)
         self._sio.on("disconnect", self._handle_disconnect)
+        self._sio.on("experiment_data", self._handle_experiment_data)
         self._thread = threading.Thread(
             target=asyncio_loop_thread, args=(self._loop,), daemon=True
         )
@@ -59,6 +71,26 @@ class Client:
         exc_tb: TracebackType | None,
     ) -> None:
         self.disconnect()
+
+    async def _handle_experiment_data(self, data: ExperimentData) -> None:
+        logger.debug("Updating experiment data...")
+        job_id = data["job_id"]
+        data_frame = pd.read_json(StringIO(data["data"]))
+        if job_id not in self._experiment_job_data:
+            self._experiment_job_data[job_id] = data_frame
+        else:
+            # Update existing data
+            overlap = self._experiment_job_data[job_id].index.intersection(
+                data_frame.index
+            )
+
+            filtered_data_frame = data_frame.drop(overlap)
+
+            self._experiment_job_data[job_id] = pd.concat(
+                [self._experiment_job_data[job_id], filtered_data_frame]
+            )
+
+        logger.info(self._experiment_job_data[job_id])
 
     async def _handle_connect(self) -> None:
         logger.debug("Connected")
