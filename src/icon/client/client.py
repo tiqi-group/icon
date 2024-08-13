@@ -58,7 +58,7 @@ class Client:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        self.connect()
+        self.disconnect()
 
     async def _handle_connect(self) -> None:
         logger.debug("Connected")
