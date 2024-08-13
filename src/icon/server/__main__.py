@@ -29,6 +29,9 @@ def patch_sio_setup() -> None:
     pydase.server.web_server.sio_setup.setup_sio_events = (
         icon.server.web_server.web_server.setup_sio_events
     )
+    pydase.server.web_server.sio_setup.sio_client_manager = (
+        icon.server.web_server.web_server.sio_client_manager
+    )
 
 
 patch_serialization_methods()
