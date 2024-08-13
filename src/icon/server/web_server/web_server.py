@@ -8,12 +8,16 @@ import socketio  # type: ignore
 logger = logging.getLogger(__name__)
 
 pydase_setup_sio_events = pydase.server.web_server.sio_setup.setup_sio_events
+sio_client_manager = socketio.AsyncRedisManager()
 
 
 def setup_sio_events(
     sio: socketio.AsyncServer,
     state_manager: pydase.data_service.state_manager.StateManager,
 ) -> None:
+    assert isinstance(
+        sio.manager, type(sio_client_manager)
+    ), "Socket.IO manager must use Redis"
     pydase_setup_sio_events(sio, state_manager)
 
     @sio.event  # type: ignore
