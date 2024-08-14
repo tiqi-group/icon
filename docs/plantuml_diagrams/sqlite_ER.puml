@@ -47,6 +47,7 @@ entity "Scan Parameter" as scan_param {
     *variable_name: text
     *scan_values: list of numbers
     *remote_source_id: number <<FK>>
+    *description: text (this will appear in the plot)
 }
 
 entity "Remote Source (Service or DB)" as remote {
