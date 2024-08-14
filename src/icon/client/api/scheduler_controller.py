@@ -1,7 +1,11 @@
 import asyncio
 import logging
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from typing import TYPE_CHECKING
+
+import matplotlib.pyplot as plt
+import pandas as pd
 
 from icon.server.api.models.experiment import Experiment
 
@@ -33,10 +37,40 @@ class JobProxy:
     async def _unsubscribe_from_experiment_data_stream(self) -> None:
         await self._client._sio.emit("stop_experiment_data_stream", self._job_id)
         self._getting_data = False
+        self._stop_plot()
 
     async def _subscribe_to_experiment_data_stream(self) -> None:
         await self._client._sio.emit("get_experiment_data", self._job_id)
         self._getting_data = True
+        self._client._loop.create_task(self._start_plot())
+
+    async def _start_plot(self) -> None:
+        logger.info("Starting plot")
+        self._fig, self._ax = plt.subplots()
+        (self._line,) = self._ax.plot([], [], "r-")  # Initialize a line object
+        self._ax.set_xlim(0, 1)  # You might want to adjust these limits
+        self._ax.set_ylim(-1, 1)  # You might want to adjust these limits
+        self._ax.grid()
+
+        async for data_frame in self._get_frame():
+            self._update_plot(data_frame)
+            self._fig.canvas.draw_idle()
+            plt.pause(0.001)
+            await asyncio.sleep(0.001)  # Control animation speed
+
+    def _stop_plot(self) -> None:
+        logger.info("Stopping plot")
+
+    async def _get_frame(self) -> AsyncGenerator[pd.DataFrame | None, None]:
+        logger.info("Getting Frame")
+        yield self._client._experiment_job_data.get(self._job_id)
+        while True:
+            logger.info("Getting Frame")
+            yield self._client._experiment_job_data.get(self._job_id)
+
+    def _update_plot(self, data_frame: pd.DataFrame | None) -> None:
+        if data_frame is not None:
+            self._line.set_data(data_frame.iloc[:, 0], data_frame.iloc[:, 1])
 
 
 class SchedulerController:
@@ -62,4 +96,11 @@ class SchedulerController:
                 "repetitions": repetitions,
             },
         )
+        return JobProxy(client=self._client, job_id=job_id)
+
+    def get_job_by_id(
+        self,
+        *,
+        job_id: int,
+    ) -> JobProxy:
         return JobProxy(client=self._client, job_id=job_id)
