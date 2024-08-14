@@ -57,6 +57,9 @@ class Job(Base):
     priority: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
         default=20,
     )
+    repetitions: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        default=1,
+    )
     local_parameters_timestamp: sqlalchemy.orm.Mapped[datetime.datetime] = (
         sqlalchemy.orm.mapped_column(default=datetime.datetime.now(zurich_timezone))
     )

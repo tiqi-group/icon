@@ -16,6 +16,7 @@ class PreProcessingTask(pydantic.BaseModel):
     # scan_parameters: list[int]
     auto_calibration: bool
     debug_mode: bool = False
+    repetitions: int = 1
 
     def __lt__(self, other: PreProcessingTask) -> bool:
         return self.priority < other.priority

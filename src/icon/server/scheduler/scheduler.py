@@ -74,6 +74,7 @@ class Scheduler(multiprocessing.Process):
                         experiment_name=job.experiment_source.name,
                         auto_calibration=job.auto_calibration,
                         debug_mode=job.debug_mode,
+                        repetitions=job.repetitions,
                     )
                 )
             time.sleep(1)

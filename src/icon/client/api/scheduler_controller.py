@@ -50,6 +50,7 @@ class SchedulerController:
         priority: int,
         local_parameters_timestamp: datetime,
         # scan_info: ScanInfo,
+        repetitions: int = 1,
     ) -> JobProxy:
         job_id: int = self._client.trigger_method(
             "scheduler.submit_job",
@@ -58,6 +59,7 @@ class SchedulerController:
                 "priority": priority,
                 "local_parameters_timestamp": local_parameters_timestamp,
                 # "scan_info": scan_info,
+                "repetitions": repetitions,
             },
         )
         return JobProxy(client=self._client, job_id=job_id)
