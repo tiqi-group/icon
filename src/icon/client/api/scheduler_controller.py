@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from icon.client.api.helpers.notebook import in_notebook
 from icon.server.api.models.experiment import Experiment
 
 if TYPE_CHECKING:
@@ -24,27 +25,36 @@ class JobProxy:
 
     def toggle_plot(self) -> None:
         if not self._getting_data:
-            connection_future = asyncio.run_coroutine_threadsafe(
-                self._subscribe_to_experiment_data_stream(), self._client._loop
-            )
-            connection_future.result()
+            self._start_plot()
         else:
-            connection_future = asyncio.run_coroutine_threadsafe(
-                self._unsubscribe_from_experiment_data_stream(), self._client._loop
-            )
-            connection_future.result()
+            self._stop_plot()
 
     async def _unsubscribe_from_experiment_data_stream(self) -> None:
         await self._client._sio.emit("stop_experiment_data_stream", self._job_id)
-        self._stop_plot()
 
     async def _subscribe_to_experiment_data_stream(self) -> None:
         await self._client._sio.emit("get_experiment_data", self._job_id)
-        self._client._loop.create_task(self._start_plot())
 
-    async def _start_plot(self) -> None:
+        # this has to stay here - otherwise, the notebooks won't show the plot
+        self._client._loop.create_task(self._run_plot())
+
+    def _start_plot(self) -> None:
         logger.info("Starting plot")
         self._getting_data = True
+        connection_future = asyncio.run_coroutine_threadsafe(
+            self._subscribe_to_experiment_data_stream(), self._client._loop
+        )
+        connection_future.result()
+
+    def _stop_plot(self) -> None:
+        logger.info("Stopping plot")
+        self._getting_data = False
+        connection_future = asyncio.run_coroutine_threadsafe(
+            self._unsubscribe_from_experiment_data_stream(), self._client._loop
+        )
+        connection_future.result()
+
+    async def _run_plot(self) -> None:
         self._fig, self._ax = plt.subplots()
         (self._line,) = self._ax.plot([], [], "r-")  # Initialize a line object
         self._ax.set_xlim(0, 1)  # You might want to adjust these limits
@@ -55,16 +65,16 @@ class JobProxy:
 
         async for data_frame in self._get_frame():
             self._update_plot(data_frame)
-            self._fig.canvas.flush_events()
+            if in_notebook():
+                # otherwise, it will only update when hovering with the mouse
+                self._fig.canvas.draw_idle()
+            else:
+                self._fig.canvas.flush_events()
 
             if not self._getting_data:
                 break
 
             await asyncio.sleep(0.01)  # Control animation speed
-
-    def _stop_plot(self) -> None:
-        logger.info("Stopping plot")
-        self._getting_data = False
 
     async def _get_frame(self) -> AsyncGenerator[pd.DataFrame | None, None]:
         logger.debug("Getting Frame")
