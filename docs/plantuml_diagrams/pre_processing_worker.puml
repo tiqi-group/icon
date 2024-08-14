@@ -6,15 +6,11 @@ repeat
     from pre-processing queue;
     :Change process priority
     depending on task priority;
-    if (src_dir is given) then (yes)
-        :Use custom 'src_dir';
-        note left
-            Useful for development mode
-            (dev source code directory)
-        end note
+    if (debug_mode is on?) then (yes)
+        :Use dev source code directory;
     else (no)
-        :Use temporary directory as 'src_dir';
-        :Prepare 'src_dir' folder;
+        :Use temporary directory;
+        :Prepare folder;
         note right
             Checks if local repository exists,
             clones if necessary, checks
@@ -34,6 +30,12 @@ repeat
             when generating JSON file
         end note
     endif
+    :Prepare data points;
+    note
+        Create queues for data points to process and
+        already processed data points. Take repetitions
+        into account.
+    end note
     while (All data points processed?) is (no)
         :Attempt to get the next data point;
         if (Data Point Queue is Empty?) then (yes)
