@@ -4,7 +4,7 @@ start
 partition #00000010 Initialization {
     :Update job_runs table;
     note left
-        Mark experiments that have
+        Mark experiments that are
         not finished as CANCELLED.
     end note
     :Update job_submissions table;
