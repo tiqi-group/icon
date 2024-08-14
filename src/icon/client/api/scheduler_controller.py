@@ -68,10 +68,19 @@ class JobProxy:
 
     async def _get_frame(self) -> AsyncGenerator[pd.DataFrame | None, None]:
         logger.debug("Getting Frame")
-        yield self._client._experiment_job_data.get(self._job_id)
+
+        current_data: pd.DataFrame | None = None
+        previous_length = 0
+
         while True:
-            logger.debug("Getting Frame")
-            yield self._client._experiment_job_data.get(self._job_id)
+            current_data = self._client._experiment_job_data.get(self._job_id)
+            current_length = len(current_data.index) if current_data is not None else 0
+            if current_length > previous_length:
+                logger.debug("Yielding new frame")
+                previous_length = current_length
+                yield current_data
+            else:
+                await asyncio.sleep(0.1)
 
     def _update_plot(self, data_frame: pd.DataFrame | None) -> Any:
         if data_frame is not None:
