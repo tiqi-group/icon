@@ -1,13 +1,11 @@
 import asyncio
 import logging
-from collections.abc import Generator, Iterable
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-import matplotlib.animation
 import matplotlib.pyplot as plt
 import pandas as pd
-from matplotlib.artist import Artist
 
 from icon.server.api.models.experiment import Experiment
 
@@ -23,7 +21,6 @@ class JobProxy:
         self._client = client
         self._job_id = job_id
         self._getting_data = False
-        self._anim: matplotlib.animation.FuncAnimation | None = None
 
     def toggle_plot(self) -> None:
         if not self._getting_data:
@@ -39,50 +36,41 @@ class JobProxy:
 
     async def _unsubscribe_from_experiment_data_stream(self) -> None:
         await self._client._sio.emit("stop_experiment_data_stream", self._job_id)
-        self._getting_data = False
         self._stop_plot()
 
     async def _subscribe_to_experiment_data_stream(self) -> None:
         await self._client._sio.emit("get_experiment_data", self._job_id)
-        self._getting_data = True
-        self._client._loop.run_in_executor(None, self._start_plot)
+        self._client._loop.create_task(self._start_plot())
 
-    def _start_plot(self) -> None:
+    async def _start_plot(self) -> None:
         logger.info("Starting plot")
+        self._getting_data = True
         self._fig, self._ax = plt.subplots()
         (self._line,) = self._ax.plot([], [], "r-")  # Initialize a line object
         self._ax.set_xlim(0, 1)  # You might want to adjust these limits
         self._ax.set_ylim(-1, 1)  # You might want to adjust these limits
         self._ax.grid()
-
-        self._anim = matplotlib.animation.FuncAnimation(
-            fig=self._fig,
-            func=self._update_plot,
-            init_func=self._init_plot,
-            frames=self._get_frame,
-            interval=1000,  # [ms]
-            cache_frame_data=False,
-            blit=True,
-            repeat=False,
-        )
+        plt.ion()
         plt.show()
+
+        async for data_frame in self._get_frame():
+            self._update_plot(data_frame)
+            self._fig.canvas.flush_events()
+
+            if not self._getting_data:
+                break
+
+            await asyncio.sleep(0.01)  # Control animation speed
 
     def _stop_plot(self) -> None:
         logger.info("Stopping plot")
-        if self._anim:
-            self._anim.event_source.stop()
-            plt.close(self._fig)
-        self._anim = None
+        self._getting_data = False
 
-    def _init_plot(self) -> Iterable[Artist]:
-        logger.info("Init plot")
-        return (self._line,)
-
-    def _get_frame(self) -> Generator[pd.DataFrame | None, None, None]:
-        logger.info("Getting Frame")
+    async def _get_frame(self) -> AsyncGenerator[pd.DataFrame | None, None]:
+        logger.debug("Getting Frame")
         yield self._client._experiment_job_data.get(self._job_id)
         while True:
-            logger.info("Getting Frame")
+            logger.debug("Getting Frame")
             yield self._client._experiment_job_data.get(self._job_id)
 
     def _update_plot(self, data_frame: pd.DataFrame | None) -> Any:

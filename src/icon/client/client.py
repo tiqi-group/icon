@@ -90,7 +90,7 @@ class Client:
                 [self._experiment_job_data[job_id], filtered_data_frame]
             )
 
-        logger.info(self._experiment_job_data[job_id])
+        logger.debug(self._experiment_job_data[job_id])
 
     async def _handle_connect(self) -> None:
         logger.debug("Connected")
