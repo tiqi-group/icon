@@ -25,7 +25,7 @@ LOGGING_CONFIG = {
         "default": {
             "formatter": "default",
             "class": "logging.StreamHandler",
-            "stream": "ext://sys.stderr",
+            "stream": "ext://sys.stdout",
         },
     },
     "loggers": {
