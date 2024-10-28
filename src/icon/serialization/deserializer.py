@@ -1,10 +1,11 @@
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pydantic
 import pydase
 import pydase.components
 import pydase.utils.serialization.deserializer
+from pydase.utils.serialization.types import SerializedObject
 
 from icon.serialization.types import (
     SerializedIconObject,
@@ -51,9 +52,11 @@ class IconDeserializer(pydase.utils.serialization.deserializer.Deserializer):
             return handler(serialized_object)
 
         # Custom types like Components or DataService classes
-        component_class = cls.get_component_class(serialized_object["type"])
-        if component_class:
-            return cls.deserialize_component_type(serialized_object, component_class)  # type: ignore
+        service_base_class = cls.get_service_base_class(serialized_object["type"])
+        if service_base_class:
+            return cls.deserialize_data_service(
+                cast(SerializedObject, serialized_object), service_base_class
+            )
 
         return None
 
