@@ -7,6 +7,9 @@ services:
   influxdb:
     image: influxdb:latest
     network_mode: host
+    privileged: true
+    volumes:
+      - "$PWD/influxdb/:/docker-entrypoint-initdb.d"
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_USERNAME: qchub-admin
@@ -14,3 +17,5 @@ services:
       DOCKER_INFLUXDB_INIT_ORG: test
       DOCKER_INFLUXDB_INIT_BUCKET: testing
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: my-super-secret-auth-token
+      V1_AUTH_USERNAME: qchub-admin
+      V1_AUTH_PASSWORD: Xo28JuCnXvrkq5
