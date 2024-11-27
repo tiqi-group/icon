@@ -6,6 +6,7 @@ import icon.server.queue_manager
 from icon.server.api.api_service import APIService
 from icon.server.pre_processing.pre_processing import PreProcessingWorker
 from icon.server.scheduler.scheduler import Scheduler
+from icon.server.web_server.sio_setup import patch_sio_setup
 
 
 def patch_serialization_methods() -> None:
@@ -21,21 +22,8 @@ def patch_serialization_methods() -> None:
     )
 
 
-def patch_sio_setup() -> None:
-    import pydase.server.web_server.sio_setup
-
-    import icon.server.web_server.web_server
-
-    pydase.server.web_server.sio_setup.setup_sio_events = (
-        icon.server.web_server.web_server.setup_sio_events
-    )
-    pydase.server.web_server.sio_setup.sio_client_manager = (
-        icon.server.web_server.web_server.sio_client_manager
-    )
-
-
-patch_serialization_methods()
 patch_sio_setup()
+patch_serialization_methods()
 
 scheduler = Scheduler(
     pre_processing_queue=icon.server.queue_manager.pre_processing_queue

@@ -1,6 +1,7 @@
 import logging
 
 import click
+import pydase
 import pydase.data_service.state_manager
 import pydase.server.web_server.sio_setup
 import socketio  # type: ignore
@@ -57,3 +58,10 @@ def setup_sio_events(
             job_room,
         )
         await sio.leave_room(sid, job_room)
+
+
+def patch_sio_setup() -> None:
+    import pydase.server.web_server.sio_setup
+
+    pydase.server.web_server.sio_setup.setup_sio_events = setup_sio_events
+    pydase.server.web_server.sio_setup.sio_client_manager = sio_client_manager
