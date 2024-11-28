@@ -10,6 +10,16 @@ class ExperimentLibraryConfigV1(BaseModel):
     update_interval: int = 30
 
 
+class ValkeyConfig(BaseModel):
+    host: str = "localhost"
+    port: int = 6379
+
+
+class DatabaseConfig(BaseModel):
+    valkey: ValkeyConfig = ValkeyConfig()
+
+
 class ServiceConfigV1(BaseConfig):  # type: ignore[misc]
     version: int = 1
     experiment_library: ExperimentLibraryConfigV1 = ExperimentLibraryConfigV1()
+    databases: DatabaseConfig = DatabaseConfig()
