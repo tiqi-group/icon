@@ -32,7 +32,7 @@ def get_config() -> ServiceConfigV1:
             file.write(yaml.dump(ServiceConfigV1().model_dump()))
 
     with source.open("r") as file:
-        content = yaml.load(file, Loader=yaml.CLoader)
+        content = yaml.safe_load(file)
         config_version = content.get("version", None)
 
     if config_version == 1:
