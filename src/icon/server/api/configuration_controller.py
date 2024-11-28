@@ -22,6 +22,12 @@ class ConfigurationController(pydase.DataService):
         self._config_folder = get_config_source()
         self._config = get_config().model_dump()
 
+    @property
+    def config(self) -> dict[str, Any]:
+        # TODO: changes to self._config are not picked up by pydase
+        # (see https://github.com/tiqi-group/pydase/issues/187)
+        return self._config
+
     def update_config_option(self, key: str, value: Any) -> bool:
         """Update a specific configuration option.
 
