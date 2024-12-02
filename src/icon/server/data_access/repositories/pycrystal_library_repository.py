@@ -41,7 +41,8 @@ class PycrystalLibraryRepository:
     async def get_experiment_and_parameter_metadata() -> dict[str, Any]:
         """Retrieve the experiments dictionary."""
         code = PycrystalLibraryRepository._get_code(
-            Path(__file__).parent.parent / "templates/get_pycrystal_experiments.py"
+            Path(__file__).parent.parent
+            / "templates/get_pycrystal_experiment_and_parameter_metadata.py"
         )
         stdout = await PycrystalLibraryRepository._run_code(code)
         return json.loads(stdout)
