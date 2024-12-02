@@ -4,8 +4,10 @@ from typing import Any, TypedDict
 
 import experiment_library.experiments
 from pycrystal.parameter_registry import ParameterMetadata
+from pycrystal.parameters import Parameter
 from pycrystal.utils.helpers import (
     get_config_from_module_name,
+    get_display_group_list_from_module_name,
     get_experiment_instance_display_groups,
 )
 
@@ -34,6 +36,13 @@ for mod_info in pkgutil.iter_modules(experiment_library.experiments.__path__):
             ),
         }
 
+parameters = {}
+parameters["all parameters"] = Parameter.registry.all_parameters
+parameters["Globals"] = get_display_group_list_from_module_name(
+    experiment_library.globals.global_parameters.__name__
+)
 
-# parameters["registry"] = Parameter.registry
-print(json.dumps(experiments, indent=2))
+print(json.dumps({
+    "experiment_metadata": experiments,
+    "parameter_metadata": parameters,
+}, indent=2))
