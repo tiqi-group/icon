@@ -38,7 +38,7 @@ class PycrystalLibraryRepository:
         return stdout.decode()
 
     @staticmethod
-    async def get_experiments() -> dict[str, Any]:
+    async def get_experiment_and_parameter_metadata() -> dict[str, Any]:
         """Retrieve the experiments dictionary."""
         code = PycrystalLibraryRepository._get_code(
             Path(__file__).parent.parent / "templates/get_pycrystal_experiments.py"
