@@ -31,6 +31,6 @@ class APIService(pydase.DataService):
                 experiment_metadata=experiment_metadata
             )
             await self.parameters._update_parameter_metadata(
-                experiment_metadata=experiment_metadata
+                parameter_metadata=parameter_metadata
             )
             await asyncio.sleep(get_config().experiment_library.update_interval)
