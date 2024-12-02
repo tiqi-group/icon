@@ -6,7 +6,7 @@ from typing import Any
 from icon.config.config import get_config
 
 
-class ExperimentsRepository:
+class PycrystalLibraryRepository:
     @staticmethod
     def _get_code(template_path: Path, **kwargs: Any) -> str:
         template = template_path.read_text()
@@ -40,8 +40,8 @@ class ExperimentsRepository:
     @staticmethod
     async def get_experiments() -> dict[str, Any]:
         """Retrieve the experiments dictionary."""
-        code = ExperimentsRepository._get_code(
+        code = PycrystalLibraryRepository._get_code(
             Path(__file__).parent.parent / "templates/get_pycrystal_experiments.py"
         )
-        stdout = await ExperimentsRepository._run_code(code)
+        stdout = await PycrystalLibraryRepository._run_code(code)
         return json.loads(stdout)

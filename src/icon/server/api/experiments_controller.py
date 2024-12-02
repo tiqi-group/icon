@@ -7,8 +7,8 @@ from pydase.task.decorator import task
 
 from icon.config import get_config
 from icon.server.data_access.db_context.valkey import ValkeySession
-from icon.server.data_access.repositories.experiments_repository import (
-    ExperimentsRepository,
+from icon.server.data_access.repositories.pycrystal_library_repository import (
+    PycrystalLibraryRepository,
 )
 
 logger = logging.getLogger(__file__)
@@ -46,7 +46,7 @@ class ExperimentsController(pydase.DataService):
     async def _update_experiment_metadata(self) -> None:
         logger.debug("Updating experiment metadata...")
 
-        current_experiments = await ExperimentsRepository.get_experiments()
+        current_experiments = await PycrystalLibraryRepository.get_experiments()
         current_experiments_serialized = {
             key: json.dumps(value, sort_keys=True)
             for key, value in current_experiments.items()
