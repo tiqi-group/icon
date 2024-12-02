@@ -27,9 +27,13 @@ class ParameterMetadataRepository:
         cached_parameter_metadata_serialized = (
             await ParameterMetadataRepository.get_parameter_metadata(deserialize=False)
         )
+
+        new_parameter_metadata_serialized = {
+            key: json.dumps(value) for key, value in new_parameter_metadata.items()
+        }
         async with ValkeySession() as valkey:
             await valkey.hset(
-                "parameter_metadata", mapping=cached_parameter_metadata_serialized
+                "parameter_metadata", mapping=new_parameter_metadata_serialized
             )  # type: ignore
 
             added_exps, removed_exps, updated_exps = get_added_removed_and_updated_keys(
