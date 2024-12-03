@@ -7,7 +7,7 @@ from icon.server.data_access.repositories.experiment_metadata_repository import 
     ExperimentMetadataRepository,
 )
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(__name__)
 
 
 

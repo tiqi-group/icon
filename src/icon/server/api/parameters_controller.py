@@ -7,7 +7,7 @@ from icon.server.data_access.repositories.parameter_metadata_repository import (
     ParameterMetadataRepository,
 )
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(__name__)
 
 
 class ParametersController(pydase.DataService):
@@ -17,7 +17,7 @@ class ParametersController(pydase.DataService):
     async def _update_parameter_metadata(
         self, parameter_metadata: dict[str, Any]
     ) -> None:
-        logger.debug("Updating experiment metadata...")
+        logger.debug("Updating parameter metadata...")
 
         (
             added_exps,
