@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import Any, Literal, TypedDict, overload
 
 from icon.server.data_access.db_context.valkey import ValkeySession
 from icon.server.data_access.repositories.experiment_metadata_repository import (
@@ -7,11 +7,35 @@ from icon.server.data_access.repositories.experiment_metadata_repository import 
 )
 
 
+class ParameterMetadata(TypedDict):
+    display_name: str
+    unit: str
+    default_value: float | int
+    min_value: float | None
+    max_value: float | None
+
+
 class ParameterMetadataRepository:
     @staticmethod
-    async def get_parameter_metadata(*, deserialize: bool = True) -> dict[str, str]:
+    @overload
+    async def get_parameter_metadata(
+        *, deserialize: Literal[True] = True
+    ) -> dict[str, ParameterMetadata]: ...
+
+    @staticmethod
+    @overload
+    async def get_parameter_metadata(
+        *, deserialize: Literal[False] = False
+    ) -> dict[str, str]: ...
+
+    @staticmethod
+    async def get_parameter_metadata(
+        *, deserialize: bool = True
+    ) -> dict[str, str] | dict[str, ParameterMetadata]:
         async with ValkeySession() as valkey:
-            parameter_metadata_serialized = await valkey.hgetall("parameter_metadata")  # type: ignore
+            parameter_metadata_serialized: dict[str, str] = await valkey.hgetall(
+                "parameter_metadata"
+            )  # type: ignore
 
             if deserialize:
                 return {
@@ -31,6 +55,7 @@ class ParameterMetadataRepository:
         new_parameter_metadata_serialized = {
             key: json.dumps(value) for key, value in new_parameter_metadata.items()
         }
+
         async with ValkeySession() as valkey:
             await valkey.hset(
                 "parameter_metadata", mapping=new_parameter_metadata_serialized
