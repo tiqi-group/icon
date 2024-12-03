@@ -42,10 +42,13 @@ class ExperimentMetadataRepository:
                 deserialize=False
             )
         )
+
+        new_experiment_metadata_serialized = {
+            key: json.dumps(value) for key, value in new_experiment_metadata.items()
+        }
+
         async with ValkeySession() as valkey:
-            await valkey.hset(
-                "experiments", mapping=cached_experiment_metadata_serialized
-            )  # type: ignore
+            await valkey.hset("experiments", mapping=new_experiment_metadata_serialized)  # type: ignore
 
             added_exps, removed_exps, updated_exps = get_added_removed_and_updated_keys(
                 new_experiment_metadata,
