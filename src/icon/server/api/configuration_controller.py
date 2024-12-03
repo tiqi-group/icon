@@ -14,20 +14,14 @@ logger = logging.getLogger(__file__)
 class ConfigurationController(pydase.DataService):
     """A controller for managing and updating the application's configuration.
 
-    This class provides an API to update the configuration, validate it, and save the
-    updated configuration back to the source file.
+    This class provides an API to get and update the configuration, validate it, and
+    save the updated configuration back to the source file.
     """
 
-    def __init__(self) -> None:
-        super().__init__()
-        self._config_folder = get_config_source()
-        self._config = get_config().model_dump()
+    def get_config(self) -> dict[str, Any]:
+        """Get current configuration dictionary."""
 
-    @property
-    def config(self) -> dict[str, Any]:
-        # TODO: changes to self._config are not picked up by pydase
-        # (see https://github.com/tiqi-group/pydase/issues/187)
-        return self._config
+        return get_config().model_dump()
 
     def update_config_option(self, key: str, value: Any) -> bool:
         """Update a specific configuration option.
@@ -78,5 +72,5 @@ class ConfigurationController(pydase.DataService):
                 The validated configuration instance.
         """
 
-        with self._config_folder.open("w") as file:
+        with get_config_source().open("w") as file:
             file.write(yaml.dump(new_config.model_dump()))
