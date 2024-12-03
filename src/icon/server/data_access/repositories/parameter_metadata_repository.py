@@ -70,3 +70,58 @@ class ParameterMetadataRepository:
                 await valkey.hdel("parameter_metadata", *removed_exps)  # type: ignore
 
         return added_exps, removed_exps, updated_exps
+
+    @staticmethod
+    @overload
+    async def get_display_groups(
+        *, deserialize: Literal[True] = True
+    ) -> dict[str, dict[str, ParameterMetadata]]: ...
+
+    @staticmethod
+    @overload
+    async def get_display_groups(
+        *, deserialize: Literal[False] = False
+    ) -> dict[str, str]: ...
+
+    @staticmethod
+    async def get_display_groups(
+        *, deserialize: bool = True
+    ) -> dict[str, str] | dict[str, dict[str, ParameterMetadata]]:
+        async with ValkeySession() as valkey:
+            display_groups_serialized: dict[str, str] = await valkey.hgetall(
+                "parameter_display_groups"
+            )  # type: ignore
+
+            if deserialize:
+                return {
+                    key: json.loads(value)
+                    for key, value in display_groups_serialized.items()
+                }
+            return display_groups_serialized
+
+    @staticmethod
+    async def update_display_groups(
+        *, new_display_groups: dict[str, Any], remove_unspecified: bool = True
+    ) -> tuple[list[str], list[str], list[str]]:
+        cached_display_groups_serialized = (
+            await ParameterMetadataRepository.get_display_groups(deserialize=False)
+        )
+
+        new_display_groups_serialized = {
+            key: json.dumps(value) for key, value in new_display_groups.items()
+        }
+
+        async with ValkeySession() as valkey:
+            await valkey.hset(
+                "parameter_display_groups", mapping=new_display_groups_serialized
+            )  # type: ignore
+
+            added_keys, removed_keys, updated_keys = get_added_removed_and_updated_keys(
+                new_display_groups,
+                cached_display_groups_serialized,
+            )
+
+            if remove_unspecified and removed_keys:
+                await valkey.hdel("parameter_metadata", *removed_keys)  # type: ignore
+
+        return added_keys, removed_keys, updated_keys
