@@ -19,6 +19,7 @@ class ConfigurationController(pydase.DataService):
     """
 
     def __init__(self) -> None:
+        super().__init__()
         self._config_folder = get_config_source()
         self._config = get_config().model_dump()
 
