@@ -7,7 +7,6 @@ from pycrystal.parameter_registry import ParameterMetadata
 from pycrystal.parameters import Parameter
 from pycrystal.utils.helpers import (
     get_config_from_module_name,
-    get_display_group_list_from_module_name,
     get_experiment_instance_display_groups,
 )
 
@@ -27,7 +26,9 @@ for mod_info in pkgutil.iter_modules(experiment_library.experiments.__path__):
     config = get_config_from_module_name(experiment_module)
     for experiment, experiment_instance_kwargs in config["experiment_instances"]:
         experiment_instance_name = experiment_instance_kwargs["name"]
-        experiment_identifier = f"{experiment_module}.{experiment.__name__} ({experiment_instance_name})"
+        experiment_identifier = (
+            f"{experiment_module}.{experiment.__name__} ({experiment_instance_name})"
+        )
         experiments[experiment_identifier] = {
             "class_name": experiment.__name__,
             "constructor_kwargs": experiment_instance_kwargs,
@@ -36,13 +37,22 @@ for mod_info in pkgutil.iter_modules(experiment_library.experiments.__path__):
             ),
         }
 
-parameters = {}
-parameters["all parameters"] = Parameter.registry.all_parameters
-parameters["Globals"] = get_display_group_list_from_module_name(
-    experiment_library.globals.global_parameters.__name__
-)
+parameters = {
+    "all parameters": Parameter.registry.all_parameters,
+    "display groups": {
+        f"{namespace} ({display_group})": parameter_dict
+        for namespace, display_groups in Parameter.registry.namespace_registry.items()
+        for display_group, parameter_dict in display_groups.items()
+    },
+}
 
-print(json.dumps({
-    "experiment_metadata": experiments,
-    "parameter_metadata": parameters,
-}, indent=2))
+
+print(
+    json.dumps(
+        {
+            "experiment_metadata": experiments,
+            "parameter_metadata": parameters,
+        },
+        indent=2,
+    )
+)
