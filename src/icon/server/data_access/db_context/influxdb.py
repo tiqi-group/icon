@@ -4,8 +4,11 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, TypedDict, cast
 
-import pydase.config
-from influxdb_client.client.flux_table import FluxRecord  # type: ignore
+import yaml
+from influxdb_client.client.flux_table import FluxRecord
+
+from icon.config.config import get_config
+from icon.config.v1 import InfluxDBConfig
 
 try:
     from typing import Self
@@ -13,7 +16,6 @@ except ImportError:
     from typing_extensions import Self
 
 
-from confz import BaseConfig, ConfigSource, FileSource
 from influxdb_client import (
     Bucket,  # type: ignore
     BucketRetentionRules,  # type: ignore
@@ -37,29 +39,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 BUCKET_ALREADY_EXISTS = 422
-
-
-class InfluxDBConfig(BaseConfig):  # type: ignore
-    url: str
-    org: str
-    token: SecretStr
-
-
-if (
-    pydase.config.OperationMode().environment == "testing"
-    or pydase.config.OperationMode().environment == "development"
-):
-    INFLUXDB_CONFIG_FILE_SOURCE = (
-        Path(__file__).parent.parent.parent.parent.parent.parent
-        / "docker"
-        / "influxdb_config.yaml"
-    )
-else:
-    INFLUXDB_CONFIG_FILE_SOURCE = (
-        Path(__file__).parent.parent.parent.parent.parent.parent
-        / "docker"
-        / "influxdb_config.yaml"
-    )
 
 
 class Record(TypedDict):
@@ -127,14 +106,16 @@ class InfluxDBSession:
         ```
     """
 
-    def __init__(self, config_source: ConfigSource | None = None) -> None:
+    def __init__(self, config_source: Path | None = None) -> None:
         if config_source is None:
-            config_source = FileSource(INFLUXDB_CONFIG_FILE_SOURCE)
-
-        self._config = InfluxDBConfig(config_sources=config_source)
+            self._config = get_config().databases.influxdb
+        else:
+            with config_source.open() as file:
+                config = yaml.safe_load(file)
+            self._config = InfluxDBConfig(**config)
 
         self.url = self._config.url
-        self.token = self._config.token.get_secret_value()
+        self.token = self._config.token
         self.org = self._config.org
         self._client: InfluxDBClient
         self._write_api: WriteApi
