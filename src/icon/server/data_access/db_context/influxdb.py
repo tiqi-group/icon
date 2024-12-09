@@ -188,7 +188,7 @@ class InfluxDBSession:
         measurement: str | None = None,
         fields: set[str] | None = None,
         tags: dict[str, str] | None = None,
-        range_start: str = "-30d",
+        range_start: str = "0",
     ) -> list[Record]:
         query = f'from(bucket:"{bucket}") |> range(start: {range_start}) '
         if measurement:
@@ -214,15 +214,15 @@ class InfluxDBSession:
         )
         return [
             Record(
-                measurement=str(record.get_measurement()),
-                value=record.get_value(),
-                field=record.get_field(),
+                measurement=str(record.get_measurement()),  # type: ignore
+                value=record.get_value(),  # type: ignore
+                field=record.get_field(),  # type: ignore
                 tags={
                     k: v
                     for k, v in record.values.items()
                     if not k.startswith("_") and k not in ("table", "result")
                 },
-                time=record.get_time(),
+                time=record.get_time(),  # type: ignore
             )
             for table in tables
             for record in cast(list[FluxRecord], table.records)
