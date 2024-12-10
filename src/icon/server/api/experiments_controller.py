@@ -4,6 +4,7 @@ from typing import Any
 import pydase
 
 from icon.server.data_access.repositories.experiment_metadata_repository import (
+    ExperimentDict,
     ExperimentMetadataRepository,
 )
 
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class ExperimentsController(pydase.DataService):
-    async def get_experiments(self) -> dict[str, str]:
+    async def get_experiments(self) -> ExperimentDict:
         return await ExperimentMetadataRepository.get_experiment_metadata()
 
     async def _update_experiment_metadata(

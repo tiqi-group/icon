@@ -1,7 +1,23 @@
+from __future__ import annotations
+
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal, TypedDict, overload
 
 from icon.server.data_access.db_context.valkey import ValkeySession
+
+if TYPE_CHECKING:
+    from icon.server.data_access.repositories.parameter_metadata_repository import (
+        ParameterMetadata,
+    )
+
+
+class ExperimentMetadata(TypedDict):
+    class_name: str
+    constructor_kwargs: dict[str, Any]
+    parameters: dict[str, dict[str, ParameterMetadata]]
+
+
+ExperimentDict = dict[str, dict[str, ExperimentMetadata]]
 
 
 # TODO: This is also used elsewhere - move this to utils!
@@ -22,7 +38,21 @@ def get_added_removed_and_updated_keys(
 
 class ExperimentMetadataRepository:
     @staticmethod
-    async def get_experiment_metadata(*, deserialize: bool = True) -> dict[str, str]:
+    @overload
+    async def get_experiment_metadata(
+        *, deserialize: Literal[True] = True
+    ) -> ExperimentDict: ...
+
+    @staticmethod
+    @overload
+    async def get_experiment_metadata(
+        *, deserialize: Literal[False] = False
+    ) -> dict[str, str]: ...
+
+    @staticmethod
+    async def get_experiment_metadata(
+        *, deserialize: bool = True
+    ) -> dict[str, str] | ExperimentDict:
         async with ValkeySession() as valkey:
             experiments_serialized = await valkey.hgetall("experiments")  # type: ignore
 
