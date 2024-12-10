@@ -101,3 +101,36 @@ class ParametersRepository:
         return ParametersRepository.update_influxdb_parameters(
             parameter_mapping={parameter_id: value}
         )
+
+    @staticmethod
+    def get_ionpulse_parameter_by_id(parameter_id: str) -> Any:
+        import tiqi_plugin
+
+        client = tiqi_plugin.Client(
+            get_config().ionpulse_plugin.host,
+            get_config().ionpulse_plugin.rpc_port,
+            client_type="rpc",
+        )
+
+        return client.get_parameter_by_id(parameter_id)  # type: ignore
+
+    @staticmethod
+    def update_ionpulse_parameters(
+        parameter_mapping: dict[str, ValkeyValueType],
+    ) -> None:
+        import tiqi_plugin
+
+        client = tiqi_plugin.Client(
+            get_config().ionpulse_plugin.host,
+            get_config().ionpulse_plugin.rpc_port,
+            client_type="rpc",
+        )
+
+        for parameter_id, value in parameter_mapping.items():
+            client.update_parameter_by_id(parameter_id, value)  # type: ignore
+
+    @staticmethod
+    def update_ionpulse_parameter_by_id(parameter_id: str, value: Any) -> None:
+        return ParametersRepository.update_ionpulse_parameters(
+            parameter_mapping={parameter_id: value}
+        )
