@@ -15,8 +15,16 @@ class ValkeyConfig(BaseModel):
     port: int = 6379
 
 
+class InfluxDBConfig(BaseModel):
+    url: str = "http://localhost:8086"
+    org: str = "test"
+    token: str = "my-super-secret-auth-token"
+    bucket: str = "Experiment parameters"
+
+
 class DatabaseConfig(BaseModel):
     valkey: ValkeyConfig = ValkeyConfig()
+    influxdb: InfluxDBConfig = InfluxDBConfig()
 
 
 class ServiceConfigV1(BaseConfig):  # type: ignore[misc]
