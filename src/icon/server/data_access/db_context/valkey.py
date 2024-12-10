@@ -23,4 +23,4 @@ class ValkeySession:
         exc_value: BaseException | None,
         exc_traceback: TracebackType | None,
     ) -> None:
-        await self.client.close()  # type: ignore
+        await self.client.aclose()
