@@ -157,7 +157,7 @@ class Client(pydase.Client):
             access_path=full_access_path,
         )
 
-    def set_value(self, full_access_path: str, new_value: Any) -> Any:
+    def update_value(self, full_access_path: str, new_value: Any) -> Any:
         return update_value(
             sio_client=self._sio,
             loop=self._loop,
