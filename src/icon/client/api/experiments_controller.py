@@ -48,6 +48,15 @@ def get_experiment_identifier_dict(experiments: list[str]) -> dict[str, str]:
     return identifier_dict
 
 
+def get_parameter_identifier_mapping(
+    display_group_metadata: dict[str, ParameterMetadata],
+) -> dict[str, str]:
+    parameter_id_mapping: dict[str, str] = {}
+    for parameter_id, parameter_metadata in display_group_metadata.items():
+        parameter_id_mapping[parameter_metadata["display_name"]] = parameter_id
+    return parameter_id_mapping
+
+
 class ExperimentsController:
     def __init__(self, client: Client) -> None:
         self._client = client
