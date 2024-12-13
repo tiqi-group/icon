@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from icon.client.client import Client
+    from icon.server.data_access.repositories.experiment_metadata_repository import (
+        ExperimentMetadata,
+    )
+    from icon.server.data_access.repositories.parameter_metadata_repository import (
+        ParameterMetadata,
+    )
 
 
 def get_experiment_identifier_dict(experiments: list[str]) -> dict[str, str]:
@@ -57,11 +63,104 @@ def get_parameter_identifier_mapping(
     return parameter_id_mapping
 
 
+class ParameterProxy:
+    def __init__(
+        self, client: Client, parameter_id: str, parameter_metadata: ParameterMetadata
+    ) -> None:
+        self._client = client
+        self._parameter_metadata = parameter_metadata
+        self._parameter_id = parameter_id
+
+    @property
+    def value(self) -> Any:
+        return self._client.trigger_method(
+            "parameters.get_parameter_by_id",
+            kwargs={
+                "parameter_id": self._parameter_id,
+            },
+        )
+
+    @value.setter
+    def value(self, value: Any) -> None:
+        self._client.trigger_method(
+            "parameters.update_parameter_by_id",
+            kwargs={
+                "parameter_id": self._parameter_id,
+                "value": value,
+            },
+        )
+
+
+class DisplayGroupProxy:
+    def __init__(
+        self,
+        client: Client,
+        display_group_name: str,
+        display_group_metadata: dict[str, ParameterMetadata],
+    ) -> None:
+        self._client = client
+        self._display_group_metadata = display_group_metadata
+        self._display_group_name = display_group_name
+        self._parameter_id_mapping = get_parameter_identifier_mapping(
+            self._display_group_metadata
+        )
+
+    def __getitem__(self, parameter_name: str) -> Any:
+        parameter_id = self._parameter_id_mapping[parameter_name]
+
+        return ParameterProxy(
+            self._client, parameter_id, self._display_group_metadata[parameter_id]
+        )
+
+    def __setitem__(self, parameter_name: str, value: Any) -> Any:
+        parameter_id = self._parameter_id_mapping[parameter_name]
+
+        return self._client.trigger_method(
+            "parameters.update_parameter_by_id",
+            kwargs={
+                "parameter_id": parameter_id,
+                "value": value,
+            },
+        )
+
+    def __repr__(self) -> str:
+        repr = f"<{self._display_group_name}>"
+
+        for parameter_id in self._display_group_metadata:
+            repr += (
+                f"\n    - {self._display_group_metadata[parameter_id]['display_name']}"
+            )
+        return repr
+
+
+class ExperimentProxy:
+    def __init__(self, client: Client, experiment_metadata: ExperimentMetadata) -> None:
+        self._client = client
+        self._experient_metadata = experiment_metadata
+
+    def __repr__(self) -> str:
+        repr = (
+            f"<{self._experient_metadata['constructor_kwargs']['name']}> (Experiment: "
+            f"{self._experient_metadata['class_name']})\n"
+            f"  Display Groups:"
+        )
+        for display_group in self._experient_metadata["parameters"]:
+            repr += f"\n    - {display_group}"
+
+        return repr
+
+    def __getitem__(self, display_group_name: str) -> Any:
+        return DisplayGroupProxy(
+            self._client,
+            display_group_name,
+            self._experient_metadata["parameters"][display_group_name],
+        )
+
+
 class ExperimentsController:
     def __init__(self, client: Client) -> None:
         self._client = client
         self.__update_experiments()
-        print(self)
 
     def __update_experiments(self) -> None:
         self._experiments = self._client.trigger_method("experiments.get_experiments")
@@ -72,3 +171,10 @@ class ExperimentsController:
         for experiment in sorted(self._experiments_id_mapping):
             repr += f"  - {experiment}\n"
         return repr
+
+    def __getitem__(self, key: str) -> ExperimentProxy | None:
+        experiment_id = self._experiments_id_mapping.get(key, None)
+        if experiment_id:
+            return ExperimentProxy(self._client, self._experiments[experiment_id])
+
+        return None
