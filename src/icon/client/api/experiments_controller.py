@@ -90,6 +90,15 @@ class ParameterProxy:
             },
         )
 
+    def __repr__(self) -> str:
+        return (
+            f"<Parameter: {self._parameter_metadata['display_name']}>\n"
+            f"    id={self._parameter_id}\n"
+            f"    default={self._parameter_metadata['default_value']}\n"
+            f"    min={self._parameter_metadata['min_value']}\n"
+            f"    max={self._parameter_metadata['max_value']}\n"
+        )
+
 
 class DisplayGroupProxy:
     def __init__(
