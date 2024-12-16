@@ -143,17 +143,23 @@ class DisplayGroupProxy:
 
 
 class ExperimentProxy:
-    def __init__(self, client: Client, experiment_metadata: ExperimentMetadata) -> None:
+    def __init__(
+        self,
+        client: Client,
+        experiment_id: str,
+        experiment_metadata: ExperimentMetadata,
+    ) -> None:
         self._client = client
-        self._experient_metadata = experiment_metadata
+        self._experiment_id = experiment_id
+        self._experiment_metadata = experiment_metadata
 
     def __repr__(self) -> str:
         repr = (
-            f"<{self._experient_metadata['constructor_kwargs']['name']}> (Experiment: "
-            f"{self._experient_metadata['class_name']})\n"
+            f"<{self._experiment_metadata['constructor_kwargs']['name']}> (Experiment: "
+            f"{self._experiment_metadata['class_name']})\n"
             f"  Display Groups:"
         )
-        for display_group in self._experient_metadata["parameters"]:
+        for display_group in self._experiment_metadata["parameters"]:
             repr += f"\n    - {display_group}"
 
         return repr
@@ -162,7 +168,8 @@ class ExperimentProxy:
         return DisplayGroupProxy(
             self._client,
             display_group_name,
-            self._experient_metadata["parameters"][display_group_name],
+            self._experiment_metadata["parameters"][display_group_name],
+        )
         )
 
 
@@ -184,6 +191,8 @@ class ExperimentsController:
     def __getitem__(self, key: str) -> ExperimentProxy | None:
         experiment_id = self._experiments_id_mapping.get(key, None)
         if experiment_id:
-            return ExperimentProxy(self._client, self._experiments[experiment_id])
+            return ExperimentProxy(
+                self._client, experiment_id, self._experiments[experiment_id]
+            )
 
         return None
