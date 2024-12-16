@@ -1,7 +1,17 @@
 from __future__ import annotations
 
+import logging
+import sys
 from collections import Counter
-from typing import TYPE_CHECKING, Any
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, TypedDict
+
+from typing_extensions import NotRequired
+
+if sys.version_info < (3, 11):
+    from typing_extensions import NotRequired
+else:
+    from typing import NotRequired
 
 if TYPE_CHECKING:
     from icon.client.client import Client
@@ -11,6 +21,20 @@ if TYPE_CHECKING:
     from icon.server.data_access.repositories.parameter_metadata_repository import (
         ParameterMetadata,
     )
+
+logger = logging.getLogger(__name__)
+
+
+class ScanParameter(TypedDict):
+    parameter: ParameterProxy
+    """A ParameterProxy object retrieved from the API. """
+    values: dict[str, Any] | list[Any]
+    """ Either a dictionary with 'start', 'stop', and 'num_points' keys or a list of
+    explicit values. """
+    randomized: NotRequired[bool]
+    """Boolean indicating whether the values should be shuffled."""
+    reversed: NotRequired[bool]
+    """Boolean indicating whether the values should be reversed."""
 
 
 def get_experiment_identifier_dict(experiments: list[str]) -> dict[str, str]:
@@ -142,6 +166,13 @@ class DisplayGroupProxy:
         return repr
 
 
+class ExperimentJobProxy:
+    def __init__(self, *, client: Client, job_id: int) -> None:
+        self._client = client
+        self._job_id = job_id
+        self._getting_data = False
+
+
 class ExperimentProxy:
     def __init__(
         self,
@@ -170,7 +201,56 @@ class ExperimentProxy:
             display_group_name,
             self._experiment_metadata["parameters"][display_group_name],
         )
+
+    def schedule(
+        self,
+        scan_parameters: list[ScanParameter],
+        priority: int = 20,
+        repetitions: int = 1,
+        local_parameters_timestamp: datetime = datetime.now(),
+        git_commit_hash: str | None = None,
+    ) -> ExperimentJobProxy:
+        """
+        Schedule an experiment scan.
+
+        Args:
+            scan_parameters:
+                A list of dictionaries where each dictionary defines a scan parameter
+                and its values. Each dictionary should include:
+                    - 'parameter': A ParameterProxy object retrieved from the API.
+                    - 'values': Either a dictionary with 'start', 'stop', and
+                        'num_points' keys or a list of explicit values.
+                    - 'randomized': (Optional) Boolean indicating whether the values
+                        should be shuffled. Defaults to False.
+                    - 'reversed': (Optional) Boolean indicating whether the values
+                        should be reversed. Defaults to False.
+            priority:
+                Priority level of the experiment (default: 20).
+            repetitions:
+                Number of repetitions for the experiment to average over (default: 1).
+            local_parameters_timestamp:
+                Timestamp of the local parameters to be used. Defaults to the current
+                time.
+            git_commit_hash:
+                Git commit hash of the experiment library. If None is provided, it will
+                take the latest commit on the main/master branch. Defaults to None.
+
+        Returns:
+            ExperimentJobProxy: Proxy object for the scheduled experiment job.
+        """
+
+        job_id: int = self._client.trigger_method(
+            "scheduler.submit_job",
+            kwargs={
+                "experiment_id": self._experiment_id,
+                "priority": priority,
+                "local_parameters_timestamp": local_parameters_timestamp,
+                "scan_info": scan_parameters,
+                "repetitions": repetitions,
+                "git_commit_hash": git_commit_hash,
+            },
         )
+        return ExperimentJobProxy(client=self._client, job_id=job_id)
 
 
 class ExperimentsController:
