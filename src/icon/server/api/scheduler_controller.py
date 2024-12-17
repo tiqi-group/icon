@@ -21,6 +21,7 @@ class SchedulerController(pydase.DataService):
         priority: int = 20,
         local_parameters_timestamp: datetime = datetime.now(tz=zurich_timezone),
         repetitions: int = 1,
+        git_commit_hash: str | None = None,
     ) -> int:
         experiment_source = ExperimentSource(experiment_id=experiment_id)
 
@@ -33,6 +34,7 @@ class SchedulerController(pydase.DataService):
             local_parameters_timestamp=local_parameters_timestamp,
             # scan_info=scan_info,
             repetitions=repetitions,
+            git_commit_hash=git_commit_hash,
         )
         job = JobRepository.submit_job(job=job)
 
