@@ -30,10 +30,9 @@ class JobProxy {
 class ScanParameterModel {
     + int scan_parameter_id
     + int job_id
-    + int remote_source_id
-    + str variable_name
-    + str description
+    + str variable_id
     + number[] scan_values
+    + int remote_source_id
 }
 
 class RemoteSourceModel {
@@ -47,7 +46,7 @@ class RemoteSourceModel {
 }
 
 class ExperimentSourceModel {
-    + int id
+    + int experiment_source_id
     + int experiment_id
 }
 
@@ -93,8 +92,7 @@ JobModel *-- JobStatus
 class PreProcessingTask {
     + int job_id
     + int job_run_id
-    + str experiment_file_path
-    + str experiment_name
+    + str experiment_id
     + str | None git_commit_hash
     + int priority
     + datetime local_parameters_timestamp

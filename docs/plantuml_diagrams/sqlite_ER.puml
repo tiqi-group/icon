@@ -2,7 +2,7 @@
 skinparam linetype ortho
 
 entity "ExperimentSource" as experiment {
-    *id: number <<generated>>
+    *experiment_source_id: number <<generated>>
     ---
     *experiment_id: text
 }
@@ -43,10 +43,9 @@ entity "Scan Parameter" as scan_param {
     *scan_parameter_id: number <<generated>>
     --
     *job_id: number <<FK>>
-    *variable_name: text
+    *variable_id: text
     *scan_values: list of numbers
     *remote_source_id: number <<FK>>
-    *description: text (this will appear in the plot)
 }
 
 entity "Remote Source (Service or DB)" as remote {
