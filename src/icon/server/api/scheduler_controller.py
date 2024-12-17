@@ -33,7 +33,7 @@ class SchedulerController(pydase.DataService):
             experiment_source=experiment_source,
             priority=priority,
             local_parameters_timestamp=local_parameters_timestamp,
-            # scan_info=scan_info,
+            scan_parameters=scan_parameters,
             repetitions=repetitions,
             git_commit_hash=git_commit_hash,
         )

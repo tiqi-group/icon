@@ -6,6 +6,7 @@ import sqlalchemy
 import sqlalchemy.event
 import sqlalchemy.orm
 
+from icon.server.api.models.scan_parameter import ScanParameter
 from icon.server.data_access.models.enums import JobStatus
 from icon.server.data_access.models.sqlite.base import Base
 
@@ -72,9 +73,9 @@ class Job(Base):
     debug_mode: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(
         default=False
     )
-    # scan_parameters: sqlalchemy.orm.Mapped[list[ScanParameter]] = (
-    #     sqlalchemy.orm.relationship(back_populates="job")
-    # )
+    scan_parameters: sqlalchemy.orm.Mapped[list["ScanParameter"]] = (
+        sqlalchemy.orm.relationship(back_populates="job")
+    )
 
     parent_job_id: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column(
         sqlalchemy.ForeignKey("job_submissions.id"), nullable=True

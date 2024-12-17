@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 
 
 class ScanParameter(TypedDict):
-    parameter: ParameterProxy
-    """A ParameterProxy object retrieved from the API. """
+    parameter: ParameterProxy | str
+    """A ParameterProxy object retrieved from the API, or the parameter identifier. """
     values: dict[str, Any] | list[Any]
     """ Either a dictionary with 'start', 'stop', and 'num_points' keys or a list of
     explicit values. """
@@ -239,13 +239,17 @@ class ExperimentProxy:
             ExperimentJobProxy: Proxy object for the scheduled experiment job.
         """
 
+        for parameter in scan_parameters:
+            if isinstance(parameter["parameter"], ParameterProxy):
+                parameter["parameter"] = parameter["parameter"]._parameter_id
+
         job_id: int = self._client.trigger_method(
             "scheduler.submit_job",
             kwargs={
                 "experiment_id": self._experiment_id,
+                "scan_parameters": scan_parameters,
                 "priority": priority,
                 "local_parameters_timestamp": local_parameters_timestamp,
-                "scan_info": scan_parameters,
                 "repetitions": repetitions,
                 "git_commit_hash": git_commit_hash,
             },
