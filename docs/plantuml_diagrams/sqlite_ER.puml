@@ -2,10 +2,9 @@
 skinparam linetype ortho
 
 entity "ExperimentSource" as experiment {
-    *experiment_source_id: number <<generated>>
+    *id: number <<generated>>
     ---
-    *file_path: text (relative within repository)
-    *name: text (class name)
+    *experiment_id: text
 }
 
 entity "Job" as job {

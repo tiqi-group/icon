@@ -22,9 +22,7 @@ class ExperimentSourceRepository:
             # Check if the experiment exists
             experiment = (
                 session.query(ExperimentSource)
-                .filter_by(
-                    name=experiment_source.name, file_path=experiment_source.file_path
-                )
+                .filter_by(experiment_id=experiment_source.experiment_id)
                 .first()
             )
 

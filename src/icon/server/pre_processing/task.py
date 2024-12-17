@@ -8,8 +8,7 @@ import pydantic
 class PreProcessingTask(pydantic.BaseModel):
     job_id: int
     job_run_id: int
-    experiment_file_path: str
-    experiment_name: str
+    experiment_id: str
     git_commit_hash: str | None = None
     priority: int = pydantic.Field(ge=0, le=20)
     local_parameters_timestamp: datetime

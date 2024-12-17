@@ -47,9 +47,8 @@ class RemoteSourceModel {
 }
 
 class ExperimentSourceModel {
-    + int experiment_source_id
-    + str name
-    + str file_path
+    + int id
+    + int experiment_id
 }
 
 class JobModel {

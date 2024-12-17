@@ -2,7 +2,6 @@ from datetime import datetime
 
 import pydase
 
-from icon.server.api.models.experiment import Experiment
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
 from icon.server.data_access.models.sqlite.job import Job, zurich_timezone
 from icon.server.data_access.repositories.experiment_source_repository import (
@@ -17,15 +16,13 @@ class SchedulerController(pydase.DataService):
     def submit_job(
         self,
         *,
-        experiment: Experiment,
         # scan_info: ScanInfo,
+        experiment_id: str,
         priority: int = 20,
         local_parameters_timestamp: datetime = datetime.now(tz=zurich_timezone),
         repetitions: int = 1,
     ) -> int:
-        experiment_source = ExperimentSource(
-            name=experiment.name, file_path=str(experiment.file_path)
-        )
+        experiment_source = ExperimentSource(experiment_id=experiment_id)
 
         experiment_source = ExperimentSourceRepository.get_or_create_experiment(
             experiment_source=experiment_source
