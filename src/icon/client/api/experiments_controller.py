@@ -209,6 +209,7 @@ class ExperimentProxy:
         repetitions: int = 1,
         local_parameters_timestamp: datetime = datetime.now(),
         git_commit_hash: str | None = None,
+        auto_calibration: bool = False,
     ) -> ExperimentJobProxy:
         """
         Schedule an experiment scan.
@@ -234,6 +235,9 @@ class ExperimentProxy:
             git_commit_hash:
                 Git commit hash of the experiment library. If None is provided, it will
                 take the latest commit on the main/master branch. Defaults to None.
+            auto_calibration:
+                Defines whether the parameter fits defined by the experiment should be
+                applied automatically .
 
         Returns:
             ExperimentJobProxy: Proxy object for the scheduled experiment job.
@@ -252,6 +256,7 @@ class ExperimentProxy:
                 "local_parameters_timestamp": local_parameters_timestamp,
                 "repetitions": repetitions,
                 "git_commit_hash": git_commit_hash,
+                "auto_calibration": auto_calibration,
             },
         )
         return ExperimentJobProxy(client=self._client, job_id=job_id)
