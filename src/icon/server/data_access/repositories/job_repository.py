@@ -84,12 +84,11 @@ class JobRepository:
                 select(Job)
                 .where(Job.status == status)
                 .options(sqlalchemy.orm.joinedload(Job.experiment_source))
-                # .options(sqlalchemy.orm.joinedload(Job.scan_parameters))
+                .options(sqlalchemy.orm.joinedload(Job.scan_parameters))
                 .order_by(Job.priority.asc())
                 .order_by(Job.created.asc())
             )
-            jobs = session.execute(stmt).all()
-        return jobs
+            return session.execute(stmt).unique().all()
 
     @staticmethod
     def get_job_by_experiment_source_and_status(
