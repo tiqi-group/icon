@@ -6,13 +6,13 @@ import sqlalchemy
 import sqlalchemy.event
 import sqlalchemy.orm
 
-from icon.server.api.models.scan_parameter import ScanParameter
 from icon.server.data_access.models.enums import JobStatus
 from icon.server.data_access.models.sqlite.base import Base
 
 if TYPE_CHECKING:
     from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
     from icon.server.data_access.models.sqlite.job_run import JobRun
+    from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
 
 zurich_timezone = pytz.timezone("Europe/Zurich")
 
