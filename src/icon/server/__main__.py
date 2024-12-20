@@ -31,6 +31,7 @@ scheduler = Scheduler(
 scheduler.start()
 pre_processing_worker = PreProcessingWorker(
     worker_number=0,
+    hardware_processing_queue=icon.server.queue_manager.hardware_queue,
     pre_processing_queue=icon.server.queue_manager.pre_processing_queue,
     manager=icon.server.queue_manager.manager,
 )

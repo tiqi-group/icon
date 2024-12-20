@@ -65,6 +65,7 @@ class JobRepository:
                 .values(status=status)
                 .returning(Job)
                 .options(sqlalchemy.orm.joinedload(Job.experiment_source))
+                .options(sqlalchemy.orm.joinedload(Job.scan_parameters))
             )
             job = session.execute(stmt).scalar_one()
             session.commit()
@@ -83,6 +84,24 @@ class JobRepository:
             stmt = (
                 select(Job)
                 .where(Job.status == status)
+                .options(sqlalchemy.orm.joinedload(Job.experiment_source))
+                .options(sqlalchemy.orm.joinedload(Job.scan_parameters))
+                .order_by(Job.priority.asc())
+                .order_by(Job.created.asc())
+            )
+            return session.execute(stmt).unique().all()
+
+    @staticmethod
+    def get_job_by_id(
+        *,
+        job_id: int,
+    ) -> Sequence[sqlalchemy.Row[tuple[Job]]]:
+        """Gets all the Job instances with given status."""
+
+        with sqlalchemy.orm.Session(engine) as session:
+            stmt = (
+                select(Job)
+                .where(Job.id == job_id)
                 .options(sqlalchemy.orm.joinedload(Job.experiment_source))
                 .options(sqlalchemy.orm.joinedload(Job.scan_parameters))
                 .order_by(Job.priority.asc())

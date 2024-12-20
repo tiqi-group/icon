@@ -1,18 +1,24 @@
 from __future__ import annotations
 
-from datetime import datetime  # noqa: TCH003 Need this for pydantic's type inference
+from datetime import datetime  # noqa: TC003 Need this for pydantic's type inference
 
 import pydantic
 
+from icon.server.data_access.models.sqlite.job import Job
+from icon.server.data_access.models.sqlite.job_run import JobRun
+from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
+
 
 class PreProcessingTask(pydantic.BaseModel):
-    job_id: int
-    job_run_id: int
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
+
+    job: Job
+    job_run: JobRun
     experiment_id: str
     git_commit_hash: str | None = None
     priority: int = pydantic.Field(ge=0, le=20)
     local_parameters_timestamp: datetime
-    # scan_parameters: list[int]
+    scan_parameters: list[ScanParameter]
     auto_calibration: bool
     debug_mode: bool = False
     repetitions: int = 1
