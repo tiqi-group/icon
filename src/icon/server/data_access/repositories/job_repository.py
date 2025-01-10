@@ -95,19 +95,20 @@ class JobRepository:
     def get_job_by_id(
         *,
         job_id: int,
-    ) -> Sequence[sqlalchemy.Row[tuple[Job]]]:
-        """Gets all the Job instances with given status."""
+        load_experiment_source: bool = False,
+        load_scan_parameters: bool = False,
+    ) -> Job:
+        """Gets the Job instances with given id."""
 
         with sqlalchemy.orm.Session(engine) as session:
-            stmt = (
-                select(Job)
-                .where(Job.id == job_id)
-                .options(sqlalchemy.orm.joinedload(Job.experiment_source))
-                .options(sqlalchemy.orm.joinedload(Job.scan_parameters))
-                .order_by(Job.priority.asc())
-                .order_by(Job.created.asc())
-            )
-            return session.execute(stmt).unique().all()
+            stmt = select(Job).where(Job.id == job_id)
+
+            if load_experiment_source:
+                stmt = stmt.options(sqlalchemy.orm.joinedload(Job.experiment_source))
+            if load_scan_parameters:
+                stmt = stmt.options(sqlalchemy.orm.joinedload(Job.scan_parameters))
+
+            return session.execute(stmt).unique().one()._tuple()[0]
 
     @staticmethod
     def get_job_by_experiment_source_and_status(
