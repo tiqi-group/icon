@@ -1,61 +1,77 @@
-[tool.poetry]
+[project]
 name = "icon"
 version = "0.1.0"
-description = ""
-authors = ["Mose Mueller <mosemueller@gmail.com>"]
+description = "Ion CONtrol Experiment Control Software"
 readme = "README.md"
-packages = [{include = "icon", from = "src"}]
+authors = [
+    { name = "Mose Müller", email = "mosemueller@gmail.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "pydase",
+    "pytz>=2024.2",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-pydase = { git = "https://github.com/tiqi-group/pydase.git", branch = "main" }
-pandas = "^2.2.2"
-pytz = "^2024.1"
-sqlalchemy = {version = "^2.0.32", optional = true}
-redis = {version = "^5.0.7", optional = true}
-alembic = {version = "^1.13.2", optional = true}
-tables = {version = "^3.10.0", optional = true}
-filelock = {version = "^3.15.4", optional = true}
-influxdb-client = {extras = ["async"], version = "^1.46.0", optional = true}
-tiqi-plugin = {git = "git@gitlab.phys.ethz.ch:tiqi-projects/tiqi-plugin.git"}
-tiqi-rpc = {git = "git@gitlab.phys.ethz.ch:tiqi-projects/tiqi-rpc-python.git"}
-
-[tool.poetry.extras]
+[project.optional-dependencies]
 server = [
-    "sqlalchemy",
-    "redis",
-    "alembic",
-    "tables",
-    "filelock",
-    "influxdb-client",
+    "alembic>=1.14.0",
+    "filelock>=3.16.1",
+    "influxdb-client>=1.48.0",
+    "redis>=5.2.1",
+    "sqlalchemy>=2.0.36",
+    "tables>=3.10.1",
+    "tiqi-plugin @ git+ssh://git@gitlab.phys.ethz.ch/tiqi-projects/tiqi-plugin.git",
+    "tiqi-rpc @ git+ssh://git@gitlab.phys.ethz.ch/tiqi-projects/tiqi-rpc-python.git",
+]
+client = [
+    "ipympl>=0.9.5",
+    "matplotlib>=3.10.0",
+    "notebook>=7.3.1",
 ]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.poetry.group.dev]
-optional = true
+[tool.hatch.metadata]
+allow-direct-references = true
 
-[tool.poetry.group.dev.dependencies]
-mypy = "^1.1.1"
-pyright = "^1.1.323"
-ruff = "^0.5.0"
-types-pytz = "^2024.1.0.20240203"
-pytest-docker = "^3.1.1"
-types-psutil = "^5.9.5.20240106"
-pytest = "^8.1.1"
-podman-compose = "^1.0.6"
-pandas-stubs = "^2.2.2.240807"
+[tool.uv.sources]
+pydase = { path = "../pydase", editable = true }
+
+[dependency-groups]
+dev = [
+    "h5py>=3.12.1",
+    "mypy>=1.13.0",
+    "podman-compose>=1.2.0",
+    "pyright>=1.1.391",
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.25.0",
+    "pytest-docker>=3.1.1",
+    "pyyaml>=6.0.2",
+    "ruff>=0.8.4",
+    "types-psutil>=6.1.0.20241102",
+    "types-pytz>=2024.2.0.20241003",
+]
 
 
 [tool.pyright]
 include = ["src/icon", "tests"]
+exclude = [
+    "src/icon/server/data_access/templates/"
+]
 typeCheckingMode = "basic"
 
 
 [tool.ruff]
 target-version = "py310" # Always generate Python 3.10-compatible code
+extend-exclude = [
+    "docs", 
+    "frontend", 
+    "src/icon/server/data_access/templates/"
+]
+
+[tool.ruff.lint]
 select = [
     "ASYNC", # flake8-async
     "C4",    # flake8-comprehensions
@@ -86,12 +102,8 @@ select = [
     "W",     # pycodestyle warnings
 ]
 ignore = [
-    "E203",     # whitespace-before-punctuation
-    "W292",     # missing-newline-at-end-of-file
+    "RUF006",  # asyncio-dangling-task
     "PERF203",  # try-except-in-loop
-]
-extend-exclude = [
-  "docs"
 ]
 
 [tool.ruff.lint.mccabe]
@@ -99,9 +111,13 @@ max-complexity = 7
 
 
 [tool.mypy]
+exclude = ["templates/.*\\.py"]
 disallow_untyped_defs = true
 disallow_untyped_calls = true
 disallow_incomplete_defs = true
 disallow_any_generics = true
 check_untyped_defs = true
 ignore_missing_imports = false
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "session"

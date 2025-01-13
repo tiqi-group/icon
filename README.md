@@ -7,8 +7,8 @@ This repository contains the source code for the ICON Experiment Control softwar
 ## Development
 
 ```bash
-poetry install --with dev --all-extras
-poetry shell
+uv sync --all-extras --group dev
+source .venv/bin/activate  # activating virtual environment
 ```
 
 Initialise the database using alembic:
