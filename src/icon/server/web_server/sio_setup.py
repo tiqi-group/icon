@@ -20,9 +20,9 @@ def setup_sio_events(
     sio: socketio.AsyncServer,
     state_manager: pydase.data_service.state_manager.StateManager,
 ) -> None:
-    assert isinstance(
-        sio.manager, type(sio_client_manager)
-    ), "Socket.IO manager must use Redis"
+    assert isinstance(sio.manager, type(sio_client_manager)), (
+        "Socket.IO manager must use Redis"
+    )
     pydase_setup_sio_events(sio, state_manager)
 
     @sio.event  # type: ignore
@@ -44,7 +44,7 @@ def setup_sio_events(
                 "job_id": job_id,
                 "data": ExperimentDataRepository.get_experiment_data_by_job_id(
                     job_id=job_id
-                ).to_json(),
+                ),
             },
             to=sid,
         )
