@@ -277,11 +277,11 @@ class ExperimentsController:
             repr += f"  - {experiment}\n"
         return repr
 
-    def __getitem__(self, key: str) -> ExperimentProxy | None:
+    def __getitem__(self, key: str) -> ExperimentProxy:
         experiment_id = self._experiments_id_mapping.get(key, None)
         if experiment_id:
             return ExperimentProxy(
                 self._client, experiment_id, self._experiments[experiment_id]
             )
 
-        return None
+        raise Exception(f"There is no experiment with id {key}")
