@@ -59,7 +59,7 @@ class ConfigurationController(pydase.DataService):
             self._save_configuration(updated_config)
             return True
         except KeyError as e:
-            logger.error("Failed to update configuration: %s", e)
+            logger.exception("Failed to update configuration: %s", e)
             return False
 
     def _save_configuration(self, new_config: ServiceConfigV1) -> None:

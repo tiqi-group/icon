@@ -249,5 +249,5 @@ class InfluxDBSession:
             if e.status == BUCKET_ALREADY_EXISTS:
                 logger.debug(e.message)
                 return
-            logger.error(e)
+            logger.exception(e)
         return
