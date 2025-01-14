@@ -75,27 +75,21 @@ class JobRunRepository:
             return session.execute(stmt).all()
 
     @staticmethod
-    def get_runs_by_job_id_and_status(
+    def get_run_by_job_id(
         *,
         job_id: int,
-        status: JobRunStatus | None = None,
         load_job: bool = False,
     ) -> Sequence[sqlalchemy.Row[tuple[JobRun]]]:
-        """Gets all the JobRun instances with given job_id and status."""
+        """Gets the JobRun instances with given job_id."""
 
         with sqlalchemy.orm.Session(engine) as session:
             stmt = select(JobRun).where(JobRun.job_id == job_id)
 
-            if status:
-                stmt = stmt.where(JobRun.status == status)
-
             if load_job:
                 stmt = stmt.options(sqlalchemy.orm.joinedload(JobRun.job))
 
-            stmt = stmt.order_by(JobRun.scheduled_time.asc())
-
             runs = session.execute(stmt).all()
-            logger.debug("Got JobRuns by job_id %s", job_id)
+            logger.debug("Got JobRun by job_id %s", job_id)
         return runs
 
     @staticmethod
