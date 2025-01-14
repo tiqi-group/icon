@@ -11,9 +11,10 @@ import pydase.units as u
 import pydase.utils.serialization.serializer
 from pydase.data_service.abstract_data_service import AbstractDataService
 from pydase.utils.helpers import get_attribute_doc
-from pydase.utils.serialization.types import SerializedException
 
 if TYPE_CHECKING:
+    from pydase.utils.serialization.types import SerializedException
+
     from icon.serialization.types import SerializedIconObject, SerializedPydanticModel
 
 logger = logging.getLogger(__name__)
