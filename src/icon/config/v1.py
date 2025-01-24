@@ -27,6 +27,10 @@ class DatabaseConfig(BaseModel):
     influxdb: InfluxDBConfig = InfluxDBConfig()
 
 
+class DateConfig(BaseModel):
+    timezone: str = "Europe/Zurich"
+
+
 class IonpulsePluginConfig(BaseModel):
     host: str = "localhost"
     rpc_port: int = 8002
@@ -38,3 +42,4 @@ class ServiceConfigV1(BaseConfig):  # type: ignore[misc]
     experiment_library: ExperimentLibraryConfigV1 = ExperimentLibraryConfigV1()
     databases: DatabaseConfig = DatabaseConfig()
     ionpulse_plugin: IonpulsePluginConfig = IonpulsePluginConfig()
+    date: DateConfig = DateConfig()

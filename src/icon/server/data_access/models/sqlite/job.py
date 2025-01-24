@@ -6,6 +6,7 @@ import sqlalchemy
 import sqlalchemy.event
 import sqlalchemy.orm
 
+from icon.config.config import get_config
 from icon.server.data_access.models.enums import JobStatus
 from icon.server.data_access.models.sqlite.base import Base
 
@@ -14,7 +15,7 @@ if TYPE_CHECKING:
     from icon.server.data_access.models.sqlite.job_run import JobRun
     from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
 
-zurich_timezone = pytz.timezone("Europe/Zurich")
+timezone = pytz.timezone(get_config().date.timezone)
 
 
 class Job(Base):
@@ -37,7 +38,7 @@ class Job(Base):
         primary_key=True, autoincrement=True
     )
     created: sqlalchemy.orm.Mapped[datetime.datetime] = sqlalchemy.orm.mapped_column(
-        default=datetime.datetime.now(zurich_timezone)
+        default=datetime.datetime.now(timezone)
     )
     # user_id: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column(
     #     sqlalchemy.ForeignKey("user.id"),
@@ -62,7 +63,7 @@ class Job(Base):
         default=1,
     )
     local_parameters_timestamp: sqlalchemy.orm.Mapped[datetime.datetime] = (
-        sqlalchemy.orm.mapped_column(default=datetime.datetime.now(zurich_timezone))
+        sqlalchemy.orm.mapped_column(default=datetime.datetime.now(timezone))
     )
     auto_calibration: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(
         default=False

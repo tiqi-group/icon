@@ -7,7 +7,7 @@ from typing import Any
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.job_run import (
     JobRun,
-    zurich_timezone,
+    timezone,
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import (
@@ -58,9 +58,7 @@ class Scheduler(multiprocessing.Process):
                 job = JobRepository.update_job_status(
                     job=job_._tuple()[0], status=JobStatus.PROCESSING
                 )
-                run = JobRun(
-                    job_id=job.id, scheduled_time=datetime.now(tz=zurich_timezone)
-                )
+                run = JobRun(job_id=job.id, scheduled_time=datetime.now(tz=timezone))
                 run = JobRunRepository.insert_run(run=run)
 
                 self._pre_processing_queue.put(

@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 # TODO: make this configurable -> write timezone into config
-zurich_timezone = pytz.timezone("Europe/Zurich")
+timezone = pytz.timezone(get_config().date.timezone)
 
 
 def prepare_experiment_library_folder(
@@ -163,7 +163,7 @@ class PreProcessingWorker(multiprocessing.Process):
                         time.sleep(0.001)
                         continue
 
-                    global_parameter_timestamp = datetime.now(zurich_timezone)
+                    global_parameter_timestamp = datetime.now(timezone)
                     # TODO: create this function
                     sequence_json = generate_json_sequence()
 

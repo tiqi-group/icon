@@ -6,13 +6,14 @@ import sqlalchemy
 import sqlalchemy.event
 import sqlalchemy.orm
 
+from icon.config.config import get_config
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.data_access.models.sqlite.base import Base
 
 if TYPE_CHECKING:
     from icon.server.data_access.models.sqlite.job import Job
 
-zurich_timezone = pytz.timezone("Europe/Zurich")
+timezone = pytz.timezone(get_config().date.timezone)
 
 
 class JobRun(Base):
@@ -31,7 +32,7 @@ class JobRun(Base):
         primary_key=True, autoincrement=True
     )
     scheduled_time: sqlalchemy.orm.Mapped[datetime.datetime] = (
-        sqlalchemy.orm.mapped_column(default=datetime.datetime.now(zurich_timezone))
+        sqlalchemy.orm.mapped_column(default=datetime.datetime.now(timezone))
     )
     job_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
         sqlalchemy.ForeignKey("job_submissions.id")
