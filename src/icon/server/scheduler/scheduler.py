@@ -29,7 +29,7 @@ def initialise_job_tables() -> None:
         )
 
     # update jobs table
-    jobs = JobRepository.get_jobs_by_status(status=JobStatus.PROCESSING)
+    jobs = JobRepository.get_jobs_by_status_and_timeframe(status=JobStatus.PROCESSING)
     for job_ in jobs:
         JobRepository.update_job_status(
             job=job_._tuple()[0], status=JobStatus.PROCESSED
@@ -53,7 +53,9 @@ class Scheduler(multiprocessing.Process):
     def run(self) -> None:
         initialise_job_tables()
         while not should_exit():
-            jobs = JobRepository.get_jobs_by_status(status=JobStatus.SUBMITTED)
+            jobs = JobRepository.get_jobs_by_status_and_timeframe(
+                status=JobStatus.SUBMITTED
+            )
             for job_ in jobs:
                 job = JobRepository.update_job_status(
                     job=job_._tuple()[0], status=JobStatus.PROCESSING

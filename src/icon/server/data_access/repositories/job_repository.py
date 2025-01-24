@@ -1,14 +1,19 @@
+import datetime
 import logging
 from collections.abc import Sequence
 
+import pytz
 import sqlalchemy.orm
 from sqlalchemy import select, update
 
+from icon.config.config import get_config
 from icon.server.data_access.db_context.sqlite import engine
 from icon.server.data_access.models.enums import JobStatus
 from icon.server.data_access.models.sqlite.job import Job
 
 logger = logging.getLogger(__name__)
+
+timezone = pytz.timezone(get_config().date.timezone)
 
 
 class JobRepository:
@@ -74,21 +79,32 @@ class JobRepository:
         return job
 
     @staticmethod
-    def get_jobs_by_status(
+    def get_jobs_by_status_and_timeframe(
         *,
-        status: JobStatus,
+        status: JobStatus | None = None,
+        start: datetime.datetime | None = None,
+        stop: datetime.datetime | None = None,
     ) -> Sequence[sqlalchemy.Row[tuple[Job]]]:
-        """Gets all the Job instances with given status."""
+        """Gets all the Job instances filtered by status and optional time range."""
 
         with sqlalchemy.orm.Session(engine) as session:
             stmt = (
                 select(Job)
-                .where(Job.status == status)
                 .options(sqlalchemy.orm.joinedload(Job.experiment_source))
                 .options(sqlalchemy.orm.joinedload(Job.scan_parameters))
                 .order_by(Job.priority.asc())
                 .order_by(Job.created.asc())
             )
+
+            if status is not None:
+                stmt = stmt.where(Job.status == status)
+
+            if start is not None:
+                stmt = stmt.where(Job.created >= start)
+
+            if stop is not None:
+                stmt = stmt.where(Job.created < stop)
+
             return session.execute(stmt).unique().all()
 
     @staticmethod
