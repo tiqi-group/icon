@@ -33,8 +33,8 @@ LOGGING_CONFIG = {
         "asyncio": {"handlers": ["default"], "level": logging.INFO, "propagate": True},
         "sqlalchemy.engine": {
             "handlers": ["default"],
-            "level": logging.INFO if LOG_LEVEL == logging.DEBUG else logging.WARNING,
-            "propagate": False,
+            "level": logging.WARNING,
+            "propagate": True,
         },
     },
 }
