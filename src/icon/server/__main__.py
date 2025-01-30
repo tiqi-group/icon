@@ -3,6 +3,7 @@ from pathlib import Path
 import pydase
 
 import icon.server.queue_manager
+from icon.config.config import get_config
 from icon.server.api.api_service import APIService
 from icon.server.pre_processing.pre_processing import PreProcessingWorker
 from icon.server.scheduler.scheduler import Scheduler
@@ -38,4 +39,9 @@ pre_processing_worker = PreProcessingWorker(
 pre_processing_worker.start()
 
 
-pydase.Server(APIService(), frontend_src=Path(__file__).parent / "frontend").run()
+pydase.Server(
+    APIService(),
+    host=get_config().server.host,
+    web_port=get_config().server.port,
+    frontend_src=Path(__file__).parent / "frontend",
+).run()
