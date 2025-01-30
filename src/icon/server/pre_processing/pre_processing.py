@@ -5,19 +5,30 @@ import logging
 import multiprocessing
 import os
 import queue
+import re
 import tempfile
 import time
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import psutil
 import pytz
 import socketio  # type: ignore
+import tiqi_plugin
 
 from icon.config.config import get_config
 from icon.server.data_access.models.enums import JobRunStatus
+from icon.server.data_access.repositories.experiment_data_repository import (
+    ExperimentDataPoint,
+    ExperimentDataRepository,
+    ResultDict,
+)
 from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
+)
+from icon.server.data_access.repositories.parameters_repository import (
+    ParametersRepository,
+    ValkeyValueType,
 )
 from icon.server.hardware_processing.task import HardwareProcessingTask
 
@@ -135,15 +146,35 @@ class PreProcessingWorker(multiprocessing.Process):
                 scan_parameter_value_combinations = get_scan_combinations(
                     pre_processing_task.job
                 )
-                print(scan_parameter_value_combinations)
 
-                data_points_to_process: queue.Queue[dict[str, float]] = (
+                data_points_to_process: queue.Queue[tuple[int, dict[str, float]]] = (
                     self._manager.Queue()
                 )
                 processed_data_points: queue.Queue[Any] = self._manager.Queue()
 
-                for combination in scan_parameter_value_combinations:
+                for combination in enumerate(scan_parameter_value_combinations):
                     data_points_to_process.put(combination)
+
+                # store current parameter values to restore them at the end
+                prev_param_values: dict[str, ValkeyValueType] = {}
+                for key in scan_parameter_value_combinations[-1]:
+                    prev_param_values[key] = (
+                        ParametersRepository.get_ionpulse_parameter_by_id(key)
+                    )
+                # logger.info("Current values: %s", prev_param_values)
+
+                client = tiqi_plugin.Client(
+                    get_config().ionpulse_plugin.host,
+                    get_config().ionpulse_plugin.rpc_port,
+                    client_type="rpc",
+                )
+
+                ExperimentDataRepository.update_metadata_by_job_id(
+                    job_id=pre_processing_task.job.id,
+                    number_of_shots=50,
+                    repetitions=pre_processing_task.job.repetitions,
+                    number_of_data_points=len(scan_parameter_value_combinations),
+                )
 
                 # Prepare and execute data points as long as the number of processed
                 # data points does not correspond to the number of scan parameter
@@ -158,34 +189,84 @@ class PreProcessingWorker(multiprocessing.Process):
                     # TODO: this should probably be done with multiple workers to speed
                     # up the preparation of JSONs
                     try:
-                        data_point = data_points_to_process.get(block=False)
+                        index, data_point = data_points_to_process.get(block=False)
                     except queue.Empty:
                         time.sleep(0.001)
                         continue
 
                     global_parameter_timestamp = datetime.now(timezone)
-                    # TODO: create this function
-                    sequence_json = generate_json_sequence()
+                    # # TODO: create this function
+                    # sequence_json = generate_json_sequence()
+                    #
+                    # task = HardwareProcessingTask(
+                    #     pre_processing_task=pre_processing_task,
+                    #     priority=pre_processing_task.priority,
+                    #     data_point=data_point,
+                    #     global_parameter_timestamp=global_parameter_timestamp,
+                    #     src_dir=src_dir,
+                    #     sequence_json=sequence_json,
+                    # )
+                    #
+                    # logger.debug(
+                    #     "(worker=%s) Submitting data point %s (job_run_id=%s)",
+                    #     self._worker_number,
+                    #     data_point,
+                    #     pre_processing_task.job_run.id,
+                    # )
+                    # self._hw_processing_queue.put(task)
 
-                    task = HardwareProcessingTask(
-                        pre_processing_task=pre_processing_task,
-                        priority=pre_processing_task.priority,
-                        data_point=data_point,
-                        global_parameter_timestamp=global_parameter_timestamp,
-                        src_dir=src_dir,
-                        sequence_json=sequence_json,
+                    # set scan parameter values
+                    ParametersRepository.update_ionpulse_parameters(data_point)  # type: ignore
+
+                    experiment_id = re.findall(
+                        r"\((.*)\)",
+                        pre_processing_task.job.experiment_source.experiment_id,
+                    )[0]
+
+                    result: ResultDict = cast(
+                        ResultDict,
+                        client.Experiments[experiment_id].run(),  # type: ignore
                     )
 
-                    logger.info(
-                        "(worker=%s) Submitting data point %s (job_run_id=%s)",
-                        self._worker_number,
-                        data_point,
-                        pre_processing_task.job_run.id,
+                    experiment_data_point: ExperimentDataPoint = {
+                        "index": index,
+                        "scan_params": data_point,
+                        "result_channels": result["result_channels"],
+                        "shot_channels": result["shot_channels"],
+                        "vector_channels": result["vector_channels"],
+                        "timestamp": global_parameter_timestamp,
+                    }
+
+                    ExperimentDataRepository.write_experiment_data_by_job_id(
+                        job_id=pre_processing_task.job.id,
+                        data_point=experiment_data_point,
                     )
-                    self._hw_processing_queue.put(task)
+                    processed_data_points.put(data_point)
+
+                    external_sio.emit(
+                        "experiment_data_point",
+                        {
+                            "job_id": pre_processing_task.job.id,
+                            "index": experiment_data_point["index"],
+                            "data": experiment_data_point,
+                        },
+                        room=[
+                            f"experiment_{pre_processing_task.job.id}",
+                            "experiment_data_processing",
+                        ],
+                    )
+                external_sio.close_room(f"experiment_{pre_processing_task.job.id}")
+
+                # restore previous values
+                ParametersRepository.update_ionpulse_parameters(prev_param_values)
 
                 logger.info(
                     "(worker=%s) JobRun with id '%s' finished",
                     self._worker_number,
                     pre_processing_task.job_run.id,
+                )
+
+                JobRunRepository.update_run_by_id(
+                    run_id=pre_processing_task.job_run.id,
+                    status=JobRunStatus.DONE,
                 )

@@ -14,7 +14,6 @@ class PreProcessingTask(pydantic.BaseModel):
 
     job: Job
     job_run: JobRun
-    experiment_id: str
     git_commit_hash: str | None = None
     priority: int = pydantic.Field(ge=0, le=20)
     local_parameters_timestamp: datetime

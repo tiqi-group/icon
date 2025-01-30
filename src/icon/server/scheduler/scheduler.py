@@ -65,15 +65,15 @@ class Scheduler(multiprocessing.Process):
 
                 self._pre_processing_queue.put(
                     PreProcessingTask(
-                        job_id=job.id,
-                        job_run_id=run.id,
+                        job=job,
+                        job_run=run,
                         git_commit_hash=job.git_commit_hash,
+                        scan_parameters=job.scan_parameters,
                         local_parameters_timestamp=job.local_parameters_timestamp,
                         priority=job.priority,
-                        experiment_id=job.experiment_source.experiment_id,
                         auto_calibration=job.auto_calibration,
                         debug_mode=job.debug_mode,
                         repetitions=job.repetitions,
                     )
                 )
-            time.sleep(1)
+            time.sleep(0.1)
