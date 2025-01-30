@@ -37,9 +37,15 @@ class IonpulsePluginConfig(BaseModel):
     web_port: int = 8003
 
 
+class ServerConfig(BaseModel):
+    port: int = 8004
+    host: str = "0.0.0.0"
+
+
 class ServiceConfigV1(BaseConfig):  # type: ignore[misc]
     version: int = 1
     experiment_library: ExperimentLibraryConfigV1 = ExperimentLibraryConfigV1()
     databases: DatabaseConfig = DatabaseConfig()
     ionpulse_plugin: IonpulsePluginConfig = IonpulsePluginConfig()
     date: DateConfig = DateConfig()
+    server: ServerConfig = ServerConfig()
