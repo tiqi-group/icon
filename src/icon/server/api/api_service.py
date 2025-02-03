@@ -5,6 +5,7 @@ from pydase.task.decorator import task
 
 from icon.config.config import get_config
 from icon.server.api.configuration_controller import ConfigurationController
+from icon.server.api.experiment_data_controller import ExperimentDataController
 from icon.server.api.experiments_controller import ExperimentsController
 from icon.server.api.parameters_controller import ParametersController
 from icon.server.api.scheduler_controller import SchedulerController
@@ -18,6 +19,7 @@ class APIService(pydase.DataService):
     experiments = ExperimentsController()
     parameters = ParametersController()
     config = ConfigurationController()
+    data = ExperimentDataController()
 
     @task(autostart=True)
     async def _update_experiment_and_parameter_metadata(self) -> None:
