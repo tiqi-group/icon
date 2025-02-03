@@ -234,7 +234,7 @@ class PreProcessingWorker(multiprocessing.Process):
                         "result_channels": result["result_channels"],
                         "shot_channels": result["shot_channels"],
                         "vector_channels": result["vector_channels"],
-                        "timestamp": global_parameter_timestamp,
+                        "timestamp": global_parameter_timestamp.isoformat(),
                     }
 
                     ExperimentDataRepository.write_experiment_data_by_job_id(

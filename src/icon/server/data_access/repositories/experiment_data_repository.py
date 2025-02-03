@@ -2,7 +2,7 @@ import logging
 import os
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, TypedDict, cast
+from typing import TypedDict, cast
 
 import h5py  # type: ignore
 import numpy as np
@@ -23,8 +23,8 @@ class ResultDict(TypedDict):
 
 class ExperimentDataPoint(ResultDict):
     index: int
-    scan_params: dict[str, Any]
-    timestamp: datetime
+    scan_params: dict[str, float] | dict[str, bool] | dict[str, str]
+    timestamp: str
 
 
 class ExperimentData(TypedDict):
@@ -46,8 +46,8 @@ def resize_dataset(dataset: h5py.Dataset, current_size: int, axis: int) -> None:
 def write_scan_parameters_and_timestamp_to_dataset(
     h5file: h5py.File,
     data_point_index: int,
-    scan_params: dict[str, float | bool | str],
-    timestamp: datetime,
+    scan_params: dict[str, float] | dict[str, bool] | dict[str, str],
+    timestamp: str,
     number_of_data_points: int,
 ) -> None:
     """Write scan parameters and timestamp to scan_parameters dataset."""
@@ -69,7 +69,7 @@ def write_scan_parameters_and_timestamp_to_dataset(
 
     parameter_values = tuple(scan_params[key] for key in scan_params)
     scan_params_dataset[data_point_index] = (
-        timestamp.isoformat(),
+        timestamp,
         *parameter_values,
     )
 
