@@ -206,7 +206,7 @@ class InfluxDBSession:
                 time=record.get_time(),  # type: ignore
             )
             for table in tables
-            for record in cast(list[FluxRecord], table.records)
+            for record in cast("list[FluxRecord]", table.records)
         ]
 
     def create_bucket(  # noqa: PLR0913

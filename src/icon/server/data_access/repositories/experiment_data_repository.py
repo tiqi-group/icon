@@ -179,8 +179,10 @@ class ExperimentDataRepository:
         lock_path = "." + filename + ExperimentDataRepository.LOCK_EXTENSION
         with FileLock(lock_path), h5py.File(filename, "a") as h5file:
             try:
-                number_of_shots = cast(int, h5file.attrs["number_of_shots"])
-                number_of_data_points = cast(int, h5file.attrs["number_of_data_points"])
+                number_of_shots = cast("int", h5file.attrs["number_of_shots"])
+                number_of_data_points = cast(
+                    "int", h5file.attrs["number_of_data_points"]
+                )
 
                 # increase the number of data points
                 if data_point["index"] >= number_of_data_points:
@@ -251,36 +253,38 @@ class ExperimentDataRepository:
                     else value[0].item()  # value is stored as a list with one entry
                     for index, value in enumerate(scan_parameters[param])
                 }
-                for param in cast(tuple[str, ...], scan_parameters.dtype.names)
+                for param in cast("tuple[str, ...]", scan_parameters.dtype.names)
             }
 
             result_channels: npt.NDArray = h5file["result_channels"][:]  # type: ignore
             data["result_channels"] = {
                 channel_name: dict(
-                    enumerate(cast(list[float], result_channels[channel_name].tolist()))
+                    enumerate(
+                        cast("list[float]", result_channels[channel_name].tolist())
+                    )
                 )
-                for channel_name in cast(tuple[str, ...], result_channels.dtype.names)
+                for channel_name in cast("tuple[str, ...]", result_channels.dtype.names)
             }
 
             # Convert shot channels into dicts with index as key
-            shot_channels_group = cast(h5py.Group, h5file["shot_channels"])
+            shot_channels_group = cast("h5py.Group", h5file["shot_channels"])
             data["shot_channels"] = {
                 key: dict(enumerate(value[:].tolist()))  # type: ignore
                 for key, value in cast(
-                    Sequence[tuple[str, h5py.Dataset]], shot_channels_group.items()
+                    "Sequence[tuple[str, h5py.Dataset]]", shot_channels_group.items()
                 )
             }
 
-            vector_channels_group = cast(h5py.Group, h5file["vector_channels"])
+            vector_channels_group = cast("h5py.Group", h5file["vector_channels"])
             data["vector_channels"] = {
                 channel_name: {
                     int(data_point): vector_dataset[:].tolist()
                     for data_point, vector_dataset in cast(
-                        Sequence[tuple[str, h5py.Dataset]], vector_group.items()
+                        "Sequence[tuple[str, h5py.Dataset]]", vector_group.items()
                     )
                 }
                 for channel_name, vector_group in cast(
-                    Sequence[tuple[str, h5py.Group]], vector_channels_group.items()
+                    "Sequence[tuple[str, h5py.Group]]", vector_channels_group.items()
                 )
             }
             return data
