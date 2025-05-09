@@ -17,6 +17,7 @@ server = [
     "alembic>=1.14.0",
     "filelock>=3.16.1",
     "influxdb-client>=1.48.0",
+    "influxdb>=5.3.2",
     "redis>=5.2.1",
     "sqlalchemy>=2.0.36",
     "tables>=3.10.1",
@@ -27,6 +28,7 @@ client = [
     "ipympl>=0.9.5",
     "matplotlib>=3.10.0",
     "notebook>=7.3.1",
+    "pandas>=2.2.3",
 ]
 
 [build-system]
@@ -49,9 +51,12 @@ dev = [
     "pytest-asyncio>=0.25.0",
     "pytest-docker>=3.1.1",
     "pyyaml>=6.0.2",
+    "requests>=2.32.3",
     "ruff>=0.8.4",
     "types-psutil>=6.1.0.20241102",
     "types-pytz>=2024.2.0.20241003",
+    "types-pyyaml>=6.0.12.20250402",
+    "types-requests>=2.32.0.20250328",
 ]
 
 
