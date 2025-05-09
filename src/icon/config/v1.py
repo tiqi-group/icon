@@ -22,9 +22,21 @@ class InfluxDBConfig(BaseModel):
     bucket: str = "Experiment parameters"
 
 
+class InfluxDBv1Config(BaseConfig):  # type: ignore
+    host: str = "localhost"
+    port: int = 8086
+    username: str = "admin"
+    password: str = "admin"
+    database: str = "testing"
+    ssl: bool = True
+    verify_ssl: bool = True
+    headers: dict[str, str] = {}  # noqa: RUF012
+
+
 class DatabaseConfig(BaseModel):
     valkey: ValkeyConfig = ValkeyConfig()
     influxdb: InfluxDBConfig = InfluxDBConfig()
+    influxdbv1: InfluxDBv1Config = InfluxDBv1Config()
 
 
 class DateConfig(BaseModel):
