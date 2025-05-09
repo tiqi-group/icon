@@ -28,6 +28,7 @@ class InfluxDBv1Config(BaseConfig):  # type: ignore
     username: str = "admin"
     password: str = "admin"
     database: str = "testing"
+    measurement: str = "Experiment Parameters"
     ssl: bool = True
     verify_ssl: bool = True
     headers: dict[str, str] = {}  # noqa: RUF012
