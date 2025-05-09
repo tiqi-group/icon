@@ -1,9 +1,16 @@
 import json
+import logging
 from typing import Any
 
 from icon.config.config import get_config
 from icon.server.data_access.db_context.influxdb import InfluxDBSession, Record
+from icon.server.data_access.db_context.influxdb_v1 import (
+    DatabaseValueType,
+    InfluxDBv1Session,
+)
 from icon.server.data_access.db_context.valkey import ValkeySession
+
+logger = logging.getLogger(__name__)
 
 ValkeyValueType = bytes | str | float
 
@@ -52,6 +59,53 @@ class ParametersRepository:
     ) -> None:
         await ParametersRepository.update_valkey_parameters(
             parameter_mapping={parameter_id: new_value}
+        )
+
+    @staticmethod
+    def get_influxdbv1_parameters() -> dict[str, DatabaseValueType]:
+        with InfluxDBv1Session() as influxdbv1:
+            return influxdbv1.query_all(get_config().databases.influxdbv1.measurement)
+
+    @staticmethod
+    def get_influxdbv1_parameter_by_id(parameter_id: str) -> DatabaseValueType | None:
+        with InfluxDBv1Session() as influxdb:
+            result_dict = influxdb.query(
+                measurement=get_config().databases.influxdbv1.measurement,
+                field=parameter_id,
+            )
+            if result_dict is None:
+                logger.error(
+                    "Could not find parameter with id %s in database %s",
+                    parameter_id,
+                    get_config().databases.influxdbv1.measurement,
+                )
+                return None
+            return result_dict[parameter_id]
+
+    @staticmethod
+    def update_influxdbv1_parameters(
+        parameter_mapping: dict[str, ValkeyValueType],
+    ) -> None:
+        records: list[dict[str, Any]] = []
+
+        for parameter_id, value in parameter_mapping.items():
+            _, _, specifiers = get_specifiers_from_parameter_identifier(parameter_id)
+
+            records.append(
+                {
+                    "measurement": get_config().databases.influxdbv1.measurement,
+                    "tags": specifiers,
+                    "fields": {parameter_id: value},
+                }
+            )
+
+        with InfluxDBv1Session() as influxdb:
+            influxdb.write_points(points=records)
+
+    @staticmethod
+    def update_influxdbv1_parameter_by_id(parameter_id: str, value: Any) -> None:
+        return ParametersRepository.update_influxdbv1_parameters(
+            parameter_mapping={parameter_id: value}
         )
 
     @staticmethod
