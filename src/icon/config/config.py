@@ -17,7 +17,7 @@ yaml.add_representer(PosixPath, path_representer)
 
 def get_config_source() -> Path:
     if pydase.config.OperationMode().environment in ["development", "testing"]:
-        source = Path(__file__).parent.parent.parent.parent / "config" / "config.yaml"
+        source = Path(__file__).parent.parent.parent.parent / "tests" / "config.yaml"
     else:
         source = Path("~/.config/icon/config.yaml")
     return source
