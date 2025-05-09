@@ -8,6 +8,7 @@ class ExperimentLibraryConfigV1(BaseModel):
     dir: str = str(Path(__file__).parent.parent.parent.parent)
     git_repository: str = "https://..."
     update_interval: int = 30
+    results_dir: str = str(Path(__file__).parent.parent.parent.parent / "output")
 
 
 class ValkeyConfig(BaseModel):

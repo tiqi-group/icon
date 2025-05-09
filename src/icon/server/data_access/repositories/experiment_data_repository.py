@@ -9,6 +9,7 @@ import numpy as np
 import numpy.typing as npt
 from filelock import FileLock
 
+from icon.config.config import get_config
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
 
@@ -228,12 +229,16 @@ class ExperimentDataRepository:
     ) -> ExperimentData:
         data: ExperimentData = {}  # type: ignore
         filename = get_filename_by_job_id(job_id)
+        file = f"{get_config().experiment_library.results_dir}/{filename}"
 
-        if not os.path.exists(filename):
-            raise FileNotFoundError(f"The file {filename} does not exist.")
+        if not os.path.exists(file):
+            raise FileNotFoundError(f"The file {file} does not exist.")
 
-        lock_path = "." + filename + ExperimentDataRepository.LOCK_EXTENSION
-        with FileLock(lock_path), h5py.File(filename, "r") as h5file:
+        lock_path = (
+            f"{get_config().experiment_library.results_dir}/.{filename}"
+            f"{ExperimentDataRepository.LOCK_EXTENSION}"
+        )
+        with FileLock(lock_path), h5py.File(file, "r") as h5file:
             # Parse JSON strings in relevant columns back into Python objects
 
             scan_parameters: npt.NDArray = h5file["scan_parameters"][:]  # type: ignore
