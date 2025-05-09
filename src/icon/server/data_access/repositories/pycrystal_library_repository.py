@@ -19,9 +19,14 @@ class PycrystalLibraryRepository:
     @staticmethod
     async def _run_code(code: str) -> str:
         """Run the generated Python code in the specified virtual environment."""
-        python_executable = (
-            Path(get_config().experiment_library.dir) / ".venv/bin/python3"
-        )
+        exp_lib_dir = get_config().experiment_library.dir
+        if exp_lib_dir.startswith("../"):
+            exp_lib_dir = (
+                str(Path(__file__).parent.parent.parent.parent.parent.parent)
+                + f"/{exp_lib_dir}"
+            )
+
+        python_executable = Path(exp_lib_dir) / ".venv/bin/python3"
         proc = await asyncio.create_subprocess_exec(
             str(python_executable),
             "-c",
