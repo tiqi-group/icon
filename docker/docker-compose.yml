@@ -13,9 +13,24 @@ services:
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_USERNAME: tester
-      DOCKER_INFLUXDB_INIT_PASSWORD: test
+      DOCKER_INFLUXDB_INIT_PASSWORD: passw0rd
       DOCKER_INFLUXDB_INIT_ORG: test
       DOCKER_INFLUXDB_INIT_BUCKET: testing
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: my-super-secret-auth-token
       V1_AUTH_USERNAME: tester
-      V1_AUTH_PASSWORD: test
+      V1_AUTH_PASSWORD: passw0rd
+  influxdbv1:
+    image: influxdb:1.11
+    network_mode: host
+    expose:
+      - 8087
+    volumes:
+      - influxdb-storage:/var/lib/influxdb
+    environment:
+      - INFLUXDB_DB=testing
+      - INFLUXDB_ADMIN_USER=tester
+      - INFLUXDB_ADMIN_PASSWORD=passw0rd
+      - INFLUXDB_HTTP_BIND_ADDRESS=:8087
+      - INFLUXDB_HTTP_AUTH_ENABLED=true
+volumes:
+  influxdb-storage:
