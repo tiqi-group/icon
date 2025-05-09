@@ -6,6 +6,7 @@ import pytest
 import pytest_docker.plugin
 import requests
 import urllib3.exceptions
+
 from icon.server.data_access.db_context import influxdb
 
 logger = logging.getLogger(__name__)
