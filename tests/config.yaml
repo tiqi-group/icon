@@ -1,0 +1,27 @@
+databases:
+  influxdbv1:
+    database: testing
+    headers: {}
+    host: localhost
+    password: passw0rd
+    port: 8087
+    ssl: false
+    username: tester
+    verify_ssl: false
+  valkey:
+    host: localhost
+    port: 6379
+date:
+  timezone: Europe/Zurich
+experiment_library:
+  dir: ../
+  git_repository: https://...
+  update_interval: 30
+ionpulse_plugin:
+  host: localhost
+  rpc_port: 8002
+  web_port: 8003
+server:
+  host: 0.0.0.0
+  port: 8004
+version: 1
