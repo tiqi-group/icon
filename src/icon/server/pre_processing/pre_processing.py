@@ -17,12 +17,13 @@ import socketio  # type: ignore
 import tiqi_plugin
 
 from icon.config.config import get_config
-from icon.server.data_access.models.enums import JobRunStatus
+from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataPoint,
     ExperimentDataRepository,
     ResultDict,
 )
+from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
 )
@@ -293,7 +294,18 @@ class PreProcessingWorker(multiprocessing.Process):
                     pre_processing_task.job_run.id,
                 )
 
+                JobRepository.update_job_status(
+                    job=pre_processing_task.job, status=JobStatus.PROCESSED
+                )
                 JobRunRepository.update_run_by_id(
                     run_id=pre_processing_task.job_run.id,
                     status=JobRunStatus.DONE,
+                )
+
+                external_sio.emit(
+                    "update_job",
+                    {
+                        "job_id": pre_processing_task.job.id,
+                        "updated_properties": {"status": JobStatus.PROCESSED.value},
+                    },
                 )
