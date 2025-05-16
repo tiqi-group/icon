@@ -1,7 +1,4 @@
-interface SignatureDict {
-  parameters: Record<string, Record<string, unknown>>;
-  return_annotation: Record<string, unknown>;
-}
+import { QuantityMap } from "./QuantityMap";
 
 interface SerializedObjectBase {
   full_access_path: string;
@@ -17,6 +14,11 @@ export type SerializedInteger = SerializedObjectBase & {
 export type SerializedFloat = SerializedObjectBase & {
   value: number;
   type: "float";
+};
+
+export type SerializedQuantity = SerializedObjectBase & {
+  value: QuantityMap;
+  type: "Quantity";
 };
 
 export type SerializedBool = SerializedObjectBase & {
@@ -56,14 +58,6 @@ export type SerializedNoValue = SerializedObjectBase & {
   type: "None";
 };
 
-export type SerializedMethod = SerializedObjectBase & {
-  value: "RUNNING" | null;
-  type: "method";
-  async: boolean;
-  signature: SignatureDict;
-  frontend_render: boolean;
-};
-
 export type SerializedException = SerializedObjectBase & {
   name: string;
   value: string;
@@ -91,8 +85,8 @@ export type SerializedObject =
   | SerializedList
   | SerializedDict
   | SerializedNoneType
-  | SerializedMethod
   | SerializedException
   | SerializedDataService
   | SerializedEnum
+  | SerializedQuantity
   | SerializedNoValue;

@@ -41,19 +41,23 @@ const serializePrimitive = (
   }
 };
 
-export const serializeList = (obj: unknown[], accessPath = "") => {
+export const serializeList = (obj: unknown[], accessPath = ""): SerializedObject => {
   const doc = null;
   const value = obj.map((item, index) => {
+    const newPath = `${accessPath}[${index}]`;
     if (
       typeof item === "number" ||
       typeof item === "boolean" ||
       typeof item === "string" ||
       item === null
     ) {
-      serializePrimitive(
-        item as number | boolean | string | null,
-        `${accessPath}[${index}]`,
-      );
+      return serializePrimitive(item as number | boolean | string | null, newPath);
+    } else if (Array.isArray(item)) {
+      return serializeList(item, newPath);
+    } else if (typeof item === "object" && item !== null) {
+      return serializeDict(item as Record<string, unknown>, newPath);
+    } else {
+      throw new Error(`Unsupported type in list at path: ${newPath}`);
     }
   });
 
@@ -65,14 +69,16 @@ export const serializeList = (obj: unknown[], accessPath = "") => {
     doc,
   };
 };
-export const serializeDict = (obj: Record<string, unknown>, accessPath = "") => {
+
+export const serializeDict = (
+  obj: Record<string, unknown>,
+  accessPath = "",
+): SerializedObject => {
   const doc = null;
   const value = Object.entries(obj).reduce(
     (acc, [key, val]) => {
-      // Construct the new access path for nested properties
       const newPath = `${accessPath}["${key}"]`;
-
-      // Serialize each value in the dictionary and assign to the accumulator
+      console.log(`${key}: ${val}`);
       if (
         typeof val === "number" ||
         typeof val === "boolean" ||
@@ -80,8 +86,13 @@ export const serializeDict = (obj: Record<string, unknown>, accessPath = "") => 
         val === null
       ) {
         acc[key] = serializePrimitive(val as number | boolean | string | null, newPath);
+      } else if (Array.isArray(val)) {
+        acc[key] = serializeList(val, newPath);
+      } else if (typeof val === "object") {
+        acc[key] = serializeDict(val as Record<string, unknown>, newPath);
+      } else {
+        throw new Error(`Unsupported type in dict at path: ${newPath}`);
       }
-
       return acc;
     },
     {} as Record<string, SerializedObject>,

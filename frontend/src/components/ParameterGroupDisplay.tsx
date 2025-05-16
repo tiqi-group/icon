@@ -1,0 +1,78 @@
+import { Box, useMediaQuery } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import { useContext, useMemo } from "react";
+import { NumberComponent } from "./parameterComponents/Number";
+import { ExperimentsContext } from "../contexts/ExperimentsContext";
+import { ParameterDisplayGroupsContext } from "../contexts/ParameterDisplayGroupsContext";
+
+interface ParameterGroupDisplayProps {
+  experimentKey?: string;
+  experimentGroup?: string;
+  namespace?: string;
+  displayGroup?: string;
+}
+
+export const ParameterGroupDisplay = ({
+  experimentKey,
+  experimentGroup,
+  namespace,
+  displayGroup,
+}: ParameterGroupDisplayProps) => {
+  const theme = useTheme();
+  const isXs = useMediaQuery(theme.breakpoints.only("xs"));
+  const isSm = useMediaQuery(theme.breakpoints.only("sm"));
+  const isMd = useMediaQuery(theme.breakpoints.only("md"));
+  const isLg = useMediaQuery(theme.breakpoints.only("lg"));
+
+  const gridTemplateColumns = useMemo(() => {
+    if (isXs || isSm || isMd) return "repeat(1, 1fr)";
+    if (isLg) return "repeat(2, 1fr)";
+    return "repeat(2, 1fr)"; // xl and larger
+  }, [isXs, isSm, isMd, isLg]);
+
+  const experiments = useContext(ExperimentsContext);
+  const [parameterDisplayGroups] = useContext(ParameterDisplayGroupsContext);
+
+  // Determine parameters based on props
+  const parameters = useMemo(() => {
+    if (experimentKey && experimentGroup) {
+      // Fetch parameters from ExperimentsContext
+      return experiments[experimentKey]?.parameters?.[experimentGroup] || {};
+    }
+    if (namespace && displayGroup) {
+      // Fetch parameters from ParameterDisplayGroupsContext
+      return parameterDisplayGroups[`${namespace} (${displayGroup})`] || {};
+    }
+    return {};
+  }, [
+    experimentKey,
+    experimentGroup,
+    namespace,
+    displayGroup,
+    experiments,
+    parameterDisplayGroups,
+  ]);
+
+  // Memoize sorting
+  const sortedParameters = useMemo(() => {
+    return Object.entries(parameters).sort((a, b) =>
+      a[1].display_name.localeCompare(b[1].display_name),
+    );
+  }, [parameters]);
+
+  return (
+    <Box
+      sx={{
+        display: "grid",
+        rowGap: 1,
+        columnGap: 3,
+
+        gridTemplateColumns,
+      }}
+    >
+      {sortedParameters.map(([paramId]) => (
+        <NumberComponent key={paramId} id={paramId} />
+      ))}
+    </Box>
+  );
+};

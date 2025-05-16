@@ -32,8 +32,8 @@ class Deserializer {
     NumberSlider: Deserializer.deserializeDataService,
     DeviceConnection: Deserializer.deserializeDataService,
     Task: Deserializer.deserializeDataService,
-    method: undefined,
     Exception: undefined,
+    Quantity: undefined,
   };
 
   static deserialize(serializedObject: SerializedObject): DeserializedValue {

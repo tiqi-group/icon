@@ -1,6 +1,6 @@
 {
     "arrowParens": "always",
-    "bracketSameLine": true,
+    "bracketSameLine": false,
     "endOfLine": "auto",
     "semi": true,
     "singleQuote": false,
