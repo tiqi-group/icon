@@ -1,7 +1,10 @@
+import logging
 from datetime import datetime
 from typing import Any
 
 import pydase
+import pydase.utils.serialization.types
+import socketio
 
 import icon.server.data_access.models.sqlite.scan_parameter as sqlite_scan_parameter
 from icon.server.api.models.scan_parameter import ScanParameter
@@ -14,7 +17,8 @@ from icon.server.data_access.repositories.experiment_source_repository import (
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
 
-# from icon.server.api.models.scan_info import ScanInfo
+logger = logging.getLogger(__name__)
+external_sio = socketio.RedisManager(write_only=True, logger=logger)
 
 
 class SchedulerController(pydase.DataService):
@@ -24,12 +28,15 @@ class SchedulerController(pydase.DataService):
         experiment_id: str,
         scan_parameters: list[ScanParameter],
         priority: int = 20,
-        local_parameters_timestamp: datetime = datetime.now(tz=timezone),
+        local_parameters_timestamp: datetime | None = None,
         repetitions: int = 1,
         number_of_shots: int = 50,
         git_commit_hash: str | None = None,
         auto_calibration: bool = False,
     ) -> int:
+        if local_parameters_timestamp is None:
+            local_parameters_timestamp = datetime.now(tz=timezone)
+
         experiment_source = ExperimentSource(experiment_id=experiment_id)
 
         experiment_source = ExperimentSourceRepository.get_or_create_experiment(
@@ -56,6 +63,19 @@ class SchedulerController(pydase.DataService):
         )
         job = JobRepository.submit_job(job=job)
 
+        external_sio.emit(
+            "new_experiment",
+            {
+                "job": SQLAlchemyDictEncoder.encode(
+                    JobRepository.get_job_by_id(
+                        job_id=job.id,
+                        load_experiment_source=True,
+                        load_scan_parameters=True,
+                    )
+                ),
+            },
+        )
+
         return job.id
 
     def get_scheduled_jobs(
@@ -64,13 +84,13 @@ class SchedulerController(pydase.DataService):
         status: JobStatus | None = None,
         start: str | None = None,
         stop: str | None = None,
-    ) -> Any:
+    ) -> dict[int, dict[str, Any]]:
         start_date = datetime.fromisoformat(start) if start is not None else None
         stop_date = datetime.fromisoformat(stop) if stop is not None else None
 
-        return [
-            SQLAlchemyDictEncoder.encode(obj=job._tuple()[0])
+        return {
+            job._tuple()[0].id: SQLAlchemyDictEncoder.encode(obj=job._tuple()[0])
             for job in JobRepository.get_jobs_by_status_and_timeframe(
                 status=status, start=start_date, stop=stop_date
             )
-        ]
+        }
