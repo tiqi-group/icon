@@ -1,8 +1,7 @@
 import logging
 import os
-from collections.abc import Sequence
 from datetime import datetime
-from typing import TypedDict, cast
+from typing import TYPE_CHECKING, TypedDict, cast
 
 import h5py  # type: ignore
 import numpy as np
@@ -12,6 +11,9 @@ from filelock import FileLock
 from icon.config.config import get_config
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -156,10 +158,15 @@ class ExperimentDataRepository:
         passed metadata."""
 
         filename = get_filename_by_job_id(job_id)
+        file = f"{get_config().experiment_library.results_dir}/{filename}"
+
         job = JobRepository.get_job_by_id(job_id=job_id, load_experiment_source=True)
 
-        lock_path = "." + filename + ExperimentDataRepository.LOCK_EXTENSION
-        with FileLock(lock_path), h5py.File(filename, "a") as h5file:
+        lock_path = (
+            f"{get_config().experiment_library.results_dir}/.{filename}"
+            f"{ExperimentDataRepository.LOCK_EXTENSION}"
+        )
+        with FileLock(lock_path), h5py.File(file, "a") as h5file:
             h5file.attrs["number_of_data_points"] = number_of_data_points
             h5file.attrs["number_of_shots"] = number_of_shots
             h5file.attrs["experiment_id"] = job.experiment_source.experiment_id
@@ -175,9 +182,13 @@ class ExperimentDataRepository:
         data_point: ExperimentDataPoint,
     ) -> None:
         filename = get_filename_by_job_id(job_id)
+        file = f"{get_config().experiment_library.results_dir}/{filename}"
 
-        lock_path = "." + filename + ExperimentDataRepository.LOCK_EXTENSION
-        with FileLock(lock_path), h5py.File(filename, "a") as h5file:
+        lock_path = (
+            f"{get_config().experiment_library.results_dir}/.{filename}"
+            f"{ExperimentDataRepository.LOCK_EXTENSION}"
+        )
+        with FileLock(lock_path), h5py.File(file, "a") as h5file:
             try:
                 number_of_shots = cast("int", h5file.attrs["number_of_shots"])
                 number_of_data_points = cast(
@@ -222,7 +233,7 @@ class ExperimentDataRepository:
                 data_point_index=data_point["index"],
                 vector_channels=data_point["vector_channels"],
             )
-            logger.debug("Appended data to %s", filename)
+            logger.debug("Appended data to %s", file)
 
     @staticmethod
     def get_experiment_data_by_job_id(
