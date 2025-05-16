@@ -62,6 +62,9 @@ class Job(Base):
     repetitions: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
         default=1,
     )
+    number_of_shots: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        default=50,
+    )
     local_parameters_timestamp: sqlalchemy.orm.Mapped[datetime.datetime] = (
         sqlalchemy.orm.mapped_column(default=datetime.datetime.now(timezone))
     )
