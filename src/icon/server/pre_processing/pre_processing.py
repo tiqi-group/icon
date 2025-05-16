@@ -121,6 +121,17 @@ class PreProcessingWorker(multiprocessing.Process):
             external_sio = socketio.RedisManager(write_only=True, logger=logger)
             while True:
                 pre_processing_task = self._queue.get()
+
+                external_sio.emit(
+                    "update_job",
+                    {
+                        "job_id": pre_processing_task.job.id,
+                        "updated_properties": {
+                            "status": pre_processing_task.job.status.value
+                        },
+                    },
+                )
+
                 JobRunRepository.update_run_by_id(
                     run_id=pre_processing_task.job_run.id,
                     status=JobRunStatus.PROCESSING,
@@ -269,7 +280,6 @@ class PreProcessingWorker(multiprocessing.Process):
                         },
                         room=[
                             f"experiment_{pre_processing_task.job.id}",
-                            "experiment_data_processing",
                         ],
                     )
                 external_sio.close_room(f"experiment_{pre_processing_task.job.id}")
