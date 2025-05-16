@@ -18,7 +18,7 @@ from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncode
 
 
 class SchedulerController(pydase.DataService):
-    def submit_job(
+    def submit_job(  # noqa: PLR0913
         self,
         *,
         experiment_id: str,
@@ -26,6 +26,7 @@ class SchedulerController(pydase.DataService):
         priority: int = 20,
         local_parameters_timestamp: datetime = datetime.now(tz=timezone),
         repetitions: int = 1,
+        number_of_shots: int = 50,
         git_commit_hash: str | None = None,
         auto_calibration: bool = False,
     ) -> int:
@@ -36,7 +37,7 @@ class SchedulerController(pydase.DataService):
         )
         sqlite_scan_parameters = [
             sqlite_scan_parameter.ScanParameter(
-                variable_id=param["parameter"],
+                variable_id=param["id"],
                 scan_values=param["values"],
                 # remote_source=param.remote_source,
             )
@@ -49,6 +50,9 @@ class SchedulerController(pydase.DataService):
             scan_parameters=sqlite_scan_parameters,
             repetitions=repetitions,
             git_commit_hash=git_commit_hash,
+            number_of_shots=number_of_shots,
+            auto_calibration=auto_calibration,
+            debug_mode=git_commit_hash is None,
         )
         job = JobRepository.submit_job(job=job)
 
