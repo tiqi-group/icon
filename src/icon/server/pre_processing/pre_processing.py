@@ -163,15 +163,23 @@ class PreProcessingWorker(multiprocessing.Process):
                     )
                 # logger.info("Current values: %s", prev_param_values)
 
+                experiment_id = re.findall(
+                    r"\((.*)\)",
+                    pre_processing_task.job.experiment_source.experiment_id,
+                )[0]
+
                 client = tiqi_plugin.Client(
                     get_config().ionpulse_plugin.host,
                     get_config().ionpulse_plugin.rpc_port,
                     client_type="rpc",
                 )
+                client.Experiments[
+                    experiment_id
+                ].Shots = pre_processing_task.job.number_of_shots
 
                 ExperimentDataRepository.update_metadata_by_job_id(
                     job_id=pre_processing_task.job.id,
-                    number_of_shots=50,
+                    number_of_shots=pre_processing_task.job.number_of_shots,
                     repetitions=pre_processing_task.job.repetitions,
                     number_of_data_points=len(scan_parameter_value_combinations),
                 )
@@ -218,13 +226,8 @@ class PreProcessingWorker(multiprocessing.Process):
                     # set scan parameter values
                     ParametersRepository.update_ionpulse_parameters(data_point)  # type: ignore
 
-                    experiment_id = re.findall(
-                        r"\((.*)\)",
-                        pre_processing_task.job.experiment_source.experiment_id,
-                    )[0]
-
                     result: ResultDict = cast(
-                        ResultDict,
+                        "ResultDict",
                         client.Experiments[experiment_id].run(),  # type: ignore
                     )
 
