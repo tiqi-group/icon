@@ -37,8 +37,8 @@ if TYPE_CHECKING:
     from icon.server.pre_processing.task import PreProcessingTask
     from icon.server.queue_manager import PriorityQueueManager
 
+DUMMY_DATA = True
 logger = logging.getLogger(__name__)
-# TODO: make this configurable -> write timezone into config
 timezone = pytz.timezone(get_config().date.timezone)
 
 
@@ -226,10 +226,24 @@ class PreProcessingWorker(multiprocessing.Process):
                     # set scan parameter values
                     ParametersRepository.update_ionpulse_parameters(data_point)  # type: ignore
 
-                    result: ResultDict = cast(
-                        "ResultDict",
-                        client.Experiments[experiment_id].run(),  # type: ignore
-                    )
+                    if not DUMMY_DATA:
+                        result: ResultDict = cast(
+                            "ResultDict",
+                            client.Experiments[experiment_id].run(),  # type: ignore
+                        )
+                    else:
+                        import random
+                        import statistics
+
+                        shot_channel = random.choices(
+                            range(12, 50), k=pre_processing_task.job.number_of_shots
+                        )
+
+                        result = {
+                            "result_channels": {"ca+": statistics.fmean(shot_channel)},
+                            "shot_channels": {"ca+": shot_channel},
+                            "vector_channels": {},
+                        }
 
                     experiment_data_point: ExperimentDataPoint = {
                         "index": index,
