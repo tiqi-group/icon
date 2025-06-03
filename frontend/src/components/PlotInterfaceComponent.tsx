@@ -20,25 +20,27 @@ const PlotInterface = ({ jobId }: PlotInterfaceProps) => {
   useEffect(() => {
     socket.on(`experiment_${jobId}`, (data: ExperimentDataPoint) => {
       setExperimentData((currentData) => {
-        console.log(data);
-        console.log(currentData);
         const newShot = { ...currentData.shot_channels };
-        for (const channel of Object.keys(currentData.shot_channels)) {
+        for (const channel of Object.keys(data.shot_channels)) {
+          if (!(channel in newShot)) newShot[channel] = {};
           newShot[channel][data.index] = data.shot_channels[channel];
         }
 
         const newResult = { ...currentData.result_channels };
-        for (const channel of Object.keys(currentData.result_channels)) {
+        for (const channel of Object.keys(data.result_channels)) {
+          if (!(channel in newResult)) newResult[channel] = {};
           newResult[channel][data.index] = data.result_channels[channel];
         }
 
         const newVector = { ...currentData.vector_channels };
-        for (const channel of Object.keys(currentData.vector_channels)) {
+        for (const channel of Object.keys(data.vector_channels)) {
+          if (!(channel in newVector)) newVector[channel] = {};
           newVector[channel][data.index] = data.vector_channels[channel];
         }
 
         const newScanParams = { ...currentData.scan_parameters };
-        for (const scanParam of Object.keys(currentData.scan_parameters)) {
+        for (const scanParam of Object.keys(data.scan_params)) {
+          if (!(scanParam in newScanParams)) newScanParams[scanParam] = {};
           newScanParams[scanParam][data.index] = data.scan_params[scanParam];
         }
         if (!("timestamp" in newScanParams)) newScanParams["timestamp"] = {};
@@ -73,6 +75,9 @@ const PlotInterface = ({ jobId }: PlotInterfaceProps) => {
       scan_interval: Object.values(values) as string[] | number[],
     }));
 
+    const timestampEntry = scanInfo.find((p) => p.parameter_name === "timestamp");
+    const scanParamsOnly = scanInfo.filter((p) => p.parameter_name !== "timestamp");
+
     const resultChannels = Object.entries(experimentData.result_channels).map(
       ([name, data]) => ({
         name,
@@ -102,9 +107,9 @@ const PlotInterface = ({ jobId }: PlotInterfaceProps) => {
     let chartSeries: EChartsOption["series"] = [];
 
     // **Handle Time-Based 1D Scans**
-    if (scanInfo.length == 1 && scanInfo[0].parameter_name === "timestamp") {
-      xAxis["type"] = "time";
-      xAxisData = scanInfo[0].scan_interval as string[];
+    if (scanParamsOnly.length === 0 && timestampEntry) {
+      xAxis.type = "time";
+      xAxisData = timestampEntry.scan_interval as string[];
 
       const fullDataSet = xAxisData.map((xVal, index) => [
         xVal,
@@ -141,8 +146,9 @@ const PlotInterface = ({ jobId }: PlotInterfaceProps) => {
         yAxis,
         series: chartSeries,
       };
-    } else if (scanInfo.length === 2 && scanInfo[0].parameter_name === "timestamp") {
-      xAxisData = scanInfo[1].scan_interval as number[];
+    } else if (scanParamsOnly.length === 1 && timestampEntry) {
+      // One real scan param + timestamp
+      xAxisData = scanParamsOnly[0].scan_interval as number[];
 
       const fullDataSet = xAxisData.map((xVal, index) => [
         xVal,
@@ -179,23 +185,20 @@ const PlotInterface = ({ jobId }: PlotInterfaceProps) => {
         yAxis,
         series: chartSeries,
       };
-    } else if (scanInfo.length === 3) {
-      // **Handle 2D Scans (Heatmap)**
+    } else if (scanParamsOnly.length === 2) {
+      // 2D scan, ignore timestamp
+      const [xScan, yScan] = scanParamsOnly;
       const data: number[][] = [];
-      for (let i = 0; i < scanInfo[0].scan_interval.length; i++) {
-        for (let j = 0; j < scanInfo[1].scan_interval.length; j++) {
-          data.push([
-            i,
-            j,
-            resultChannels[0].data[i + scanInfo[0].scan_interval.length * j],
-          ]);
+      for (let i = 0; i < xScan.scan_interval.length; i++) {
+        for (let j = 0; j < yScan.scan_interval.length; j++) {
+          data.push([i, j, resultChannels[0].data[i + xScan.scan_interval.length * j]]);
         }
       }
 
       //@ts-expect-error: bla
-      xAxis.data = scanInfo[0].scan_interval as string[];
+      xAxis.data = xScan.scan_interval as string[];
       //@ts-expect-error: bla
-      yAxis.data = scanInfo[1].scan_interval as number[];
+      yAxis.data = yScan.scan_interval as number[];
 
       return {
         title: { left: "center", text: `Experiment ${jobId}` },
