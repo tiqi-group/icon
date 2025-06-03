@@ -7,12 +7,12 @@ interface ResultDict {
 export type ExperimentDataPoint = ResultDict & {
   index: number;
   scan_params: Record<string, number | boolean | string>;
-  timestamp: Date;
+  timestamp: string;
 };
 
 export interface ExperimentData {
   shot_channels: Record<string, Record<number, number[]>>;
   result_channels: Record<string, Record<number, number>>;
   vector_channels: Record<string, Record<number, number[]>>;
-  scan_parameters: Record<string, Record<number, string | number>>;
+  scan_parameters: Record<string, Record<number, number | boolean | string>>;
 }
