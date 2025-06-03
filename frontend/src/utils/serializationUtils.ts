@@ -78,7 +78,6 @@ export const serializeDict = (
   const value = Object.entries(obj).reduce(
     (acc, [key, val]) => {
       const newPath = `${accessPath}["${key}"]`;
-      console.log(`${key}: ${val}`);
       if (
         typeof val === "number" ||
         typeof val === "boolean" ||

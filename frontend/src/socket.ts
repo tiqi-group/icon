@@ -52,8 +52,6 @@ export const runMethod = (
 ) => {
   const serializedArgs = serializeList(args);
   const serializedKwargs = serializeDict(kwargs);
-  console.log(`kwargs: ${kwargs}`);
-  console.log(`Serialized kwargs: ${serializedKwargs}`);
 
   if (callback) {
     socket.emit(
