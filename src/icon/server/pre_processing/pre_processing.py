@@ -274,12 +274,8 @@ class PreProcessingWorker(multiprocessing.Process):
                     processed_data_points.put(data_point)
 
                     external_sio.emit(
-                        "experiment_data_point",
-                        {
-                            "job_id": pre_processing_task.job.id,
-                            "index": experiment_data_point["index"],
-                            "data": experiment_data_point,
-                        },
+                        f"experiment_{pre_processing_task.job.id}",
+                        experiment_data_point,
                         room=[
                             f"experiment_{pre_processing_task.job.id}",
                         ],
