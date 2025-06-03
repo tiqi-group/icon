@@ -17,6 +17,11 @@ import { ParameterDisplayGroupsContext } from "./contexts/ParameterDisplayGroups
 import { ScanProvider } from "./contexts/ScanContext";
 import { reducer, JobsContext, ScheduledJobs, JobUpdate } from "./contexts/JobsContext";
 
+interface NewDataEvent {
+  job: Job;
+  scheduled_time: string;
+}
+
 const NAVIGATION: Navigation = [
   {
     kind: "header",
@@ -99,6 +104,21 @@ export default function App() {
       });
     });
 
+    socket.on("new_experiment", (data: NewDataEvent) => {
+      console.log("Received new experiment");
+      // Update scheduledJobs with the new experiment
+      schedulerDispatch({
+        type: "ADD_JOB",
+        payload: data.job,
+      });
+    });
+
+    socket.on("update_job", (data: JobUpdate) => {
+      console.log("Received job update");
+      console.log(data);
+      schedulerDispatch({ type: "UPDATE_JOB", payload: data });
+    });
+
     // Fetch experiments
     runMethod("experiments.get_experiments", [], {}, (ack) => {
       setExperiments(deserialize(ack as SerializedObject) as ExperimentDict);
@@ -122,7 +142,13 @@ export default function App() {
         createNamespaceGroups(parameterDisplayGroups),
       ]);
     });
+
+    return () => {
+      socket.off("new_experiment");
+      socket.off("update_job");
+    };
   }, []);
+
   return (
     <ReactRouterAppProvider navigation={NAVIGATION} branding={BRANDING}>
       <ScanProvider>
