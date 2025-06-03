@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Box } from "@mui/material";
-import { runMethod } from "../socket";
-import { ExperimentData } from "../types/ExperimentData";
-import { deserialize } from "../utils/deserializer";
-import { SerializedObject } from "../types/SerializedObject";
+import { socket } from "../socket";
+import { ExperimentData, ExperimentDataPoint } from "../types/ExperimentData";
 import { ReactECharts, ReactEChartsProps } from "./ReactEcharts";
 import { EChartsOption } from "echarts";
 
@@ -20,10 +18,49 @@ const PlotInterface = ({ jobId }: PlotInterfaceProps) => {
   });
 
   useEffect(() => {
-    runMethod("data.get_experiment_data_by_job_id", [], { job_id: jobId }, (result) => {
-      setExperimentData(deserialize(result as SerializedObject) as ExperimentData);
+    socket.on(`experiment_${jobId}`, (data: ExperimentDataPoint) => {
+      setExperimentData((currentData) => {
+        console.log(data);
+        console.log(currentData);
+        const newShot = { ...currentData.shot_channels };
+        for (const channel of Object.keys(currentData.shot_channels)) {
+          newShot[channel][data.index] = data.shot_channels[channel];
+        }
+
+        const newResult = { ...currentData.result_channels };
+        for (const channel of Object.keys(currentData.result_channels)) {
+          newResult[channel][data.index] = data.result_channels[channel];
+        }
+
+        const newVector = { ...currentData.vector_channels };
+        for (const channel of Object.keys(currentData.vector_channels)) {
+          newVector[channel][data.index] = data.vector_channels[channel];
+        }
+
+        const newScanParams = { ...currentData.scan_parameters };
+        for (const scanParam of Object.keys(currentData.scan_parameters)) {
+          newScanParams[scanParam][data.index] = data.scan_params[scanParam];
+        }
+        if (!("timestamp" in newScanParams)) newScanParams["timestamp"] = {};
+        newScanParams.timestamp[data.index] = data.timestamp;
+
+        return {
+          ...currentData,
+          shot_channels: newShot,
+          result_channels: newResult,
+          vector_channels: newVector,
+          scan_parameters: newScanParams,
+        };
+      });
     });
-    // socket.on("", async () => {});
+
+    socket.emit("get_experiment_data", jobId, (data: ExperimentData) => {
+      setExperimentData(data);
+    });
+
+    return () => {
+      socket.off(`experiment_${jobId}`);
+    };
   }, [jobId]);
 
   const option = useMemo<ReactEChartsProps["option"]>(() => {
@@ -106,9 +143,7 @@ const PlotInterface = ({ jobId }: PlotInterfaceProps) => {
       };
     } else if (scanInfo.length === 2 && scanInfo[0].parameter_name === "timestamp") {
       xAxisData = scanInfo[1].scan_interval as number[];
-      console.log(scanInfo[1].scan_interval);
 
-      console.log(xAxisData);
       const fullDataSet = xAxisData.map((xVal, index) => [
         xVal,
         ...resultChannels.map((ch) => ch.data[index]),
@@ -191,10 +226,10 @@ const PlotInterface = ({ jobId }: PlotInterfaceProps) => {
   }, [experimentData]);
 
   return (
-    <Box display="flex" sx={{ width: 1, height: 1 }}>
+    <Box sx={{ width: 1, height: 1 }}>
       <ReactECharts option={option} />
     </Box>
   );
 };
 
-export default PlotInterface;
+export default React.memo(PlotInterface);
