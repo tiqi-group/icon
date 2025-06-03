@@ -180,14 +180,15 @@ class PreProcessingWorker(multiprocessing.Process):
                     pre_processing_task.job.experiment_source.experiment_id,
                 )[0]
 
-                client = tiqi_plugin.Client(
-                    get_config().ionpulse_plugin.host,
-                    get_config().ionpulse_plugin.rpc_port,
-                    client_type="rpc",
-                )
-                client.Experiments[
-                    experiment_id
-                ].Shots = pre_processing_task.job.number_of_shots
+                if not DUMMY_DATA:
+                    client = tiqi_plugin.Client(
+                        get_config().ionpulse_plugin.host,
+                        get_config().ionpulse_plugin.rpc_port,
+                        client_type="rpc",
+                    )
+                    client.Experiments[
+                        experiment_id
+                    ].Shots = pre_processing_task.job.number_of_shots
 
                 ExperimentDataRepository.update_metadata_by_job_id(
                     job_id=pre_processing_task.job.id,
