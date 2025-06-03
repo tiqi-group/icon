@@ -4,18 +4,18 @@ import TimelineIcon from "@mui/icons-material/Timeline";
 import { Outlet } from "react-router";
 import { ReactRouterAppProvider } from "@toolpad/core/react-router";
 import type { Navigation } from "@toolpad/core/AppProvider";
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { Job } from "./types/Job";
-import { runMethod } from "./socket";
+import { runMethod, socket } from "./socket";
 import { deserialize } from "./utils/deserializer";
 import { SerializedObject } from "./types/SerializedObject";
-import { SchedulerProvider, useSchedulerContext } from "./contexts/SchedulerContext";
 import { ExperimentsContext } from "./contexts/ExperimentsContext";
 import { ExperimentDict, ParameterMetadata } from "./types/ExperimentMetadata";
 import { SvgIcon } from "@mui/material";
 import { ParameterMetadataContext } from "./contexts/ParameterMetadataContext";
 import { ParameterDisplayGroupsContext } from "./contexts/ParameterDisplayGroupsContext";
 import { ScanProvider } from "./contexts/ScanContext";
+import { reducer, JobsContext, ScheduledJobs, JobUpdate } from "./contexts/JobsContext";
 
 const NAVIGATION: Navigation = [
   {
@@ -88,14 +88,14 @@ export default function App() {
   const [parameterMetadata, setParameterMetadata] = useState<
     Record<string, ParameterMetadata>
   >({});
-  const { dispatch: schedulerDispatch } = useSchedulerContext();
+  const [state, schedulerDispatch] = useReducer(reducer, {});
 
   useEffect(() => {
     // Fetch scheduled jobs
     runMethod("scheduler.get_scheduled_jobs", [], {}, (ack) => {
       schedulerDispatch({
         type: "SET_JOBS",
-        payload: deserialize(ack as SerializedObject) as Job[],
+        payload: deserialize(ack as SerializedObject) as ScheduledJobs,
       });
     });
 
@@ -126,7 +126,7 @@ export default function App() {
   return (
     <ReactRouterAppProvider navigation={NAVIGATION} branding={BRANDING}>
       <ScanProvider>
-        <SchedulerProvider>
+        <JobsContext.Provider value={state}>
           <ParameterMetadataContext.Provider value={parameterMetadata}>
             <ParameterDisplayGroupsContext.Provider value={parameterDisplayGroups}>
               <ExperimentsContext.Provider value={experiments}>
@@ -134,7 +134,7 @@ export default function App() {
               </ExperimentsContext.Provider>
             </ParameterDisplayGroupsContext.Provider>
           </ParameterMetadataContext.Provider>
-        </SchedulerProvider>
+        </JobsContext.Provider>
       </ScanProvider>
     </ReactRouterAppProvider>
   );
