@@ -31,10 +31,10 @@ from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
     ValkeyValueType,
 )
-from icon.server.hardware_processing.task import HardwareProcessingTask
 
 if TYPE_CHECKING:
     from icon.server.data_access.models.sqlite.job import Job
+    from icon.server.hardware_processing.task import HardwareProcessingTask
     from icon.server.pre_processing.task import PreProcessingTask
     from icon.server.queue_manager import PriorityQueueManager
 
