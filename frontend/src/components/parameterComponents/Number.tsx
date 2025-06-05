@@ -5,6 +5,7 @@ import { useScanContext } from "../../contexts/ScanContext";
 import { Field } from "@base-ui-components/react";
 import "./Number.css";
 import { HelpButton } from "../HelpButtonComponent";
+import { updateParameterValue } from "../../utils/updateParameterValue";
 
 interface NumberComponentProps {
   id: string;
@@ -37,6 +38,7 @@ export const NumberComponent = (props: NumberComponentProps) => {
     } else {
       console.log(`Final value: ${value}`);
       setError(false);
+      updateParameterValue(id, newValue);
     }
   };
 

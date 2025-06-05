@@ -1,7 +1,9 @@
+export type ParameterValueType = number | boolean | string;
+
 export interface ParameterMetadata {
   display_name: string;
   unit: string;
-  default_value: number | boolean;
+  default_value: ParameterValueType;
   min_value: number | null;
   max_value: number | null;
   read_only?: boolean;

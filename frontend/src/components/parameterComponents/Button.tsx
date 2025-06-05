@@ -3,6 +3,7 @@ import { Box, Button, Typography } from "@mui/material";
 import { ParameterMetadataContext } from "../../contexts/ParameterMetadataContext";
 import { useScanContext } from "../../contexts/ScanContext";
 import { HelpButton } from "../HelpButtonComponent";
+import { updateParameterValue } from "../../utils/updateParameterValue";
 
 interface ButtonComponentProps {
   id: string;
@@ -18,6 +19,7 @@ export const ButtonComponent = React.memo(({ id, label }: ButtonComponentProps) 
     Boolean(parameterMetadata[id]?.default_value ?? false),
   );
   const onClick = (newValue: boolean) => {
+    updateParameterValue(id, newValue);
     setValue(newValue);
   };
 
