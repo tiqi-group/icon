@@ -11,7 +11,7 @@ interface NumberComponentProps {
   id: string;
 }
 
-export const NumberComponent = (props: NumberComponentProps) => {
+export const NumberComponent = React.memo((props: NumberComponentProps) => {
   const { handleRightClick } = useScanContext();
 
   const { id } = props;
@@ -118,4 +118,4 @@ export const NumberComponent = (props: NumberComponentProps) => {
       </Field.Root>
     </Box>
   );
-};
+});
