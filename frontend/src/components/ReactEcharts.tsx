@@ -1,11 +1,10 @@
 import { useRef, useEffect, useMemo } from "react";
 import * as echarts from "echarts/core";
-import { LineChart, BarChart } from "echarts/charts";
+import { LineChart } from "echarts/charts";
 import {
   LegendComponent,
   GridComponent,
   TooltipComponent,
-  ToolboxComponent,
   TitleComponent,
   DataZoomComponent,
 } from "echarts/components";
@@ -24,11 +23,9 @@ export interface ReactEChartsProps {
 echarts.use([
   LegendComponent,
   LineChart,
-  BarChart,
   GridComponent,
   TooltipComponent,
   TitleComponent,
-  ToolboxComponent,
   DataZoomComponent,
   CanvasRenderer,
 ]);
