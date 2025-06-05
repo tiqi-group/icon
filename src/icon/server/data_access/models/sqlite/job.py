@@ -38,7 +38,7 @@ class Job(Base):
         primary_key=True, autoincrement=True
     )
     created: sqlalchemy.orm.Mapped[datetime.datetime] = sqlalchemy.orm.mapped_column(
-        default=datetime.datetime.now(timezone)
+        default=lambda: datetime.datetime.now(timezone)
     )
     # user_id: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column(
     #     sqlalchemy.ForeignKey("user.id"),
