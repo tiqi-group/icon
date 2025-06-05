@@ -4,6 +4,7 @@ import { useContext, useMemo } from "react";
 import { NumberComponent } from "./parameterComponents/Number";
 import { ExperimentsContext } from "../contexts/ExperimentsContext";
 import { ParameterDisplayGroupsContext } from "../contexts/ParameterDisplayGroupsContext";
+import { ButtonComponent } from "./parameterComponents/Button";
 
 interface ParameterGroupDisplayProps {
   experimentKey?: string;
@@ -70,9 +71,12 @@ export const ParameterGroupDisplay = ({
         gridTemplateColumns,
       }}
     >
-      {sortedParameters.map(([paramId]) => (
-        <NumberComponent key={paramId} id={paramId} />
-      ))}
+      {sortedParameters.map(([paramId]) => {
+        if (paramId.includes("param_type='ParameterTypes.BOOLEAN'")) {
+          return <ButtonComponent key={paramId} id={paramId} />;
+        }
+        return <NumberComponent key={paramId} id={paramId} />;
+      })}
     </Box>
   );
 };

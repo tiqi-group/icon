@@ -63,7 +63,10 @@ const ScanContext = createContext<{
   state: ScanState;
   dispatch: React.Dispatch<Action>;
   menuAnchor: { mouseX: number | null; mouseY: number | null };
-  handleRightClick: (event: React.MouseEvent<HTMLDivElement>, paramId: string) => void;
+  handleRightClick: (
+    event: React.MouseEvent<HTMLDivElement | HTMLButtonElement>,
+    paramId: string,
+  ) => void;
   handleCloseMenu: () => void;
 }>({
   state: { priority: 20, shots: 50, repetitions: 1, parameters: [] },
@@ -99,7 +102,7 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [selectedParamId, setSelectedParamId] = useState<string | null>(null);
 
   const handleRightClick = (
-    event: React.MouseEvent<HTMLDivElement>,
+    event: React.MouseEvent<HTMLDivElement | HTMLButtonElement>,
     paramId: string,
   ) => {
     console.log(`Right-clicked on: ${paramId}`);
