@@ -7,6 +7,7 @@ import pydase.server.web_server.sio_setup
 import socketio  # type: ignore
 
 from icon.server.data_access.repositories.experiment_data_repository import (
+    ExperimentData,
     ExperimentDataRepository,
 )
 
@@ -26,7 +27,7 @@ def setup_sio_events(
     pydase_setup_sio_events(sio, state_manager)
 
     @sio.event  # type: ignore
-    async def get_experiment_data(sid: str, job_id: int) -> None:
+    async def get_experiment_data(sid: str, job_id: int) -> ExperimentData:
         # First join room if exists to subscribe to updates
         job_room = f"experiment_{job_id}"
         logger.debug(
@@ -36,18 +37,7 @@ def setup_sio_events(
         )
         await sio.enter_room(sid, job_room)
 
-        # Then serve all the data that has been collected already
-        # The client will not miss anything then.
-        await sio.emit(
-            "experiment_data",
-            {
-                "job_id": job_id,
-                "data": ExperimentDataRepository.get_experiment_data_by_job_id(
-                    job_id=job_id
-                ),
-            },
-            to=sid,
-        )
+        return ExperimentDataRepository.get_experiment_data_by_job_id(job_id=job_id)
 
     @sio.event  # type: ignore
     async def stop_experiment_data_stream(sid: str, job_id: int) -> None:
