@@ -151,7 +151,6 @@ class ExperimentDataRepository:
         job_id: int,
         number_of_shots: int,
         repetitions: int,
-        number_of_data_points: int = 32,  # default value of 2**5
         local_parameter_timestamp: datetime | None = None,
     ) -> None:
         """Creates or updates a metadata group and updates its attributes with the
@@ -167,7 +166,7 @@ class ExperimentDataRepository:
             f"{ExperimentDataRepository.LOCK_EXTENSION}"
         )
         with FileLock(lock_path), h5py.File(file, "a") as h5file:
-            h5file.attrs["number_of_data_points"] = number_of_data_points
+            h5file.attrs["number_of_data_points"] = 0
             h5file.attrs["number_of_shots"] = number_of_shots
             h5file.attrs["experiment_id"] = job.experiment_source.experiment_id
             h5file.attrs["job_id"] = job_id

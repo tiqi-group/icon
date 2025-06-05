@@ -194,7 +194,6 @@ class PreProcessingWorker(multiprocessing.Process):
                     job_id=pre_processing_task.job.id,
                     number_of_shots=pre_processing_task.job.number_of_shots,
                     repetitions=pre_processing_task.job.repetitions,
-                    number_of_data_points=len(scan_parameter_value_combinations),
                 )
 
                 # Prepare and execute data points as long as the number of processed
