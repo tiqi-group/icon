@@ -1,6 +1,5 @@
 import logging
 
-import click
 import pydase
 import pydase.data_service.state_manager
 import pydase.server.web_server.sio_setup
@@ -28,26 +27,7 @@ def setup_sio_events(
 
     @sio.event  # type: ignore
     async def get_experiment_data(sid: str, job_id: int) -> ExperimentData:
-        # First join room if exists to subscribe to updates
-        job_room = f"experiment_{job_id}"
-        logger.debug(
-            "Client [%s] joined room %s",
-            click.style(str(sid), fg="cyan"),
-            job_room,
-        )
-        await sio.enter_room(sid, job_room)
-
         return ExperimentDataRepository.get_experiment_data_by_job_id(job_id=job_id)
-
-    @sio.event  # type: ignore
-    async def stop_experiment_data_stream(sid: str, job_id: int) -> None:
-        job_room = f"experiment_{job_id}"
-        logger.debug(
-            "Client [%s] left room %s",
-            click.style(str(sid), fg="cyan"),
-            job_room,
-        )
-        await sio.leave_room(sid, job_room)
 
 
 def patch_sio_setup() -> None:

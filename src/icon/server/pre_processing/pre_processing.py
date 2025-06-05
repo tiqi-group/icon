@@ -275,11 +275,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     external_sio.emit(
                         f"experiment_{pre_processing_task.job.id}",
                         experiment_data_point,
-                        room=[
-                            f"experiment_{pre_processing_task.job.id}",
-                        ],
                     )
-                external_sio.close_room(f"experiment_{pre_processing_task.job.id}")
 
                 # restore previous values
                 ParametersRepository.update_ionpulse_parameters(prev_param_values)
