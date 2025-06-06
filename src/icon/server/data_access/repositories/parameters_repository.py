@@ -48,14 +48,20 @@ class ParametersRepository:
 
     @staticmethod
     async def update_valkey_parameters(
-        parameter_mapping: dict[str, ValkeyValueType],
+        parameter_mapping: dict[str, DatabaseValueType],
     ) -> None:
         async with ValkeySession() as valkey:
-            await valkey.hset("parameters", mapping=parameter_mapping)  # type: ignore
+            await valkey.hset(
+                "parameters",
+                mapping={
+                    k: int(v) if isinstance(v, bool) else v
+                    for k, v in parameter_mapping.items()
+                },
+            )  # type: ignore
 
     @staticmethod
     async def update_valkey_parameter_by_id(
-        parameter_id: str, new_value: ValkeyValueType
+        parameter_id: str, new_value: DatabaseValueType
     ) -> None:
         await ParametersRepository.update_valkey_parameters(
             parameter_mapping={parameter_id: new_value}
