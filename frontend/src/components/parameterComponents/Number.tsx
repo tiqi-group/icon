@@ -6,6 +6,7 @@ import { Field } from "@base-ui-components/react";
 import "./Number.css";
 import { HelpButton } from "../HelpButtonComponent";
 import { updateParameterValue } from "../../utils/updateParameterValue";
+import { useParameter } from "../../hooks/useParameter";
 
 interface NumberComponentProps {
   id: string;
@@ -16,9 +17,9 @@ export const NumberComponent = React.memo((props: NumberComponentProps) => {
 
   const { id } = props;
   const parameterMetadata = useContext(ParameterMetadataContext);
-  const [value, setValue] = useState<string>(
-    String(parameterMetadata[id]?.default_value ?? ""),
-  );
+
+  const [value, setValue] = useParameter(id);
+  const displayValue = String(value ?? parameterMetadata[id]?.default_value ?? "0");
   const [error, setError] = useState(false);
 
   const minValue = parameterMetadata[id]?.min_value ?? Number.NEGATIVE_INFINITY;
@@ -26,8 +27,8 @@ export const NumberComponent = React.memo((props: NumberComponentProps) => {
   const adornmentRef = useRef<HTMLSpanElement | null>(null);
 
   const validate = () => {
-    if (!numberValid(value)) {
-      return `Invalid input ${value}`;
+    if (!numberValid(displayValue)) {
+      return `Invalid input ${displayValue}`;
     }
     return null;
   };
@@ -70,7 +71,7 @@ export const NumberComponent = React.memo((props: NumberComponentProps) => {
   };
 
   const handleBlur = () => {
-    validateAndLogValue(value);
+    validateAndLogValue(displayValue);
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -80,7 +81,7 @@ export const NumberComponent = React.memo((props: NumberComponentProps) => {
       event.preventDefault();
       const increment = 1;
       const newValue = String(
-        parseFloat(value) + (event.key === "ArrowUp" ? increment : -increment),
+        parseFloat(displayValue) + (event.key === "ArrowUp" ? increment : -increment),
       );
       if (numberValid(newValue)) {
         setValue(newValue);
@@ -101,13 +102,11 @@ export const NumberComponent = React.memo((props: NumberComponentProps) => {
         <Box className="InputWrapper">
           <Field.Control
             className="Input"
-            // type="number"
-            value={value}
+            value={displayValue}
             onChange={handleChange}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             onContextMenu={(event) => handleRightClick(event, id)}
-            // style={{ paddingRight: `${adornmentWidth + 15}px` }}
           />
           {parameterMetadata[id]?.unit && (
             <span ref={adornmentRef} className="EndAdornment">
