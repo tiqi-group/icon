@@ -108,6 +108,19 @@ export default function App() {
       parameterStore.set(id, value);
     });
 
+    runMethod("parameters.get_all_parameters", [], {}, (ack) => {
+      const parameterMapping = deserialize(ack as SerializedObject) as Record<
+        string,
+        ParameterValueType
+      >;
+      console.log(
+        parameterMapping[
+          "namespace='experiment_library.experiments.ramsey_experiment.RamseyExperiment.Ramsey 2' parameter_group='Local detection settings' param_type='ParameterTypes.BOOLEAN' description='729 state prep'"
+        ],
+      );
+      parameterStore.bulkSet(parameterMapping);
+    });
+
     // Fetch experiments
     runMethod("experiments.get_experiments", [], {}, (ack) => {
       setExperiments(deserialize(ack as SerializedObject) as ExperimentDict);
