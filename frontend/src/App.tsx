@@ -15,7 +15,9 @@ import { ParameterMetadataContext } from "./contexts/ParameterMetadataContext";
 import { ParameterDisplayGroupsContext } from "./contexts/ParameterDisplayGroupsContext";
 import { ScanProvider } from "./contexts/ScanContext";
 import { reducer, JobsContext } from "./contexts/JobsContext";
+import { ParameterStoreProvider } from "./contexts/ParameterStoreContext";
 import { useJobsSync } from "./hooks/useJobsSync";
+import { createParameterStore } from "./stores/parmeterStore";
 
 const NAVIGATION: Navigation = [
   {
@@ -89,6 +91,7 @@ export default function App() {
     Record<string, ParameterMetadata>
   >({});
   const [scheduledJobs, schedulerDispatch] = useReducer(reducer, {});
+  const parameterStore = useRef(createParameterStore()).current;
 
   useJobsSync(schedulerDispatch);
   useEffect(() => {
@@ -119,17 +122,19 @@ export default function App() {
 
   return (
     <ReactRouterAppProvider navigation={NAVIGATION} branding={BRANDING}>
-      <ScanProvider>
-        <JobsContext.Provider value={scheduledJobs}>
-          <ParameterMetadataContext.Provider value={parameterMetadata}>
-            <ParameterDisplayGroupsContext.Provider value={parameterDisplayGroups}>
-              <ExperimentsContext.Provider value={experiments}>
-                <Outlet />
-              </ExperimentsContext.Provider>
-            </ParameterDisplayGroupsContext.Provider>
-          </ParameterMetadataContext.Provider>
-        </JobsContext.Provider>
-      </ScanProvider>
+      <ParameterStoreProvider store={parameterStore}>
+        <ScanProvider>
+          <JobsContext.Provider value={scheduledJobs}>
+            <ParameterMetadataContext.Provider value={parameterMetadata}>
+              <ParameterDisplayGroupsContext.Provider value={parameterDisplayGroups}>
+                <ExperimentsContext.Provider value={experiments}>
+                  <Outlet />
+                </ExperimentsContext.Provider>
+              </ParameterDisplayGroupsContext.Provider>
+            </ParameterMetadataContext.Provider>
+          </JobsContext.Provider>
+        </ScanProvider>
+      </ParameterStoreProvider>
     </ReactRouterAppProvider>
   );
 }
