@@ -5,6 +5,7 @@ import sys
 from typing import TYPE_CHECKING, Any, Literal
 
 import influxdb  # type: ignore
+
 from icon.config.config import get_config
 
 if TYPE_CHECKING:
