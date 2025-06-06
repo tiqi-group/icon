@@ -6,7 +6,6 @@ import Layout from "./layouts/dashboard";
 import DashboardPage from "./pages";
 import ExperimentsPage from "./pages/experiments";
 import ParameterPage from "./pages/parameters";
-import { PlotPage } from "./pages/plot";
 import { DataPage } from "./pages/data";
 
 const router = createBrowserRouter([
