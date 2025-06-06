@@ -2,6 +2,7 @@ import logging
 from typing import Any
 
 import pydase
+import socketio  # type: ignore
 
 from icon.server.data_access.repositories.parameter_metadata_repository import (
     ParameterMetadata,
@@ -12,6 +13,8 @@ from icon.server.data_access.repositories.parameters_repository import (
 )
 
 logger = logging.getLogger(__name__)
+
+external_sio = socketio.RedisManager(write_only=True, logger=logger)
 
 
 class ParametersController(pydase.DataService):
@@ -27,6 +30,7 @@ class ParametersController(pydase.DataService):
         ParametersRepository.update_ionpulse_parameter_by_id(
             parameter_id=parameter_id, value=value
         )
+        external_sio.emit("parameter_update", {"id": parameter_id, "value": value})
 
     async def get_parameter_by_id(self, parameter_id: str) -> Any:
         return ParametersRepository.get_ionpulse_parameter_by_id(
