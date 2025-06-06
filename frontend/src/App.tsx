@@ -4,12 +4,16 @@ import TimelineIcon from "@mui/icons-material/Timeline";
 import { Outlet } from "react-router";
 import { ReactRouterAppProvider } from "@toolpad/core/react-router";
 import type { Navigation } from "@toolpad/core/AppProvider";
-import { useEffect, useReducer, useState } from "react";
-import { runMethod } from "./socket";
+import { useEffect, useReducer, useRef, useState } from "react";
+import { runMethod, socket } from "./socket";
 import { deserialize } from "./utils/deserializer";
 import { SerializedObject } from "./types/SerializedObject";
 import { ExperimentsContext } from "./contexts/ExperimentsContext";
-import { ExperimentDict, ParameterMetadata } from "./types/ExperimentMetadata";
+import {
+  ExperimentDict,
+  ParameterMetadata,
+  ParameterValueType,
+} from "./types/ExperimentMetadata";
 import { SvgIcon } from "@mui/material";
 import { ParameterMetadataContext } from "./contexts/ParameterMetadataContext";
 import { ParameterDisplayGroupsContext } from "./contexts/ParameterDisplayGroupsContext";
@@ -18,6 +22,11 @@ import { reducer, JobsContext } from "./contexts/JobsContext";
 import { ParameterStoreProvider } from "./contexts/ParameterStoreContext";
 import { useJobsSync } from "./hooks/useJobsSync";
 import { createParameterStore } from "./stores/parmeterStore";
+
+interface ParameterUpdate {
+  id: string;
+  value: ParameterValueType;
+}
 
 const NAVIGATION: Navigation = [
   {
@@ -95,6 +104,10 @@ export default function App() {
 
   useJobsSync(schedulerDispatch);
   useEffect(() => {
+    socket.on("parameter_update", ({ id, value }: ParameterUpdate) => {
+      parameterStore.set(id, value);
+    });
+
     // Fetch experiments
     runMethod("experiments.get_experiments", [], {}, (ack) => {
       setExperiments(deserialize(ack as SerializedObject) as ExperimentDict);
@@ -118,6 +131,10 @@ export default function App() {
         createNamespaceGroups(parameterDisplayGroups),
       ]);
     });
+
+    return () => {
+      socket.off("parameter_update");
+    };
   }, []);
 
   return (
