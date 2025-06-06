@@ -1,9 +1,10 @@
-import React, { useContext, useState } from "react";
+import React, { useContext } from "react";
 import { Box, Button, Typography } from "@mui/material";
 import { ParameterMetadataContext } from "../../contexts/ParameterMetadataContext";
 import { useScanContext } from "../../contexts/ScanContext";
 import { HelpButton } from "../HelpButtonComponent";
 import { updateParameterValue } from "../../utils/updateParameterValue";
+import { useParameter } from "../../hooks/useParameter";
 
 interface ButtonComponentProps {
   id: string;
@@ -15,9 +16,8 @@ export const ButtonComponent = React.memo(({ id, label }: ButtonComponentProps) 
   const parameterMetadata = useContext(ParameterMetadataContext);
 
   const displayName = label ?? parameterMetadata[id]?.display_name ?? id;
-  const [value, setValue] = useState<boolean>(
-    Boolean(parameterMetadata[id]?.default_value ?? false),
-  );
+  const [value, setValue] = useParameter(id);
+  const displayValue = Boolean(value ?? parameterMetadata[id]?.default_value ?? false);
   const onClick = (newValue: boolean) => {
     updateParameterValue(id, newValue);
     setValue(newValue);
@@ -32,11 +32,11 @@ export const ButtonComponent = React.memo(({ id, label }: ButtonComponentProps) 
 
       <Button
         variant="outlined"
-        color={value === true ? "success" : "inherit"}
-        onClick={() => onClick(!value)}
+        color={displayValue === true ? "success" : "inherit"}
+        onClick={() => onClick(!displayValue)}
         onContextMenu={(e) => handleRightClick(e, id)}
       >
-        {value === true ? "On" : "Off"}
+        {displayValue === true ? "On" : "Off"}
       </Button>
     </Box>
   );
