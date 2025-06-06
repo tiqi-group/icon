@@ -8,7 +8,7 @@ export interface JobUpdate {
 
 export type ScheduledJobs = Record<string, Job>;
 
-type Action =
+export type Action =
   | { type: "SET_JOBS"; payload: ScheduledJobs }
   | { type: "ADD_JOB"; payload: Job }
   | { type: "UPDATE_JOB"; payload: JobUpdate };

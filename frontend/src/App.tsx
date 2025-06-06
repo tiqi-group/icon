@@ -5,8 +5,7 @@ import { Outlet } from "react-router";
 import { ReactRouterAppProvider } from "@toolpad/core/react-router";
 import type { Navigation } from "@toolpad/core/AppProvider";
 import { useEffect, useReducer, useState } from "react";
-import { Job } from "./types/Job";
-import { runMethod, socket } from "./socket";
+import { runMethod } from "./socket";
 import { deserialize } from "./utils/deserializer";
 import { SerializedObject } from "./types/SerializedObject";
 import { ExperimentsContext } from "./contexts/ExperimentsContext";
@@ -15,12 +14,8 @@ import { SvgIcon } from "@mui/material";
 import { ParameterMetadataContext } from "./contexts/ParameterMetadataContext";
 import { ParameterDisplayGroupsContext } from "./contexts/ParameterDisplayGroupsContext";
 import { ScanProvider } from "./contexts/ScanContext";
-import { reducer, JobsContext, ScheduledJobs, JobUpdate } from "./contexts/JobsContext";
-
-interface NewDataEvent {
-  job: Job;
-  scheduled_time: string;
-}
+import { reducer, JobsContext } from "./contexts/JobsContext";
+import { useJobsSync } from "./hooks/useJobsSync";
 
 const NAVIGATION: Navigation = [
   {
@@ -93,32 +88,10 @@ export default function App() {
   const [parameterMetadata, setParameterMetadata] = useState<
     Record<string, ParameterMetadata>
   >({});
-  const [state, schedulerDispatch] = useReducer(reducer, {});
+  const [scheduledJobs, schedulerDispatch] = useReducer(reducer, {});
 
+  useJobsSync(schedulerDispatch);
   useEffect(() => {
-    // Fetch scheduled jobs
-    runMethod("scheduler.get_scheduled_jobs", [], {}, (ack) => {
-      schedulerDispatch({
-        type: "SET_JOBS",
-        payload: deserialize(ack as SerializedObject) as ScheduledJobs,
-      });
-    });
-
-    socket.on("new_experiment", (data: NewDataEvent) => {
-      console.log("Received new experiment");
-      // Update scheduledJobs with the new experiment
-      schedulerDispatch({
-        type: "ADD_JOB",
-        payload: data.job,
-      });
-    });
-
-    socket.on("update_job", (data: JobUpdate) => {
-      console.log("Received job update");
-      console.log(data);
-      schedulerDispatch({ type: "UPDATE_JOB", payload: data });
-    });
-
     // Fetch experiments
     runMethod("experiments.get_experiments", [], {}, (ack) => {
       setExperiments(deserialize(ack as SerializedObject) as ExperimentDict);
@@ -142,17 +115,12 @@ export default function App() {
         createNamespaceGroups(parameterDisplayGroups),
       ]);
     });
-
-    return () => {
-      socket.off("new_experiment");
-      socket.off("update_job");
-    };
   }, []);
 
   return (
     <ReactRouterAppProvider navigation={NAVIGATION} branding={BRANDING}>
       <ScanProvider>
-        <JobsContext.Provider value={state}>
+        <JobsContext.Provider value={scheduledJobs}>
           <ParameterMetadataContext.Provider value={parameterMetadata}>
             <ParameterDisplayGroupsContext.Provider value={parameterDisplayGroups}>
               <ExperimentsContext.Provider value={experiments}>
