@@ -2,7 +2,6 @@ import logging
 from typing import Any
 
 import pydase
-import socketio  # type: ignore
 
 from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 from icon.server.data_access.repositories.parameter_metadata_repository import (
@@ -12,10 +11,9 @@ from icon.server.data_access.repositories.parameter_metadata_repository import (
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
 )
+from icon.server.utils.socketio_manager import SocketIOManagerFactory
 
 logger = logging.getLogger(__name__)
-
-external_sio = socketio.RedisManager(write_only=True, logger=logger)
 
 
 class ParametersController(pydase.DataService):
@@ -36,7 +34,10 @@ class ParametersController(pydase.DataService):
         await ParametersRepository.update_valkey_parameter_by_id(
             parameter_id=parameter_id, new_value=value
         )
-        external_sio.emit("parameter_update", {"id": parameter_id, "value": value})
+        external_sio = SocketIOManagerFactory().get(logger=logger)
+
+        if external_sio is not None:
+            external_sio.emit("parameter_update", {"id": parameter_id, "value": value})
 
     async def get_parameter_by_id(self, parameter_id: str) -> Any:
         return ParametersRepository.get_ionpulse_parameter_by_id(

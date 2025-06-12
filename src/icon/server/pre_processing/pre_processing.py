@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Any, cast
 
 import psutil
 import pytz
-import socketio  # type: ignore
 import tiqi_plugin
 
 from icon.config.config import get_config
@@ -31,6 +30,7 @@ from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
     ValkeyValueType,
 )
+from icon.server.utils.socketio_manager import SocketIOManagerFactory
 
 if TYPE_CHECKING:
     from icon.server.data_access.models.sqlite.job import Job
@@ -119,7 +119,8 @@ class PreProcessingWorker(multiprocessing.Process):
         with tempfile.TemporaryDirectory() as tmp_dir:
             logger.debug("%s - Created temp dir %s", self._worker_number, tmp_dir)
 
-            external_sio = socketio.RedisManager(write_only=True, logger=logger)
+            external_sio = SocketIOManagerFactory().get(logger=logger, wait=True)
+
             while True:
                 pre_processing_task = self._queue.get()
 
