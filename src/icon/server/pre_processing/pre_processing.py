@@ -72,7 +72,7 @@ def change_process_priority(priority: int) -> None:
     p.nice(priority)
 
 
-def get_scan_combinations(job: Job) -> list[dict[str, float]]:
+def get_scan_combinations(job: Job) -> list[dict[str, ValkeyValueType]]:
     """Generates all combinations of scan parameters for a given job. Repeats each
     combination `job.repetitions` times.
 
@@ -160,9 +160,9 @@ class PreProcessingWorker(multiprocessing.Process):
                     pre_processing_task.job
                 )
 
-                data_points_to_process: queue.Queue[tuple[int, dict[str, float]]] = (
-                    self._manager.Queue()
-                )
+                data_points_to_process: queue.Queue[
+                    tuple[int, dict[str, ValkeyValueType]]
+                ] = self._manager.Queue()
                 processed_data_points: queue.Queue[Any] = self._manager.Queue()
 
                 for combination in enumerate(scan_parameter_value_combinations):

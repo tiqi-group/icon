@@ -5,6 +5,7 @@ import sqlalchemy
 import sqlalchemy.orm
 
 from icon.server.data_access.models.sqlite.base import Base
+from icon.server.data_access.repositories.parameters_repository import ValkeyValueType
 
 if TYPE_CHECKING:
     from icon.server.data_access.models.sqlite.job import Job
@@ -46,8 +47,8 @@ class ScanParameter(Base):
         back_populates="scan_parameters"
     )
     variable_id: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column()
-    scan_values: sqlalchemy.orm.Mapped[list[float]] = sqlalchemy.orm.mapped_column(
-        JSONEncodedList, nullable=False
+    scan_values: sqlalchemy.orm.Mapped[list[ValkeyValueType]] = (
+        sqlalchemy.orm.mapped_column(JSONEncodedList, nullable=False)
     )
     # remote_source_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
     #     sqlalchemy.ForeignKey("remote_sources.id")
