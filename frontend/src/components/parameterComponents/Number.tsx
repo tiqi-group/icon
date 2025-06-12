@@ -39,7 +39,7 @@ export const NumberComponent = React.memo((props: NumberComponentProps) => {
     } else {
       console.log(`Final value: ${value}`);
       setError(false);
-      updateParameterValue(id, newValue);
+      updateParameterValue(id, Number.parseFloat(newValue));
     }
   };
 
