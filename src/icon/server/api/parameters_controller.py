@@ -34,6 +34,9 @@ class ParametersController(pydase.DataService):
         ParametersRepository.update_ionpulse_parameter_by_id(
             parameter_id=parameter_id, value=value
         )
+        ParametersRepository.update_influxdbv1_parameter_by_id(
+            parameter_id=parameter_id, value=value
+        )
         await ParametersRepository.update_valkey_parameter_by_id(
             parameter_id=parameter_id, new_value=value
         )
@@ -84,3 +87,12 @@ class ParametersController(pydase.DataService):
         )
 
         # TODO: emit events for changed params and groups
+
+    async def _create_missing_influxdb_entries(
+        self, parameter_metadata: ParameterMetadataDict
+    ) -> None:
+        influxdb_param_keys = ParametersRepository.get_influxdbv1_parameter_keys()
+        for key, metadata in parameter_metadata["all parameters"].items():
+            if key not in influxdb_param_keys:
+                logger.info("Creating entry %s: %s", key, metadata["default_value"])
+                await self.update_parameter_by_id(key, metadata["default_value"])

@@ -79,6 +79,13 @@ class ParametersRepository:
         )
 
     @staticmethod
+    def get_influxdbv1_parameter_keys() -> list[str]:
+        with InfluxDBv1Session() as influxdbv1:
+            return influxdbv1.get_field_keys(
+                get_config().databases.influxdbv1.measurement
+            )
+
+    @staticmethod
     def get_influxdbv1_parameters() -> dict[str, DatabaseValueType]:
         with InfluxDBv1Session() as influxdbv1:
             return influxdbv1.query_all(get_config().databases.influxdbv1.measurement)

@@ -201,3 +201,10 @@ class InfluxDBv1Session:
             }
         except StopIteration:
             return {}
+
+    def get_field_keys(self, measurement: str) -> list[str]:
+        """Return list of field names from a measurement."""
+
+        stmt = f'SHOW FIELD KEYS FROM "{escape_quotes(measurement)}"'
+        result = list(self._client.query(stmt).get_points())  # type: ignore
+        return [row["fieldKey"] for row in result]
