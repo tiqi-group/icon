@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING, Any
 import sqlalchemy
 import sqlalchemy.orm
 
+from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 from icon.server.data_access.models.sqlite.base import Base
-from icon.server.data_access.repositories.parameters_repository import ValkeyValueType
 
 if TYPE_CHECKING:
     from icon.server.data_access.models.sqlite.job import Job
@@ -47,7 +47,7 @@ class ScanParameter(Base):
         back_populates="scan_parameters"
     )
     variable_id: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column()
-    scan_values: sqlalchemy.orm.Mapped[list[ValkeyValueType]] = (
+    scan_values: sqlalchemy.orm.Mapped[list[DatabaseValueType]] = (
         sqlalchemy.orm.mapped_column(JSONEncodedList, nullable=False)
     )
     # remote_source_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(

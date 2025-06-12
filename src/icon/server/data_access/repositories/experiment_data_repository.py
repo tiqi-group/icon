@@ -9,6 +9,7 @@ import numpy.typing as npt
 from filelock import FileLock
 
 from icon.config.config import get_config
+from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
 
@@ -26,7 +27,7 @@ class ResultDict(TypedDict):
 
 class ExperimentDataPoint(ResultDict):
     index: int
-    scan_params: dict[str, float] | dict[str, bool] | dict[str, str]
+    scan_params: dict[str, DatabaseValueType]
     timestamp: str
 
 
@@ -49,7 +50,7 @@ def resize_dataset(dataset: h5py.Dataset, current_size: int, axis: int) -> None:
 def write_scan_parameters_and_timestamp_to_dataset(
     h5file: h5py.File,
     data_point_index: int,
-    scan_params: dict[str, float] | dict[str, bool] | dict[str, str],
+    scan_params: dict[str, DatabaseValueType],
     timestamp: str,
     number_of_data_points: int,
 ) -> None:

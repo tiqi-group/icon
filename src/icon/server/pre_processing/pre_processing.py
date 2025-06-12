@@ -16,6 +16,7 @@ import pytz
 import tiqi_plugin
 
 from icon.config.config import get_config
+from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataPoint,
@@ -28,7 +29,6 @@ from icon.server.data_access.repositories.job_run_repository import (
 )
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
-    ValkeyValueType,
 )
 from icon.server.data_access.repositories.pycrystal_library_repository import (
     PycrystalLibraryRepository,
@@ -75,7 +75,7 @@ def change_process_priority(priority: int) -> None:
     p.nice(priority)
 
 
-def get_scan_combinations(job: Job) -> list[dict[str, ValkeyValueType]]:
+def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
     """Generates all combinations of scan parameters for a given job. Repeats each
     combination `job.repetitions` times.
 
@@ -180,7 +180,7 @@ class PreProcessingWorker(multiprocessing.Process):
                 )
 
                 data_points_to_process: queue.Queue[
-                    tuple[int, dict[str, ValkeyValueType]]
+                    tuple[int, dict[str, DatabaseValueType]]
                 ] = self._manager.Queue()
                 processed_data_points: queue.Queue[Any] = self._manager.Queue()
 
@@ -188,7 +188,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     data_points_to_process.put(combination)
 
                 # store current parameter values to restore them at the end
-                prev_param_values: dict[str, ValkeyValueType] = {}
+                prev_param_values: dict[str, DatabaseValueType] = {}
                 for key in scan_parameter_value_combinations[-1]:
                     prev_param_values[key] = (
                         ParametersRepository.get_ionpulse_parameter_by_id(key)
