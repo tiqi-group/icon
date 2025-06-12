@@ -10,14 +10,14 @@ logging.basicConfig(level=log_level)
 logging.getLogger("pycrystal").setLevel(log_level)
 logging.getLogger("ionpulse_sequence_generator").setLevel(log_level)
 
-INFLUXDB_HOST = {influxdb_host}
-INFLUXDB_PORT = {influxdb_port}
-INFLUXDB_MEASUREMENT = {influxdb_measurement}
-INFLUXDB_USERNAME = {influxdb_username}
-INFLUXDB_PASSWORD = {influxdb_password}
-INFLUXDB_DATABASE = {influxdb_database}
-INFLUXDB_SSL = {influxdb_ssl}
-INFLUXDB_VERIFY_SSL = {influxdb_verify_ssl}
+INFLUXDB_HOST = "{influxdb_host}"
+INFLUXDB_PORT = "{influxdb_port}"
+INFLUXDB_MEASUREMENT = "{influxdb_measurement}"
+INFLUXDB_USERNAME = "{influxdb_username}"
+INFLUXDB_PASSWORD = "{influxdb_password}"
+INFLUXDB_DATABASE = "{influxdb_database}"
+INFLUXDB_SSL = "{influxdb_ssl}"
+INFLUXDB_VERIFY_SSL = "{influxdb_verify_ssl}"
 
 pycrystal.parameters.Parameter.db = pycrystal.database.influxdbv1.InfluxDBv1(
     host=INFLUXDB_HOST,
@@ -30,8 +30,8 @@ pycrystal.parameters.Parameter.db = pycrystal.database.influxdbv1.InfluxDBv1(
     verify_ssl=INFLUXDB_VERIFY_SSL,
 )
 
-module_name = {module_name}
-exp_instance_name = {exp_instance_name}
+module_name = "{module_name}"
+exp_instance_name = "{exp_instance_name}"
 
 config = get_config_from_module_name(module_name)
 exp_config = next(
