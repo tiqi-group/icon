@@ -30,6 +30,9 @@ from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
     ValkeyValueType,
 )
+from icon.server.data_access.repositories.pycrystal_library_repository import (
+    PycrystalLibraryRepository,
+)
 from icon.server.utils.socketio_manager import SocketIOManagerFactory
 
 if TYPE_CHECKING:
@@ -99,6 +102,22 @@ def get_scan_combinations(job: Job) -> list[dict[str, ValkeyValueType]]:
     return [
         dict(zip(keys, combination)) for combination in combinations
     ] * job.repetitions
+
+
+def parse_experiment_identifier(identifier: str) -> tuple[str, str]:
+    """
+    Parses an experiment identifier and returns:
+    - the module path (e.g. 'experiment_library.experiments.exp_name')
+    - the experiment instance name (e.g. 'Instance name')
+
+    Example:
+        "experiment_library.experiments.exp_name.ClassName (Instance name)"
+        -> ("experiment_library.experiments.exp_name", "Instance name")
+    """
+    match = re.match(r"^(.*)\.[^. ]+ \(([^)]+)\)$", identifier)
+    if match:
+        return match.group(1), match.group(2)
+    raise ValueError("Unexpected format of experiment identifier: ", identifier)
 
 
 class PreProcessingWorker(multiprocessing.Process):
@@ -176,10 +195,9 @@ class PreProcessingWorker(multiprocessing.Process):
                     )
                 # logger.info("Current values: %s", prev_param_values)
 
-                experiment_id = re.findall(
-                    r"\((.*)\)",
-                    pre_processing_task.job.experiment_source.experiment_id,
-                )[0]
+                exp_module_name, experiment_id = parse_experiment_identifier(
+                    pre_processing_task.job.experiment_source.experiment_id
+                )
 
                 if not DUMMY_DATA:
                     client = tiqi_plugin.Client(
@@ -216,9 +234,11 @@ class PreProcessingWorker(multiprocessing.Process):
                         continue
 
                     global_parameter_timestamp = datetime.now(timezone)
-                    # # TODO: create this function
-                    # sequence_json = generate_json_sequence()
-                    #
+                    sequence_json = PycrystalLibraryRepository.generate_json_sequence(
+                        exp_module_name=exp_module_name,
+                        exp_instance_name=experiment_id,
+                    )
+
                     # task = HardwareProcessingTask(
                     #     pre_processing_task=pre_processing_task,
                     #     priority=pre_processing_task.priority,

@@ -70,3 +70,28 @@ class PycrystalLibraryRepository:
         )
         stdout = await PycrystalLibraryRepository._run_code(code)
         return json.loads(stdout)
+
+    @staticmethod
+    async def generate_json_sequence(
+        *, exp_module_name: str, exp_instance_name: str
+    ) -> str:
+        template_vars = {
+            "influxdb_host": get_config().databases.influxdbv1.host,
+            "influxdb_port": get_config().databases.influxdbv1.port,
+            "influxdb_measurement": get_config().databases.influxdbv1.measurement,
+            "influxdb_username": get_config().databases.influxdbv1.username,
+            "influxdb_password": get_config().databases.influxdbv1.password,
+            "influxdb_database": get_config().databases.influxdbv1.database,
+            "influxdb_ssl": get_config().databases.influxdbv1.ssl,
+            "influxdb_verify_ssl": get_config().databases.influxdbv1.verify_ssl,
+            "module_name": exp_module_name,
+            "exp_instance_name": exp_instance_name,
+        }
+
+        code = PycrystalLibraryRepository._get_code(
+            Path(__file__).parent.parent / "templates/generate_pycrystal_sequence.py",
+            **template_vars,
+        )
+        stdout = await PycrystalLibraryRepository._run_code(code)
+        print(stdout)
+        return stdout
