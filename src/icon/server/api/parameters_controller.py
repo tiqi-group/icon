@@ -31,21 +31,8 @@ class ParametersController(pydase.DataService):
         return await ParameterMetadataRepository.get_display_groups()
 
     async def update_parameter_by_id(self, parameter_id: str, value: Any) -> None:
-        if (
-            isinstance(value, int)
-            and not isinstance(value, bool)
-            and "ParameterTypes.INT" not in parameter_id
-        ):
-            value = float(value)
-
-        ParametersRepository.update_ionpulse_parameter_by_id(
-            parameter_id=parameter_id, value=value
-        )
-        ParametersRepository.update_influxdbv1_parameter_by_id(
-            parameter_id=parameter_id, value=value
-        )
-        await ParametersRepository.update_valkey_parameter_by_id(
-            parameter_id=parameter_id, new_value=value
+        await ParametersRepository.update_parameters(
+            parameter_mapping={parameter_id: value}
         )
         external_sio = SocketIOManagerFactory().get(logger=logger)
 
