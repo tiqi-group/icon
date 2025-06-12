@@ -38,6 +38,25 @@ def get_specifiers_from_parameter_identifier(
 
 class ParametersRepository:
     @staticmethod
+    async def update_parameters(
+        parameter_mapping: dict[str, DatabaseValueType],
+    ) -> None:
+        for key, value in parameter_mapping.items():
+            if (
+                isinstance(value, int)
+                and not isinstance(value, bool)
+                and "ParameterTypes.INT" not in key
+            ):
+                parameter_mapping[key] = float(value)
+
+        await ParametersRepository.update_valkey_parameters(
+            parameter_mapping=parameter_mapping
+        )
+        ParametersRepository.update_influxdbv1_parameters(
+            parameter_mapping=parameter_mapping
+        )
+
+    @staticmethod
     async def get_valkey_parameters() -> dict[str, ValkeyValueType]:
         if not is_valkey_available():
             raise ValkeyUnavailableError()
@@ -127,9 +146,9 @@ class ParametersRepository:
             influxdb.write_points(points=records)
 
     @staticmethod
-    def update_influxdbv1_parameter_by_id(parameter_id: str, value: Any) -> None:
+    def update_influxdbv1_parameter_by_id(parameter_id: str, new_value: Any) -> None:
         return ParametersRepository.update_influxdbv1_parameters(
-            parameter_mapping={parameter_id: value}
+            parameter_mapping={parameter_id: new_value}
         )
 
     @staticmethod
