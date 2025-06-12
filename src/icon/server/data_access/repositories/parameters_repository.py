@@ -8,7 +8,7 @@ from icon.server.data_access.db_context.influxdb_v1 import (
     DatabaseValueType,
     InfluxDBv1Session,
 )
-from icon.server.data_access.db_context.valkey import ValkeySession
+from icon.server.data_access.db_context.valkey import AsyncValkeySession
 from icon.server.exceptions import ValkeyUnavailableError
 from icon.server.utils.valkey import is_valkey_available
 
@@ -61,7 +61,7 @@ class ParametersRepository:
         if not is_valkey_available():
             raise ValkeyUnavailableError()
 
-        async with ValkeySession() as valkey:
+        async with AsyncValkeySession() as valkey:
             params_serialized = await valkey.hgetall("parameters")  # type: ignore
         return {key: json.loads(value) for key, value in params_serialized.items()}
 
@@ -70,7 +70,7 @@ class ParametersRepository:
         if not is_valkey_available():
             raise ValkeyUnavailableError()
 
-        async with ValkeySession() as valkey:
+        async with AsyncValkeySession() as valkey:
             return await valkey.hget("parameters", key=parameter_id)  # type: ignore
 
     @staticmethod
@@ -80,7 +80,7 @@ class ParametersRepository:
         if not is_valkey_available():
             raise ValkeyUnavailableError()
 
-        async with ValkeySession() as valkey:
+        async with AsyncValkeySession() as valkey:
             await valkey.hset(
                 "parameters",
                 mapping={

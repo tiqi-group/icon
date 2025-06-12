@@ -3,6 +3,7 @@ import logging
 import pytest
 import pytest_docker.plugin
 import redis.asyncio.client
+
 from icon.server.data_access.db_context import valkey
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,6 @@ def valkey_service(
 
 @pytest.mark.asyncio(loop_scope="function")
 async def test_read_and_write(valkey_service: tuple[str, int]) -> None:
-    async with valkey.ValkeySession() as valkey_session:
+    async with valkey.AsyncValkeySession() as valkey_session:
         await valkey_session.set("test", 1)
         assert await valkey_session.get("test") == "1"

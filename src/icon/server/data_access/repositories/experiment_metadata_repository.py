@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any, Literal, TypedDict, overload
 
-from icon.server.data_access.db_context.valkey import ValkeySession
+from icon.server.data_access.db_context.valkey import AsyncValkeySession
 from icon.server.exceptions import ValkeyUnavailableError
 from icon.server.utils.valkey import is_valkey_available
 
@@ -58,7 +58,7 @@ class ExperimentMetadataRepository:
         if not is_valkey_available():
             raise ValkeyUnavailableError()
 
-        async with ValkeySession() as valkey:
+        async with AsyncValkeySession() as valkey:
             experiments_serialized = await valkey.hgetall("experiments")  # type: ignore
 
             if deserialize:
@@ -85,7 +85,7 @@ class ExperimentMetadataRepository:
             key: json.dumps(value) for key, value in new_experiment_metadata.items()
         }
 
-        async with ValkeySession() as valkey:
+        async with AsyncValkeySession() as valkey:
             await valkey.hset("experiments", mapping=new_experiment_metadata_serialized)  # type: ignore
 
             added_exps, removed_exps, updated_exps = get_added_removed_and_updated_keys(

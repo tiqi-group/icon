@@ -1,7 +1,7 @@
 import json
 from typing import Any, Literal, TypedDict, overload
 
-from icon.server.data_access.db_context.valkey import ValkeySession
+from icon.server.data_access.db_context.valkey import AsyncValkeySession
 from icon.server.data_access.repositories.experiment_metadata_repository import (
     get_added_removed_and_updated_keys,
 )
@@ -38,7 +38,7 @@ class ParameterMetadataRepository:
         if not is_valkey_available():
             raise ValkeyUnavailableError()
 
-        async with ValkeySession() as valkey:
+        async with AsyncValkeySession() as valkey:
             parameter_metadata_serialized: dict[str, str] = await valkey.hgetall(
                 "parameter_metadata"
             )  # type: ignore
@@ -67,7 +67,7 @@ class ParameterMetadataRepository:
             key: json.dumps(value) for key, value in new_parameter_metadata.items()
         }
 
-        async with ValkeySession() as valkey:
+        async with AsyncValkeySession() as valkey:
             await valkey.hset(
                 "parameter_metadata", mapping=new_parameter_metadata_serialized
             )  # type: ignore
@@ -101,7 +101,7 @@ class ParameterMetadataRepository:
         if not is_valkey_available():
             raise ValkeyUnavailableError()
 
-        async with ValkeySession() as valkey:
+        async with AsyncValkeySession() as valkey:
             display_groups_serialized: dict[str, str] = await valkey.hgetall(
                 "parameter_display_groups"
             )  # type: ignore
@@ -128,7 +128,7 @@ class ParameterMetadataRepository:
             key: json.dumps(value) for key, value in new_display_groups.items()
         }
 
-        async with ValkeySession() as valkey:
+        async with AsyncValkeySession() as valkey:
             await valkey.hset(
                 "parameter_display_groups", mapping=new_display_groups_serialized
             )  # type: ignore

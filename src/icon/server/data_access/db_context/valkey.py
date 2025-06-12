@@ -1,20 +1,20 @@
 from types import TracebackType
 
-import redis.asyncio as redis
+import redis.asyncio
 
 from icon.config.config import get_config
 
 
-class ValkeySession:
+class AsyncValkeySession:
     def __init__(self) -> None:
         self._config = get_config().databases.valkey
-        self.client = redis.Redis(
+        self.client = redis.asyncio.Redis(
             host=self._config.host,
             port=self._config.port,
             decode_responses=True,
         )
 
-    async def __aenter__(self) -> redis.Redis:
+    async def __aenter__(self) -> redis.asyncio.Redis:
         return self.client
 
     async def __aexit__(
