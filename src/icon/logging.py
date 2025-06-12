@@ -31,6 +31,11 @@ LOGGING_CONFIG = {
     "loggers": {
         "icon": {"handlers": ["default"], "level": LOG_LEVEL, "propagate": False},
         "asyncio": {"handlers": ["default"], "level": logging.INFO, "propagate": True},
+        "socketio": {
+            "handlers": ["default"],
+            "level": logging.WARNING,
+            "propagate": True,
+        },
         "sqlalchemy.engine": {
             "handlers": ["default"],
             "level": logging.WARNING,
