@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import itertools
 import logging
 import multiprocessing
@@ -9,11 +10,10 @@ import re
 import tempfile
 import time
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import psutil
 import pytz
-import tiqi_plugin
 
 from icon.config.config import get_config
 from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
@@ -21,7 +21,6 @@ from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataPoint,
     ExperimentDataRepository,
-    ResultDict,
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import (
@@ -33,6 +32,7 @@ from icon.server.data_access.repositories.parameters_repository import (
 from icon.server.data_access.repositories.pycrystal_library_repository import (
     PycrystalLibraryRepository,
 )
+from icon.server.hardware_processing.hardware_controller import HardwareController
 from icon.server.utils.socketio_manager import SocketIOManagerFactory
 
 if TYPE_CHECKING:
@@ -138,6 +138,7 @@ class PreProcessingWorker(multiprocessing.Process):
         with tempfile.TemporaryDirectory() as tmp_dir:
             logger.debug("%s - Created temp dir %s", self._worker_number, tmp_dir)
 
+            hardware_controller = HardwareController()
             external_sio = SocketIOManagerFactory().get(logger=logger, wait=True)
 
             while True:
@@ -190,24 +191,13 @@ class PreProcessingWorker(multiprocessing.Process):
                 # store current parameter values to restore them at the end
                 prev_param_values: dict[str, DatabaseValueType] = {}
                 for key in scan_parameter_value_combinations[-1]:
-                    prev_param_values[key] = (
-                        ParametersRepository.get_ionpulse_parameter_by_id(key)
+                    prev_param_values[key] = asyncio.run(
+                        ParametersRepository.get_valkey_parameter_by_id(key)
                     )
-                # logger.info("Current values: %s", prev_param_values)
 
                 exp_module_name, experiment_id = parse_experiment_identifier(
                     pre_processing_task.job.experiment_source.experiment_id
                 )
-
-                if not DUMMY_DATA:
-                    client = tiqi_plugin.Client(
-                        get_config().ionpulse_plugin.host,
-                        get_config().ionpulse_plugin.rpc_port,
-                        client_type="rpc",
-                    )
-                    client.Experiments[
-                        experiment_id
-                    ].Shots = pre_processing_task.job.number_of_shots
 
                 ExperimentDataRepository.update_metadata_by_job_id(
                     job_id=pre_processing_task.job.id,
@@ -234,9 +224,11 @@ class PreProcessingWorker(multiprocessing.Process):
                         continue
 
                     global_parameter_timestamp = datetime.now(timezone)
-                    sequence_json = PycrystalLibraryRepository.generate_json_sequence(
-                        exp_module_name=exp_module_name,
-                        exp_instance_name=experiment_id,
+                    sequence_json = asyncio.run(
+                        PycrystalLibraryRepository.generate_json_sequence(
+                            exp_module_name=exp_module_name,
+                            exp_instance_name=experiment_id,
+                        )
                     )
 
                     # task = HardwareProcessingTask(
@@ -257,13 +249,17 @@ class PreProcessingWorker(multiprocessing.Process):
                     # self._hw_processing_queue.put(task)
 
                     # set scan parameter values
-                    ParametersRepository.update_ionpulse_parameters(data_point)  # type: ignore
+                    asyncio.run(ParametersRepository.update_parameters(data_point))
 
                     if not DUMMY_DATA:
-                        result: ResultDict = cast(
-                            "ResultDict",
-                            client.Experiments[experiment_id].run(),  # type: ignore
+                        hardware_controller.update_number_of_shots(
+                            number_of_shots=pre_processing_task.job.number_of_shots
                         )
+
+                        hardware_controller.update_zedboard_sequence(
+                            sequence=sequence_json
+                        )
+                        result = hardware_controller.run()
                     else:
                         import random
                         import statistics
@@ -299,7 +295,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     )
 
                 # restore previous values
-                ParametersRepository.update_ionpulse_parameters(prev_param_values)
+                ParametersRepository.update_parameters(prev_param_values)
 
                 logger.info(
                     "(worker=%s) JobRun with id '%s' finished",
