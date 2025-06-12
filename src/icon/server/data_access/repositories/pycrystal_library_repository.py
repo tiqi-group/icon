@@ -1,9 +1,28 @@
 import asyncio
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 from icon.config.config import get_config
+from icon.server.data_access.repositories.experiment_metadata_repository import (
+    ExperimentDict,
+)
+from icon.server.data_access.repositories.parameter_metadata_repository import (
+    ParameterMetadata,
+)
+
+ParameterMetadataDict = TypedDict(
+    "ParameterMetadataDict",
+    {
+        "all parameters": dict[str, ParameterMetadata],
+        "display groups": dict[str, dict[str, ParameterMetadata]],
+    },
+)
+
+
+class ParameterAndExperimentMetadata(TypedDict):
+    experiment_metadata: ExperimentDict
+    parameter_metadata: ParameterMetadataDict
 
 
 class PycrystalLibraryRepository:
@@ -43,7 +62,7 @@ class PycrystalLibraryRepository:
         return stdout.decode()
 
     @staticmethod
-    async def get_experiment_and_parameter_metadata() -> dict[str, Any]:
+    async def get_experiment_and_parameter_metadata() -> ParameterAndExperimentMetadata:
         """Retrieve the experiments dictionary."""
         code = PycrystalLibraryRepository._get_code(
             Path(__file__).parent.parent

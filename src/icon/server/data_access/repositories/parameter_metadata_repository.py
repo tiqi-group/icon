@@ -15,6 +15,7 @@ class ParameterMetadata(TypedDict):
     default_value: float | int
     min_value: float | None
     max_value: float | None
+    allowed_values: list[Any] | None
 
 
 class ParameterMetadataRepository:
@@ -51,7 +52,9 @@ class ParameterMetadataRepository:
 
     @staticmethod
     async def update_parameter_metadata(
-        *, new_parameter_metadata: dict[str, Any], remove_unspecified: bool = True
+        *,
+        new_parameter_metadata: dict[str, ParameterMetadata],
+        remove_unspecified: bool = True,
     ) -> tuple[list[str], list[str], list[str]]:
         if not is_valkey_available():
             raise ValkeyUnavailableError()

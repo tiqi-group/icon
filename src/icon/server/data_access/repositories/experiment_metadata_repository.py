@@ -24,7 +24,7 @@ ExperimentDict = dict[str, dict[str, ExperimentMetadata]]
 
 # TODO: This is also used elsewhere - move this to utils!
 def get_added_removed_and_updated_keys(
-    new_dict: dict[str, str], cached_dict: dict[str, str]
+    new_dict: dict[str, Any], cached_dict: dict[str, Any]
 ) -> tuple[list[str], list[str], list[str]]:
     keys1 = set(cached_dict)
     keys2 = set(new_dict)

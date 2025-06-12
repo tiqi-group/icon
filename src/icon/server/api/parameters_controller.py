@@ -11,6 +11,9 @@ from icon.server.data_access.repositories.parameter_metadata_repository import (
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
 )
+from icon.server.data_access.repositories.pycrystal_library_repository import (
+    ParameterMetadataDict,
+)
 from icon.server.utils.socketio_manager import SocketIOManagerFactory
 
 logger = logging.getLogger(__name__)
@@ -61,7 +64,7 @@ class ParametersController(pydase.DataService):
             self.initialised = True
 
     async def _update_parameter_metadata_and_display_groups(
-        self, parameter_metadata: dict[str, Any]
+        self, parameter_metadata: ParameterMetadataDict
     ) -> None:
         logger.debug("Updating parameter metadata...")
 
