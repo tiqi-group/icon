@@ -22,7 +22,7 @@ server = [
     "sqlalchemy>=2.0.36",
     "tables>=3.10.1",
     "tiqi-plugin @ git+ssh://git@gitlab.phys.ethz.ch/tiqi-projects/tiqi-plugin.git",
-    "tiqi-rpc @ git+ssh://git@gitlab.phys.ethz.ch/tiqi-projects/tiqi-rpc-python.git",
+    "tiqi-zedboard @ git+ssh://git@gitlab.phys.ethz.ch/tiqi-projects/drivers/tiqi-zedboard.git",
 ]
 client = [
     "ipympl>=0.9.5",
