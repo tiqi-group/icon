@@ -92,6 +92,4 @@ class PycrystalLibraryRepository:
             Path(__file__).parent.parent / "templates/generate_pycrystal_sequence.py",
             **template_vars,
         )
-        stdout = await PycrystalLibraryRepository._run_code(code)
-        print(stdout)
-        return stdout
+        return await PycrystalLibraryRepository._run_code(code)
