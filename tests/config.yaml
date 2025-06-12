@@ -17,6 +17,9 @@ experiment_library:
   dir: ../
   git_repository: https://...
   update_interval: 30
+hardware:
+  host: localhost
+  port: 6098
 ionpulse_plugin:
   host: localhost
   rpc_port: 8002

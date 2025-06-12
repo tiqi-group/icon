@@ -56,6 +56,11 @@ class ServerConfig(BaseModel):
     host: str = "0.0.0.0"
 
 
+class HardwareConfig(BaseModel):
+    host: str = "localhost"
+    port: int = 6007
+
+
 class ServiceConfigV1(BaseConfig):  # type: ignore[misc]
     version: int = 1
     experiment_library: ExperimentLibraryConfigV1 = ExperimentLibraryConfigV1()
@@ -63,3 +68,4 @@ class ServiceConfigV1(BaseConfig):  # type: ignore[misc]
     ionpulse_plugin: IonpulsePluginConfig = IonpulsePluginConfig()
     date: DateConfig = DateConfig()
     server: ServerConfig = ServerConfig()
+    hardware: HardwareConfig = HardwareConfig()
