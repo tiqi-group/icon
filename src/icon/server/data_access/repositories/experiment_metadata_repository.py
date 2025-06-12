@@ -4,6 +4,8 @@ import json
 from typing import TYPE_CHECKING, Any, Literal, TypedDict, overload
 
 from icon.server.data_access.db_context.valkey import ValkeySession
+from icon.server.exceptions import ValkeyUnavailableError
+from icon.server.utils.valkey import is_valkey_available
 
 if TYPE_CHECKING:
     from icon.server.data_access.repositories.parameter_metadata_repository import (
@@ -53,6 +55,9 @@ class ExperimentMetadataRepository:
     async def get_experiment_metadata(
         *, deserialize: bool = True
     ) -> dict[str, str] | ExperimentDict:
+        if not is_valkey_available():
+            raise ValkeyUnavailableError()
+
         async with ValkeySession() as valkey:
             experiments_serialized = await valkey.hgetall("experiments")  # type: ignore
 
@@ -67,6 +72,9 @@ class ExperimentMetadataRepository:
     async def update_experiment_metadata(
         *, new_experiment_metadata: dict[str, Any], remove_unspecified: bool = True
     ) -> tuple[list[str], list[str], list[str]]:
+        if not is_valkey_available():
+            raise ValkeyUnavailableError()
+
         cached_experiment_metadata_serialized = (
             await ExperimentMetadataRepository.get_experiment_metadata(
                 deserialize=False

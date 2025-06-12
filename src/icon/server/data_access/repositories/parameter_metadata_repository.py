@@ -5,6 +5,8 @@ from icon.server.data_access.db_context.valkey import ValkeySession
 from icon.server.data_access.repositories.experiment_metadata_repository import (
     get_added_removed_and_updated_keys,
 )
+from icon.server.exceptions import ValkeyUnavailableError
+from icon.server.utils.valkey import is_valkey_available
 
 
 class ParameterMetadata(TypedDict):
@@ -32,6 +34,9 @@ class ParameterMetadataRepository:
     async def get_parameter_metadata(
         *, deserialize: bool = True
     ) -> dict[str, str] | dict[str, ParameterMetadata]:
+        if not is_valkey_available():
+            raise ValkeyUnavailableError()
+
         async with ValkeySession() as valkey:
             parameter_metadata_serialized: dict[str, str] = await valkey.hgetall(
                 "parameter_metadata"
@@ -48,6 +53,9 @@ class ParameterMetadataRepository:
     async def update_parameter_metadata(
         *, new_parameter_metadata: dict[str, Any], remove_unspecified: bool = True
     ) -> tuple[list[str], list[str], list[str]]:
+        if not is_valkey_available():
+            raise ValkeyUnavailableError()
+
         cached_parameter_metadata_serialized = (
             await ParameterMetadataRepository.get_parameter_metadata(deserialize=False)
         )
@@ -87,6 +95,9 @@ class ParameterMetadataRepository:
     async def get_display_groups(
         *, deserialize: bool = True
     ) -> dict[str, str] | dict[str, dict[str, ParameterMetadata]]:
+        if not is_valkey_available():
+            raise ValkeyUnavailableError()
+
         async with ValkeySession() as valkey:
             display_groups_serialized: dict[str, str] = await valkey.hgetall(
                 "parameter_display_groups"
@@ -103,6 +114,9 @@ class ParameterMetadataRepository:
     async def update_display_groups(
         *, new_display_groups: dict[str, Any], remove_unspecified: bool = True
     ) -> tuple[list[str], list[str], list[str]]:
+        if not is_valkey_available():
+            raise ValkeyUnavailableError()
+
         cached_display_groups_serialized = (
             await ParameterMetadataRepository.get_display_groups(deserialize=False)
         )

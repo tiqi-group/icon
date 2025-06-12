@@ -1,0 +1,2 @@
+class ValkeyUnavailableError(Exception):
+    pass

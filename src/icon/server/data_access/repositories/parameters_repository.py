@@ -9,6 +9,8 @@ from icon.server.data_access.db_context.influxdb_v1 import (
     InfluxDBv1Session,
 )
 from icon.server.data_access.db_context.valkey import ValkeySession
+from icon.server.exceptions import ValkeyUnavailableError
+from icon.server.utils.valkey import is_valkey_available
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +39,18 @@ def get_specifiers_from_parameter_identifier(
 class ParametersRepository:
     @staticmethod
     async def get_valkey_parameters() -> dict[str, ValkeyValueType]:
+        if not is_valkey_available():
+            raise ValkeyUnavailableError()
+
         async with ValkeySession() as valkey:
             params_serialized = await valkey.hgetall("parameters")  # type: ignore
         return {key: json.loads(value) for key, value in params_serialized.items()}
 
     @staticmethod
     async def get_valkey_parameter_by_id(parameter_id: str) -> ValkeyValueType:
+        if not is_valkey_available():
+            raise ValkeyUnavailableError()
+
         async with ValkeySession() as valkey:
             return await valkey.hget("parameters", key=parameter_id)  # type: ignore
 
@@ -50,6 +58,9 @@ class ParametersRepository:
     async def update_valkey_parameters(
         parameter_mapping: dict[str, DatabaseValueType],
     ) -> None:
+        if not is_valkey_available():
+            raise ValkeyUnavailableError()
+
         async with ValkeySession() as valkey:
             await valkey.hset(
                 "parameters",

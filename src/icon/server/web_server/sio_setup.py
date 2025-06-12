@@ -9,11 +9,17 @@ from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentData,
     ExperimentDataRepository,
 )
+from icon.server.exceptions import ValkeyUnavailableError
+from icon.server.utils.valkey import is_valkey_available, valkey_url
 
 logger = logging.getLogger(__name__)
 
 pydase_setup_sio_events = pydase.server.web_server.sio_setup.setup_sio_events
-sio_client_manager = socketio.AsyncRedisManager()
+
+if not is_valkey_available():
+    raise ValkeyUnavailableError()
+
+sio_client_manager = socketio.AsyncRedisManager(url=valkey_url())
 
 
 def setup_sio_events(
