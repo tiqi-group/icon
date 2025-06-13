@@ -124,11 +124,6 @@ export default function App() {
         string,
         ParameterValueType
       >;
-      console.log(
-        parameterMapping[
-          "namespace='experiment_library.experiments.ramsey_experiment.RamseyExperiment.Ramsey 2' parameter_group='Local detection settings' param_type='ParameterTypes.BOOLEAN' description='729 state prep'"
-        ],
-      );
       parameterStore.bulkSet(parameterMapping);
     });
 
