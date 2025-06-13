@@ -47,11 +47,11 @@ entity "Scan Parameter" as scan_param {
     *job_id: number <<FK>>
     *variable_id: text
     *scan_values: list of numbers
-    *remote_source_id: number <<FK>>
+    *device_id: number <<FK>> | null
 }
 
-entity "Remote Source (Service or DB)" as remote {
-    *remote_source_id: number <<generated>>
+entity "Devices" as devices {
+    *device_id: number <<generated>>
     *name: text  <<unique>>
     --
     *hostname: text
@@ -65,6 +65,6 @@ entity "Remote Source (Service or DB)" as remote {
 job ||..o{ scan_param
 experiment ||.o{ job
 job ||..o{ job_run
-remote ||..o{ scan_param
+devices ||..o{ scan_param
 
 @enduml
