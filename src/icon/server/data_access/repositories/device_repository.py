@@ -34,13 +34,13 @@ class DeviceRepository:
         return device
 
     @staticmethod
-    def update_device_status(*, device: Device, status: DeviceStatus) -> Device:
+    def update_device_status(*, name: str, status: DeviceStatus) -> Device:
         """Updates a device instance in the database and returns this instance."""
 
         with sqlalchemy.orm.session.Session(engine) as session:
             stmt = (
                 sqlalchemy.update(Device)
-                .where(Device.id == device.id)
+                .where(Device.name == name)
                 .values(status=status)
                 .returning(Device)
             )
@@ -63,7 +63,7 @@ class DeviceRepository:
         return device
 
     @staticmethod
-    def get_device_by_status(
+    def get_devices_by_status(
         *,
         status: DeviceStatus | None = None,
     ) -> Sequence[Device]:
