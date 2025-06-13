@@ -14,7 +14,6 @@ from icon.server.data_access.repositories.experiment_source_repository import (
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
-from icon.server.utils.socketio_manager import SocketIOManagerFactory
 
 logger = logging.getLogger(__name__)
 
@@ -60,22 +59,6 @@ class SchedulerController(pydase.DataService):
             debug_mode=git_commit_hash is None,
         )
         job = JobRepository.submit_job(job=job)
-
-        external_sio = SocketIOManagerFactory().get(logger=logger)
-
-        if external_sio is not None:
-            external_sio.emit(
-                "new_experiment",
-                {
-                    "job": SQLAlchemyDictEncoder.encode(
-                        JobRepository.get_job_by_id(
-                            job_id=job.id,
-                            load_experiment_source=True,
-                            load_scan_parameters=True,
-                        )
-                    ),
-                },
-            )
 
         return job.id
 

@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Literal, overload
+from typing import Any, Literal, overload
 
 import socketio
 
@@ -41,3 +41,9 @@ class SocketIOManagerFactory:
 
         self._instance = socketio.RedisManager(url=url, write_only=True, logger=logger)
         return self._instance
+
+
+def emit_event(*, logger: logging.Logger, event: str, data: Any) -> None:
+    external_sio = SocketIOManagerFactory().get(logger=logger)
+    if external_sio is not None:
+        external_sio.emit(event, data)

@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import TYPE_CHECKING, Any, Literal, TypedDict, overload
 
 from icon.server.data_access.db_context.valkey import AsyncValkeySession
 from icon.server.exceptions import ValkeyUnavailableError
+from icon.server.utils.socketio_manager import emit_event
 from icon.server.utils.valkey import is_valkey_available
 
 if TYPE_CHECKING:
     from icon.server.data_access.repositories.parameter_metadata_repository import (
         ParameterMetadata,
     )
+
+
+logger = logging.getLogger(__name__)
 
 
 class ExperimentMetadata(TypedDict):
@@ -71,7 +76,7 @@ class ExperimentMetadataRepository:
     @staticmethod
     async def update_experiment_metadata(
         *, new_experiment_metadata: dict[str, Any], remove_unspecified: bool = True
-    ) -> tuple[list[str], list[str], list[str]]:
+    ) -> None:
         if not is_valkey_available():
             raise ValkeyUnavailableError()
 
@@ -96,4 +101,15 @@ class ExperimentMetadataRepository:
             if remove_unspecified and removed_exps:
                 await valkey.hdel("experiments", *removed_exps)  # type: ignore
 
-        return added_exps, removed_exps, updated_exps
+        if removed_exps:
+            emit_event(logger=logger, event="experiments.remove", data=removed_exps)
+
+        if added_exps or updated_exps:
+            emit_event(
+                logger=logger,
+                event="experiments.update",
+                data={
+                    key: new_experiment_metadata[key]
+                    for key in set(added_exps) | set(updated_exps)
+                },
+            )

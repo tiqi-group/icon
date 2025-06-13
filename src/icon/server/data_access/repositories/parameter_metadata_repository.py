@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Any, Literal, TypedDict, overload
 
 from icon.server.data_access.db_context.valkey import AsyncValkeySession
@@ -6,7 +7,10 @@ from icon.server.data_access.repositories.experiment_metadata_repository import 
     get_added_removed_and_updated_keys,
 )
 from icon.server.exceptions import ValkeyUnavailableError
+from icon.server.utils.socketio_manager import emit_event
 from icon.server.utils.valkey import is_valkey_available
+
+logger = logging.getLogger(__name__)
 
 
 class ParameterMetadata(TypedDict):
@@ -55,7 +59,7 @@ class ParameterMetadataRepository:
         *,
         new_parameter_metadata: dict[str, ParameterMetadata],
         remove_unspecified: bool = True,
-    ) -> tuple[list[str], list[str], list[str]]:
+    ) -> None:
         if not is_valkey_available():
             raise ValkeyUnavailableError()
 
@@ -72,15 +76,26 @@ class ParameterMetadataRepository:
                 "parameter_metadata", mapping=new_parameter_metadata_serialized
             )  # type: ignore
 
-            added_exps, removed_exps, updated_exps = get_added_removed_and_updated_keys(
+            added_keys, removed_keys, updated_keys = get_added_removed_and_updated_keys(
                 new_parameter_metadata,
                 cached_parameter_metadata_serialized,
             )
 
-            if remove_unspecified and removed_exps:
-                await valkey.hdel("parameter_metadata", *removed_exps)  # type: ignore
+            if remove_unspecified and removed_keys:
+                await valkey.hdel("parameter_metadata", *removed_keys)  # type: ignore
 
-        return added_exps, removed_exps, updated_exps
+        if removed_keys:
+            emit_event(logger=logger, event="parameters.remove", data=removed_keys)
+
+        if added_keys or updated_keys:
+            emit_event(
+                logger=logger,
+                event="parameters.update",
+                data={
+                    key: new_parameter_metadata[key]
+                    for key in set(added_keys) | set(updated_keys)
+                },
+            )
 
     @staticmethod
     @overload
@@ -116,7 +131,7 @@ class ParameterMetadataRepository:
     @staticmethod
     async def update_display_groups(
         *, new_display_groups: dict[str, Any], remove_unspecified: bool = True
-    ) -> tuple[list[str], list[str], list[str]]:
+    ) -> None:
         if not is_valkey_available():
             raise ValkeyUnavailableError()
 
@@ -139,6 +154,17 @@ class ParameterMetadataRepository:
             )
 
             if remove_unspecified and removed_keys:
-                await valkey.hdel("parameter_metadata", *removed_keys)  # type: ignore
+                await valkey.hdel("parameter_display_groups", *removed_keys)  # type: ignore
 
-        return added_keys, removed_keys, updated_keys
+        if removed_keys:
+            emit_event(logger=logger, event="display_groups.remove", data=removed_keys)
+
+        if added_keys or updated_keys:
+            emit_event(
+                logger=logger,
+                event="display_groups.update",
+                data={
+                    key: new_display_groups[key]
+                    for key in set(added_keys) | set(updated_keys)
+                },
+            )

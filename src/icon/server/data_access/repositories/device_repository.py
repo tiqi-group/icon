@@ -6,6 +6,8 @@ import sqlalchemy.orm.session
 from icon.server.data_access.db_context.sqlite import engine
 from icon.server.data_access.models.enums import DeviceStatus
 from icon.server.data_access.models.sqlite.device import Device
+from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
+from icon.server.utils.socketio_manager import emit_event
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +22,15 @@ class DeviceRepository:
             session.commit()
             session.refresh(device)
             logger.debug("Added new device %s", device)
+
+        emit_event(
+            logger=logger,
+            event="new_device",
+            data={
+                "device": SQLAlchemyDictEncoder.encode(obj=device),
+            },
+        )
+
         return device
 
     @staticmethod
@@ -37,6 +48,18 @@ class DeviceRepository:
             session.commit()
 
             logger.debug("Updated device %s", device)
+
+        emit_event(
+            logger=logger,
+            event="update_device",
+            data={
+                "device_name": device.name,
+                "updated_properties": {
+                    "status": status.value,
+                },
+            },
+        )
+
         return device
 
     @staticmethod

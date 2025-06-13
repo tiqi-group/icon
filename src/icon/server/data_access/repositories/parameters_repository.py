@@ -11,6 +11,7 @@ from icon.server.data_access.db_context.influxdb_v1 import (
 )
 from icon.server.data_access.db_context.valkey import AsyncValkeySession
 from icon.server.exceptions import ValkeyUnavailableError
+from icon.server.utils.socketio_manager import emit_event
 from icon.server.utils.valkey import is_valkey_available
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,13 @@ class ParametersRepository:
                 "parameters",
                 mapping={k: json.dumps(v) for k, v in parameter_mapping.items()},
             )  # type: ignore
+
+        for key, value in parameter_mapping.items():
+            emit_event(
+                logger=logger,
+                event="parameter_update",
+                data={"id": key, "value": value},
+            )
 
     @staticmethod
     async def update_valkey_parameter_by_id(

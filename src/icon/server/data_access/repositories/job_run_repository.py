@@ -8,6 +8,8 @@ from sqlalchemy import select, update
 from icon.server.data_access.db_context.sqlite import engine
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.data_access.models.sqlite.job_run import JobRun
+from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
+from icon.server.utils.socketio_manager import emit_event
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,15 @@ class JobRunRepository:
             session.commit()
             session.refresh(run)  # Refresh to get the ID
             logger.debug("Created new run %s", run)
+
+        emit_event(
+            logger=logger,
+            event="new_job_run",
+            data={
+                "job_run": SQLAlchemyDictEncoder.encode(obj=run),
+            },
+        )
+
         return run
 
     @staticmethod
@@ -49,6 +60,19 @@ class JobRunRepository:
             session.commit()
 
             logger.debug("Updated run %s", run)
+
+        emit_event(
+            logger=logger,
+            event="update_job_run",
+            data={
+                "run_id": run_id,
+                "updated_properties": {
+                    "status": status.value,
+                    "log": log,
+                },
+            },
+        )
+
         return run
 
     @staticmethod

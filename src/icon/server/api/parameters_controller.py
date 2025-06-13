@@ -14,7 +14,6 @@ from icon.server.data_access.repositories.parameters_repository import (
 from icon.server.data_access.repositories.pycrystal_library_repository import (
     ParameterMetadataDict,
 )
-from icon.server.utils.socketio_manager import SocketIOManagerFactory
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +33,6 @@ class ParametersController(pydase.DataService):
         await ParametersRepository.update_parameters(
             parameter_mapping={parameter_id: value}
         )
-        external_sio = SocketIOManagerFactory().get(logger=logger)
-
-        if external_sio is not None:
-            external_sio.emit("parameter_update", {"id": parameter_id, "value": value})
 
     async def get_parameter_by_id(self, parameter_id: str) -> Any:
         return ParametersRepository.get_ionpulse_parameter_by_id(
@@ -65,22 +60,12 @@ class ParametersController(pydase.DataService):
     ) -> None:
         logger.debug("Updating parameter metadata...")
 
-        (
-            added_params,
-            removed_params,
-            updated_params,
-        ) = await ParameterMetadataRepository.update_parameter_metadata(
+        await ParameterMetadataRepository.update_parameter_metadata(
             new_parameter_metadata=parameter_metadata["all parameters"]
         )
-        (
-            added_groups,
-            removed_groups,
-            updated_groups,
-        ) = await ParameterMetadataRepository.update_display_groups(
+        await ParameterMetadataRepository.update_display_groups(
             new_display_groups=parameter_metadata["display groups"]
         )
-
-        # TODO: emit events for changed params and groups
 
     async def _create_missing_influxdb_entries(
         self, parameter_metadata: ParameterMetadataDict

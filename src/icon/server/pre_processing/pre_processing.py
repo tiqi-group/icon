@@ -139,20 +139,12 @@ class PreProcessingWorker(multiprocessing.Process):
             logger.debug("%s - Created temp dir %s", self._worker_number, tmp_dir)
 
             hardware_controller = HardwareController()
-            external_sio = SocketIOManagerFactory().get(logger=logger, wait=True)
+
+            # make sure Valkey is reachable
+            SocketIOManagerFactory().get(logger=logger, wait=True)
 
             while True:
                 pre_processing_task = self._queue.get()
-
-                external_sio.emit(
-                    "update_job",
-                    {
-                        "job_id": pre_processing_task.job.id,
-                        "updated_properties": {
-                            "status": pre_processing_task.job.status.value
-                        },
-                    },
-                )
 
                 JobRunRepository.update_run_by_id(
                     run_id=pre_processing_task.job_run.id,
@@ -285,11 +277,6 @@ class PreProcessingWorker(multiprocessing.Process):
                     )
                     processed_data_points.put(data_point)
 
-                    external_sio.emit(
-                        f"experiment_{pre_processing_task.job.id}",
-                        experiment_data_point,
-                    )
-
                 # restore previous values
                 asyncio.run(ParametersRepository.update_parameters(prev_param_values))
 
@@ -305,12 +292,4 @@ class PreProcessingWorker(multiprocessing.Process):
                 JobRunRepository.update_run_by_id(
                     run_id=pre_processing_task.job_run.id,
                     status=JobRunStatus.DONE,
-                )
-
-                external_sio.emit(
-                    "update_job",
-                    {
-                        "job_id": pre_processing_task.job.id,
-                        "updated_properties": {"status": JobStatus.PROCESSED.value},
-                    },
                 )

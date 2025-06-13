@@ -11,7 +11,6 @@ from icon.server.data_access.repositories.experiment_metadata_repository import 
 logger = logging.getLogger(__name__)
 
 
-
 class ExperimentsController(pydase.DataService):
     async def get_experiments(self) -> ExperimentDict:
         return await ExperimentMetadataRepository.get_experiment_metadata()
@@ -21,10 +20,6 @@ class ExperimentsController(pydase.DataService):
     ) -> None:
         logger.debug("Updating experiment metadata...")
 
-        (
-            added_exps,
-            removed_exps,
-            updated_exps,
-        ) = await ExperimentMetadataRepository.update_experiment_metadata(
+        await ExperimentMetadataRepository.update_experiment_metadata(
             new_experiment_metadata=experiment_metadata
         )

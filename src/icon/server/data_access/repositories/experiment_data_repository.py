@@ -12,6 +12,7 @@ from icon.config.config import get_config
 from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
+from icon.server.utils.socketio_manager import emit_event
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -234,6 +235,12 @@ class ExperimentDataRepository:
                 h5file.attrs["number_of_data_points"] = data_point["index"] + 1
 
             logger.debug("Appended data to %s", file)
+
+        emit_event(
+            logger=logger,
+            event=f"experiment_{job_id}",
+            data=data_point,
+        )
 
     @staticmethod
     def get_experiment_data_by_job_id(
