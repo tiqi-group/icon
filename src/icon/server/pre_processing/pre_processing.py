@@ -16,7 +16,6 @@ import psutil
 import pytz
 
 from icon.config.config import get_config
-from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataPoint,
@@ -36,12 +35,13 @@ from icon.server.hardware_processing.hardware_controller import HardwareControll
 from icon.server.utils.socketio_manager import SocketIOManagerFactory
 
 if TYPE_CHECKING:
+    from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
     from icon.server.data_access.models.sqlite.job import Job
     from icon.server.hardware_processing.task import HardwareProcessingTask
     from icon.server.pre_processing.task import PreProcessingTask
     from icon.server.queue_manager import PriorityQueueManager
 
-DUMMY_DATA = True
+DUMMY_DATA = False
 logger = logging.getLogger(__name__)
 timezone = pytz.timezone(get_config().date.timezone)
 
