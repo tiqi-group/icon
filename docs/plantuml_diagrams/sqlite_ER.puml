@@ -16,6 +16,8 @@ entity "Job" as job {
     *status: Enum (submitted / processing / done)
     *git_commit_hash: text
     *priority: number between 0 and 20
+    *repetitions: number
+    *number_of_shots: number
     *local_parameters_timestamp: timestamp
     *auto_calibration: bool
     *debug_mode: bool
