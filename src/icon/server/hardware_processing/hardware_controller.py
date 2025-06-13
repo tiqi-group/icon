@@ -21,6 +21,7 @@ class HardwareController:
     def run(self, *, sequence: str, number_of_shots: int) -> ResultDict:
         self._update_zedboard_sequence(sequence=sequence)
         self._update_number_of_shots(number_of_shots=number_of_shots)
+        self._zedboard.sequence_JSON_parser.Parse_JSON_Header()  # type: ignore
         results: tiqi_zedboard.zedboard.Result = self._zedboard.sequence_JSON_parser()  # type: ignore
 
         return {
