@@ -19,3 +19,8 @@ class SourceType(enum.Enum):
     INFLUXDB = "influxdb"
     PYDASE_SERVICE = "pydase_service"
     TIQI_PLUGIN = "tiqi_plugin"
+
+
+class DeviceStatus(enum.Enum):
+    ENABLED = "enabled"
+    DISABLED = "disabled"
