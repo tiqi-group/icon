@@ -34,7 +34,7 @@ class JobRepository:
 
         emit_event(
             logger=logger,
-            event="new_job",
+            event="job.new",
             data={
                 "job": SQLAlchemyDictEncoder.encode(
                     # I need to load experiment_source and scan_parameters here
@@ -74,7 +74,7 @@ class JobRepository:
 
         emit_event(
             logger=logger,
-            event="new_job",
+            event="job.new",
             data={
                 "job": SQLAlchemyDictEncoder.encode(
                     # I need to load experiment_source and scan_parameters here
@@ -113,7 +113,7 @@ class JobRepository:
 
         emit_event(
             logger=logger,
-            event="update_job",
+            event="job.update",
             data={
                 "job_id": job.id,
                 "updated_properties": {"status": status.value},

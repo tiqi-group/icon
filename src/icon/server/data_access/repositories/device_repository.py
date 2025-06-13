@@ -25,7 +25,7 @@ class DeviceRepository:
 
         emit_event(
             logger=logger,
-            event="new_device",
+            event="device.new",
             data={
                 "device": SQLAlchemyDictEncoder.encode(obj=device),
             },
@@ -51,7 +51,7 @@ class DeviceRepository:
 
         emit_event(
             logger=logger,
-            event="update_device",
+            event="device.update",
             data={
                 "device_name": device.name,
                 "updated_properties": {

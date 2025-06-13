@@ -88,7 +88,7 @@ class ParametersRepository:
         for key, value in parameter_mapping.items():
             emit_event(
                 logger=logger,
-                event="parameter_update",
+                event="parameter.update",
                 data={"id": key, "value": value},
             )
 

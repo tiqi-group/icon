@@ -27,16 +27,16 @@ export function useJobsSync(dispatch: Dispatch<Action>) {
       dispatch({ type: "SET_JOBS", payload: deserialize(ack as SerializedObject) });
     });
 
-    socket.on("new_experiment", (data: NewDataEvent) =>
+    socket.on("job.new", (data: NewDataEvent) =>
       dispatch({ type: "ADD_JOB", payload: data.job }),
     );
-    socket.on("update_job", (data: JobUpdate) =>
+    socket.on("job.update", (data: JobUpdate) =>
       dispatch({ type: "UPDATE_JOB", payload: data }),
     );
 
     return () => {
-      socket.off("new_experiment");
-      socket.off("update_job");
+      socket.off("job.new");
+      socket.off("job.update");
     };
   }, [dispatch]);
 }

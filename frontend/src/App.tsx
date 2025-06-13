@@ -104,7 +104,7 @@ export default function App() {
 
   useJobsSync(schedulerDispatch);
   useEffect(() => {
-    socket.on("parameter_update", ({ id, value }: ParameterUpdate) => {
+    socket.on("parameter.update", ({ id, value }: ParameterUpdate) => {
       parameterStore.set(id, value);
     });
 
@@ -146,7 +146,7 @@ export default function App() {
     });
 
     return () => {
-      socket.off("parameter_update");
+      socket.off("parameter.update");
     };
   }, []);
 

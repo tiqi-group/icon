@@ -32,7 +32,7 @@ class JobRunRepository:
 
         emit_event(
             logger=logger,
-            event="new_job_run",
+            event="job_run.new",
             data={
                 "job_run": SQLAlchemyDictEncoder.encode(obj=run),
             },
@@ -63,7 +63,7 @@ class JobRunRepository:
 
         emit_event(
             logger=logger,
-            event="update_job_run",
+            event="job_run.update",
             data={
                 "run_id": run_id,
                 "updated_properties": {
