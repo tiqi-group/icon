@@ -1,3 +1,8 @@
+export enum DeviceStatus {
+  ENABLED = "enabled",
+  DISABLED = "disabled",
+}
+
 export enum JobStatus {
   SUBMITTED = "submitted",
   PROCESSING = "processing",
