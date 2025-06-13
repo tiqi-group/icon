@@ -7,6 +7,7 @@ import {
   TooltipComponent,
   TitleComponent,
   DataZoomComponent,
+  ToolboxComponent,
 } from "echarts/components";
 import type { CSSProperties } from "react";
 import type { EChartsCoreOption, ECharts, SetOptionOpts } from "echarts/core";
@@ -27,6 +28,7 @@ echarts.use([
   TooltipComponent,
   TitleComponent,
   DataZoomComponent,
+  ToolboxComponent,
   CanvasRenderer,
 ]);
 
