@@ -11,7 +11,7 @@ entity "Job" as job {
     *job_id: number <<generated>>
     *created: timestamp
     ---
-    *user_id: number <<FK>>
+    ' *user_id: number <<FK>>
     *experiment_source_id: number <<FK>>
     *status: Enum (submitted / processing / done)
     *git_commit_hash: text
@@ -33,13 +33,13 @@ entity "JobRun" as job_run {
     log: text (job information)
 }
 
-entity "User" as user {
-    *user_id: number <<generated>>
-    --
-    *name: text
-    *created: timestamp
-    priority?
-}
+' entity "User" as user {
+'     *user_id: number <<generated>>
+'     --
+'     *name: text
+'     *created: timestamp
+'     priority?
+' }
 
 entity "Scan Parameter" as scan_param {
     *scan_parameter_id: number <<generated>>
@@ -61,7 +61,7 @@ entity "Remote Source (Service or DB)" as remote {
 }
 
 
-job }o..|| user
+' job }o..|| user
 job ||..o{ scan_param
 experiment ||.o{ job
 job ||..o{ job_run
