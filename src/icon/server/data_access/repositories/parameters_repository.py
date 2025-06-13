@@ -1,4 +1,4 @@
-import enum
+import json
 import logging
 import re
 from typing import Any
@@ -16,38 +16,9 @@ from icon.server.utils.valkey import is_valkey_available
 logger = logging.getLogger(__name__)
 
 
-class ParameterTypes(enum.Enum):
-    """Parameter types"""
-
-    FREQUENCY = "frequency"
-    AMPLITUDE = "amplitude"
-    TIME = "time"
-    PHASE = "phase"
-    VOLTAGE = "voltage"
-    BOOLEAN = "boolean"
-    INT = "int"
-    FLOAT = "float"
-    ENUM = "enum"
-
-
-primitive_types: dict[ParameterTypes, type[DatabaseValueType]] = {
-    ParameterTypes.FREQUENCY: float,
-    ParameterTypes.AMPLITUDE: float,
-    ParameterTypes.PHASE: float,
-    ParameterTypes.TIME: float,
-    ParameterTypes.BOOLEAN: bool,
-    ParameterTypes.VOLTAGE: float,
-    ParameterTypes.INT: int,
-    ParameterTypes.FLOAT: float,
-    ParameterTypes.ENUM: str,
-}
-
-
 def get_specifiers_from_parameter_identifier(
     parameter_identifier: str,
 ) -> tuple[str, str, dict[str, str]]:
-    import re
-
     # Regex pattern to match key='value' pairs, including namespace and parameter_group
     pattern = re.compile(r"(\w+)='([^']*)'")
     matches = pattern.findall(parameter_identifier)
@@ -60,18 +31,6 @@ def get_specifiers_from_parameter_identifier(
     parameter_group = specifiers.pop("parameter_group")
 
     return namespace, parameter_group, specifiers
-
-
-def extract_param_type_from_key(key: str) -> type | None:
-    match = re.search(r"param_type='ParameterTypes\.([A-Z_]+)'", key)
-    if match:
-        type_str = match.group(1)
-        try:
-            param_type_enum = ParameterTypes[type_str]
-            return primitive_types.get(param_type_enum)
-        except KeyError:
-            pass
-    return None
 
 
 class ParametersRepository:
@@ -102,17 +61,7 @@ class ParametersRepository:
         async with AsyncValkeySession() as valkey:
             params_serialized = await valkey.hgetall("parameters")  # type: ignore
 
-        result = {}
-
-        for key, val in params_serialized.items():
-            val_type = extract_param_type_from_key(key)
-            if val_type is bool:
-                result[key] = val == "True"
-            elif val_type is not None:
-                result[key] = val_type(val)
-            else:
-                result[key] = val
-        return result
+        return {key: json.loads(value) for key, value in params_serialized.items()}
 
     @staticmethod
     async def get_valkey_parameter_by_id(parameter_id: str) -> DatabaseValueType:
@@ -120,7 +69,7 @@ class ParametersRepository:
             raise ValkeyUnavailableError()
 
         async with AsyncValkeySession() as valkey:
-            return await valkey.hget("parameters", key=parameter_id)  # type: ignore
+            return json.loads(await valkey.hget("parameters", key=parameter_id))  # type: ignore
 
     @staticmethod
     async def update_valkey_parameters(
@@ -132,7 +81,7 @@ class ParametersRepository:
         async with AsyncValkeySession() as valkey:
             await valkey.hset(
                 "parameters",
-                mapping={k: str(v) for k, v in parameter_mapping.items()},
+                mapping={k: json.dumps(v) for k, v in parameter_mapping.items()},
             )  # type: ignore
 
     @staticmethod
