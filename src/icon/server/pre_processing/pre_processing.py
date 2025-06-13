@@ -291,7 +291,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     )
 
                 # restore previous values
-                ParametersRepository.update_parameters(prev_param_values)
+                asyncio.run(ParametersRepository.update_parameters(prev_param_values))
 
                 logger.info(
                     "(worker=%s) JobRun with id '%s' finished",
