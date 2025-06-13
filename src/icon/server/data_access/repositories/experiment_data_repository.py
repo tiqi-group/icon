@@ -194,11 +194,6 @@ class ExperimentDataRepository:
                 number_of_data_points = cast(
                     "int", h5file.attrs["number_of_data_points"]
                 )
-
-                # increase the number of data points
-                if data_point["index"] >= number_of_data_points:
-                    h5file.attrs["number_of_data_points"] = data_point["index"]
-                    number_of_data_points = data_point["index"]
             except KeyError:
                 raise Exception(
                     "Metadata does not contain relevant information. Please use "
@@ -233,6 +228,11 @@ class ExperimentDataRepository:
                 data_point_index=data_point["index"],
                 vector_channels=data_point["vector_channels"],
             )
+
+            # increase the number of data points
+            if data_point["index"] >= number_of_data_points:
+                h5file.attrs["number_of_data_points"] = data_point["index"] + 1
+
             logger.debug("Appended data to %s", file)
 
     @staticmethod
