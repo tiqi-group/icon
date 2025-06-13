@@ -252,14 +252,10 @@ class PreProcessingWorker(multiprocessing.Process):
                     asyncio.run(ParametersRepository.update_parameters(data_point))
 
                     if not DUMMY_DATA:
-                        hardware_controller.update_number_of_shots(
-                            number_of_shots=pre_processing_task.job.number_of_shots
+                        result = hardware_controller.run(
+                            sequence=sequence_json,
+                            number_of_shots=pre_processing_task.job.number_of_shots,
                         )
-
-                        hardware_controller.update_zedboard_sequence(
-                            sequence=sequence_json
-                        )
-                        result = hardware_controller.run()
                     else:
                         import random
                         import statistics
