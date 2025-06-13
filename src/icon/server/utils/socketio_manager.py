@@ -34,6 +34,7 @@ class SocketIOManagerFactory:
             logger.info("Waiting until Valkey is available...")
             while not is_valkey_available():
                 time.sleep(self._wait_time)
+            logger.info("Valkey is available.")
         elif not is_valkey_available():
             logger.warning("Valkey not available")
             return None
