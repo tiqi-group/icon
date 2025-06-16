@@ -56,7 +56,7 @@ def test_InfluxDBv1Session(influxdbv1_service: tuple[str, int]) -> None:  # noqa
 
         assert result is not None and result["test"] == test_value
 
-        assert session.query_all(measurement="Experiment Parameters") == {
+        assert session.query_last(measurement="Experiment Parameters") == {
             "test": test_value,
             "test1": test_value + 0.4,
         }

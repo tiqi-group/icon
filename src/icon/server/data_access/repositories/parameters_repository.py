@@ -108,9 +108,15 @@ class ParametersRepository:
             )
 
     @staticmethod
-    def get_influxdbv1_parameters() -> dict[str, DatabaseValueType]:
+    def get_influxdbv1_parameters(
+        *, timestamp: str | None = None, namespace: str | None = None
+    ) -> dict[str, DatabaseValueType]:
         with InfluxDBv1Session() as influxdbv1:
-            return influxdbv1.query_all(get_config().databases.influxdbv1.measurement)
+            return influxdbv1.query_last(
+                get_config().databases.influxdbv1.measurement,
+                timestamp=timestamp,
+                namespace=namespace,
+            )
 
     @staticmethod
     def get_influxdbv1_parameter_by_id(parameter_id: str) -> DatabaseValueType | None:

@@ -182,7 +182,9 @@ class InfluxDBv1Session:
         except StopIteration:
             return None
 
-    def query_all(self, measurement: str) -> dict[str, DatabaseValueType]:
+    def query_last(
+        self, measurement: str, namespace: str | None = None
+    ) -> dict[str, DatabaseValueType]:
         """Query the most recent values of all fields from a given measurement.
 
         Args:
@@ -193,11 +195,15 @@ class InfluxDBv1Session:
         """
 
         stmt = f'SELECT last(*::field) FROM "{escape_quotes(measurement)!s}"'
+        if namespace is not None:
+            stmt += f" WHERE \"namespace\" = '{escape_quotes(namespace)}'"
+
         try:
             return {
                 key[5:]: value  # removes "last_" from the beginning of each key
                 for key, value in next(self._client.query(stmt).get_points()).items()  # type: ignore
                 if key != "time"  # exclude "time" key which is meaningless
+                and value is not None
             }
         except StopIteration:
             return {}
