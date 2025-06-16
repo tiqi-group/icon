@@ -1,4 +1,5 @@
 import asyncio
+import multiprocessing
 
 import pydase
 from pydase.task.decorator import task
@@ -9,6 +10,7 @@ from icon.server.api.devices_controller import DevicesController
 from icon.server.api.experiment_data_controller import ExperimentDataController
 from icon.server.api.experiments_controller import ExperimentsController
 from icon.server.api.parameters_controller import ParametersController
+from icon.server.api.scans_controller import ScansController
 from icon.server.api.scheduler_controller import SchedulerController
 from icon.server.data_access.repositories.pycrystal_library_repository import (
     PycrystalLibraryRepository,
@@ -16,12 +18,20 @@ from icon.server.data_access.repositories.pycrystal_library_repository import (
 
 
 class APIService(pydase.DataService):
-    scheduler = SchedulerController()
-    experiments = ExperimentsController()
-    parameters = ParametersController()
-    config = ConfigurationController()
-    data = ExperimentDataController()
-    devices = DevicesController()
+    def __init__(
+        self, pre_processing_update_queues: list[multiprocessing.Queue]
+    ) -> None:
+        super().__init__()
+
+        self.scheduler = SchedulerController()
+        self.experiments = ExperimentsController()
+        self.parameters = ParametersController()
+        self.config = ConfigurationController()
+        self.data = ExperimentDataController()
+        self.devices = DevicesController()
+        self.scans = ScansController(
+            pre_processing_update_queues=pre_processing_update_queues
+        )
 
     @task(autostart=True)
     async def _update_experiment_and_parameter_metadata(self) -> None:

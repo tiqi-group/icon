@@ -125,11 +125,13 @@ class PreProcessingWorker(multiprocessing.Process):
         self,
         worker_number: int,
         pre_processing_queue: queue.PriorityQueue[PreProcessingTask],
+        update_queue: multiprocessing.Queue[dict[str, Any]],
         hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask],
         manager: PriorityQueueManager,
     ) -> None:
         super().__init__()
         self._queue = pre_processing_queue
+        self._update_queue = update_queue
         self._hw_processing_queue = hardware_processing_queue
         self._worker_number = worker_number
         self._manager = manager

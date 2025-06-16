@@ -1,3 +1,4 @@
+import multiprocessing
 from pathlib import Path
 
 import pydase
@@ -30,17 +31,21 @@ scheduler = Scheduler(
     pre_processing_queue=icon.server.queue_manager.pre_processing_queue
 )
 scheduler.start()
+pre_processing_update_queues = []
+
+pre_processing_update_queues.append(multiprocessing.Queue())
 pre_processing_worker = PreProcessingWorker(
     worker_number=0,
     hardware_processing_queue=icon.server.queue_manager.hardware_queue,
     pre_processing_queue=icon.server.queue_manager.pre_processing_queue,
+    update_queue=pre_processing_update_queues[0],
     manager=icon.server.queue_manager.manager,
 )
 pre_processing_worker.start()
 
 
 pydase.Server(
-    APIService(),
+    APIService(pre_processing_update_queues=pre_processing_update_queues),
     host=get_config().server.host,
     web_port=get_config().server.port,
     frontend_src=Path(__file__).parent / "frontend",
