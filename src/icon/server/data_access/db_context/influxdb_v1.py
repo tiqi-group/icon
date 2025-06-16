@@ -5,7 +5,6 @@ import sys
 from typing import TYPE_CHECKING, Any, Literal
 
 import influxdb  # type: ignore
-
 from icon.config.config import get_config
 
 if TYPE_CHECKING:
@@ -183,20 +182,32 @@ class InfluxDBv1Session:
             return None
 
     def query_last(
-        self, measurement: str, namespace: str | None = None
+        self,
+        measurement: str,
+        namespace: str | None = None,
+        timestamp: str | None = None,
     ) -> dict[str, DatabaseValueType]:
-        """Query the most recent values of all fields from a given measurement.
+        """Query the most recent non-null values of all fields from a given measurement.
 
         Args:
             measurement: Name of the measurement to query.
+            namespace: Optional tag filter.
+            timestamp: Optional upper bound on the time.
 
         Returns:
-            A dictionary of the latest field values, with field names as keys.
+            Dictionary of field names to their latest values.
         """
 
-        stmt = f'SELECT last(*::field) FROM "{escape_quotes(measurement)!s}"'
+        clauses = []
         if namespace is not None:
-            stmt += f" WHERE \"namespace\" = '{escape_quotes(namespace)}'"
+            clauses.append(f"\"namespace\" = '{escape_quotes(namespace)}'")
+        if timestamp is not None:
+            clauses.append(f"time <= '{timestamp}'")
+
+        where_clause = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        stmt = (
+            f'SELECT last(*::field) FROM "{escape_quotes(measurement)}"{where_clause}'
+        )
 
         try:
             return {
