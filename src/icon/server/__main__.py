@@ -4,9 +4,8 @@ import multiprocessing
 from pathlib import Path
 from typing import Any
 
-import pydase
-
 import icon.server.shared_resource_manager
+import icon.server.web_server.icon_server
 from icon.config.config import get_config
 from icon.server.api.api_service import APIService
 from icon.server.data_access.repositories.parameters_repository import (
@@ -58,7 +57,7 @@ pre_processing_worker = PreProcessingWorker(
 pre_processing_worker.start()
 
 
-pydase.Server(
+icon.server.web_server.icon_server.IconServer(
     APIService(pre_processing_update_queues=pre_processing_update_queues),
     host=get_config().server.host,
     web_port=get_config().server.port,
