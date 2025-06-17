@@ -69,7 +69,9 @@ class Scheduler(multiprocessing.Process):
                         job_run=run,
                         git_commit_hash=job.git_commit_hash,
                         scan_parameters=job.scan_parameters,
-                        local_parameters_timestamp=job.local_parameters_timestamp,
+                        local_parameters_timestamp=job.local_parameters_timestamp.astimezone(
+                            tz=timezone
+                        ).isoformat(),
                         priority=job.priority,
                         auto_calibration=job.auto_calibration,
                         debug_mode=job.debug_mode,
