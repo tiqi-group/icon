@@ -1,7 +1,8 @@
-import json
+from __future__ import annotations
+
 import logging
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from icon.config.config import get_config
 from icon.server.data_access.db_context.influxdb import InfluxDBSession, Record
@@ -9,10 +10,10 @@ from icon.server.data_access.db_context.influxdb_v1 import (
     DatabaseValueType,
     InfluxDBv1Session,
 )
-from icon.server.data_access.db_context.valkey import AsyncValkeySession
-from icon.server.exceptions import ValkeyUnavailableError
 from icon.server.utils.socketio_manager import emit_event
-from icon.server.utils.valkey import is_valkey_available
+
+if TYPE_CHECKING:
+    from multiprocessing.managers import DictProxy
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +36,18 @@ def get_specifiers_from_parameter_identifier(
 
 
 class ParametersRepository:
-    @staticmethod
-    async def update_parameters(
+    _shared_parameters: DictProxy[str, DatabaseValueType]
+
+    @classmethod
+    def initialize(
+        cls, *, shared_parameters: DictProxy[str, DatabaseValueType]
+    ) -> None:
+        cls._shared_parameters = shared_parameters
+
+    @classmethod
+    def update_parameters(
+        cls,
+        *,
         parameter_mapping: dict[str, DatabaseValueType],
     ) -> None:
         for key, value in parameter_mapping.items():
@@ -47,58 +58,46 @@ class ParametersRepository:
             ):
                 parameter_mapping[key] = float(value)
 
-        await ParametersRepository.update_valkey_parameters(
-            parameter_mapping=parameter_mapping
-        )
+        cls.update_shared_parameters(parameter_mapping=parameter_mapping)
         ParametersRepository.update_influxdbv1_parameters(
             parameter_mapping=parameter_mapping
         )
 
-    @staticmethod
-    async def get_valkey_parameters() -> dict[str, DatabaseValueType]:
-        if not is_valkey_available():
-            raise ValkeyUnavailableError()
-
-        async with AsyncValkeySession() as valkey:
-            params_serialized = await valkey.hgetall("parameters")  # type: ignore
-
-        return {key: json.loads(value) for key, value in params_serialized.items()}
-
-    @staticmethod
-    async def get_valkey_parameter_by_id(parameter_id: str) -> DatabaseValueType:
-        if not is_valkey_available():
-            raise ValkeyUnavailableError()
-
-        async with AsyncValkeySession() as valkey:
-            return json.loads(await valkey.hget("parameters", key=parameter_id))  # type: ignore
-
-    @staticmethod
-    async def update_valkey_parameters(
+    @classmethod
+    def update_shared_parameters(
+        cls,
+        *,
         parameter_mapping: dict[str, DatabaseValueType],
     ) -> None:
-        if not is_valkey_available():
-            raise ValkeyUnavailableError()
-
-        async with AsyncValkeySession() as valkey:
-            await valkey.hset(
-                "parameters",
-                mapping={k: json.dumps(v) for k, v in parameter_mapping.items()},
-            )  # type: ignore
-
         for key, value in parameter_mapping.items():
-            emit_event(
-                logger=logger,
-                event="parameter.update",
-                data={"id": key, "value": value},
-            )
+            cls.update_shared_parameter_by_id(parameter_id=key, new_value=value)
 
-    @staticmethod
-    async def update_valkey_parameter_by_id(
-        parameter_id: str, new_value: DatabaseValueType
+    @classmethod
+    def update_shared_parameter_by_id(
+        cls,
+        *,
+        parameter_id: str,
+        new_value: DatabaseValueType,
     ) -> None:
-        await ParametersRepository.update_valkey_parameters(
-            parameter_mapping={parameter_id: new_value}
+        cls._shared_parameters[parameter_id] = new_value
+
+        emit_event(
+            logger=logger,
+            event="parameter.update",
+            data={"id": parameter_id, "value": new_value},
         )
+
+    @classmethod
+    def get_shared_parameter_by_id(
+        cls,
+        *,
+        parameter_id: str,
+    ) -> DatabaseValueType | None:
+        return cls._shared_parameters.get(parameter_id, None)
+
+    @classmethod
+    def get_shared_parameters(cls) -> DictProxy[str, DatabaseValueType]:
+        return cls._shared_parameters
 
     @staticmethod
     def get_influxdbv1_parameter_keys() -> list[str]:

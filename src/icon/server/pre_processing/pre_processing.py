@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from icon.server.data_access.models.sqlite.job import Job
     from icon.server.hardware_processing.task import HardwareProcessingTask
     from icon.server.pre_processing.task import PreProcessingTask
-    from icon.server.queue_manager import PriorityQueueManager
+    from icon.server.shared_resource_manager import SharedResourceManager
 
 DUMMY_DATA = False
 logger = logging.getLogger(__name__)
@@ -141,7 +141,7 @@ class PreProcessingWorker(multiprocessing.Process):
         pre_processing_queue: queue.PriorityQueue[PreProcessingTask],
         update_queue: multiprocessing.Queue[dict[str, Any]],
         hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask],
-        manager: PriorityQueueManager,
+        manager: SharedResourceManager,
     ) -> None:
         super().__init__()
         self._queue = pre_processing_queue
@@ -205,13 +205,6 @@ class PreProcessingWorker(multiprocessing.Process):
                 for combination in enumerate(scan_parameter_value_combinations):
                     data_points_to_process.put(combination)
 
-                # store current parameter values to restore them at the end
-                prev_param_values: dict[str, DatabaseValueType] = {}
-                for key in scan_parameter_value_combinations[-1]:
-                    prev_param_values[key] = asyncio.run(
-                        ParametersRepository.get_valkey_parameter_by_id(key)
-                    )
-
                 ExperimentDataRepository.update_metadata_by_job_id(
                     job_id=pre_processing_task.job.id,
                     number_of_shots=pre_processing_task.job.number_of_shots,
@@ -263,7 +256,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     # self._hw_processing_queue.put(task)
 
                     # set scan parameter values
-                    asyncio.run(ParametersRepository.update_parameters(data_point))
+                    parameter_dict.update(data_point)
 
                     if not DUMMY_DATA:
                         result = hardware_controller.run(
@@ -298,9 +291,6 @@ class PreProcessingWorker(multiprocessing.Process):
                         data_point=experiment_data_point,
                     )
                     processed_data_points.put(data_point)
-
-                # restore previous values
-                asyncio.run(ParametersRepository.update_parameters(prev_param_values))
 
                 logger.info(
                     "(worker=%s) JobRun with id '%s' finished",

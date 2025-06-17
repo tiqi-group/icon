@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import asyncio
-import multiprocessing
+from typing import TYPE_CHECKING, Any
 
 import pydase
 from pydase.task.decorator import task
@@ -16,10 +18,13 @@ from icon.server.data_access.repositories.pycrystal_library_repository import (
     PycrystalLibraryRepository,
 )
 
+if TYPE_CHECKING:
+    import multiprocessing
+
 
 class APIService(pydase.DataService):
     def __init__(
-        self, pre_processing_update_queues: list[multiprocessing.Queue]
+        self, pre_processing_update_queues: list[multiprocessing.Queue[dict[str, Any]]]
     ) -> None:
         super().__init__()
 
@@ -51,7 +56,3 @@ class APIService(pydase.DataService):
                 parameter_metadata=parameter_metadata
             )
             await asyncio.sleep(get_config().experiment_library.update_interval)
-
-    @task(autostart=True)
-    async def _initialised_parameters(self) -> None:
-        await self.parameters._initialise_valkey_cache()

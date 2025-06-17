@@ -9,6 +9,9 @@ import pydase
 import icon.server.shared_resource_manager
 from icon.config.config import get_config
 from icon.server.api.api_service import APIService
+from icon.server.data_access.repositories.parameters_repository import (
+    ParametersRepository,
+)
 from icon.server.pre_processing.pre_processing import PreProcessingWorker
 from icon.server.scheduler.scheduler import Scheduler
 from icon.server.web_server.sio_setup import patch_sio_setup
@@ -29,6 +32,14 @@ def patch_serialization_methods() -> None:
 
 patch_sio_setup()
 patch_serialization_methods()
+
+# initialise shared parameter resource
+icon.server.shared_resource_manager.parameters_dict.update(
+    ParametersRepository.get_influxdbv1_parameters()
+)
+ParametersRepository.initialize(
+    shared_parameters=icon.server.shared_resource_manager.parameters_dict
+)
 
 scheduler = Scheduler(
     pre_processing_queue=icon.server.shared_resource_manager.pre_processing_queue
