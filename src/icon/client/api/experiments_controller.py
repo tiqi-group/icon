@@ -15,11 +15,11 @@ else:
 
 if TYPE_CHECKING:
     from icon.client.client import Client
+    from icon.server.api.models.parameter_metadata import (
+        ParameterMetadata,
+    )
     from icon.server.data_access.repositories.experiment_metadata_repository import (
         ExperimentMetadata,
-    )
-    from icon.server.data_access.repositories.parameter_metadata_repository import (
-        ParameterMetadata,
     )
 
 logger = logging.getLogger(__name__)

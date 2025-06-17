@@ -4,13 +4,13 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 from icon.config.config import get_config
-from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
-from icon.server.data_access.repositories.experiment_metadata_repository import (
+from icon.server.api.models.experiment_dict import (
     ExperimentDict,
 )
-from icon.server.data_access.repositories.parameter_metadata_repository import (
+from icon.server.api.models.parameter_metadata import (
     ParameterMetadata,
 )
+from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 
 ParameterMetadataDict = TypedDict(
     "ParameterMetadataDict",

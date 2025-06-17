@@ -1,9 +1,10 @@
 import pytest
+
 from icon.client.api.experiments_controller import (
     get_experiment_identifier_dict,
     get_parameter_identifier_mapping,
 )
-from icon.server.data_access.repositories.parameter_metadata_repository import (
+from icon.server.api.models.parameter_metadata import (
     ParameterMetadata,
 )
 

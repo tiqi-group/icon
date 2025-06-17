@@ -3,9 +3,9 @@ from typing import Any
 
 import pydase
 
+from icon.server.api.models.parameter_metadata import ParameterMetadata
 from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 from icon.server.data_access.repositories.parameter_metadata_repository import (
-    ParameterMetadata,
     ParameterMetadataRepository,
 )
 from icon.server.data_access.repositories.parameters_repository import (
