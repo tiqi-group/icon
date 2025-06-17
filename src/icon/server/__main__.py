@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import multiprocessing
 from pathlib import Path
+from typing import Any
 
 import pydase
 
-import icon.server.queue_manager
+import icon.server.shared_resource_manager
 from icon.config.config import get_config
 from icon.server.api.api_service import APIService
 from icon.server.pre_processing.pre_processing import PreProcessingWorker
@@ -28,18 +31,18 @@ patch_sio_setup()
 patch_serialization_methods()
 
 scheduler = Scheduler(
-    pre_processing_queue=icon.server.queue_manager.pre_processing_queue
+    pre_processing_queue=icon.server.shared_resource_manager.pre_processing_queue
 )
 scheduler.start()
-pre_processing_update_queues = []
+pre_processing_update_queues: list[multiprocessing.Queue[dict[str, Any]]] = []
 
 pre_processing_update_queues.append(multiprocessing.Queue())
 pre_processing_worker = PreProcessingWorker(
     worker_number=0,
-    hardware_processing_queue=icon.server.queue_manager.hardware_queue,
-    pre_processing_queue=icon.server.queue_manager.pre_processing_queue,
+    hardware_processing_queue=icon.server.shared_resource_manager.hardware_queue,
+    pre_processing_queue=icon.server.shared_resource_manager.pre_processing_queue,
     update_queue=pre_processing_update_queues[0],
-    manager=icon.server.queue_manager.manager,
+    manager=icon.server.shared_resource_manager.manager,
 )
 pre_processing_worker.start()
 
