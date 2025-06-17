@@ -104,7 +104,7 @@ def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
     ] * job.repetitions
 
 
-def parse_experiment_identifier(identifier: str) -> tuple[str, str]:
+def parse_experiment_identifier(identifier: str) -> tuple[str, str, str]:
     """
     Parses an experiment identifier and returns:
     - the module path (e.g. 'experiment_library.experiments.exp_name')
@@ -114,10 +114,24 @@ def parse_experiment_identifier(identifier: str) -> tuple[str, str]:
         "experiment_library.experiments.exp_name.ClassName (Instance name)"
         -> ("experiment_library.experiments.exp_name", "Instance name")
     """
-    match = re.match(r"^(.*)\.[^. ]+ \(([^)]+)\)$", identifier)
+    match = re.match(r"^(.*)\.([^. ]+) \(([^)]+)\)$", identifier)
     if match:
-        return match.group(1), match.group(2)
+        return match.group(1), match.group(2), match.group(3)
     raise ValueError("Unexpected format of experiment identifier: ", identifier)
+
+
+def cache_parameter_values(
+    local_params_timestamp: str, namespace: str
+) -> dict[str, DatabaseValueType]:
+    parameter_dict: dict[str, DatabaseValueType] = {}
+    parameter_dict.update(ParametersRepository.get_influxdbv1_parameters())
+    parameter_dict.update(
+        ParametersRepository.get_influxdbv1_parameters(
+            before=local_params_timestamp,
+            namespace=namespace,
+        )
+    )
+    return parameter_dict
 
 
 class PreProcessingWorker(multiprocessing.Process):
@@ -168,7 +182,16 @@ class PreProcessingWorker(multiprocessing.Process):
                     src_dir=src_dir, pre_processing_task=pre_processing_task
                 )
 
-                # cache_local_params(pre_processing_task.timestamp)
+                exp_module_name, exp_class_name, experiment_id = (
+                    parse_experiment_identifier(
+                        pre_processing_task.job.experiment_source.experiment_id
+                    )
+                )
+
+                parameter_dict = cache_parameter_values(
+                    local_params_timestamp=pre_processing_task.local_parameters_timestamp,
+                    namespace=f"{exp_module_name}.{exp_class_name}",
+                )
 
                 scan_parameter_value_combinations = get_scan_combinations(
                     pre_processing_task.job
@@ -188,10 +211,6 @@ class PreProcessingWorker(multiprocessing.Process):
                     prev_param_values[key] = asyncio.run(
                         ParametersRepository.get_valkey_parameter_by_id(key)
                     )
-
-                exp_module_name, experiment_id = parse_experiment_identifier(
-                    pre_processing_task.job.experiment_source.experiment_id
-                )
 
                 ExperimentDataRepository.update_metadata_by_job_id(
                     job_id=pre_processing_task.job.id,
