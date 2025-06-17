@@ -46,11 +46,11 @@ class APIService(pydase.DataService):
             )
             experiment_metadata = pycrystal_library_metadata["experiment_metadata"]
             parameter_metadata = pycrystal_library_metadata["parameter_metadata"]
-            await self.parameters._create_missing_influxdb_entries(
+            self.parameters._create_missing_influxdb_entries(
                 parameter_metadata=parameter_metadata
             )
-            await self.experiments._update_experiment_metadata(
-                experiment_metadata=experiment_metadata
+            self.experiments._update_experiment_metadata(
+                new_experiments=experiment_metadata
             )
             await self.parameters._update_parameter_metadata_and_display_groups(
                 parameter_metadata=parameter_metadata

@@ -59,9 +59,7 @@ class ParametersRepository:
                 parameter_mapping[key] = float(value)
 
         cls.update_shared_parameters(parameter_mapping=parameter_mapping)
-        ParametersRepository.update_influxdbv1_parameters(
-            parameter_mapping=parameter_mapping
-        )
+        cls.update_influxdbv1_parameters(parameter_mapping=parameter_mapping)
 
     @classmethod
     def update_shared_parameters(

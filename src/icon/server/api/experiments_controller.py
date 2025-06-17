@@ -1,25 +1,30 @@
 import logging
-from typing import Any
 
 import pydase
 
-from icon.server.data_access.repositories.experiment_metadata_repository import (
+from icon.server.api.models.experiment_dict import (
     ExperimentDict,
-    ExperimentMetadataRepository,
 )
+from icon.server.utils.socketio_manager import emit_event
 
 logger = logging.getLogger(__name__)
 
 
 class ExperimentsController(pydase.DataService):
-    async def get_experiments(self) -> ExperimentDict:
-        return await ExperimentMetadataRepository.get_experiment_metadata()
+    def __init__(self) -> None:
+        super().__init__()
+        self._experiments: ExperimentDict = {}
 
-    async def _update_experiment_metadata(
-        self, experiment_metadata: dict[str, Any]
-    ) -> None:
+    def get_experiments(self) -> ExperimentDict:
+        return self._experiments
+
+    def _update_experiment_metadata(self, new_experiments: ExperimentDict) -> None:
         logger.debug("Updating experiment metadata...")
 
-        await ExperimentMetadataRepository.update_experiment_metadata(
-            new_experiment_metadata=experiment_metadata
+        self._experiments = new_experiments
+
+        emit_event(
+            logger=logger,
+            event="experiments.update",
+            data=new_experiments,
         )
