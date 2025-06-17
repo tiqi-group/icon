@@ -8,9 +8,6 @@ databases:
     ssl: false
     username: tester
     verify_ssl: false
-  valkey:
-    host: localhost
-    port: 6379
 date:
   timezone: Europe/Zurich
 experiment_library:

@@ -1,2 +1,0 @@
-class ValkeyUnavailableError(Exception):
-    pass
