@@ -109,12 +109,12 @@ class ParametersRepository:
 
     @staticmethod
     def get_influxdbv1_parameters(
-        *, timestamp: str | None = None, namespace: str | None = None
+        *, before: str | None = None, namespace: str | None = None
     ) -> dict[str, DatabaseValueType]:
         with InfluxDBv1Session() as influxdbv1:
             return influxdbv1.query_last(
                 get_config().databases.influxdbv1.measurement,
-                timestamp=timestamp,
+                before=before,
                 namespace=namespace,
             )
 

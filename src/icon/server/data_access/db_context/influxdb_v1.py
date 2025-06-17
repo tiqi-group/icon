@@ -185,7 +185,7 @@ class InfluxDBv1Session:
         self,
         measurement: str,
         namespace: str | None = None,
-        timestamp: str | None = None,
+        before: str | None = None,
     ) -> dict[str, DatabaseValueType]:
         """Query the most recent non-null values of all fields from a given measurement.
 
@@ -201,8 +201,8 @@ class InfluxDBv1Session:
         clauses = []
         if namespace is not None:
             clauses.append(f"\"namespace\" = '{escape_quotes(namespace)}'")
-        if timestamp is not None:
-            clauses.append(f"time <= '{timestamp}'")
+        if before is not None:
+            clauses.append(f"time <= '{before}'")
 
         where_clause = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         stmt = (
