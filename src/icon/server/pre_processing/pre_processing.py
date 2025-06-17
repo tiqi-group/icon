@@ -32,7 +32,6 @@ from icon.server.data_access.repositories.pycrystal_library_repository import (
     PycrystalLibraryRepository,
 )
 from icon.server.hardware_processing.hardware_controller import HardwareController
-from icon.server.utils.socketio_manager import SocketIOManagerFactory
 
 if TYPE_CHECKING:
     from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
@@ -155,9 +154,6 @@ class PreProcessingWorker(multiprocessing.Process):
             logger.debug("%s - Created temp dir %s", self._worker_number, tmp_dir)
 
             hardware_controller = HardwareController()
-
-            # make sure Valkey is reachable
-            SocketIOManagerFactory().get(logger=logger, wait=True)
 
             while True:
                 pre_processing_task = self._queue.get()
