@@ -34,11 +34,6 @@ class ParametersController(pydase.DataService):
             parameter_mapping={parameter_id: value}
         )
 
-    async def get_parameter_by_id(self, parameter_id: str) -> Any:
-        return ParametersRepository.get_ionpulse_parameter_by_id(
-            parameter_id=parameter_id
-        )
-
     async def get_all_parameters(
         self,
     ) -> dict[str, DatabaseValueType]:
