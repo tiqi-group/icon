@@ -10,7 +10,7 @@ from icon.server.data_access.db_context.influxdb_v1 import (
     DatabaseValueType,
     InfluxDBv1Session,
 )
-from icon.server.utils.socketio_manager import emit_event
+from icon.server.web_server.socketio_emit_queue import emit_queue
 
 if TYPE_CHECKING:
     from multiprocessing.managers import DictProxy
@@ -79,10 +79,11 @@ class ParametersRepository:
     ) -> None:
         cls._shared_parameters[parameter_id] = new_value
 
-        emit_event(
-            logger=logger,
-            event="parameter.update",
-            data={"id": parameter_id, "value": new_value},
+        emit_queue.put(
+            {
+                "event": "parameter.update",
+                "data": {"id": parameter_id, "value": new_value},
+            }
         )
 
     @classmethod

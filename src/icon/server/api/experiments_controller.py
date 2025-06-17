@@ -5,7 +5,7 @@ import pydase
 from icon.server.api.models.experiment_dict import (
     ExperimentDict,
 )
-from icon.server.utils.socketio_manager import emit_event
+from icon.server.web_server.socketio_emit_queue import emit_queue
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +23,9 @@ class ExperimentsController(pydase.DataService):
 
         self._experiments = new_experiments
 
-        emit_event(
-            logger=logger,
-            event="experiments.update",
-            data=new_experiments,
+        emit_queue.put(
+            {
+                "event": "experiments.update",
+                "data": new_experiments,
+            }
         )

@@ -9,7 +9,7 @@ from icon.server.data_access.db_context.sqlite import engine
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.data_access.models.sqlite.job_run import JobRun
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
-from icon.server.utils.socketio_manager import emit_event
+from icon.server.web_server.socketio_emit_queue import emit_queue
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +30,13 @@ class JobRunRepository:
             session.refresh(run)  # Refresh to get the ID
             logger.debug("Created new run %s", run)
 
-        emit_event(
-            logger=logger,
-            event="job_run.new",
-            data={
-                "job_run": SQLAlchemyDictEncoder.encode(obj=run),
-            },
+        emit_queue.put(
+            {
+                "event": "job_run.new",
+                "data": {
+                    "job_run": SQLAlchemyDictEncoder.encode(obj=run),
+                },
+            }
         )
 
         return run
@@ -61,16 +62,17 @@ class JobRunRepository:
 
             logger.debug("Updated run %s", run)
 
-        emit_event(
-            logger=logger,
-            event="job_run.update",
-            data={
-                "run_id": run_id,
-                "updated_properties": {
-                    "status": status.value,
-                    "log": log,
+        emit_queue.put(
+            {
+                "event": "job_run.update",
+                "data": {
+                    "run_id": run_id,
+                    "updated_properties": {
+                        "status": status.value,
+                        "log": log,
+                    },
                 },
-            },
+            }
         )
 
         return run

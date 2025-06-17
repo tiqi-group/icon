@@ -11,7 +11,7 @@ from icon.server.data_access.db_context.sqlite import engine
 from icon.server.data_access.models.enums import JobStatus
 from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
-from icon.server.utils.socketio_manager import emit_event
+from icon.server.web_server.socketio_emit_queue import emit_queue
 
 logger = logging.getLogger(__name__)
 
@@ -32,19 +32,20 @@ class JobRepository:
             session.refresh(job)  # Refresh to get the ID
             logger.debug("Submitted new job %s", job)
 
-        emit_event(
-            logger=logger,
-            event="job.new",
-            data={
-                "job": SQLAlchemyDictEncoder.encode(
-                    # I need to load experiment_source and scan_parameters here
-                    JobRepository.get_job_by_id(
-                        job_id=job.id,
-                        load_experiment_source=True,
-                        load_scan_parameters=True,
-                    )
-                ),
-            },
+        emit_queue.put(
+            {
+                "event": "job.new",
+                "data": {
+                    "job": SQLAlchemyDictEncoder.encode(
+                        # I need to load experiment_source and scan_parameters here
+                        JobRepository.get_job_by_id(
+                            job_id=job.id,
+                            load_experiment_source=True,
+                            load_scan_parameters=True,
+                        )
+                    ),
+                },
+            }
         )
 
         return job
@@ -72,19 +73,20 @@ class JobRepository:
             session.commit()
             session.refresh(job)  # Refresh to get the ID
 
-        emit_event(
-            logger=logger,
-            event="job.new",
-            data={
-                "job": SQLAlchemyDictEncoder.encode(
-                    # I need to load experiment_source and scan_parameters here
-                    JobRepository.get_job_by_id(
-                        job_id=job.id,
-                        load_experiment_source=True,
-                        load_scan_parameters=True,
-                    )
-                ),
-            },
+        emit_queue.put(
+            {
+                "event": "job.new",
+                "data": {
+                    "job": SQLAlchemyDictEncoder.encode(
+                        # I need to load experiment_source and scan_parameters here
+                        JobRepository.get_job_by_id(
+                            job_id=job.id,
+                            load_experiment_source=True,
+                            load_scan_parameters=True,
+                        )
+                    ),
+                },
+            }
         )
 
         return job
@@ -111,13 +113,14 @@ class JobRepository:
 
             logger.debug("Updated job %s", job)
 
-        emit_event(
-            logger=logger,
-            event="job.update",
-            data={
-                "job_id": job.id,
-                "updated_properties": {"status": status.value},
-            },
+        emit_queue.put(
+            {
+                "event": "job.update",
+                "data": {
+                    "job_id": job.id,
+                    "updated_properties": {"status": status.value},
+                },
+            }
         )
 
         return job

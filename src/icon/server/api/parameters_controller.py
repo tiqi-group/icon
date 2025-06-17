@@ -11,7 +11,7 @@ from icon.server.data_access.repositories.parameters_repository import (
 from icon.server.data_access.repositories.pycrystal_library_repository import (
     ParameterMetadataDict,
 )
-from icon.server.utils.socketio_manager import emit_event
+from icon.server.web_server.socketio_emit_queue import emit_queue
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ class ParametersController(pydase.DataService):
         # This does not take into account that the display groups change while all
         # parameter metadata stays the same.
         if added_params or removed_params or updated_params:
-            emit_event(logger=logger, event="parameters.update", data=None)
+            emit_queue.put({"event": "parameters.update", "data": None})
 
     def _create_missing_influxdb_entries(
         self, parameter_metadata: ParameterMetadataDict
