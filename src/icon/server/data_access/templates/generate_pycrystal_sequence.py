@@ -1,33 +1,19 @@
 import logging
 
-import experiment_library.hardware_description.hardware
-import pycrystal.database.influxdbv1
+import pycrystal.database.local_cache
 import pycrystal.parameters
 from pycrystal.utils.helpers import get_config_from_module_name
+
+import experiment_library.hardware_description.hardware
 
 log_level = logging.ERROR
 logging.basicConfig(level=log_level)
 logging.getLogger("pycrystal").setLevel(log_level)
 logging.getLogger("ionpulse_sequence_generator").setLevel(log_level)
+KEY_VAL_DICT = {key_val_dict}
 
-INFLUXDB_HOST = "{influxdb_host}"
-INFLUXDB_PORT = "{influxdb_port}"
-INFLUXDB_MEASUREMENT = "{influxdb_measurement}"
-INFLUXDB_USERNAME = "{influxdb_username}"
-INFLUXDB_PASSWORD = "{influxdb_password}"
-INFLUXDB_DATABASE = "{influxdb_database}"
-INFLUXDB_SSL = "{influxdb_ssl}"
-INFLUXDB_VERIFY_SSL = "{influxdb_verify_ssl}"
-
-pycrystal.parameters.Parameter.db = pycrystal.database.influxdbv1.InfluxDBv1(
-    host=INFLUXDB_HOST,
-    port=INFLUXDB_PORT,
-    measurement=INFLUXDB_MEASUREMENT,
-    username=INFLUXDB_USERNAME,
-    password=INFLUXDB_PASSWORD,
-    database=INFLUXDB_DATABASE,
-    ssl=INFLUXDB_SSL,
-    verify_ssl=INFLUXDB_VERIFY_SSL,
+pycrystal.parameters.Parameter.db = pycrystal.database.local_cache.LocalCache(
+    key_val_dict=KEY_VAL_DICT,
 )
 
 module_name = "{module_name}"

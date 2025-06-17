@@ -239,6 +239,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     global_parameter_timestamp = datetime.now(timezone)
                     sequence_json = asyncio.run(
                         PycrystalLibraryRepository.generate_json_sequence(
+                            parameter_dict=parameter_dict,
                             exp_module_name=exp_module_name,
                             exp_instance_name=experiment_id,
                         )

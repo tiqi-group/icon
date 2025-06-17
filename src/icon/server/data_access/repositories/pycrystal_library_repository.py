@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 from icon.config.config import get_config
+from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 from icon.server.data_access.repositories.experiment_metadata_repository import (
     ExperimentDict,
 )
@@ -73,17 +74,13 @@ class PycrystalLibraryRepository:
 
     @staticmethod
     async def generate_json_sequence(
-        *, exp_module_name: str, exp_instance_name: str
+        *,
+        exp_module_name: str,
+        exp_instance_name: str,
+        parameter_dict: dict[str, DatabaseValueType],
     ) -> str:
         template_vars = {
-            "influxdb_host": get_config().databases.influxdbv1.host,
-            "influxdb_port": get_config().databases.influxdbv1.port,
-            "influxdb_measurement": get_config().databases.influxdbv1.measurement,
-            "influxdb_username": get_config().databases.influxdbv1.username,
-            "influxdb_password": get_config().databases.influxdbv1.password,
-            "influxdb_database": get_config().databases.influxdbv1.database,
-            "influxdb_ssl": get_config().databases.influxdbv1.ssl,
-            "influxdb_verify_ssl": get_config().databases.influxdbv1.verify_ssl,
+            "key_val_dict": parameter_dict,
             "module_name": exp_module_name,
             "exp_instance_name": exp_instance_name,
         }
