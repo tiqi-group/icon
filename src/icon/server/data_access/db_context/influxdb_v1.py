@@ -174,7 +174,7 @@ class InfluxDBv1Session:
 
         stmt = (
             f'SELECT "{escape_quotes(field)}" FROM '
-            f'"{escape_quotes(measurement)!s}" LIMIT 1'
+            f'"{escape_quotes(measurement)!s}" ORDER BY time DESC LIMIT 1'
         )
         try:
             return next(self._client.query(stmt).get_points())  # type: ignore
