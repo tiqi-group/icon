@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Any, Literal
 
@@ -62,12 +63,14 @@ class DevicesController(pydase.DataService):
 
         return device
 
-    def update_parameter_value(
+    async def update_parameter_value(
         self, *, name: str, parameter_id: str, new_value: DeviceParameterValueyType
     ) -> None:
         try:
-            self._devices[name].update_value(
-                access_path=parameter_id, new_value=new_value
+            await asyncio.to_thread(
+                self._devices[name].update_value(
+                    access_path=parameter_id, new_value=new_value
+                )
             )
         except BadNamespaceError:
             logger.warning(
@@ -77,9 +80,11 @@ class DevicesController(pydase.DataService):
                 self._devices[name]._url,
             )
 
-    def get_parameter_value(self, *, name: str, parameter_id: str) -> Any:
+    async def get_parameter_value(self, *, name: str, parameter_id: str) -> Any:
         try:
-            return self._devices[name].get_value(access_path=parameter_id)
+            return await asyncio.to_thread(
+                self._devices[name].get_value(access_path=parameter_id)
+            )
         except BadNamespaceError:
             logger.warning(
                 'Could not get %r. Device %r at ("%s") is not connected.',
