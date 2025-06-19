@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, Literal
 
 import pydase
 from socketio.exceptions import BadNamespaceError  # type: ignore
@@ -24,15 +24,24 @@ class DevicesController(pydase.DataService):
         *,
         name: str,
         url: str,
-        status: DeviceStatus = DeviceStatus.ENABLED,
+        status: Literal["disabled", "enabled"] = "enabled",
         description: str | None = None,
     ) -> Device:
         return DeviceRepository.add_device(
-            device=Device(name=name, url=url, status=status, description=description)
+            device=Device(
+                name=name, url=url, status=DeviceStatus(status), description=description
+            )
         )
 
-    def update_device_status(self, *, name: str, status: DeviceStatus) -> Device:
-        return DeviceRepository.update_device_status(name=name, status=status)
+    def update_device_status(
+        self,
+        *,
+        name: str,
+        status: Literal["disabled", "enabled"],
+    ) -> Device:
+        return DeviceRepository.update_device_status(
+            name=name, status=DeviceStatus(status)
+        )
 
     def update_parameter_value(
         self, *, name: str, parameter_id: str, new_value: DeviceParameterValueyType
