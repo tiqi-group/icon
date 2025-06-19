@@ -79,6 +79,8 @@ class DevicesController(pydase.DataService):
                 name,
                 self._devices[name]._url,
             )
+        except KeyError:
+            logger.warning("Device with name %r not found. Is it enabled?", name)
 
     async def get_parameter_value(self, *, name: str, parameter_id: str) -> Any:
         try:
@@ -92,6 +94,8 @@ class DevicesController(pydase.DataService):
                 name,
                 self._devices[name]._url,
             )
+        except KeyError:
+            logger.warning("Device with name %r not found. Is it enabled?", name)
 
     def get_devices_by_status(
         self, *, status: DeviceStatus | None = None
