@@ -26,11 +26,20 @@ class DevicesController(pydase.DataService):
         status: Literal["disabled", "enabled"] = "enabled",
         description: str | None = None,
     ) -> Device:
-        return DeviceRepository.add_device(
+        device = DeviceRepository.add_device(
             device=Device(
                 name=name, url=url, status=DeviceStatus(status), description=description
             )
         )
+
+        if status == "enabled":
+            self._devices[name] = pydase.Client(
+                url=device.url,
+                client_id="ICON-devices-controller",
+                block_until_connected=False,
+            )
+
+        return device
 
     def update_device_status(
         self,
@@ -38,9 +47,20 @@ class DevicesController(pydase.DataService):
         name: str,
         status: Literal["disabled", "enabled"],
     ) -> Device:
-        return DeviceRepository.update_device_status(
+        device = DeviceRepository.update_device_status(
             name=name, status=DeviceStatus(status)
         )
+
+        if status == "disabled" and name in self._devices:
+            del self._devices[name]
+        elif status == "enabled":
+            self._devices[name] = pydase.Client(
+                url=device.url,
+                client_id="ICON-devices-controller",
+                block_until_connected=False,
+            )
+
+        return device
 
     def update_parameter_value(
         self, *, name: str, parameter_id: str, new_value: DeviceParameterValueyType
