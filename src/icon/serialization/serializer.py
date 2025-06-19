@@ -9,11 +9,14 @@ from typing import TYPE_CHECKING, Any
 import pydantic
 import pydase.units as u
 import pydase.utils.serialization.serializer
+import sqlalchemy.orm
 from pydase.data_service.abstract_data_service import AbstractDataService
 from pydase.utils.helpers import get_attribute_doc
 
+from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
+
 if TYPE_CHECKING:
-    from pydase.utils.serialization.types import SerializedException
+    from pydase.utils.serialization.types import SerializedDict, SerializedException
 
     from icon.serialization.types import SerializedIconObject, SerializedPydanticModel
 
@@ -28,7 +31,7 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
 
     @classmethod
     def serialize_object(cls, obj: Any, access_path: str = "") -> SerializedIconObject:  # type: ignore[override] # noqa: C901
-        result: SerializedIconObject
+        result: SerializedIconObject | None = None
 
         if isinstance(obj, Exception):
             result = cls._serialize_exception(obj)
@@ -38,6 +41,9 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
 
         elif isinstance(obj, pydantic.BaseModel):
             result = cls._serialize_pydantic_model(obj, access_path=access_path)
+
+        elif isinstance(obj, sqlalchemy.orm.DeclarativeBase):
+            result = cls._serialize_orm(obj, access_path=access_path)
 
         elif isinstance(obj, AbstractDataService):
             result = cls._serialize_data_service(obj, access_path=access_path)
@@ -63,12 +69,12 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
         elif isinstance(obj, int | float | bool | str | None):
             result = cls._serialize_primitive(obj, access_path=access_path)
 
-        try:
+        if result is not None:
             return result
-        except UnboundLocalError:
-            raise pydase.utils.serialization.serializer.SerializationError(
-                f"Could not serialized object of type {type(obj)}."
-            )
+
+        raise pydase.utils.serialization.serializer.SerializationError(
+            f"Could not serialized object of type {type(obj)}."
+        )
 
     @classmethod
     def _serialize_pydantic_model(
@@ -84,6 +90,13 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
             "full_access_path": access_path,
             "readonly": True,
         }
+
+    @classmethod
+    def _serialize_orm(
+        cls, obj: sqlalchemy.orm.DeclarativeBase, access_path: str
+    ) -> SerializedDict:
+        dumped_model = SQLAlchemyDictEncoder.encode(obj=obj)
+        return cls._serialize_dict(dumped_model, access_path)
 
     @classmethod
     def _serialize_exception(cls, obj: Exception) -> SerializedException:
