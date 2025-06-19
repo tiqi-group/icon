@@ -2,6 +2,7 @@ import logging
 from typing import Any
 
 import pydase
+from socketio.exceptions import BadNamespaceError  # type: ignore
 
 from icon.server.data_access.models.enums import DeviceStatus
 from icon.server.data_access.models.sqlite.device import Device
@@ -36,10 +37,28 @@ class DevicesController(pydase.DataService):
     def update_parameter_value(
         self, *, name: str, parameter_id: str, new_value: DeviceParameterValueyType
     ) -> None:
-        self._devices[name].update_value(access_path=parameter_id, new_value=new_value)
+        try:
+            self._devices[name].update_value(
+                access_path=parameter_id, new_value=new_value
+            )
+        except BadNamespaceError:
+            logger.warning(
+                'Could not set %r. Device %r at ("%s") is not connected.',
+                parameter_id,
+                name,
+                self._devices[name]._url,
+            )
 
     def get_parameter_value(self, *, name: str, parameter_id: str) -> Any:
-        return self._devices[name].get_value(access_path=parameter_id)
+        try:
+            return self._devices[name].get_value(access_path=parameter_id)
+        except BadNamespaceError:
+            logger.warning(
+                'Could not get %r. Device %r at ("%s") is not connected.',
+                parameter_id,
+                name,
+                self._devices[name]._url,
+            )
 
     def get_devices_by_status(
         self, *, status: DeviceStatus | None = None
