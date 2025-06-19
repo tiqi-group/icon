@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime
-from typing import Any
 
 import pydase
 
@@ -13,7 +12,6 @@ from icon.server.data_access.repositories.experiment_source_repository import (
     ExperimentSourceRepository,
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
-from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -68,12 +66,12 @@ class SchedulerController(pydase.DataService):
         status: JobStatus | None = None,
         start: str | None = None,
         stop: str | None = None,
-    ) -> dict[int, dict[str, Any]]:
+    ) -> dict[int, Job]:
         start_date = datetime.fromisoformat(start) if start is not None else None
         stop_date = datetime.fromisoformat(stop) if stop is not None else None
 
         return {
-            job._tuple()[0].id: SQLAlchemyDictEncoder.encode(obj=job._tuple()[0])
+            job._tuple()[0].id: job._tuple()[0]
             for job in JobRepository.get_jobs_by_status_and_timeframe(
                 status=status, start=start_date, stop=stop_date
             )

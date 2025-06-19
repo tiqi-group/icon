@@ -7,7 +7,6 @@ from socketio.exceptions import BadNamespaceError  # type: ignore
 from icon.server.data_access.models.enums import DeviceStatus
 from icon.server.data_access.models.sqlite.device import Device
 from icon.server.data_access.repositories.device_repository import DeviceRepository
-from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +70,9 @@ class DevicesController(pydase.DataService):
 
     def get_devices_by_status(
         self, *, status: DeviceStatus | None = None
-    ) -> dict[str, dict[str, Any]]:
+    ) -> dict[str, Device]:
         return {
-            device.name: SQLAlchemyDictEncoder.encode(obj=device)
+            device.name: device
             for device in DeviceRepository.get_devices_by_status(status=status)
         }
 
