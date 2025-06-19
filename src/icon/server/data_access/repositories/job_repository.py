@@ -131,7 +131,7 @@ class JobRepository:
         status: JobStatus | None = None,
         start: datetime.datetime | None = None,
         stop: datetime.datetime | None = None,
-    ) -> Sequence[sqlalchemy.Row[tuple[Job]]]:
+    ) -> Sequence[Job]:
         """Gets all the Job instances filtered by status and optional time range."""
 
         with sqlalchemy.orm.Session(engine) as session:
@@ -152,7 +152,7 @@ class JobRepository:
             if stop is not None:
                 stmt = stmt.where(Job.created < stop)
 
-            return session.execute(stmt).unique().all()
+            return session.execute(stmt).scalars().all()
 
     @staticmethod
     def get_job_by_id(
@@ -171,7 +171,7 @@ class JobRepository:
             if load_scan_parameters:
                 stmt = stmt.options(sqlalchemy.orm.joinedload(Job.scan_parameters))
 
-            return session.execute(stmt).unique().one()._tuple()[0]
+            return session.execute(stmt).scalar_one()
 
     @staticmethod
     def get_job_by_experiment_source_and_status(

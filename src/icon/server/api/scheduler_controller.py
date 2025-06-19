@@ -71,7 +71,7 @@ class SchedulerController(pydase.DataService):
         stop_date = datetime.fromisoformat(stop) if stop is not None else None
 
         return {
-            job._tuple()[0].id: job._tuple()[0]
+            job.id: job
             for job in JobRepository.get_jobs_by_status_and_timeframe(
                 status=status, start=start_date, stop=stop_date
             )

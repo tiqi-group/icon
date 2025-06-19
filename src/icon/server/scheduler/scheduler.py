@@ -21,19 +21,17 @@ def initialise_job_tables() -> None:
     job_runs = JobRunRepository.get_runs_by_status(
         status=[JobRunStatus.PENDING, JobRunStatus.PROCESSING]
     )
-    for job_run_ in job_runs:
+    for job_run in job_runs:
         JobRunRepository.update_run_by_id(
-            run_id=job_run_._tuple()[0].id,
+            run_id=job_run.id,
             status=JobRunStatus.CANCELLED,
             log="Cancelled during scheduler initialization.",
         )
 
     # update jobs table
     jobs = JobRepository.get_jobs_by_status_and_timeframe(status=JobStatus.PROCESSING)
-    for job_ in jobs:
-        JobRepository.update_job_status(
-            job=job_._tuple()[0], status=JobStatus.PROCESSED
-        )
+    for job in jobs:
+        JobRepository.update_job_status(job=job, status=JobStatus.PROCESSED)
 
 
 def should_exit() -> bool:
@@ -58,7 +56,7 @@ class Scheduler(multiprocessing.Process):
             )
             for job_ in jobs:
                 job = JobRepository.update_job_status(
-                    job=job_._tuple()[0], status=JobStatus.PROCESSING
+                    job=job_, status=JobStatus.PROCESSING
                 )
                 run = JobRun(job_id=job.id, scheduled_time=datetime.now(tz=timezone))
                 run = JobRunRepository.insert_run(run=run)

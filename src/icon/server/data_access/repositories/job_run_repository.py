@@ -82,7 +82,7 @@ class JobRunRepository:
         *,
         status: JobRunStatus | list[JobRunStatus],
         load_job: bool = False,
-    ) -> Sequence[sqlalchemy.Row[tuple[JobRun]]]:
+    ) -> Sequence[JobRun]:
         """Gets all the JobRun instances with given status."""
 
         if not isinstance(status, list):
@@ -98,7 +98,7 @@ class JobRunRepository:
             if load_job:
                 stmt = stmt.options(sqlalchemy.orm.joinedload(JobRun.job))
 
-            return session.execute(stmt).all()
+            return session.execute(stmt).scalars().all()
 
     @staticmethod
     def get_run_by_job_id(
