@@ -2,8 +2,13 @@ import datetime
 import enum
 from typing import Any
 
+import pytz
 import sqlalchemy.orm
 from sqlalchemy.orm.attributes import instance_dict
+
+from icon.config.config import get_config
+
+timezone = pytz.timezone(get_config().date.timezone)
 
 
 class SQLAlchemyDictEncoder:
@@ -22,7 +27,7 @@ class SQLAlchemyDictEncoder:
             return obj.value
 
         if isinstance(obj, datetime.datetime):
-            return obj.isoformat()
+            return obj.astimezone(timezone).isoformat()
 
         if isinstance(obj, list):
             return [cls.encode(item) for item in obj]
