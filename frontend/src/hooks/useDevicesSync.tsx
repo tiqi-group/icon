@@ -26,16 +26,16 @@ export function useDevicesSync(dispatch: Dispatch<Action>) {
       dispatch({ type: "SET", payload: deserialize(ack as SerializedObject) });
     });
 
-    socket.on("device.new", (data: NewDeviceEvent) =>
+    socket.on("devices.new", (data: NewDeviceEvent) =>
       dispatch({ type: "ADD", payload: data.device }),
     );
-    socket.on("device.update", (data: DeviceUpdate) =>
+    socket.on("devices.update", (data: DeviceUpdate) =>
       dispatch({ type: "UPDATE", payload: data }),
     );
 
     return () => {
-      socket.off("device.new");
-      socket.off("device.update");
+      socket.off("devices.new");
+      socket.off("devices.update");
     };
   }, [dispatch]);
 }
