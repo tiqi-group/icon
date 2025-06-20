@@ -9,18 +9,26 @@ from typing import TYPE_CHECKING, Any
 import pydantic
 import pydase.units as u
 import pydase.utils.serialization.serializer
+import pytz
 import sqlalchemy.orm
 from pydase.data_service.abstract_data_service import AbstractDataService
 from pydase.utils.helpers import get_attribute_doc
 
+from icon.config.config import get_config
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
 
 if TYPE_CHECKING:
-    from pydase.utils.serialization.types import SerializedDict, SerializedException
+    from pydase.utils.serialization.types import (
+        SerializedDatetime,
+        SerializedDict,
+        SerializedException,
+    )
 
     from icon.serialization.types import SerializedIconObject, SerializedPydanticModel
 
 logger = logging.getLogger(__name__)
+
+timezone = pytz.timezone(get_config().date.timezone)
 
 
 class IconSerializer(pydase.utils.serialization.serializer.Serializer):
@@ -75,6 +83,16 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
         raise pydase.utils.serialization.serializer.SerializationError(
             f"Could not serialized object of type {type(obj)}."
         )
+
+    @classmethod
+    def _serialize_datetime(cls, obj: datetime, access_path: str) -> SerializedDatetime:
+        return {
+            "type": "datetime",
+            "value": obj.astimezone(timezone).isoformat(),
+            "doc": None,
+            "full_access_path": access_path,
+            "readonly": True,
+        }
 
     @classmethod
     def _serialize_pydantic_model(
