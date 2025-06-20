@@ -5,9 +5,11 @@ from typing import Any, Literal
 import pydase
 from socketio.exceptions import BadNamespaceError  # type: ignore
 
+from icon.server.api.models.device_dict import DeviceDict
 from icon.server.data_access.models.enums import DeviceStatus
 from icon.server.data_access.models.sqlite.device import Device
 from icon.server.data_access.repositories.device_repository import DeviceRepository
+from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -99,11 +101,17 @@ class DevicesController(pydase.DataService):
 
     def get_devices_by_status(
         self, *, status: DeviceStatus | None = None
-    ) -> dict[str, Device]:
-        return {
-            device.name: device
+    ) -> dict[str, DeviceDict]:
+        device_dict: dict[str, DeviceDict] = {
+            device.name: SQLAlchemyDictEncoder.encode(device)
             for device in DeviceRepository.get_devices_by_status(status=status)
         }
+
+        for name, value in device_dict.items():
+            client = self._devices.get(name, None)
+            value["reachable"] = client.proxy.connected if client is not None else False
+
+        return device_dict
 
     def _initialise_devices(self) -> None:
         devices = DeviceRepository.get_devices_by_status(status=DeviceStatus.ENABLED)
