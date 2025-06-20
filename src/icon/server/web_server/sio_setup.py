@@ -27,6 +27,6 @@ def setup_sio_events(
 
 
 def patch_sio_setup() -> None:
-    import pydase.server.web_server.sio_setup
+    import pydase.server.web_server.sio_setup  # noqa: PLC0415
 
     pydase.server.web_server.sio_setup.setup_sio_events = setup_sio_events
