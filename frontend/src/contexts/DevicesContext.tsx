@@ -38,4 +38,4 @@ export const reducer = (state: Devices, action: Action): Devices => {
   }
 };
 
-export const JobsContext = createContext<Devices>({});
+export const DevicesContext = createContext<Devices>({});

@@ -7,4 +7,5 @@ export interface Device {
   url: string;
   status: DeviceStatus;
   description: string | null;
+  reachable: boolean;
 }
