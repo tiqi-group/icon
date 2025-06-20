@@ -152,7 +152,7 @@ class JobRepository:
             if stop is not None:
                 stmt = stmt.where(Job.created < stop)
 
-            return session.execute(stmt).scalars().all()
+            return session.execute(stmt).unique().scalars().all()
 
     @staticmethod
     def get_job_by_id(
@@ -171,7 +171,7 @@ class JobRepository:
             if load_scan_parameters:
                 stmt = stmt.options(sqlalchemy.orm.joinedload(Job.scan_parameters))
 
-            return session.execute(stmt).scalar_one()
+            return session.execute(stmt).unique().scalar_one()
 
     @staticmethod
     def get_job_by_experiment_source_and_status(
