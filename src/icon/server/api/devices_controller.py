@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import pydase
 from socketio.exceptions import BadNamespaceError  # type: ignore
@@ -11,6 +11,9 @@ from icon.server.data_access.models.sqlite.device import Device
 from icon.server.data_access.repositories.device_repository import DeviceRepository
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
 
+if TYPE_CHECKING:
+    from pydase.client.proxy_class import ProxyClass
+
 logger = logging.getLogger(__name__)
 
 DeviceParameterValueyType = int | bool | float
@@ -19,6 +22,8 @@ DeviceParameterValueyType = int | bool | float
 class DevicesController(pydase.DataService):
     def __init__(self) -> None:
         super().__init__()
+        self._devices: dict[str, pydase.Client] = {}
+        self._device_proxies: dict[str, ProxyClass] = {}
         self._initialise_devices()
 
     def add_device(
@@ -36,11 +41,13 @@ class DevicesController(pydase.DataService):
         )
 
         if status == "enabled":
-            self._devices[name] = pydase.Client(
+            client = pydase.Client(
                 url=device.url,
                 client_id="ICON-devices-controller",
                 block_until_connected=False,
             )
+            self._devices[name] = client
+            self._device_proxies[name] = client.proxy
 
         return device
 
@@ -56,12 +63,15 @@ class DevicesController(pydase.DataService):
 
         if status == "disabled" and name in self._devices:
             del self._devices[name]
+            del self._device_proxies[name]
         elif status == "enabled":
-            self._devices[name] = pydase.Client(
+            client = pydase.Client(
                 url=device.url,
                 client_id="ICON-devices-controller",
                 block_until_connected=False,
             )
+            self._devices[name] = client
+            self._device_proxies[device.name] = client.proxy
 
         return device
 
@@ -115,11 +125,12 @@ class DevicesController(pydase.DataService):
 
     def _initialise_devices(self) -> None:
         devices = DeviceRepository.get_devices_by_status(status=DeviceStatus.ENABLED)
-        self._devices: dict[str, pydase.Client] = {
-            device.name: pydase.Client(
+
+        for device in devices:
+            client = pydase.Client(
                 url=device.url,
                 client_id="ICON-devices-controller",
                 block_until_connected=False,
             )
-            for device in devices
-        }
+            self._devices[device.name] = client
+            self._device_proxies[device.name] = client.proxy
