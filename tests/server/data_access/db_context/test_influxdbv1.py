@@ -47,16 +47,16 @@ def test_InfluxDBv1Session(influxdbv1_service: tuple[str, int]) -> None:  # noqa
         session.write_points(
             [
                 {
-                    "measurement": "Experiment Parameters",
+                    "measurement": "Pytest",
                     "fields": {"test": test_value, "test1": test_value + 0.4},
                 }
             ]
         )
-        result = session.query(measurement="Experiment Parameters", field="test")
+        result = session.query(measurement="Pytest", field="test")
 
         assert result is not None and result["test"] == test_value
 
-        assert session.query_last(measurement="Experiment Parameters") == {
+        assert session.query_last(measurement="Pytest") == {
             "test": test_value,
             "test1": test_value + 0.4,
         }
