@@ -3,6 +3,7 @@ from typing import Any
 
 import pydase
 
+import icon.server.shared_resource_manager
 from icon.server.api.models.parameter_metadata import ParameterMetadata
 from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 from icon.server.data_access.repositories.parameters_repository import (
@@ -71,11 +72,26 @@ class ParametersController(pydase.DataService):
         if added_params or removed_params or updated_params:
             emit_queue.put({"event": "parameters.update", "data": None})
 
-    def _create_missing_influxdb_entries(
-        self, parameter_metadata: ParameterMetadataDict
-    ) -> None:
+    def _create_missing_influxdb_entries(self) -> None:
+        """Ensure all known parameters exist in InfluxDBv1.
+
+        For each parameter in the metadata, check if it exists as a field in InfluxDBv1.
+        If not, initialize it by writing the default value via the ParametersRepository.
+        """
+
         influxdb_param_keys = ParametersRepository.get_influxdbv1_parameter_keys()
-        for key, metadata in parameter_metadata["all parameters"].items():
-            if key not in influxdb_param_keys:
-                logger.info("Creating entry %s: %s", key, metadata["default_value"])
-                self.update_parameter_by_id(key, metadata["default_value"])
+        for parameter_id, metadata in self._all_parameter_metadata.items():
+            if parameter_id not in influxdb_param_keys:
+                logger.info(
+                    "Creating entry %s: %s", parameter_id, metadata["default_value"]
+                )
+                self.update_parameter_by_id(parameter_id, metadata["default_value"])
+
+    def initialise_parameters_repository(self) -> None:
+        icon.server.shared_resource_manager.parameters_dict.update(
+            ParametersRepository.get_influxdbv1_parameters()
+        )
+        ParametersRepository.initialize(
+            shared_parameters=icon.server.shared_resource_manager.parameters_dict
+        )
+        logger.info("ParametersRepository successfully initialised.")
