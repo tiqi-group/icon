@@ -18,6 +18,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class NotInitialisedError(Exception):
+    pass
+
+
 def get_specifiers_from_parameter_identifier(
     parameter_identifier: str,
 ) -> tuple[str, str, dict[str, str]]:
@@ -37,12 +41,19 @@ def get_specifiers_from_parameter_identifier(
 
 class ParametersRepository:
     _shared_parameters: DictProxy[str, DatabaseValueType]
+    initialised: bool = False
 
     @classmethod
     def initialize(
         cls, *, shared_parameters: DictProxy[str, DatabaseValueType]
     ) -> None:
         cls._shared_parameters = shared_parameters
+        cls.initialised = True
+
+    @classmethod
+    def _check_initialised(cls) -> None:
+        if not cls.initialised:
+            raise NotInitialisedError("ParametersRepository is not initialised.")
 
     @classmethod
     def update_parameters(
@@ -77,6 +88,8 @@ class ParametersRepository:
         parameter_id: str,
         new_value: DatabaseValueType,
     ) -> None:
+        cls._check_initialised()
+
         cls._shared_parameters[parameter_id] = new_value
 
         emit_queue.put(
@@ -92,10 +105,14 @@ class ParametersRepository:
         *,
         parameter_id: str,
     ) -> DatabaseValueType | None:
+        cls._check_initialised()
+
         return cls._shared_parameters.get(parameter_id, None)
 
     @classmethod
     def get_shared_parameters(cls) -> DictProxy[str, DatabaseValueType]:
+        cls._check_initialised()
+
         return cls._shared_parameters
 
     @staticmethod
