@@ -14,7 +14,7 @@ export type Action =
   | { type: "UPDATE"; payload: DeviceUpdate };
 
 // Reducer Function
-export const reducer = (state: Devices, action: Action): Devices => {
+export const deviceInfoReducer = (state: Devices, action: Action): Devices => {
   switch (action.type) {
     case "SET":
       return { ...state, ...action.payload };
@@ -38,4 +38,4 @@ export const reducer = (state: Devices, action: Action): Devices => {
   }
 };
 
-export const DevicesContext = createContext<Devices>({});
+export const DeviceInfoContext = createContext<Devices>({});

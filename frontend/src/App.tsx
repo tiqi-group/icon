@@ -22,7 +22,7 @@ import { reducer, JobsContext } from "./contexts/JobsContext";
 import { ParameterStoreProvider } from "./contexts/ParameterStoreContext";
 import { useJobsSync } from "./hooks/useJobsSync";
 import { createParameterStore } from "./stores/parmeterStore";
-import { reducer as deviceReducer, DevicesContext } from "./contexts/DevicesContext";
+import { deviceInfoReducer, DeviceInfoContext } from "./contexts/DeviceInfoContext";
 import { useDevicesSync } from "./hooks/useDevicesSync";
 import { useDeviceStateSync } from "./hooks/useDeviceStateSync";
 import { DeviceStateContext, deviceStateReducer } from "./contexts/DeviceStateContext";
@@ -115,7 +115,7 @@ export default function App() {
     Record<string, ParameterMetadata>
   >({});
   const [scheduledJobs, schedulerDispatch] = useReducer(reducer, {});
-  const [devices, deviceDispatch] = useReducer(deviceReducer, {});
+  const [deviceInfo, deviceInfoDispatch] = useReducer(deviceInfoReducer, {});
   const [deviceStates, deviceStateDispatch] = useReducer(deviceStateReducer, null);
   const parameterStore = useRef(createParameterStore()).current;
 
@@ -169,7 +169,7 @@ export default function App() {
       <ParameterStoreProvider store={parameterStore}>
         <ScanProvider>
           <DeviceStateContext.Provider value={deviceStates}>
-            <DevicesContext.Provider value={devices}>
+            <DeviceInfoContext.Provider value={deviceInfo}>
               <JobsContext.Provider value={scheduledJobs}>
                 <ParameterMetadataContext.Provider value={parameterMetadata}>
                   <ParameterDisplayGroupsContext.Provider
@@ -181,7 +181,7 @@ export default function App() {
                   </ParameterDisplayGroupsContext.Provider>
                 </ParameterMetadataContext.Provider>
               </JobsContext.Provider>
-            </DevicesContext.Provider>
+            </DeviceInfoContext.Provider>
           </DeviceStateContext.Provider>
         </ScanProvider>
       </ParameterStoreProvider>
