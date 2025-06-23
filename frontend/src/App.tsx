@@ -24,6 +24,8 @@ import { useJobsSync } from "./hooks/useJobsSync";
 import { createParameterStore } from "./stores/parmeterStore";
 import { reducer as deviceReducer, DevicesContext } from "./contexts/DevicesContext";
 import { useDevicesSync } from "./hooks/useDevicesSync";
+import { useDeviceStateSync } from "./hooks/useDeviceStateSync";
+import { DeviceStateContext, deviceStateReducer } from "./contexts/DeviceStateContext";
 
 interface ParameterUpdate {
   id: string;
@@ -114,10 +116,12 @@ export default function App() {
   >({});
   const [scheduledJobs, schedulerDispatch] = useReducer(reducer, {});
   const [devices, deviceDispatch] = useReducer(deviceReducer, {});
+  const [deviceStates, deviceStateDispatch] = useReducer(deviceStateReducer, null);
   const parameterStore = useRef(createParameterStore()).current;
 
   useJobsSync(schedulerDispatch);
   useDevicesSync(deviceDispatch);
+  useDeviceStateSync(deviceStateDispatch);
   useEffect(() => {
     socket.on("parameter.update", ({ id, value }: ParameterUpdate) => {
       parameterStore.set(id, value);
@@ -164,17 +168,21 @@ export default function App() {
     <ReactRouterAppProvider navigation={NAVIGATION} branding={BRANDING}>
       <ParameterStoreProvider store={parameterStore}>
         <ScanProvider>
-          <DevicesContext.Provider value={devices}>
-            <JobsContext.Provider value={scheduledJobs}>
-              <ParameterMetadataContext.Provider value={parameterMetadata}>
-                <ParameterDisplayGroupsContext.Provider value={parameterDisplayGroups}>
-                  <ExperimentsContext.Provider value={experiments}>
-                    <Outlet />
-                  </ExperimentsContext.Provider>
-                </ParameterDisplayGroupsContext.Provider>
-              </ParameterMetadataContext.Provider>
-            </JobsContext.Provider>
-          </DevicesContext.Provider>
+          <DeviceStateContext.Provider value={deviceStates}>
+            <DevicesContext.Provider value={devices}>
+              <JobsContext.Provider value={scheduledJobs}>
+                <ParameterMetadataContext.Provider value={parameterMetadata}>
+                  <ParameterDisplayGroupsContext.Provider
+                    value={parameterDisplayGroups}
+                  >
+                    <ExperimentsContext.Provider value={experiments}>
+                      <Outlet />
+                    </ExperimentsContext.Provider>
+                  </ParameterDisplayGroupsContext.Provider>
+                </ParameterMetadataContext.Provider>
+              </JobsContext.Provider>
+            </DevicesContext.Provider>
+          </DeviceStateContext.Provider>
         </ScanProvider>
       </ParameterStoreProvider>
     </ReactRouterAppProvider>
