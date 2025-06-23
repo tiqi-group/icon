@@ -1,4 +1,5 @@
 import datetime
+from typing import TYPE_CHECKING
 
 import pytz
 import sqlalchemy
@@ -7,6 +8,9 @@ import sqlalchemy.orm
 from icon.config.config import get_config
 from icon.server.data_access.models.enums import DeviceStatus
 from icon.server.data_access.models.sqlite.base import Base
+
+if TYPE_CHECKING:
+    from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
 
 timezone = pytz.timezone(get_config().date.timezone)
 
@@ -30,6 +34,9 @@ class Device(Base):
     )
     description: sqlalchemy.orm.Mapped[str | None] = sqlalchemy.orm.mapped_column(
         default=None
+    )
+    scan_parameters: sqlalchemy.orm.Mapped[list["ScanParameter"]] = (
+        sqlalchemy.orm.relationship("ScanParameter", back_populates="device")
     )
 
     def __repr__(self) -> str:

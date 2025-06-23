@@ -8,6 +8,7 @@ from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 from icon.server.data_access.models.sqlite.base import Base
 
 if TYPE_CHECKING:
+    from icon.server.data_access.models.sqlite.device import Device
     from icon.server.data_access.models.sqlite.job import Job
 
 
@@ -50,10 +51,12 @@ class ScanParameter(Base):
     scan_values: sqlalchemy.orm.Mapped[list[DatabaseValueType]] = (
         sqlalchemy.orm.mapped_column(JSONEncodedList, nullable=False)
     )
-    # remote_source_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
-    #     sqlalchemy.ForeignKey("remote_sources.id")
-    # )
-    # remote_source: sqlalchemy.orm.Mapped["RemoteSource"] = sqlalchemy.orm.relationship()
+    device_id: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column(
+        sqlalchemy.ForeignKey("devices.id"), nullable=True
+    )
+    device: sqlalchemy.orm.Mapped["Device"] = sqlalchemy.orm.relationship(
+        back_populates="scan_parameters"
+    )
 
     def __repr__(self) -> str:
         return f"<Parameter '{self.variable_id}'>"
