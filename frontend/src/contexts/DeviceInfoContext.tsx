@@ -19,7 +19,7 @@ export const deviceInfoReducer = (state: Devices, action: Action): Devices => {
     case "SET":
       return { ...state, ...action.payload };
     case "ADD":
-      return { ...state, [action.payload.id]: action.payload };
+      return { ...state, [action.payload.name]: action.payload };
     case "UPDATE": {
       const device = state[action.payload.device_name];
       // job not found, no update
