@@ -1,6 +1,6 @@
 import { DeviceStatus } from "./enums";
 
-export interface Device {
+export interface DeviceInfo {
   id: number;
   created: string;
   name: string;

@@ -3,10 +3,10 @@ import { runMethod, socket } from "../socket";
 import { deserialize } from "../utils/deserializer";
 import { DeviceUpdate, Action } from "../contexts/DevicesContext";
 import { SerializedObject } from "../types/SerializedObject";
-import { Device } from "../types/Device";
+import { DeviceInfo } from "../types/DeviceInfo";
 
 interface NewDeviceEvent {
-  device: Device;
+  device: DeviceInfo;
 }
 
 /**

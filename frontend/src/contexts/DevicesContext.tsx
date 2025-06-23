@@ -1,16 +1,16 @@
 import { createContext } from "react";
-import { Device } from "../types/Device";
+import { DeviceInfo } from "../types/DeviceInfo";
 
 export interface DeviceUpdate {
   device_name: string;
   updated_properties: Record<string, string>;
 }
 
-export type Devices = Record<string, Device>;
+export type Devices = Record<string, DeviceInfo>;
 
 export type Action =
   | { type: "SET"; payload: Devices }
-  | { type: "ADD"; payload: Device }
+  | { type: "ADD"; payload: DeviceInfo }
   | { type: "UPDATE"; payload: DeviceUpdate };
 
 // Reducer Function
