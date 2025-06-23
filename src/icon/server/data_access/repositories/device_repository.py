@@ -57,6 +57,7 @@ class DeviceRepository:
                     "device_name": device.name,
                     "updated_properties": {
                         "status": status.value,
+                        "reachable": False,
                     },
                 },
             }
