@@ -7,6 +7,7 @@ import DashboardPage from "./pages";
 import ExperimentsPage from "./pages/experiments";
 import ParameterPage from "./pages/parameters";
 import { DataPage } from "./pages/data";
+import DevicesPage from "./pages/devices";
 
 const router = createBrowserRouter([
   {
@@ -31,6 +32,10 @@ const router = createBrowserRouter([
           {
             path: "data",
             Component: DataPage,
+          },
+          {
+            path: "devices",
+            Component: DevicesPage,
           },
         ],
       },
