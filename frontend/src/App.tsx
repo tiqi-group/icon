@@ -24,7 +24,6 @@ import { useJobsSync } from "./hooks/useJobsSync";
 import { createParameterStore } from "./stores/parmeterStore";
 import { deviceInfoReducer, DeviceInfoContext } from "./contexts/DeviceInfoContext";
 import { useDevicesSync } from "./hooks/useDevicesSync";
-import { useDeviceStateSync } from "./hooks/useDeviceStateSync";
 import { DeviceStateContext, deviceStateReducer } from "./contexts/DeviceStateContext";
 
 interface ParameterUpdate {
@@ -120,8 +119,7 @@ export default function App() {
   const parameterStore = useRef(createParameterStore()).current;
 
   useJobsSync(schedulerDispatch);
-  useDevicesSync(deviceDispatch);
-  useDeviceStateSync(deviceStateDispatch);
+  useDevicesSync(deviceStateDispatch, deviceInfoDispatch);
   useEffect(() => {
     socket.on("parameter.update", ({ id, value }: ParameterUpdate) => {
       parameterStore.set(id, value);
