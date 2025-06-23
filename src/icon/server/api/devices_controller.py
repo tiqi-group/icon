@@ -23,7 +23,7 @@ class DevicesController(pydase.DataService):
     def __init__(self) -> None:
         super().__init__()
         self._devices: dict[str, pydase.Client] = {}
-        self._device_proxies: dict[str, ProxyClass] = {}
+        self.device_proxies: dict[str, ProxyClass] = {}
         self._initialise_devices()
 
     def add_device(
@@ -47,7 +47,7 @@ class DevicesController(pydase.DataService):
                 block_until_connected=False,
             )
             self._devices[name] = client
-            self._device_proxies[name] = client.proxy
+            self.device_proxies[name] = client.proxy
 
         return device
 
@@ -62,8 +62,11 @@ class DevicesController(pydase.DataService):
         )
 
         if status == "disabled" and name in self._devices:
-            del self._devices[name]
-            del self._device_proxies[name]
+            if name in self.device_proxies:
+                self.device_proxies.pop(name)
+            if name in self._devices:
+                client = self._devices.pop(name)
+                client.disconnect()
         elif status == "enabled":
             client = pydase.Client(
                 url=device.url,
@@ -71,7 +74,7 @@ class DevicesController(pydase.DataService):
                 block_until_connected=False,
             )
             self._devices[name] = client
-            self._device_proxies[device.name] = client.proxy
+            self.device_proxies[device.name] = client.proxy
 
         return device
 
@@ -133,4 +136,4 @@ class DevicesController(pydase.DataService):
                 block_until_connected=False,
             )
             self._devices[device.name] = client
-            self._device_proxies[device.name] = client.proxy
+            self.device_proxies[device.name] = client.proxy
