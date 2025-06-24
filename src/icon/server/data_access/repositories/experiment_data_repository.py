@@ -10,6 +10,7 @@ from filelock import FileLock
 
 from icon.config.config import get_config
 from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
 from icon.server.web_server.socketio_emit_queue import emit_queue
@@ -154,6 +155,9 @@ class ExperimentDataRepository:
         number_of_shots: int,
         repetitions: int,
         local_parameter_timestamp: datetime | None = None,
+        parameters: list[
+            ScanParameter
+        ] = [],  # TODO: write parameter metadata to scan_parameters dataset
     ) -> None:
         """Creates or updates a metadata group and updates its attributes with the
         passed metadata."""
