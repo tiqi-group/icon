@@ -59,4 +59,11 @@ class ScanParameter(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<Parameter '{self.variable_id}'>"
+        return f"<Parameter '{self.unique_id()}'>"
+
+    def unique_id(self) -> str:
+        return (
+            f"Device({self.device.name}) {self.variable_id}"
+            if self.device is not None
+            else self.variable_id
+        )
