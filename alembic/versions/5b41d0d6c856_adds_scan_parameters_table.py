@@ -8,9 +8,9 @@ Create Date: 2024-12-17 14:09:52.531594
 
 from collections.abc import Sequence
 
-import icon.server.data_access.models.sqlite.scan_parameter
 import sqlalchemy as sa
 
+import icon.server.data_access.models.sqlite.scan_parameter
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -31,6 +31,11 @@ def upgrade() -> None:
             "scan_values",
             icon.server.data_access.models.sqlite.scan_parameter.JSONEncodedList(),
             nullable=False,
+        ),
+        sa.Column("device_id", sa.Integer(), nullable=True),
+        sa.ForeignKeyConstraint(
+            ["device_id"],
+            ["devices.id"],
         ),
         sa.ForeignKeyConstraint(
             ["job_id"],
