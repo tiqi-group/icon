@@ -1,25 +1,18 @@
 from __future__ import annotations
 
 import logging
-import sys
 from collections import Counter
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, TypedDict
 
-from typing_extensions import NotRequired
-
-if sys.version_info < (3, 11):
-    from typing_extensions import NotRequired
-else:
-    from typing import NotRequired
-
 if TYPE_CHECKING:
     from icon.client.client import Client
+    from icon.server.api.models.experiment_dict import (
+        ExperimentDict,
+        ExperimentMetadata,
+    )
     from icon.server.api.models.parameter_metadata import (
         ParameterMetadata,
-    )
-    from icon.server.data_access.repositories.experiment_metadata_repository import (
-        ExperimentMetadata,
     )
 
 logger = logging.getLogger(__name__)
@@ -28,13 +21,11 @@ logger = logging.getLogger(__name__)
 class ScanParameter(TypedDict):
     parameter: ParameterProxy | str
     """A ParameterProxy object retrieved from the API, or the parameter identifier. """
-    values: dict[str, Any] | list[Any]
-    """ Either a dictionary with 'start', 'stop', and 'num_points' keys or a list of
-    explicit values. """
-    randomized: NotRequired[bool]
-    """Boolean indicating whether the values should be shuffled."""
-    reversed: NotRequired[bool]
-    """Boolean indicating whether the values should be reversed."""
+    values: list[Any]
+    """List of explicit values to scan."""
+    device_name: str | None
+    """Name of the device this parameter belongs to. None if variable lives in
+    InfluxDB."""
 
 
 def get_experiment_identifier_dict(experiments: list[str]) -> dict[str, str]:
@@ -221,10 +212,8 @@ class ExperimentProxy:
                     - 'parameter': A ParameterProxy object retrieved from the API.
                     - 'values': Either a dictionary with 'start', 'stop', and
                         'num_points' keys or a list of explicit values.
-                    - 'randomized': (Optional) Boolean indicating whether the values
-                        should be shuffled. Defaults to False.
-                    - 'reversed': (Optional) Boolean indicating whether the values
-                        should be reversed. Defaults to False.
+                    - 'device_name': Name of the remote device as defined in Icon. None
+                        if the parameter lives in InfluxDB.
             priority:
                 Priority level of the experiment (default: 20).
             repetitions:
@@ -243,15 +232,24 @@ class ExperimentProxy:
             ExperimentJobProxy: Proxy object for the scheduled experiment job.
         """
 
-        for parameter in scan_parameters:
-            if isinstance(parameter["parameter"], ParameterProxy):
-                parameter["parameter"] = parameter["parameter"]._parameter_id
-
         job_id: int = self._client.trigger_method(
             "scheduler.submit_job",
             kwargs={
                 "experiment_id": self._experiment_id,
-                "scan_parameters": scan_parameters,
+                "scan_parameters": [
+                    {
+                        "id": parameter["parameter"]
+                        if isinstance(parameter["parameter"], str)
+                        else parameter["parameter"]._parameter_id,
+                        "values": parameter["values"],
+                        **(
+                            {"device_name": parameter["device_name"]}
+                            if "device_name" in parameter
+                            else {}
+                        ),
+                    }
+                    for parameter in scan_parameters
+                ],
                 "priority": priority,
                 "local_parameters_timestamp": local_parameters_timestamp,
                 "repetitions": repetitions,
@@ -268,8 +266,12 @@ class ExperimentsController:
         self.__update_experiments()
 
     def __update_experiments(self) -> None:
-        self._experiments = self._client.trigger_method("experiments.get_experiments")
-        self._experiments_id_mapping = get_experiment_identifier_dict(self._experiments)
+        self._experiments: ExperimentDict = self._client.trigger_method(
+            "experiments.get_experiments"
+        )
+        self._experiments_id_mapping = get_experiment_identifier_dict(
+            list(self._experiments.keys())
+        )
 
     def __repr__(self) -> str:
         repr = "<Experiments>\n"
