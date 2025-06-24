@@ -216,12 +216,6 @@ class PreProcessingWorker(multiprocessing.Process):
                 while processed_data_points.qsize() != len(
                     scan_parameter_value_combinations
                 ):
-                    if job_run_cancelled_or_failed(
-                        job_id=pre_processing_task.job.id,
-                        log_prefix=f"(pre-worker {self._worker_number})",
-                    ):
-                        break
-
                     # TODO: this should probably be done with multiple workers to speed
                     # up the preparation of JSONs
                     try:
@@ -229,6 +223,12 @@ class PreProcessingWorker(multiprocessing.Process):
                     except queue.Empty:
                         time.sleep(0.001)
                         continue
+
+                    if job_run_cancelled_or_failed(
+                        job_id=pre_processing_task.job.id,
+                        log_prefix=f"(pre-worker {self._worker_number})",
+                    ):
+                        break
 
                     global_parameter_timestamp = datetime.now(timezone)
                     sequence_json = asyncio.run(
