@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Sequence
 
+import sqlalchemy.exc
 import sqlalchemy.orm.session
 
 from icon.server.data_access.db_context.sqlite import engine
@@ -10,6 +11,10 @@ from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncode
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 logger = logging.getLogger(__name__)
+
+
+class NoDeviceFoundError(Exception):
+    pass
 
 
 class DeviceRepository:
@@ -99,10 +104,15 @@ class DeviceRepository:
     ) -> Device:
         """Gets the Device instances with given name."""
 
-        with sqlalchemy.orm.Session(engine) as session:
-            stmt = sqlalchemy.select(Device).where(Device.name == name)
+        try:
+            with sqlalchemy.orm.Session(engine) as session:
+                stmt = sqlalchemy.select(Device).where(Device.name == name)
 
-            return session.execute(stmt).scalar_one()
+                return session.execute(stmt).scalar_one()
+        except sqlalchemy.exc.NoResultFound:
+            raise NoDeviceFoundError(
+                f"Device with name {name!r} does not exit.",
+            )
 
     @staticmethod
     def get_all_device_names() -> Sequence[str]:
