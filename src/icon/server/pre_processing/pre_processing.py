@@ -88,9 +88,9 @@ def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
     """
 
     # Extract variable IDs and their scan values from the job's scan parameters
-    parameter_values = {
-        param.variable_id: param.scan_values for param in job.scan_parameters
-    }
+    parameter_values: dict[str, Any] = {}
+    for scan_param in job.scan_parameters:
+        parameter_values[scan_param.unique_id()] = scan_param.scan_values
 
     # Generate combinations using itertools.product
     keys = list(parameter_values.keys())
@@ -143,6 +143,34 @@ def job_run_cancelled_or_failed(job_id: int) -> bool:
         )
         return True
     return False
+
+
+def parse_parameter_id(param_id: str) -> tuple[str | None, str]:
+    """Parses a parameter ID string into a device name and variable ID.
+
+    If the input string is in the format "Device(device_name) variable_id",
+    the device name and variable ID are returned as a tuple.
+
+    Parameters:
+        param_id: The parameter identifier string.
+
+    Returns:
+        A tuple (device_name, variable_id). If the input does not match the expected
+        format, device_name is None and the entire param_id is returned as the
+        variable_id.
+
+    Examples:
+        >>> parse_parameter_id("Device(my_device) my_param")
+        ('my_device', 'my_param')
+
+        >>> parse_parameter_id("bare_param")
+        (None, 'bare_param')
+    """
+
+    match = re.match(r"^Device\(([^)]+)\) (.*)$", param_id)
+    if match:
+        return match[1], match[2]
+    return None, param_id
 
 
 class PreProcessingWorker(multiprocessing.Process):
