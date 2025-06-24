@@ -43,7 +43,7 @@ class DevicesController(pydase.DataService):
         if status == "enabled":
             client = pydase.Client(
                 url=device.url,
-                client_id="ICON-devices-controller",
+                client_id="icon-devices-controller",
                 block_until_connected=False,
             )
             self._devices[name] = client
@@ -70,7 +70,7 @@ class DevicesController(pydase.DataService):
         elif status == "enabled":
             client = pydase.Client(
                 url=device.url,
-                client_id="ICON-devices-controller",
+                client_id="icon-devices-controller",
                 block_until_connected=False,
             )
             self._devices[name] = client
@@ -132,7 +132,7 @@ class DevicesController(pydase.DataService):
         for device in devices:
             client = pydase.Client(
                 url=device.url,
-                client_id="ICON-devices-controller",
+                client_id="icon-devices-controller",
                 block_until_connected=False,
             )
             self._devices[device.name] = client
