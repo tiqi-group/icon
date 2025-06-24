@@ -42,7 +42,6 @@ if TYPE_CHECKING:
     from icon.server.pre_processing.task import PreProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
 
-DUMMY_DATA = False
 logger = logging.getLogger(__name__)
 timezone = pytz.timezone(get_config().date.timezone)
 
@@ -303,42 +302,26 @@ class PreProcessingWorker(multiprocessing.Process):
                     # )
                     # self._hw_processing_queue.put(task)
 
-                    if not DUMMY_DATA:
-                        for param, value in data_point.items():
-                            device_name, access_path = parse_parameter_id(
-                                param_id=param
-                            )
-                            if device_name is not None:
-                                client = self._pydase_clients.get(device_name, None)
-                                if client is None:
-                                    client = pydase.Client(
-                                        url=DeviceRepository.get_device_by_name(
-                                            name=device_name
-                                        ).url,
-                                        auto_update_proxy=False,
-                                    )
-                                    self._pydase_clients[device_name] = client
-                                client.update_value(
-                                    access_path=access_path, new_value=value
+                    for param, value in data_point.items():
+                        device_name, access_path = parse_parameter_id(param_id=param)
+                        if device_name is not None:
+                            client = self._pydase_clients.get(device_name, None)
+                            if client is None:
+                                client = pydase.Client(
+                                    url=DeviceRepository.get_device_by_name(
+                                        name=device_name
+                                    ).url,
+                                    auto_update_proxy=False,
                                 )
+                                self._pydase_clients[device_name] = client
+                            client.update_value(
+                                access_path=access_path, new_value=value
+                            )
 
-                        result = hardware_controller.run(
-                            sequence=sequence_json,
-                            number_of_shots=pre_processing_task.job.number_of_shots,
-                        )
-                    else:
-                        import random
-                        import statistics
-
-                        shot_channel = random.choices(
-                            range(12, 50), k=pre_processing_task.job.number_of_shots
-                        )
-
-                        result = {
-                            "result_channels": {"ca+": statistics.fmean(shot_channel)},
-                            "shot_channels": {"ca+": shot_channel},
-                            "vector_channels": {},
-                        }
+                    result = hardware_controller.run(
+                        sequence=sequence_json,
+                        number_of_shots=pre_processing_task.job.number_of_shots,
+                    )
 
                     experiment_data_point: ExperimentDataPoint = {
                         "index": index,
