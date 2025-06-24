@@ -21,6 +21,8 @@ manager.start()
 
 # Create shared priority queues
 pre_processing_queue: queue.PriorityQueue[PreProcessingTask] = manager.PriorityQueue()
-hardware_queue: queue.PriorityQueue[HardwareProcessingTask] = manager.PriorityQueue()
+hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask] = (
+    manager.PriorityQueue()
+)
 post_processing_queue: queue.PriorityQueue[PostProcessingTask] = manager.PriorityQueue()
 parameters_dict: DictProxy[str, DatabaseValueType] = manager.dict()

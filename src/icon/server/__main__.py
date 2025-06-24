@@ -38,7 +38,7 @@ pre_processing_update_queues: list[multiprocessing.Queue[dict[str, Any]]] = []
 pre_processing_update_queues.append(multiprocessing.Queue())
 pre_processing_worker = PreProcessingWorker(
     worker_number=0,
-    hardware_processing_queue=icon.server.shared_resource_manager.hardware_queue,
+    hardware_processing_queue=icon.server.shared_resource_manager.hardware_processing_queue,
     pre_processing_queue=icon.server.shared_resource_manager.pre_processing_queue,
     update_queue=pre_processing_update_queues[0],
     manager=icon.server.shared_resource_manager.manager,
