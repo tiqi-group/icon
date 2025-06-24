@@ -13,10 +13,12 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import psutil
+import pydase
 import pytz
 
 from icon.config.config import get_config
-from icon.server.data_access.models.enums import JobRunStatus, JobStatus
+from icon.server.data_access.models.enums import DeviceStatus, JobRunStatus, JobStatus
+from icon.server.data_access.repositories.device_repository import DeviceRepository
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataPoint,
     ExperimentDataRepository,
@@ -194,6 +196,12 @@ class PreProcessingWorker(multiprocessing.Process):
             logger.debug("%s - Created temp dir %s", self._worker_number, tmp_dir)
 
             hardware_controller = HardwareController()
+            self._pydase_clients = {
+                device.name: pydase.Client(url=device.url, auto_update_proxy=False)
+                for device in DeviceRepository.get_devices_by_status(
+                    status=DeviceStatus.ENABLED
+                )
+            }
 
             while True:
                 pre_processing_task = self._queue.get()
@@ -296,6 +304,24 @@ class PreProcessingWorker(multiprocessing.Process):
                     # self._hw_processing_queue.put(task)
 
                     if not DUMMY_DATA:
+                        for param, value in data_point.items():
+                            device_name, access_path = parse_parameter_id(
+                                param_id=param
+                            )
+                            if device_name is not None:
+                                client = self._pydase_clients.get(device_name, None)
+                                if client is None:
+                                    client = pydase.Client(
+                                        url=DeviceRepository.get_device_by_name(
+                                            name=device_name
+                                        ).url,
+                                        auto_update_proxy=False,
+                                    )
+                                    self._pydase_clients[device_name] = client
+                                client.update_value(
+                                    access_path=access_path, new_value=value
+                                )
+
                         result = hardware_controller.run(
                             sequence=sequence_json,
                             number_of_shots=pre_processing_task.job.number_of_shots,
