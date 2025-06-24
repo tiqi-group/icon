@@ -55,7 +55,7 @@ class ScanParameter(Base):
         sqlalchemy.ForeignKey("devices.id"), nullable=True
     )
     device: sqlalchemy.orm.Mapped["Device"] = sqlalchemy.orm.relationship(
-        back_populates="scan_parameters"
+        back_populates="scan_parameters", lazy="joined"
     )
 
     def __repr__(self) -> str:
