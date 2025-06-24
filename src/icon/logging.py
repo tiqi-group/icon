@@ -17,7 +17,8 @@ LOGGING_CONFIG = {
         "default": {
             "()": "pydase.utils.logging.DefaultFormatter",
             "fmt": "%(asctime)s.%(msecs)03d | %(levelprefix)s | "
-            "%(name)s:%(funcName)s:%(lineno)d - %(message)s",
+            "[%(processName)s | %(threadName)s]"
+            " %(name)s:%(funcName)s:%(lineno)d - %(message)s",
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
     },
@@ -31,6 +32,7 @@ LOGGING_CONFIG = {
     "loggers": {
         "icon": {"handlers": ["default"], "level": LOG_LEVEL, "propagate": False},
         "asyncio": {"handlers": ["default"], "level": logging.INFO, "propagate": True},
+        "pydase": {"handlers": ["default"], "level": LOG_LEVEL, "propagate": False},
         "socketio": {
             "handlers": ["default"],
             "level": logging.WARNING,
