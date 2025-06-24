@@ -8,6 +8,7 @@ import icon.server.shared_resource_manager
 import icon.server.web_server.icon_server
 from icon.config.config import get_config
 from icon.server.api.api_service import APIService
+from icon.server.hardware_processing.hardware_processing import HardwareProcessingWorker
 from icon.server.pre_processing.pre_processing import PreProcessingWorker
 from icon.server.scheduler.scheduler import Scheduler
 from icon.server.web_server.sio_setup import patch_sio_setup
@@ -44,6 +45,12 @@ pre_processing_worker = PreProcessingWorker(
     manager=icon.server.shared_resource_manager.manager,
 )
 pre_processing_worker.start()
+
+hardware_processing_worker = HardwareProcessingWorker(
+    hardware_processing_queue=icon.server.shared_resource_manager.hardware_processing_queue,
+    manager=icon.server.shared_resource_manager.manager,
+)
+hardware_processing_worker.start()
 
 
 icon.server.web_server.icon_server.IconServer(

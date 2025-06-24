@@ -13,14 +13,11 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import psutil
-import pydase
 import pytz
 
 from icon.config.config import get_config
-from icon.server.data_access.models.enums import DeviceStatus, JobRunStatus, JobStatus
-from icon.server.data_access.repositories.device_repository import DeviceRepository
+from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.repositories.experiment_data_repository import (
-    ExperimentDataPoint,
     ExperimentDataRepository,
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
@@ -34,12 +31,11 @@ from icon.server.data_access.repositories.parameters_repository import (
 from icon.server.data_access.repositories.pycrystal_library_repository import (
     PycrystalLibraryRepository,
 )
-from icon.server.hardware_processing.hardware_controller import HardwareController
+from icon.server.hardware_processing.task import HardwareProcessingTask
 
 if TYPE_CHECKING:
     from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
     from icon.server.data_access.models.sqlite.job import Job
-    from icon.server.hardware_processing.task import HardwareProcessingTask
     from icon.server.pre_processing.task import PreProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
 
@@ -135,34 +131,6 @@ def cache_parameter_values(
     return parameter_dict
 
 
-def parse_parameter_id(param_id: str) -> tuple[str | None, str]:
-    """Parses a parameter ID string into a device name and variable ID.
-
-    If the input string is in the format "Device(device_name) variable_id",
-    the device name and variable ID are returned as a tuple.
-
-    Parameters:
-        param_id: The parameter identifier string.
-
-    Returns:
-        A tuple (device_name, variable_id). If the input does not match the expected
-        format, device_name is None and the entire param_id is returned as the
-        variable_id.
-
-    Examples:
-        >>> parse_parameter_id("Device(my_device) my_param")
-        ('my_device', 'my_param')
-
-        >>> parse_parameter_id("bare_param")
-        (None, 'bare_param')
-    """
-
-    match = re.match(r"^Device\(([^)]+)\) (.*)$", param_id)
-    if match:
-        return match[1], match[2]
-    return None, param_id
-
-
 class PreProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
@@ -181,15 +149,9 @@ class PreProcessingWorker(multiprocessing.Process):
 
     def run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            logger.debug("%s - Created temp dir %s", self._worker_number, tmp_dir)
-
-            hardware_controller = HardwareController()
-            self._pydase_clients = {
-                device.name: pydase.Client(url=device.url, auto_update_proxy=False)
-                for device in DeviceRepository.get_devices_by_status(
-                    status=DeviceStatus.ENABLED
-                )
-            }
+            logger.debug(
+                "(pre-worker=%s) - Created temp dir %s", self._worker_number, tmp_dir
+            )
 
             while True:
                 pre_processing_task = self._queue.get()
@@ -254,7 +216,10 @@ class PreProcessingWorker(multiprocessing.Process):
                 while processed_data_points.qsize() != len(
                     scan_parameter_value_combinations
                 ):
-                    if job_run_cancelled_or_failed(job_id=pre_processing_task.job.id):
+                    if job_run_cancelled_or_failed(
+                        job_id=pre_processing_task.job.id,
+                        log_prefix=f"(pre-worker {self._worker_number})",
+                    ):
                         break
 
                     # TODO: this should probably be done with multiple workers to speed
@@ -274,61 +239,28 @@ class PreProcessingWorker(multiprocessing.Process):
                         )
                     )
 
-                    # task = HardwareProcessingTask(
-                    #     pre_processing_task=pre_processing_task,
-                    #     priority=pre_processing_task.priority,
-                    #     data_point=data_point,
-                    #     global_parameter_timestamp=global_parameter_timestamp,
-                    #     src_dir=src_dir,
-                    #     sequence_json=sequence_json,
-                    # )
-                    #
-                    # logger.debug(
-                    #     "(worker=%s) Submitting data point %s (job_run_id=%s)",
-                    #     self._worker_number,
-                    #     data_point,
-                    #     pre_processing_task.job_run.id,
-                    # )
-                    # self._hw_processing_queue.put(task)
-
-                    for param, value in data_point.items():
-                        device_name, access_path = parse_parameter_id(param_id=param)
-                        if device_name is not None:
-                            client = self._pydase_clients.get(device_name, None)
-                            if client is None:
-                                client = pydase.Client(
-                                    url=DeviceRepository.get_device_by_name(
-                                        name=device_name
-                                    ).url,
-                                    auto_update_proxy=False,
-                                )
-                                self._pydase_clients[device_name] = client
-                            client.update_value(
-                                access_path=access_path, new_value=value
-                            )
-
-                    result = hardware_controller.run(
-                        sequence=sequence_json,
-                        number_of_shots=pre_processing_task.job.number_of_shots,
+                    task = HardwareProcessingTask(
+                        data_point_index=index,
+                        pre_processing_task=pre_processing_task,
+                        priority=pre_processing_task.priority,
+                        global_parameter_timestamp=global_parameter_timestamp,
+                        scanned_params=data_point,
+                        src_dir=src_dir,
+                        sequence_json=sequence_json,
+                        processed_data_points=processed_data_points,
+                        data_points_to_process=data_points_to_process,
                     )
 
-                    experiment_data_point: ExperimentDataPoint = {
-                        "index": index,
-                        "scan_params": data_point,
-                        "result_channels": result["result_channels"],
-                        "shot_channels": result["shot_channels"],
-                        "vector_channels": result["vector_channels"],
-                        "timestamp": global_parameter_timestamp.isoformat(),
-                    }
-
-                    ExperimentDataRepository.write_experiment_data_by_job_id(
-                        job_id=pre_processing_task.job.id,
-                        data_point=experiment_data_point,
+                    logger.debug(
+                        "(pre-worker=%s) Submitting data point %s (job_run_id=%s)",
+                        self._worker_number,
+                        data_point,
+                        pre_processing_task.job_run.id,
                     )
-                    processed_data_points.put(data_point)
+                    self._hw_processing_queue.put(task)
 
                 logger.info(
-                    "(worker=%s) JobRun with id '%s' finished",
+                    "(pre-worker=%s) JobRun with id '%s' finished",
                     self._worker_number,
                     pre_processing_task.job_run.id,
                 )
