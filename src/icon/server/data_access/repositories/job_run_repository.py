@@ -14,6 +14,19 @@ from icon.server.web_server.socketio_emit_queue import emit_queue
 logger = logging.getLogger(__name__)
 
 
+def job_run_cancelled_or_failed(job_id: int, log_prefix: str) -> bool:
+    job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
+    if job_run.status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
+        logger.info(
+            "%s JobRun with id %s %s. Discarding data point.",
+            log_prefix,
+            job_run.id,
+            job_run.status.value,
+        )
+        return True
+    return False
+
+
 class JobRunRepository:
     @staticmethod
     def insert_run(
