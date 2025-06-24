@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 
 class ScanParameter(TypedDict):
     id: str
     """The parameter identifier. """
-    values: dict[str, Any] | list[Any]
-    """ Either a dictionary with 'start', 'stop', and 'num_points' keys or a list of
-    explicit values. """
+    values: list[Any]
+    """List of explicit values to scan."""
+    device_name: NotRequired[str]
+    """Name of the device this parameter belongs to. None if variable lives in
+    InfluxDB."""
