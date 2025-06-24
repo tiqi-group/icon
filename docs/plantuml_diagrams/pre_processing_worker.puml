@@ -18,18 +18,12 @@ repeat
             updates the python environment.
         end note
     endif
-    if (cache local params locally?) then (yes)
-        :Cache local parameters
-        in valkey cache given
-        submission timestamp;
-        :Set local parameter
-        prefix to worker-id;
-        note
-            Prefix will be used when
-            querying the local params
-            when generating JSON file
-        end note
-    endif
+    :Cache parameter values;
+    note
+        Get current values for all parameters in InfluxDB
+        and the experiment namespace parameters based on
+        the local_params_timestamp.
+    end note
     :Prepare data points;
     note
         Create queues for data points to process and
@@ -37,13 +31,22 @@ repeat
         into account.
     end note
     while (All data points processed?) is (no)
+        :Process update_queue;
+        note left
+            This queue contains events like "update_scan",
+            where all parameters should be updated, or
+            "calibration" containing a dictionary of
+            calibrated parameter values.
+        end note
         :Attempt to get the next data point;
         if (Data Point Queue is Empty?) then (yes)
             :Continue inner loop;
             note left
                 The hardware/post-processing
                 worker might still requeue
-                data points if necessary
+                data points if necessary. Manual
+                scans might still queue additional
+                data points.
             end note
         else (no)
             partition #00000010 Pre-process data point{

@@ -12,6 +12,15 @@ repeat :Get data point from priority 'hardware_queue';
         end note
         if (Parameters up-to-date?) then (yes)
             repeat
+                repeat
+                    :Set parameters on
+                    remote devices (if any);
+                    note
+                        Set the parameter and check
+                        if it was set correctly.
+                        Optional delay before check.
+                    end note
+                repeat while (Succeded or number of retries exceeded?) is (no)
                 :Process data point;
             repeat while (Succeded or number of retries exceeded?) is (no)
             if (Processing failed?) then (yes)
