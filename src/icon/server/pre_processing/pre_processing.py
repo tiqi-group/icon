@@ -133,6 +133,18 @@ def cache_parameter_values(
     return parameter_dict
 
 
+def job_run_cancelled_or_failed(job_id: int) -> bool:
+    job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
+    if job_run.status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
+        logger.info(
+            "JobRun with id %s %s. Discarding data point.",
+            job_run.id,
+            job_run.status.value,
+        )
+        return True
+    return False
+
+
 class PreProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
@@ -218,6 +230,9 @@ class PreProcessingWorker(multiprocessing.Process):
                 while processed_data_points.qsize() != len(
                     scan_parameter_value_combinations
                 ):
+                    if job_run_cancelled_or_failed(job_id=pre_processing_task.job.id):
+                        break
+
                     # TODO: this should probably be done with multiple workers to speed
                     # up the preparation of JSONs
                     try:
