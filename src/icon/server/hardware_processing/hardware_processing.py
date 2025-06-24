@@ -66,6 +66,27 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self._queue = hardware_processing_queue
         self._manager = manager
 
+    def _update_pydase_service_parameter(
+        self, device_name: str, access_path: str, new_value: DatabaseValueType
+    ) -> None:
+        self._pydase_clients[device_name].update_value(
+            access_path=access_path, new_value=new_value
+        )
+        # TODO: wait n seconds before trying to validate -> this value should be defined
+        # per device -> store in devices table
+        # TODO: repeat check n times if it fails -> also defined per device. If it still
+        # fails, raise an exception and mark the job failed
+        # TODO: add "rounding", i.e. bounds for rounding errors
+        if (
+            self._pydase_clients[device_name].get_value(access_path=access_path)
+            != new_value
+        ):
+            logger.warning(
+                "(hardware-worker) %r of device %r was probably not set correctly",
+                access_path,
+                device_name,
+            )
+
     def _set_pydase_service_values(
         self, scanned_params: dict[str, DatabaseValueType]
     ) -> None:
@@ -83,7 +104,9 @@ class HardwareProcessingWorker(multiprocessing.Process):
                     auto_update_proxy=False,
                 )
                 self._pydase_clients[device_name] = client
-            client.update_value(access_path=access_path, new_value=value)
+            self._update_pydase_service_parameter(
+                device_name=device_name, access_path=access_path, new_value=value
+            )
 
     def run(self) -> None:
         self._pydase_clients = {
@@ -120,6 +143,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 "timestamp": task.global_parameter_timestamp.isoformat(),
             }
 
+            # TODO: move this to the post-processing worker
             ExperimentDataRepository.write_experiment_data_by_job_id(
                 job_id=task.pre_processing_task.job.id,
                 data_point=experiment_data_point,
