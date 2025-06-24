@@ -228,7 +228,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     global_parameter_timestamp = datetime.now(timezone)
                     sequence_json = asyncio.run(
                         PycrystalLibraryRepository.generate_json_sequence(
-                            parameter_dict=parameter_dict,
+                            parameter_dict={**parameter_dict, **data_point},
                             exp_module_name=exp_module_name,
                             exp_instance_name=experiment_id,
                         )
@@ -250,9 +250,6 @@ class PreProcessingWorker(multiprocessing.Process):
                     #     pre_processing_task.job_run.id,
                     # )
                     # self._hw_processing_queue.put(task)
-
-                    # set scan parameter values
-                    parameter_dict.update(data_point)
 
                     if not DUMMY_DATA:
                         result = hardware_controller.run(
