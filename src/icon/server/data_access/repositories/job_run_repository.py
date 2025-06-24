@@ -105,7 +105,7 @@ class JobRunRepository:
         *,
         job_id: int,
         load_job: bool = False,
-    ) -> Sequence[sqlalchemy.Row[tuple[JobRun]]]:
+    ) -> JobRun:
         """Gets the JobRun instances with given job_id."""
 
         with sqlalchemy.orm.Session(engine) as session:
@@ -114,9 +114,9 @@ class JobRunRepository:
             if load_job:
                 stmt = stmt.options(sqlalchemy.orm.joinedload(JobRun.job))
 
-            runs = session.execute(stmt).all()
+            run = session.execute(stmt).scalar_one()
             logger.debug("Got JobRun by job_id %s", job_id)
-        return runs
+        return run
 
     @staticmethod
     def get_scheduled_time_by_job_id(
