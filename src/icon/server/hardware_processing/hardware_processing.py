@@ -7,6 +7,7 @@ import time
 from typing import TYPE_CHECKING
 
 import pydase
+import socketio.exceptions
 
 from icon.server.data_access.models.enums import DeviceStatus, JobRunStatus
 from icon.server.data_access.repositories.device_repository import DeviceRepository
@@ -73,7 +74,12 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self, device: Device, access_path: str, new_value: DatabaseValueType
     ) -> None:
         client = self._pydase_clients[device.name]
-        client.update_value(access_path=access_path, new_value=new_value)
+        try:
+            client.update_value(access_path=access_path, new_value=new_value)
+        except socketio.exceptions.BadNamespaceError:
+            raise RuntimeError(
+                f"Failed to connect to device {device.name!r} as {device.url!r}."
+            )
 
         for attempt in range(1, device.retry_attempts + 1):
             value_on_device = client.get_value(access_path=access_path)
@@ -91,7 +97,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 time.sleep(device.retry_delay_seconds)
 
         raise RuntimeError(
-            f"Failed to set {access_path!r} of device {device.name} after "
+            f"Failed to set {access_path!r} of device {device.name!r} after "
             f"{device.retry_attempts} attempts."
         )
 
