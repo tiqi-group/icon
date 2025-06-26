@@ -180,6 +180,25 @@ class ExperimentDataRepository:
             if local_parameter_timestamp is not None:
                 h5file.attrs["local_parameter_timestamp"] = local_parameter_timestamp
 
+            scan_parameter_dtype = [
+                ("timestamp", "S26"),
+                *[(param.variable_id, np.float64) for param in parameters],
+            ]
+            h5file.create_dataset(
+                "scan_parameters",
+                shape=(0, 1),
+                maxshape=(None, 1),
+                chunks=True,
+                dtype=scan_parameter_dtype,
+            )
+
+            for parameter in parameters:
+                if parameter.device is not None:
+                    h5file["scan_parameters"].attrs[parameter.unique_id()] = (
+                        f"name={parameter.device.name} url={parameter.device.url}"
+                        f"description={parameter.device.description}"
+                    )
+
     @staticmethod
     def write_experiment_data_by_job_id(
         *,
@@ -252,7 +271,13 @@ class ExperimentDataRepository:
         *,
         job_id: int,
     ) -> ExperimentData:
-        data: ExperimentData = {}  # type: ignore
+        data: ExperimentData = {
+            "shot_channels": {},
+            "result_channels": {},
+            "vector_channels": {},
+            "scan_parameters": {},
+        }
+
         filename = get_filename_by_job_id(job_id)
         file = f"{get_config().experiment_library.results_dir}/{filename}"
 
