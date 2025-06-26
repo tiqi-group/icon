@@ -263,7 +263,14 @@ class PreProcessingWorker(multiprocessing.Process):
                 JobRepository.update_job_status(
                     job=pre_processing_task.job, status=JobStatus.PROCESSED
                 )
-                JobRunRepository.update_run_by_id(
-                    run_id=pre_processing_task.job_run.id,
-                    status=JobRunStatus.DONE,
-                )
+
+                if (
+                    JobRunRepository.get_run_by_job_id(
+                        job_id=pre_processing_task.job.id
+                    ).status
+                    == JobRunStatus.PROCESSING
+                ):
+                    JobRunRepository.update_run_by_id(
+                        run_id=pre_processing_task.job_run.id,
+                        status=JobRunStatus.DONE,
+                    )
