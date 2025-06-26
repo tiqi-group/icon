@@ -149,9 +149,7 @@ class PreProcessingWorker(multiprocessing.Process):
 
     def run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            logger.debug(
-                "(pre-worker=%s) - Created temp dir %s", self._worker_number, tmp_dir
-            )
+            logger.debug("Created temp dir %s", tmp_dir)
 
             while True:
                 pre_processing_task = self._queue.get()
@@ -251,16 +249,14 @@ class PreProcessingWorker(multiprocessing.Process):
                     )
 
                     logger.debug(
-                        "(pre-worker=%s) Submitting data point %s (job_run_id=%s)",
-                        self._worker_number,
+                        "Submitting data point %s (job_run_id=%s)",
                         data_point,
                         pre_processing_task.job_run.id,
                     )
                     self._hw_processing_queue.put(task)
 
                 logger.info(
-                    "(pre-worker=%s) JobRun with id '%s' finished",
-                    self._worker_number,
+                    "JobRun with id '%s' finished",
                     pre_processing_task.job_run.id,
                 )
 
