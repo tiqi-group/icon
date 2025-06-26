@@ -33,7 +33,7 @@ const ReachabilityIndicator = ({ reachable }: { reachable: boolean }) => (
 const DeviceItem = ({ name, info }: { name: string; info: DeviceInfo }) => {
   const toggleStatus = () => {
     const newStatus = info.status === DeviceStatus.ENABLED ? "disabled" : "enabled";
-    runMethod("devices.update_device_status", [], { name, status: newStatus });
+    runMethod("devices.update_device", [], { name, status: newStatus });
   };
 
   return (
