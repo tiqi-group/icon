@@ -1,16 +1,30 @@
+import logging
+
 import tiqi_zedboard.zedboard  # type: ignore
 
 from icon.config.config import get_config
 from icon.server.data_access.repositories.experiment_data_repository import ResultDict
+
+logger = logging.getLogger(__name__)
 
 
 class HardwareController:
     def __init__(self) -> None:
         self._host = get_config().hardware.host
         self._port = get_config().hardware.port
+        self._connect()
+
+    def _connect(self) -> None:
+        logger.info("Connecting to the Zedboard")
         self._zedboard: tiqi_zedboard.zedboard.Zedboard = (
             tiqi_zedboard.zedboard.Zedboard(hostname=self._host, port=self._port)
         )
+        if not self.connected:
+            logger.warning("Failed to connect to the Zedboard")
+
+    @property
+    def connected(self) -> bool:
+        return hasattr(self._zedboard, "_client") and self._zedboard._client is not None
 
     def _update_zedboard_sequence(self, *, sequence: str) -> None:
         self._zedboard.sequence_JSON_parser.Sequence_JSON = sequence  # type: ignore
@@ -19,6 +33,12 @@ class HardwareController:
         self._zedboard.sequence_JSON_parser.Shots = number_of_shots  # type: ignore
 
     def run(self, *, sequence: str, number_of_shots: int) -> ResultDict:
+        if not self.connected:
+            self._connect()
+
+        if not self.connected:
+            raise RuntimeError("Could not connect to the Zedboard")
+
         self._update_zedboard_sequence(sequence=sequence)
         self._update_number_of_shots(number_of_shots=number_of_shots)
         self._zedboard.sequence_JSON_parser.Parse_JSON_Header()  # type: ignore
