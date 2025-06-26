@@ -8,13 +8,14 @@ from typing import TYPE_CHECKING
 
 import pydase
 
-from icon.server.data_access.models.enums import DeviceStatus
+from icon.server.data_access.models.enums import DeviceStatus, JobRunStatus
 from icon.server.data_access.repositories.device_repository import DeviceRepository
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataPoint,
     ExperimentDataRepository,
 )
 from icon.server.data_access.repositories.job_run_repository import (
+    JobRunRepository,
     job_run_cancelled_or_failed,
 )
 from icon.server.hardware_processing.hardware_controller import HardwareController
@@ -144,26 +145,35 @@ class HardwareProcessingWorker(multiprocessing.Process):
             ):
                 continue
 
-            self._set_pydase_service_values(scanned_params=task.scanned_params)
+            try:
+                self._set_pydase_service_values(scanned_params=task.scanned_params)
 
-            result = hardware_controller.run(
-                sequence=task.sequence_json,
-                number_of_shots=task.pre_processing_task.job.number_of_shots,
-            )
+                result = hardware_controller.run(
+                    sequence=task.sequence_json,
+                    number_of_shots=task.pre_processing_task.job.number_of_shots,
+                )
 
-            experiment_data_point: ExperimentDataPoint = {
-                "index": task.data_point_index,
-                "scan_params": task.scanned_params,
-                "result_channels": result["result_channels"],
-                "shot_channels": result["shot_channels"],
-                "vector_channels": result["vector_channels"],
-                "timestamp": task.global_parameter_timestamp.isoformat(),
-            }
+                experiment_data_point: ExperimentDataPoint = {
+                    "index": task.data_point_index,
+                    "scan_params": task.scanned_params,
+                    "result_channels": result["result_channels"],
+                    "shot_channels": result["shot_channels"],
+                    "vector_channels": result["vector_channels"],
+                    "timestamp": task.global_parameter_timestamp.isoformat(),
+                }
 
-            # TODO: move this to the post-processing worker
-            ExperimentDataRepository.write_experiment_data_by_job_id(
-                job_id=task.pre_processing_task.job.id,
-                data_point=experiment_data_point,
-            )
+                # TODO: move this to the post-processing worker
+                ExperimentDataRepository.write_experiment_data_by_job_id(
+                    job_id=task.pre_processing_task.job.id,
+                    data_point=experiment_data_point,
+                )
 
-            task.processed_data_points.put(task.scanned_params)
+            except Exception as e:
+                logger.exception(e)
+                JobRunRepository.update_run_by_id(
+                    run_id=task.pre_processing_task.job_run.id,
+                    status=JobRunStatus.FAILED,
+                    log=str(e),
+                )
+            finally:
+                task.processed_data_points.put(task.scanned_params)
