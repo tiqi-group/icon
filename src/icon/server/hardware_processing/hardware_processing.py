@@ -135,7 +135,9 @@ class HardwareProcessingWorker(multiprocessing.Process):
 
     def run(self) -> None:
         self._pydase_clients = {
-            device.name: pydase.Client(url=device.url, auto_update_proxy=False)
+            device.name: pydase.Client(
+                url=device.url, block_until_connected=False, auto_update_proxy=False
+            )
             for device in DeviceRepository.get_devices_by_status(
                 status=DeviceStatus.ENABLED
             )
