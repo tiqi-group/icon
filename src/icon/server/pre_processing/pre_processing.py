@@ -226,7 +226,6 @@ class PreProcessingWorker(multiprocessing.Process):
 
                     if job_run_cancelled_or_failed(
                         job_id=pre_processing_task.job.id,
-                        log_prefix=f"(pre-worker {self._worker_number})",
                     ):
                         break
 
