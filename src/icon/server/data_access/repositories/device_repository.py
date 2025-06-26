@@ -1,3 +1,4 @@
+import enum
 import logging
 from collections.abc import Sequence
 
@@ -40,14 +41,29 @@ class DeviceRepository:
         return device
 
     @staticmethod
-    def update_device_status(*, name: str, status: DeviceStatus) -> Device:
+    def update_device(
+        *,
+        name: str,
+        status: DeviceStatus | None = None,
+        retry_attempts: int | None = None,
+        retry_delay_seconds: float | None = None,
+    ) -> Device:
         """Updates a device instance in the database and returns this instance."""
+        updated_properties = {
+            name: new_value
+            for name, new_value in {
+                "status": status if status is not None else None,
+                "retry_attempts": retry_attempts,
+                "retry_delay_seconds": retry_delay_seconds,
+            }.items()
+            if new_value is not None
+        }
 
         with sqlalchemy.orm.session.Session(engine) as session:
             stmt = (
                 sqlalchemy.update(Device)
                 .where(Device.name == name)
-                .values(status=status)
+                .values(updated_properties)
                 .returning(Device)
             )
             device = session.execute(stmt).scalar_one()
@@ -55,15 +71,20 @@ class DeviceRepository:
 
             logger.debug("Updated device %s", device)
 
+        serialized_properties = {
+            key: value.value if isinstance(value, enum.Enum) else value
+            for key, value in updated_properties.items()
+        }
+
+        if "status" in updated_properties:
+            serialized_properties["reachable"] = False
+
         emit_queue.put(
             {
                 "event": "device.update",
                 "data": {
                     "device_name": device.name,
-                    "updated_properties": {
-                        "status": status.value,
-                        "reachable": False,
-                    },
+                    "updated_properties": serialized_properties,
                 },
             }
         )

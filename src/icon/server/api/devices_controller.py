@@ -26,17 +26,24 @@ class DevicesController(pydase.DataService):
         self.device_proxies: dict[str, ProxyClass] = {}
         self._initialise_devices()
 
-    def add_device(
+    def add_device(  # noqa: PLR0913
         self,
         *,
         name: str,
         url: str,
         status: Literal["disabled", "enabled"] = "enabled",
         description: str | None = None,
+        retry_delay_seconds: float = 0.0,
+        retry_attempts: int = 3,
     ) -> Device:
         device = DeviceRepository.add_device(
             device=Device(
-                name=name, url=url, status=DeviceStatus(status), description=description
+                name=name,
+                url=url,
+                status=DeviceStatus(status),
+                description=description,
+                retry_delay_seconds=retry_delay_seconds,
+                retry_attempts=retry_attempts,
             )
         )
 
@@ -51,14 +58,19 @@ class DevicesController(pydase.DataService):
 
         return device
 
-    def update_device_status(
+    def update_device(
         self,
         *,
         name: str,
-        status: Literal["disabled", "enabled"],
+        status: Literal["disabled", "enabled"] | None = None,
+        retry_attempts: int | None = None,
+        retry_delay_seconds: float | None = None,
     ) -> Device:
-        device = DeviceRepository.update_device_status(
-            name=name, status=DeviceStatus(status)
+        device = DeviceRepository.update_device(
+            name=name,
+            status=DeviceStatus(status) if status is not None else None,
+            retry_attempts=retry_attempts,
+            retry_delay_seconds=retry_delay_seconds,
         )
 
         if status == "disabled" and name in self._devices:
