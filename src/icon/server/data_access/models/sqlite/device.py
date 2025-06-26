@@ -35,6 +35,14 @@ class Device(Base):
     description: sqlalchemy.orm.Mapped[str | None] = sqlalchemy.orm.mapped_column(
         default=None
     )
+    retry_attempts: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        default=3,
+        nullable=False,
+        doc="Number of attempts to verify the device value was set correctly",
+    )
+    retry_delay_seconds: sqlalchemy.orm.Mapped[float] = sqlalchemy.orm.mapped_column(
+        default=0.0, nullable=False, doc="Delay in seconds between retry attempts"
+    )
     scan_parameters: sqlalchemy.orm.Mapped[list["ScanParameter"]] = (
         sqlalchemy.orm.relationship("ScanParameter", back_populates="device")
     )
