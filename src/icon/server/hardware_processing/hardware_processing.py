@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import multiprocessing
 import re
+import time
 from typing import TYPE_CHECKING
 
 import pydase
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
     import queue
 
     from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+    from icon.server.data_access.models.sqlite.device import Device
     from icon.server.hardware_processing.task import HardwareProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
 
@@ -67,25 +69,37 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self._manager = manager
 
     def _update_pydase_service_parameter(
-        self, device_name: str, access_path: str, new_value: DatabaseValueType
+        self, device: Device, access_path: str, new_value: DatabaseValueType
     ) -> None:
-        self._pydase_clients[device_name].update_value(
-            access_path=access_path, new_value=new_value
-        )
-        # TODO: wait n seconds before trying to validate -> this value should be defined
-        # per device -> store in devices table
-        # TODO: repeat check n times if it fails -> also defined per device. If it still
-        # fails, raise an exception and mark the job failed
-        # TODO: add "rounding", i.e. bounds for rounding errors
-        if (
-            self._pydase_clients[device_name].get_value(access_path=access_path)
-            != new_value
-        ):
-            logger.warning(
-                "(hardware-worker) %r of device %r was probably not set correctly",
+        client = self._pydase_clients[device.name]
+        client.update_value(access_path=access_path, new_value=new_value)
+
+        for attempt in range(1, device.retry_attempts + 1):
+            value_on_device = client.get_value(access_path=access_path)
+            # TODO: check for rounding errors
+            if value_on_device == new_value:
+                return
+            logger.error(
+                "Attempt %d: %r of device %r was not set correctly (got %r)",
+                attempt,
                 access_path,
-                device_name,
+                device.name,
+                value_on_device,
             )
+            if attempt < device.retry_attempts:
+                time.sleep(device.retry_delay_seconds)
+
+        raise RuntimeError(
+            f"Failed to set {access_path!r} of device {device.name} after "
+            f"{device.retry_attempts} attempts."
+        )
+
+    def _add_device(self, device: Device) -> None:
+        self._pydase_clients[device.name] = pydase.Client(
+            url=device.url,
+            client_id="icon-hardware-worker",
+            auto_update_proxy=False,
+        )
 
     def _set_pydase_service_values(
         self, scanned_params: dict[str, DatabaseValueType]
@@ -96,16 +110,20 @@ class HardwareProcessingWorker(multiprocessing.Process):
             if device_name is None:
                 continue
 
-            client = self._pydase_clients.get(device_name, None)
-            if client is None:
-                client = pydase.Client(
-                    url=DeviceRepository.get_device_by_name(name=device_name).url,
-                    client_id="icon-hardware-worker",
-                    auto_update_proxy=False,
+            device = DeviceRepository.get_device_by_name(name=device_name)
+
+            if not device.status == DeviceStatus.ENABLED:
+                raise RuntimeError(
+                    f"Device {device.name!r} is disabled and cannot be scanned."
                 )
-                self._pydase_clients[device_name] = client
+
+            if device_name not in self._pydase_clients:
+                self._add_device(device=device)
+
             self._update_pydase_service_parameter(
-                device_name=device_name, access_path=access_path, new_value=value
+                device=device,
+                access_path=access_path,
+                new_value=value,
             )
 
     def run(self) -> None:
