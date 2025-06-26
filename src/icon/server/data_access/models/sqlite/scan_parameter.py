@@ -54,7 +54,7 @@ class ScanParameter(Base):
     device_id: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column(
         sqlalchemy.ForeignKey("devices.id"), nullable=True
     )
-    device: sqlalchemy.orm.Mapped["Device"] = sqlalchemy.orm.relationship(
+    device: sqlalchemy.orm.Mapped["Device | None"] = sqlalchemy.orm.relationship(
         back_populates="scan_parameters", lazy="joined"
     )
 
