@@ -7,5 +7,7 @@ export interface DeviceInfo {
   url: string;
   status: DeviceStatus;
   description: string | null;
+  retry_attempts: number;
+  retry_delay_seconds: number;
   reachable: boolean;
 }

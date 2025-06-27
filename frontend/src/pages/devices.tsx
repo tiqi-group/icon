@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import React, { useContext, useState } from "react";
 import {
   Box,
   Typography,
@@ -30,42 +30,110 @@ const ReachabilityIndicator = ({ reachable }: { reachable: boolean }) => (
   />
 );
 
-const DeviceItem = ({ name, info }: { name: string; info: DeviceInfo }) => {
-  const toggleStatus = () => {
-    const newStatus = info.status === DeviceStatus.ENABLED ? "disabled" : "enabled";
-    runMethod("devices.update_device", [], { name, status: newStatus });
-  };
+const DeviceItem = React.memo(
+  ({
+    name,
+    url,
+    status,
+    description,
+    retry_attempts,
+    retry_delay_seconds,
+    reachable,
+  }: {
+    name: string;
+    url: string;
+    status: DeviceStatus;
+    description: string | null;
+    retry_attempts: number;
+    retry_delay_seconds: number;
+    reachable: boolean;
+  }) => {
+    const toggleStatus = () => {
+      const newStatus = status === DeviceStatus.ENABLED ? "disabled" : "enabled";
+      runMethod("devices.update_device", [], { name, status: newStatus });
+    };
 
-  return (
-    <Box sx={{ mb: 1 }}>
-      <Box sx={{ display: "flex", alignItems: "center" }}>
-        {info.status === DeviceStatus.ENABLED && (
-          <ReachabilityIndicator reachable={info.reachable} />
+    const handleRetryAttemptsChange = (value: string) => {
+      const parsed = parseInt(value);
+      if (!Number.isNaN(parsed)) {
+        runMethod("devices.update_device", [], {
+          name,
+          retry_attempts: parsed,
+        });
+      }
+    };
+
+    const handleRetryDelayChange = (value: string) => {
+      const parsed = parseFloat(value);
+      if (!Number.isNaN(parsed)) {
+        runMethod("devices.update_device", [], {
+          name,
+          retry_delay_seconds: parsed,
+        });
+      }
+    };
+
+    return (
+      <Box sx={{ mb: 2 }}>
+        <Box sx={{ display: "flex", alignItems: "center" }}>
+          {status === DeviceStatus.ENABLED && (
+            <ReachabilityIndicator reachable={reachable} />
+          )}
+          <Typography component="span" sx={{ flexGrow: 1 }}>
+            {name} ({url})
+          </Typography>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={toggleStatus}
+            sx={{ minWidth: "90px" }}
+          >
+            {status === DeviceStatus.ENABLED ? "Disable" : "Enable"}
+          </Button>
+        </Box>
+
+        {description && (
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ pl: status === DeviceStatus.ENABLED ? 2 : 0 }}
+          >
+            {description}
+          </Typography>
         )}
-        <Typography component="span" sx={{ flexGrow: 1 }}>
-          {name} ({info.url})
-        </Typography>
-        <Button
-          size="small"
-          variant="outlined"
-          onClick={toggleStatus}
-          sx={{ minWidth: "90px" }}
-        >
-          {info.status === DeviceStatus.ENABLED ? "Disable" : "Enable"}
-        </Button>
+
+        <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
+          <TextField
+            label="Retry Attempts"
+            size="small"
+            type="number"
+            defaultValue={retry_attempts}
+            onBlur={(e) => handleRetryAttemptsChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleRetryAttemptsChange((e.target as HTMLInputElement).value);
+              }
+            }}
+            sx={{ width: "120px" }}
+          />
+          <TextField
+            label="Retry Delay (s)"
+            size="small"
+            type="number"
+            defaultValue={retry_delay_seconds}
+            onBlur={(e) => handleRetryDelayChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleRetryDelayChange((e.target as HTMLInputElement).value);
+              }
+            }}
+            sx={{ width: "140px" }}
+          />
+        </Box>
       </Box>
-      {info.description && (
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          sx={{ pl: info.status === DeviceStatus.ENABLED ? 2 : 0 }}
-        >
-          {info.description}
-        </Typography>
-      )}
-    </Box>
-  );
-};
+    );
+  },
+);
 
 const DeviceGroup = ({
   title,
@@ -83,7 +151,18 @@ const DeviceGroup = ({
         No devices
       </Typography>
     ) : (
-      devices.map(([name, info]) => <DeviceItem key={name} name={name} info={info} />)
+      devices.map(([name, info]) => (
+        <DeviceItem
+          key={name}
+          name={name}
+          url={info.url}
+          status={info.status}
+          description={info.description}
+          retry_attempts={info.retry_attempts}
+          retry_delay_seconds={info.retry_delay_seconds}
+          reachable={info.reachable}
+        />
+      ))
     )}
     <Divider sx={{ mt: 2 }} />
   </Box>
@@ -94,6 +173,8 @@ const AddDeviceDialog = ({ open, onClose }: { open: boolean; onClose: () => void
   const [url, setUrl] = useState("");
   const [status, setStatus] = useState<"enabled" | "disabled">("enabled");
   const [description, setDescription] = useState("");
+  const [retryAttempts, setRetryAttempts] = useState(3);
+  const [retryDelay, setRetryDelay] = useState(0.0);
 
   const handleSubmit = () => {
     runMethod("devices.add_device", [], {
@@ -101,6 +182,8 @@ const AddDeviceDialog = ({ open, onClose }: { open: boolean; onClose: () => void
       url,
       status,
       description: description || null,
+      retry_attempts: retryAttempts,
+      retry_delay_seconds: retryDelay,
     });
     onClose();
   };
@@ -140,6 +223,22 @@ const AddDeviceDialog = ({ open, onClose }: { open: boolean; onClose: () => void
           label="Description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
+        />
+        <TextField
+          fullWidth
+          margin="dense"
+          label="Retry Attempts"
+          type="number"
+          value={retryAttempts}
+          onChange={(e) => setRetryAttempts(parseInt(e.target.value))}
+        />
+        <TextField
+          fullWidth
+          margin="dense"
+          label="Retry Delay (s)"
+          type="number"
+          value={retryDelay}
+          onChange={(e) => setRetryDelay(parseFloat(e.target.value))}
         />
       </DialogContent>
       <DialogActions>
