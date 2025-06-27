@@ -15,8 +15,17 @@ import { DeviceInfoContext } from "../contexts/DeviceInfoContext";
 import { DeviceStatus } from "../types/enums";
 import { DeviceInfo } from "../types/DeviceInfo";
 import { runMethod } from "../socket";
+import EditIcon from "@mui/icons-material/Edit";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
 
-const ReachabilityIndicator = ({ reachable }: { reachable: boolean }) => (
+const ReachabilityIndicator = ({
+  enabled,
+  reachable,
+}: {
+  enabled: boolean;
+  reachable: boolean;
+}) => (
   <Box
     component="span"
     sx={{
@@ -24,7 +33,7 @@ const ReachabilityIndicator = ({ reachable }: { reachable: boolean }) => (
       width: 10,
       height: 10,
       borderRadius: "50%",
-      bgcolor: reachable ? "green" : "red",
+      bgcolor: enabled ? (reachable ? "green" : "red") : "grey",
       mr: 1,
     }}
   />
@@ -48,6 +57,8 @@ const DeviceItem = React.memo(
     retry_delay_seconds: number;
     reachable: boolean;
   }) => {
+    const [editingUrl, setEditingUrl] = useState(false);
+
     const toggleStatus = () => {
       const newStatus = status === DeviceStatus.ENABLED ? "disabled" : "enabled";
       runMethod("devices.update_device", [], { name, status: newStatus });
@@ -73,15 +84,77 @@ const DeviceItem = React.memo(
       }
     };
 
+    const handleUrlSubmit = (newUrl: string) => {
+      if (newUrl !== url) {
+        runMethod("devices.update_device", [], {
+          name,
+          url: newUrl,
+        });
+      }
+      setEditingUrl(false);
+    };
+
     return (
       <Box sx={{ mb: 2 }}>
         <Box sx={{ display: "flex", alignItems: "center" }}>
-          {status === DeviceStatus.ENABLED && (
-            <ReachabilityIndicator reachable={reachable} />
-          )}
-          <Typography component="span" sx={{ flexGrow: 1 }}>
-            {name} ({url})
-          </Typography>
+          <ReachabilityIndicator
+            enabled={status === DeviceStatus.ENABLED}
+            reachable={reachable}
+          />
+          <Box
+            sx={{
+              flexGrow: 1,
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              flexWrap: "wrap",
+            }}
+          >
+            <Typography component="span" fontWeight="bold">
+              {name}
+            </Typography>
+
+            {editingUrl ? (
+              <TextField
+                defaultValue={url}
+                size="small"
+                onBlur={(e) => handleUrlSubmit(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleUrlSubmit((e.target as HTMLInputElement).value);
+                  } else if (e.key === "Escape") {
+                    setEditingUrl(false);
+                  }
+                }}
+                sx={{ width: "300px" }}
+                autoFocus
+              />
+            ) : (
+              <>
+                <Typography component="span" color="text.secondary">
+                  ({url}
+                  <Tooltip
+                    title={
+                      status === DeviceStatus.ENABLED
+                        ? "Disable the device to change the URL"
+                        : "Edit URL"
+                    }
+                  >
+                    <span>
+                      <IconButton
+                        size="small"
+                        onClick={() => setEditingUrl(true)}
+                        disabled={status === DeviceStatus.ENABLED}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  )
+                </Typography>
+              </>
+            )}
+          </Box>
           <Button
             size="small"
             variant="outlined"
@@ -93,11 +166,7 @@ const DeviceItem = React.memo(
         </Box>
 
         {description && (
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ pl: status === DeviceStatus.ENABLED ? 2 : 0 }}
-          >
+          <Typography variant="body2" color="text.secondary" sx={{ pl: 2.4 }}>
             {description}
           </Typography>
         )}
