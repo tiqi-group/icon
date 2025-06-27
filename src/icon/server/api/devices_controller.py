@@ -10,6 +10,7 @@ from icon.server.data_access.models.enums import DeviceStatus
 from icon.server.data_access.models.sqlite.device import Device
 from icon.server.data_access.repositories.device_repository import DeviceRepository
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
+from icon.server.utils.scannable_device_parameters import get_scannable_params_list
 
 if TYPE_CHECKING:
     from pydase.client.proxy_class import ProxyClass
@@ -136,7 +137,15 @@ class DevicesController(pydase.DataService):
 
         for name, value in device_dict.items():
             client = self._devices.get(name, None)
-            value["reachable"] = client.proxy.connected if client is not None else False
+            value["reachable"] = False
+            value["scannable_params"] = []
+
+            if client is not None:
+                value["reachable"] = client.proxy.connected
+                value["scannable_params"] = get_scannable_params_list(
+                    client.proxy.serialize(),
+                    prefix=f'devices.device_proxies["{name}"].',
+                )
 
         return device_dict
 

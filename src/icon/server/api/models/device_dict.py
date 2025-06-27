@@ -9,3 +9,4 @@ class DeviceDict(TypedDict):
     status: str
     description: str | None
     reachable: bool
+    scannable_params: list[str]
