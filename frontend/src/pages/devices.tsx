@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import { useContext, useState } from "react";
 import {
   Box,
   Typography,
@@ -15,7 +15,7 @@ import { DeviceInfoContext } from "../contexts/DeviceInfoContext";
 import { DeviceStatus } from "../types/enums";
 import { DeviceInfo } from "../types/DeviceInfo";
 import { runMethod } from "../socket";
-import { Device } from "../components/Device";
+import { Device } from "../components/devices/Device";
 import { Tabs, Tab } from "@mui/material";
 
 const DeviceGroup = ({

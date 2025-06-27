@@ -1,13 +1,13 @@
 import React, { useContext, useState } from "react";
 import { Box, Typography, Button, TextField } from "@mui/material";
-import { DeviceInfoContext } from "../contexts/DeviceInfoContext";
-import { DeviceStatus } from "../types/enums";
-import { runMethod } from "../socket";
+import { DeviceInfoContext } from "../../contexts/DeviceInfoContext";
+import { DeviceStatus } from "../../types/enums";
+import { runMethod } from "../../socket";
 import EditIcon from "@mui/icons-material/Edit";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
-import { ReachabilityIndicator } from "./devices/ReachabilityIndicator";
-import { ScannableParameterInterface } from "./devices/ScannableParameterInterface";
+import { ReachabilityIndicator } from "./ReachabilityIndicator";
+import { ScannableParameterInterface } from "./ScannableParameterInterface";
 
 function websocketUrlToHttp(url: string): string {
   return url.replace(/^ws/, "http");
