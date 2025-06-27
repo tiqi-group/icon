@@ -4,13 +4,13 @@ import { SerializedDict, SerializedObject } from "../types/SerializedObject";
 import { setNestedValueByPath } from "../utils/stateUtils";
 
 export interface DeviceState {
-  type: "DataService";
-  name: "DevicesController";
   value: {
-    device_proxies: SerializedDict;
+    devices: {
+      value: {
+        device_proxies: SerializedDict;
+      };
+    };
   };
-  readonly: false;
-  doc: string | null;
 }
 
 export type StateAction =
@@ -35,10 +35,10 @@ export const deviceStateReducer = (
       return {
         ...state,
         value: setNestedValueByPath(
-          state.value,
+          state.value as unknown as Record<string, SerializedObject>,
           action.fullAccessPath,
           action.newValue,
-        ) as DeviceState["value"],
+        ) as unknown as DeviceState["value"],
       };
     }
     default:
