@@ -1,9 +1,8 @@
 import { useContext } from "react";
 import { DeviceStateContext } from "../../contexts/DeviceStateContext";
 import { DeviceInfoContext } from "../../contexts/DeviceInfoContext";
-import { getNestedDictByPath } from "../../utils/stateUtils";
-import { SerializedObject } from "../../types/SerializedObject";
 import { DeviceStatus } from "../../types/enums";
+import { DeviceNumberComponent } from "../parameterComponents/DeviceNumberComponent";
 
 interface ScannableParameterInterfaceProps {
   name: string;
@@ -32,11 +31,9 @@ export const ScannableParameterInterface = ({
     return (
       <>
         {scannableParams.map((paramKey: string) => {
-          const item = getNestedDictByPath(
-            stateContext.value as unknown as Record<string, SerializedObject>,
-            paramKey,
+          return (
+            <DeviceNumberComponent deviceName={deviceInfo.name} paramId={paramKey} />
           );
-          return <pre key={paramKey}>{JSON.stringify(item, null, 2)}</pre>;
         })}
       </>
     );
