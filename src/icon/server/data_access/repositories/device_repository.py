@@ -44,6 +44,7 @@ class DeviceRepository:
     def update_device(
         *,
         name: str,
+        url: str | None = None,
         status: DeviceStatus | None = None,
         retry_attempts: int | None = None,
         retry_delay_seconds: float | None = None,
@@ -52,12 +53,18 @@ class DeviceRepository:
         updated_properties = {
             name: new_value
             for name, new_value in {
+                "url": url,
                 "status": status if status is not None else None,
                 "retry_attempts": retry_attempts,
                 "retry_delay_seconds": retry_delay_seconds,
             }.items()
             if new_value is not None
         }
+
+        if "url" in updated_properties:
+            device = DeviceRepository.get_device_by_name(name=name)
+            if device.status == DeviceStatus.ENABLED:
+                raise RuntimeError("Cannot change url of an enabled device")
 
         with sqlalchemy.orm.session.Session(engine) as session:
             stmt = (

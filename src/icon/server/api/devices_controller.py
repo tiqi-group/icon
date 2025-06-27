@@ -63,11 +63,13 @@ class DevicesController(pydase.DataService):
         *,
         name: str,
         status: Literal["disabled", "enabled"] | None = None,
+        url: str | None = None,
         retry_attempts: int | None = None,
         retry_delay_seconds: float | None = None,
     ) -> Device:
         device = DeviceRepository.update_device(
             name=name,
+            url=url,
             status=DeviceStatus(status) if status is not None else None,
             retry_attempts=retry_attempts,
             retry_delay_seconds=retry_delay_seconds,
