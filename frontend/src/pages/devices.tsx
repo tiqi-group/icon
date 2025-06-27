@@ -18,7 +18,12 @@ import { runMethod } from "../socket";
 import EditIcon from "@mui/icons-material/Edit";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
+import { Device } from "../components/Device";
+import { Tabs, Tab } from "@mui/material";
 
+function websocketUrlToHttp(url: string): string {
+  return url.replace(/^ws/, "http");
+}
 const ReachabilityIndicator = ({
   enabled,
   reachable,
@@ -48,6 +53,7 @@ const DeviceItem = React.memo(
     retry_attempts,
     retry_delay_seconds,
     reachable,
+    view,
   }: {
     name: string;
     url: string;
@@ -56,8 +62,11 @@ const DeviceItem = React.memo(
     retry_attempts: number;
     retry_delay_seconds: number;
     reachable: boolean;
+    view: "scannable" | "pydase";
   }) => {
     const [editingUrl, setEditingUrl] = useState(false);
+    const infoContext = useContext(DeviceInfoContext);
+    const deviceInfo = infoContext[name];
 
     const toggleStatus = () => {
       const newStatus = status === DeviceStatus.ENABLED ? "disabled" : "enabled";
@@ -199,6 +208,15 @@ const DeviceItem = React.memo(
             sx={{ width: "140px" }}
           />
         </Box>
+        {view === "scannable" ? (
+          <Device name={name} />
+        ) : deviceInfo.status === DeviceStatus.ENABLED ? (
+          <iframe
+            src={websocketUrlToHttp(deviceInfo.url)}
+            style={{ width: "100%", height: "600px", border: "1px solid #ccc" }}
+            title={`Pydase Interface for ${name}`}
+          />
+        ) : null}
       </Box>
     );
   },
@@ -207,9 +225,11 @@ const DeviceItem = React.memo(
 const DeviceGroup = ({
   title,
   devices,
+  view,
 }: {
   title: string;
   devices: [string, DeviceInfo][];
+  view: "scannable" | "pydase";
 }) => (
   <Box sx={{ mb: 4 }}>
     <Typography variant="h6" gutterBottom>
@@ -230,6 +250,7 @@ const DeviceGroup = ({
           retry_attempts={info.retry_attempts}
           retry_delay_seconds={info.retry_delay_seconds}
           reachable={info.reachable}
+          view={view}
         />
       ))
     )}
@@ -323,6 +344,7 @@ const AddDeviceDialog = ({ open, onClose }: { open: boolean; onClose: () => void
 const DevicesPage = () => {
   const devices = useContext(DeviceInfoContext);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deviceView, setDeviceView] = useState<"scannable" | "pydase">("scannable");
 
   const entries = Object.entries(devices);
   const enabled = entries.filter(([, d]) => d.status === DeviceStatus.ENABLED);
@@ -330,12 +352,21 @@ const DevicesPage = () => {
 
   return (
     <Box sx={{ p: 2 }}>
+      <Tabs
+        value={deviceView}
+        onChange={(_, newValue) => setDeviceView(newValue)}
+        sx={{ mb: 2 }}
+      >
+        <Tab label="Scannable Parameters" value="scannable" />
+        <Tab label="Pydase Interface" value="pydase" />
+      </Tabs>
+
       <Button variant="contained" sx={{ mb: 2 }} onClick={() => setDialogOpen(true)}>
         Add Device
       </Button>
       <AddDeviceDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
-      <DeviceGroup title="Enabled Devices" devices={enabled} />
-      <DeviceGroup title="Disabled Devices" devices={disabled} />
+      <DeviceGroup title="Enabled Devices" devices={enabled} view={deviceView} />
+      <DeviceGroup title="Disabled Devices" devices={disabled} view={deviceView} />
     </Box>
   );
 };
