@@ -1,10 +1,10 @@
 import { Box, useMediaQuery } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { useContext, useMemo } from "react";
-import { NumberComponent } from "./parameterComponents/Number";
 import { ExperimentsContext } from "../contexts/ExperimentsContext";
 import { ParameterDisplayGroupsContext } from "../contexts/ParameterDisplayGroupsContext";
 import { ButtonComponent } from "./parameterComponents/Button";
+import { ParameterNumberComponent } from "./parameterComponents/ParameterNumberComponent";
 
 interface ParameterGroupDisplayProps {
   experimentKey?: string;
@@ -75,7 +75,7 @@ export const ParameterGroupDisplay = ({
         if (paramId.includes("param_type='ParameterTypes.BOOLEAN'")) {
           return <ButtonComponent key={paramId} id={paramId} />;
         }
-        return <NumberComponent key={paramId} id={paramId} />;
+        return <ParameterNumberComponent key={paramId} id={paramId} />;
       })}
     </Box>
   );
