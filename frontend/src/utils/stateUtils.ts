@@ -173,3 +173,31 @@ function createEmptySerializedObject(): SerializedObject {
     readonly: false,
   };
 }
+
+export function getNestedDictByPath(
+  serializationDict: Record<string, SerializedObject>,
+  path: string,
+): SerializedObject {
+  const pathParts = parseFullAccessPath(path);
+  let currentDict: Record<string, SerializedObject> = serializationDict;
+
+  for (let i = 0; i < pathParts.length - 1; i++) {
+    const pathPart = pathParts[i];
+    const nextLevelSerializedObject = getContainerItemByKey(
+      currentDict,
+      pathPart,
+      false,
+    );
+
+    if (
+      typeof nextLevelSerializedObject.value !== "object" ||
+      nextLevelSerializedObject.value === null
+    ) {
+      throw new Error(`Invalid structure at path part: ${pathPart}`);
+    }
+
+    currentDict = nextLevelSerializedObject.value as Record<string, SerializedObject>;
+  }
+
+  return getContainerItemByKey(currentDict, pathParts[pathParts.length - 1], false);
+}

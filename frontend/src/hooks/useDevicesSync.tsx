@@ -36,11 +36,12 @@ export function useDevicesSync(
 
     if (!fullAccessPath.startsWith("devices.device_proxies")) return;
 
-    const accessPath = fullAccessPath.substring(8);
-    stateDispatch({ type: "UPDATE", fullAccessPath: accessPath, newValue });
+    stateDispatch({ type: "UPDATE", fullAccessPath: fullAccessPath, newValue });
 
     // Detect status changes: e.g. devices.device_proxies["Test"].connected
-    const statusMatch = accessPath.match(/^device_proxies\["([^"]+)"\]\.connected$/);
+    const statusMatch = fullAccessPath.match(
+      /^devices\.device_proxies\["([^"]+)"\]\.connected$/,
+    );
     if (statusMatch) {
       const deviceName = statusMatch[1];
       infoDispatch({
@@ -56,7 +57,7 @@ export function useDevicesSync(
   }
 
   useEffect(() => {
-    runMethod("devices.serialize", [], {}, (ack) => {
+    runMethod("serialize", [], {}, (ack) => {
       stateDispatch({
         type: "SET",
         data: deserialize(ack as SerializedObject) as DeviceState,

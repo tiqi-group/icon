@@ -10,4 +10,5 @@ export interface DeviceInfo {
   retry_attempts: number;
   retry_delay_seconds: number;
   reachable: boolean;
+  scannable_params: string[];
 }
