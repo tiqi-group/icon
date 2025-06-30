@@ -1,4 +1,4 @@
-import React, { useReducer, createContext, useContext, useState } from "react";
+import React, { useReducer, createContext, useState } from "react";
 import { Menu, MenuItem } from "@mui/material";
 import { ScanParameterInfo } from "../types/ScanParameterInfo";
 
@@ -8,6 +8,12 @@ interface ScanInfoState {
   repetitions: number;
   parameters: ScanParameterInfo[];
 }
+const defaultParameter: ScanParameterInfo = {
+  id: "",
+  values: [],
+  generation: { start: 0, stop: 0, points: 2, scatter: false },
+  device_name: undefined,
+};
 
 export type Action =
   | { type: "SET_PRIORITY" | "SET_SHOTS" | "SET_REPETITIONS"; payload: number }
@@ -19,14 +25,7 @@ const reducer = (state: ScanInfoState, action: Action): ScanInfoState => {
   if (action.type === "ADD_PARAMETER") {
     return {
       ...state,
-      parameters: [
-        ...state.parameters,
-        {
-          id: "",
-          values: [],
-          generation: { start: 0, stop: 0, points: 2, scatter: false },
-        },
-      ],
+      parameters: [...state.parameters, defaultParameter],
     };
   }
   if (action.type === "REMOVE_PARAMETER") {
@@ -46,7 +45,7 @@ const reducer = (state: ScanInfoState, action: Action): ScanInfoState => {
   return { ...state, [action.type.toLowerCase().replace("set_", "")]: action.payload };
 };
 
-const ScanContext = createContext<{
+export const ScanContext = createContext<{
   state: ScanInfoState;
   dispatch: React.Dispatch<Action>;
   menuAnchor: { mouseX: number | null; mouseY: number | null };
@@ -69,13 +68,7 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     priority: 20,
     shots: 50,
     repetitions: 1,
-    parameters: [
-      {
-        id: "",
-        values: [],
-        generation: { start: 0, stop: 0, points: 2, scatter: false },
-      },
-    ],
+    parameters: [defaultParameter],
   });
 
   const [menuAnchor, setMenuAnchor] = useState<{
@@ -152,5 +145,3 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </ScanContext.Provider>
   );
 };
-
-export const useScanContext = () => useContext(ScanContext);

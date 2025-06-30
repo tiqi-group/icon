@@ -1,7 +1,7 @@
 import React, { useContext } from "react";
 import { Box, Button, Typography } from "@mui/material";
 import { ParameterMetadataContext } from "../../contexts/ParameterMetadataContext";
-import { useScanContext } from "../../contexts/ScanContext";
+import { useScanContext } from "../../hooks/useScanContext";
 import { HelpButton } from "../HelpButtonComponent";
 import { updateParameterValue } from "../../utils/updateParameterValue";
 import { useParameter } from "../../hooks/useParameter";

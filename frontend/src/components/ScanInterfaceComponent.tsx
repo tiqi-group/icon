@@ -10,7 +10,7 @@ import {
   FormHelperText,
 } from "@mui/material";
 import ScanParameterTable from "./ScanParameterTable";
-import { useScanContext } from "../contexts/ScanContext";
+import { useScanContext } from "../hooks/useScanContext";
 import { runMethod } from "../socket";
 
 interface ScanInterfaceProps {

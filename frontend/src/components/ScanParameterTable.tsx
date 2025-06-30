@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import { useContext } from "react";
 import {
   Box,
   Table,
@@ -12,7 +12,6 @@ import {
   TextField,
   Checkbox,
   FormControlLabel,
-  Button,
   TableHead,
   Select,
   MenuItem,
@@ -21,8 +20,9 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { ScanParameter, useScanContext } from "../contexts/ScanContext";
+import { useScanContext } from "../hooks/useScanContext";
 import { ParameterMetadataContext } from "../contexts/ParameterMetadataContext";
+import { ScanParameterInfo } from "../types/ScanParameterInfo";
 
 const generateScanValues = (
   start: number,
@@ -37,7 +37,13 @@ const generateScanValues = (
   return scatter ? values.sort(() => Math.random() - 0.5) : values;
 };
 
-const ParameterCard = ({ param, index }: { param: ScanParameter; index: number }) => {
+const ParameterCard = ({
+  param,
+  index,
+}: {
+  param: ScanParameterInfo;
+  index: number;
+}) => {
   const { state, dispatch } = useScanContext();
   const parameterMetadata = useContext(ParameterMetadataContext);
 

@@ -1,7 +1,7 @@
 import React, { useContext, useState } from "react";
 import { useParameter } from "../../hooks/useParameter";
 import { ParameterMetadataContext } from "../../contexts/ParameterMetadataContext";
-import { useScanContext } from "../../contexts/ScanContext";
+import { useScanContext } from "../../hooks/useScanContext";
 import { updateParameterValue } from "../../utils/updateParameterValue";
 import { BaseNumberComponent, numberValid } from "./BaseNumberComponent";
 

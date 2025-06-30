@@ -9,7 +9,7 @@ import {
   SerializedObject,
   SerializedQuantity,
 } from "../../types/SerializedObject";
-import { useScanContext } from "../../contexts/ScanContext";
+import { useScanContext } from "../../hooks/useScanContext";
 
 interface DeviceNumberComponentProps {
   deviceName: string;
