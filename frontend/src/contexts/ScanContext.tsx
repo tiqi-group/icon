@@ -2,7 +2,7 @@ import React, { useReducer, createContext, useState } from "react";
 import { Menu, MenuItem } from "@mui/material";
 import { ScanParameterInfo } from "../types/ScanParameterInfo";
 
-interface ScanInfoState {
+export interface ScanInfoState {
   priority: number;
   shots: number;
   repetitions: number;

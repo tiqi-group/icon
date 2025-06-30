@@ -11,7 +11,7 @@ import {
 } from "@mui/material";
 import ScanParameterTable from "./ScanParameterTable";
 import { useScanContext } from "../hooks/useScanContext";
-import { runMethod } from "../socket";
+import { submitJob } from "../utils/submitJob";
 
 interface ScanInterfaceProps {
   experimentId: string;
@@ -70,11 +70,7 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
 
     if (validateForm()) {
       console.log("Scan Config:", state);
-      runMethod("scheduler.submit_job", [], {
-        experiment_id: experimentId,
-        scan_parameters: state.parameters,
-      });
-      alert("Scan submitted!");
+      submitJob(experimentId, scanInfoState);
     }
   };
 
