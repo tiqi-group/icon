@@ -154,123 +154,142 @@ class PreProcessingWorker(multiprocessing.Process):
             while True:
                 pre_processing_task = self._queue.get()
 
-                JobRunRepository.update_run_by_id(
-                    run_id=pre_processing_task.job_run.id,
-                    status=JobRunStatus.PROCESSING,
-                )
-
-                # adapt the priority of the pre-processing worker according to the
-                # priority of the task. This only works when run as root (uid=0).
-                if os.getuid() == 0:
-                    change_process_priority(pre_processing_task.priority)
-
-                src_dir = (
-                    get_config().experiment_library.dir
-                    if pre_processing_task.debug_mode
-                    else tmp_dir
-                )
-
-                prepare_experiment_library_folder(
-                    src_dir=src_dir, pre_processing_task=pre_processing_task
-                )
-
-                exp_module_name, exp_class_name, experiment_id = (
-                    parse_experiment_identifier(
-                        pre_processing_task.job.experiment_source.experiment_id
+                try:
+                    JobRunRepository.update_run_by_id(
+                        run_id=pre_processing_task.job_run.id,
+                        status=JobRunStatus.PROCESSING,
                     )
-                )
 
-                parameter_dict = cache_parameter_values(
-                    local_params_timestamp=pre_processing_task.local_parameters_timestamp,
-                    namespace=f"{exp_module_name}.{exp_class_name}",
-                )
+                    # adapt the priority of the pre-processing worker according to the
+                    # priority of the task. This only works when run as root (uid=0).
+                    if os.getuid() == 0:
+                        change_process_priority(pre_processing_task.priority)
 
-                scan_parameter_value_combinations = get_scan_combinations(
-                    pre_processing_task.job
-                )
+                    src_dir = (
+                        get_config().experiment_library.dir
+                        if pre_processing_task.debug_mode
+                        else tmp_dir
+                    )
 
-                data_points_to_process: queue.Queue[
-                    tuple[int, dict[str, DatabaseValueType]]
-                ] = self._manager.Queue()
-                processed_data_points: queue.Queue[Any] = self._manager.Queue()
+                    prepare_experiment_library_folder(
+                        src_dir=src_dir, pre_processing_task=pre_processing_task
+                    )
 
-                for combination in enumerate(scan_parameter_value_combinations):
-                    data_points_to_process.put(combination)
-
-                ExperimentDataRepository.update_metadata_by_job_id(
-                    job_id=pre_processing_task.job.id,
-                    number_of_shots=pre_processing_task.job.number_of_shots,
-                    repetitions=pre_processing_task.job.repetitions,
-                    parameters=pre_processing_task.job.scan_parameters,
-                )
-
-                # Prepare and execute data points as long as the number of processed
-                # data points does not correspond to the number of scan parameter
-                # combinations.
-                #
-                # TODO: When scanning time, the post-processing worker should put the
-                # data points back into the data_points_to_process queue instead of the
-                # processed_data_points queue.
-                while processed_data_points.qsize() != len(
-                    scan_parameter_value_combinations
-                ):
-                    # TODO: this should probably be done with multiple workers to speed
-                    # up the preparation of JSONs
-                    try:
-                        index, data_point = data_points_to_process.get(block=False)
-                    except queue.Empty:
-                        time.sleep(0.001)
-                        continue
-
-                    if job_run_cancelled_or_failed(
-                        job_id=pre_processing_task.job.id,
-                    ):
-                        break
-
-                    global_parameter_timestamp = datetime.now(timezone)
-                    sequence_json = asyncio.run(
-                        PycrystalLibraryRepository.generate_json_sequence(
-                            parameter_dict={**parameter_dict, **data_point},
-                            exp_module_name=exp_module_name,
-                            exp_instance_name=experiment_id,
+                    exp_module_name, exp_class_name, experiment_id = (
+                        parse_experiment_identifier(
+                            pre_processing_task.job.experiment_source.experiment_id
                         )
                     )
 
-                    task = HardwareProcessingTask(
-                        data_point_index=index,
-                        pre_processing_task=pre_processing_task,
-                        priority=pre_processing_task.priority,
-                        global_parameter_timestamp=global_parameter_timestamp,
-                        scanned_params=data_point,
-                        src_dir=src_dir,
-                        sequence_json=sequence_json,
-                        processed_data_points=processed_data_points,
-                        data_points_to_process=data_points_to_process,
+                    parameter_dict = cache_parameter_values(
+                        local_params_timestamp=pre_processing_task.local_parameters_timestamp,
+                        namespace=f"{exp_module_name}.{exp_class_name}",
                     )
 
-                    logger.debug(
-                        "Submitting data point %s (job_run_id=%s)",
-                        data_point,
+                    scan_parameter_value_combinations = get_scan_combinations(
+                        pre_processing_task.job
+                    )
+
+                    data_points_to_process: queue.Queue[
+                        tuple[int, dict[str, DatabaseValueType]]
+                    ] = self._manager.Queue()
+                    processed_data_points: queue.Queue[Any] = self._manager.Queue()
+
+                    for combination in enumerate(scan_parameter_value_combinations):
+                        data_points_to_process.put(combination)
+
+                    ExperimentDataRepository.update_metadata_by_job_id(
+                        job_id=pre_processing_task.job.id,
+                        number_of_shots=pre_processing_task.job.number_of_shots,
+                        repetitions=pre_processing_task.job.repetitions,
+                        parameters=pre_processing_task.job.scan_parameters,
+                    )
+
+                    # Prepare and execute data points as long as the number of processed
+                    # data points does not correspond to the number of scan parameter
+                    # combinations.
+                    #
+                    # TODO: When scanning time, the post-processing worker should put
+                    # the data points back into the data_points_to_process queue instead
+                    # of the processed_data_points queue.
+                    while processed_data_points.qsize() != len(
+                        scan_parameter_value_combinations
+                    ):
+                        # TODO: this should probably be done with multiple workers to
+                        # speed up the preparation of JSONs
+                        try:
+                            index, data_point = data_points_to_process.get(block=False)
+                        except queue.Empty:
+                            time.sleep(0.001)
+                            continue
+
+                        if job_run_cancelled_or_failed(
+                            job_id=pre_processing_task.job.id,
+                        ):
+                            break
+
+                        global_parameter_timestamp = datetime.now(timezone)
+                        sequence_json = asyncio.run(
+                            PycrystalLibraryRepository.generate_json_sequence(
+                                parameter_dict={**parameter_dict, **data_point},
+                                exp_module_name=exp_module_name,
+                                exp_instance_name=experiment_id,
+                            )
+                        )
+
+                        task = HardwareProcessingTask(
+                            data_point_index=index,
+                            pre_processing_task=pre_processing_task,
+                            priority=pre_processing_task.priority,
+                            global_parameter_timestamp=global_parameter_timestamp,
+                            scanned_params=data_point,
+                            src_dir=src_dir,
+                            sequence_json=sequence_json,
+                            processed_data_points=processed_data_points,
+                            data_points_to_process=data_points_to_process,
+                        )
+
+                        logger.debug(
+                            "Submitting data point %s (job_run_id=%s)",
+                            data_point,
+                            pre_processing_task.job_run.id,
+                        )
+                        self._hw_processing_queue.put(task)
+
+                    logger.info(
+                        "JobRun with id '%s' finished",
                         pre_processing_task.job_run.id,
                     )
-                    self._hw_processing_queue.put(task)
 
-                logger.info(
-                    "JobRun with id '%s' finished",
-                    pre_processing_task.job_run.id,
-                )
+                    if (
+                        JobRunRepository.get_run_by_job_id(
+                            job_id=pre_processing_task.job.id
+                        ).status
+                        == JobRunStatus.PROCESSING
+                    ):
+                        JobRunRepository.update_run_by_id(
+                            run_id=pre_processing_task.job_run.id,
+                            status=JobRunStatus.DONE,
+                        )
+                except Exception as e:
+                    logger.exception(
+                        "JobRun with id '%s' failed with error: %s",
+                        pre_processing_task.job_run.id,
+                        e,
+                    )
 
-                JobRepository.update_job_status(
-                    job=pre_processing_task.job, status=JobStatus.PROCESSED
-                )
-
-                if (
-                    JobRunRepository.get_run_by_job_id(
-                        job_id=pre_processing_task.job.id
-                    ).status
-                    == JobRunStatus.PROCESSING
-                ):
-                    JobRunRepository.update_run_by_id(
-                        run_id=pre_processing_task.job_run.id,
-                        status=JobRunStatus.DONE,
+                    if (
+                        JobRunRepository.get_run_by_job_id(
+                            job_id=pre_processing_task.job.id
+                        ).status
+                        == JobRunStatus.PROCESSING
+                    ):
+                        JobRunRepository.update_run_by_id(
+                            run_id=pre_processing_task.job_run.id,
+                            status=JobRunStatus.FAILED,
+                            log=str(e),
+                        )
+                finally:
+                    JobRepository.update_job_status(
+                        job=pre_processing_task.job, status=JobStatus.PROCESSED
                     )
