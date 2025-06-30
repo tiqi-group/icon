@@ -9,22 +9,27 @@ import {
   SerializedObject,
   SerializedQuantity,
 } from "../../types/SerializedObject";
+import { useScanContext } from "../../contexts/ScanContext";
 
 interface DeviceNumberComponentProps {
   deviceName: string;
   paramId: string;
-  onContextMenu?: (e: React.MouseEvent, id: string) => void;
 }
 
 export const DeviceNumberComponent = ({
   deviceName,
   paramId,
-  onContextMenu,
 }: DeviceNumberComponentProps) => {
+  const { handleRightClick } = useScanContext();
   const state = useContext(DeviceStateContext);
   if (state === null) return null;
 
   const [error, setError] = useState(false);
+
+  const devicePrefix = `devices.device_proxies["${deviceName}"].`;
+  const accessPath = paramId.startsWith(devicePrefix)
+    ? paramId.slice(devicePrefix.length)
+    : paramId;
 
   const rawValue = getNestedDictByPath(
     state.value as unknown as Record<string, SerializedObject>,
@@ -46,11 +51,6 @@ export const DeviceNumberComponent = ({
 
   const handleBlur = (val: string) => {
     const parsed = parseFloat(val);
-
-    const devicePrefix = `devices.device_proxies["${deviceName}"].`;
-    const accessPath = paramId.startsWith(devicePrefix)
-      ? paramId.slice(devicePrefix.length)
-      : paramId;
 
     if (numberValid(val, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY)) {
       if (type == "Quantity") {
@@ -81,7 +81,7 @@ export const DeviceNumberComponent = ({
       error={error}
       onChange={handleChange}
       onBlur={handleBlur}
-      onContextMenu={onContextMenu}
+      onContextMenu={(event) => handleRightClick(event, accessPath, deviceName)}
     />
   );
 };

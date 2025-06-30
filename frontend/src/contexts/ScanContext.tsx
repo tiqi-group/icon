@@ -1,33 +1,21 @@
 import React, { useReducer, createContext, useContext, useState } from "react";
 import { Menu, MenuItem } from "@mui/material";
+import { ScanParameterInfo } from "../types/ScanParameterInfo";
 
-export interface ScanParameter {
-  id: string;
-  values: number[];
-  generation: {
-    start: number;
-    stop: number;
-    points: number;
-    scatter: boolean;
-  };
-}
-// Define State
-interface ScanState {
+interface ScanInfoState {
   priority: number;
   shots: number;
   repetitions: number;
-  parameters: ScanParameter[];
+  parameters: ScanParameterInfo[];
 }
 
-// Define Actions
 export type Action =
   | { type: "SET_PRIORITY" | "SET_SHOTS" | "SET_REPETITIONS"; payload: number }
   | { type: "ADD_PARAMETER" }
   | { type: "REMOVE_PARAMETER"; index: number }
-  | { type: "UPDATE_PARAMETER"; index: number; payload: Partial<ScanParameter> };
+  | { type: "UPDATE_PARAMETER"; index: number; payload: Partial<ScanParameterInfo> };
 
-// Reducer
-const reducer = (state: ScanState, action: Action): ScanState => {
+const reducer = (state: ScanInfoState, action: Action): ScanInfoState => {
   if (action.type === "ADD_PARAMETER") {
     return {
       ...state,
@@ -58,14 +46,14 @@ const reducer = (state: ScanState, action: Action): ScanState => {
   return { ...state, [action.type.toLowerCase().replace("set_", "")]: action.payload };
 };
 
-// Create Context
 const ScanContext = createContext<{
-  state: ScanState;
+  state: ScanInfoState;
   dispatch: React.Dispatch<Action>;
   menuAnchor: { mouseX: number | null; mouseY: number | null };
   handleRightClick: (
     event: React.MouseEvent<HTMLDivElement | HTMLButtonElement>,
     paramId: string,
+    deviceName?: string,
   ) => void;
   handleCloseMenu: () => void;
 }>({
@@ -76,7 +64,6 @@ const ScanContext = createContext<{
   handleCloseMenu: () => {},
 });
 
-// Provider Component
 export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, {
     priority: 20,
@@ -99,21 +86,25 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     mouseY: null,
   });
 
-  const [selectedParamId, setSelectedParamId] = useState<string | null>(null);
+  const [selectedParam, setSelectedParam] = useState<{
+    id: string;
+    device_name?: string;
+  } | null>(null);
 
   const handleRightClick = (
     event: React.MouseEvent<HTMLDivElement | HTMLButtonElement>,
     paramId: string,
+    deviceName?: string,
   ) => {
     console.log(`Right-clicked on: ${paramId}`);
     event.preventDefault();
-    setSelectedParamId(paramId);
+    setSelectedParam({ id: paramId, device_name: deviceName });
     setMenuAnchor({ mouseX: event.clientX, mouseY: event.clientY });
   };
 
   const handleCloseMenu = () => {
     setMenuAnchor({ mouseX: null, mouseY: null });
-    setSelectedParamId(null);
+    setSelectedParam(null);
   };
 
   return (
@@ -122,7 +113,6 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     >
       {children}
 
-      {/* Global Right-Click Menu */}
       <Menu
         open={menuAnchor.mouseY !== null}
         onClose={handleCloseMenu}
@@ -142,11 +132,14 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   type: "UPDATE_PARAMETER",
                   index,
                   payload: {
-                    id: selectedParamId!,
+                    id: selectedParam!.id,
+                    device_name: selectedParam?.device_name,
                   },
                 });
                 handleCloseMenu();
-                console.log(`Set parameter ${index + 1} to ${selectedParamId}`);
+                console.log(
+                  `Set parameter ${index + 1} to ${selectedParam!.id} ${selectedParam?.device_name}`,
+                );
               }}
             >
               Scan as parameter {index + 1}
@@ -160,5 +153,4 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-// Custom Hook
 export const useScanContext = () => useContext(ScanContext);
