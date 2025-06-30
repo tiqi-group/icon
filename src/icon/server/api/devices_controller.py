@@ -94,8 +94,20 @@ class DevicesController(pydase.DataService):
         return device
 
     async def update_parameter_value(
-        self, *, name: str, parameter_id: str, new_value: DeviceParameterValueyType
+        self,
+        *,
+        name: str,
+        parameter_id: str,
+        new_value: DeviceParameterValueyType,
+        type_: Literal["float", "int", "str", "bool"],
     ) -> None:
+        if type_ == "float":
+            new_value = float(new_value)
+        elif type_ == "int":
+            new_value = int(new_value)
+        elif type_ == "bool":
+            new_value = bool(new_value)
+
         try:
             await asyncio.to_thread(
                 self._devices[name].update_value,

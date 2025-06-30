@@ -1,9 +1,13 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { DeviceStateContext } from "../../contexts/DeviceStateContext";
 import { BaseNumberComponent, numberValid } from "./BaseNumberComponent";
 import { updateDeviceParameter } from "../../utils/updateDeviceParamter";
 import { getNestedDictByPath } from "../../utils/stateUtils";
-import { SerializedObject } from "../../types/SerializedObject";
+import {
+  SerializedFloat,
+  SerializedInteger,
+  SerializedObject,
+} from "../../types/SerializedObject";
 
 interface DeviceNumberComponentProps {
   deviceName: string;
@@ -24,8 +28,9 @@ export const DeviceNumberComponent = ({
   const rawValue = getNestedDictByPath(
     state.value as unknown as Record<string, SerializedObject>,
     paramId,
-  );
+  ) as SerializedFloat | SerializedInteger;
   const value = String(rawValue["value"] ?? "0");
+  const type = rawValue["type"];
 
   const [inputValue, setInputValue] = useState(value);
 
@@ -42,7 +47,7 @@ export const DeviceNumberComponent = ({
       : paramId;
 
     if (numberValid(val, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY)) {
-      updateDeviceParameter(deviceName, accessPath, parsed);
+      updateDeviceParameter(deviceName, accessPath, parsed, type);
       setError(false);
     } else {
       setError(true);
