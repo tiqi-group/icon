@@ -98,9 +98,9 @@ class DevicesController(pydase.DataService):
     ) -> None:
         try:
             await asyncio.to_thread(
-                self._devices[name].update_value(
-                    access_path=parameter_id, new_value=new_value
-                )
+                self._devices[name].update_value,
+                access_path=parameter_id,
+                new_value=new_value,
             )
         except BadNamespaceError:
             logger.warning(
@@ -115,7 +115,7 @@ class DevicesController(pydase.DataService):
     async def get_parameter_value(self, *, name: str, parameter_id: str) -> Any:
         try:
             return await asyncio.to_thread(
-                self._devices[name].get_value(access_path=parameter_id)
+                self._devices[name].get_value, access_path=parameter_id
             )
         except BadNamespaceError:
             logger.warning(
