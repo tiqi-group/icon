@@ -7,6 +7,7 @@ import {
   SerializedFloat,
   SerializedInteger,
   SerializedObject,
+  SerializedQuantity,
 } from "../../types/SerializedObject";
 
 interface DeviceNumberComponentProps {
@@ -28,10 +29,15 @@ export const DeviceNumberComponent = ({
   const rawValue = getNestedDictByPath(
     state.value as unknown as Record<string, SerializedObject>,
     paramId,
-  ) as SerializedFloat | SerializedInteger;
-  const value = String(rawValue["value"] ?? "0");
+  ) as SerializedFloat | SerializedInteger | SerializedQuantity;
   const type = rawValue["type"];
+  let value: string;
 
+  if (type == "Quantity") {
+    value = String(rawValue["value"]["magnitude"]);
+  } else {
+    value = String(rawValue["value"]);
+  }
   const [inputValue, setInputValue] = useState(value);
 
   const handleChange = (val: string) => {
@@ -47,7 +53,16 @@ export const DeviceNumberComponent = ({
       : paramId;
 
     if (numberValid(val, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY)) {
-      updateDeviceParameter(deviceName, accessPath, parsed, type);
+      if (type == "Quantity") {
+        updateDeviceParameter(
+          deviceName,
+          accessPath,
+          { magnitude: parsed, unit: rawValue["value"]["unit"] },
+          type,
+        );
+      } else {
+        updateDeviceParameter(deviceName, accessPath, parsed, type);
+      }
       setError(false);
     } else {
       setError(true);

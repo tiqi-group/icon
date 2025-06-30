@@ -3,6 +3,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Literal
 
 import pydase
+import pydase.units as u
 from socketio.exceptions import BadNamespaceError  # type: ignore
 
 from icon.server.api.models.device_dict import DeviceDict
@@ -98,15 +99,15 @@ class DevicesController(pydase.DataService):
         *,
         name: str,
         parameter_id: str,
-        new_value: DeviceParameterValueyType,
-        type_: Literal["float", "int", "str", "bool"],
+        new_value: DeviceParameterValueyType | u.QuantityDict,
+        type_: Literal["float", "int", "Quantity"],
     ) -> None:
-        if type_ == "float":
+        if type_ == "float" and not isinstance(new_value, dict):
             new_value = float(new_value)
-        elif type_ == "int":
+        elif type_ == "int" and not isinstance(new_value, dict):
             new_value = int(new_value)
-        elif type_ == "bool":
-            new_value = bool(new_value)
+        elif type_ == "Quantity" and isinstance(new_value, dict):
+            new_value = u.Quantity(new_value["magnitude"], new_value["unit"])  # type: ignore
 
         try:
             await asyncio.to_thread(
