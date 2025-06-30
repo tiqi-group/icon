@@ -69,6 +69,10 @@ export const DeviceNumberComponent = ({
     }
   };
 
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
+
   return (
     <BaseNumberComponent
       id={paramId}
