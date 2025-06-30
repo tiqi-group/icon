@@ -32,7 +32,11 @@ export const ScannableParameterInterface = ({
       <>
         {scannableParams.map((paramKey: string) => {
           return (
-            <DeviceNumberComponent deviceName={deviceInfo.name} paramId={paramKey} />
+            <DeviceNumberComponent
+              key={paramKey}
+              deviceName={deviceInfo.name}
+              paramId={paramKey}
+            />
           );
         })}
       </>
