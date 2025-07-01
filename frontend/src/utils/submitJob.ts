@@ -1,4 +1,4 @@
-import { ScanInfoState } from "../contexts/ScanContext";
+import { ScanInfoState } from "../contexts/ScanProvider";
 import { runMethod } from "../socket";
 
 interface ScanParameterArgument {

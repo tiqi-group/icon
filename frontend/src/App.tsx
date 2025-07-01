@@ -17,7 +17,7 @@ import {
 import { SvgIcon } from "@mui/material";
 import { ParameterMetadataContext } from "./contexts/ParameterMetadataContext";
 import { ParameterDisplayGroupsContext } from "./contexts/ParameterDisplayGroupsContext";
-import { ScanProvider } from "./contexts/ScanContext";
+import { ScanProvider } from "./contexts/ScanProvider";
 import { reducer, JobsContext } from "./contexts/JobsContext";
 import { ParameterStoreProvider } from "./contexts/ParameterStoreContext";
 import { useJobsSync } from "./hooks/useJobsSync";
