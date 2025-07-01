@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { DeviceStateContext } from "../../contexts/DeviceStateContext";
 import { BaseNumberComponent, numberValid } from "./BaseNumberComponent";
 import { updateDeviceParameter } from "../../utils/updateDeviceParamter";
@@ -22,28 +22,42 @@ export const DeviceNumberComponent = ({
 }: DeviceNumberComponentProps) => {
   const { handleRightClick } = useScanContext();
   const state = useContext(DeviceStateContext);
-  if (state === null) return null;
-
   const [error, setError] = useState(false);
+  const [inputValue, setInputValue] = useState("");
 
   const devicePrefix = `devices.device_proxies["${deviceName}"].`;
   const accessPath = paramId.startsWith(devicePrefix)
     ? paramId.slice(devicePrefix.length)
     : paramId;
 
-  const rawValue = getNestedDictByPath(
-    state.value as unknown as Record<string, SerializedObject>,
-    paramId,
-  ) as SerializedFloat | SerializedInteger | SerializedQuantity;
-  const type = rawValue["type"];
-  let value: string;
+  let rawValue: SerializedFloat | SerializedInteger | SerializedQuantity | null = null;
 
-  if (type == "Quantity") {
-    value = String(rawValue["value"]["magnitude"]);
-  } else {
-    value = String(rawValue["value"]);
+  if (state === null) return null;
+
+  let value = "";
+  try {
+    rawValue = getNestedDictByPath(
+      state.value as unknown as Record<string, SerializedObject>,
+      paramId,
+    ) as SerializedFloat | SerializedInteger | SerializedQuantity;
+
+    if (rawValue.type === "Quantity") {
+      value = String(rawValue.value.magnitude);
+    } else {
+      value = String(rawValue.value);
+    }
+  } catch (err) {
+    console.log(
+      "Could not render DeviceNumberComponent. State is not yet up-to-date: ",
+      err,
+    );
   }
-  const [inputValue, setInputValue] = useState(value);
+
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
+
+  if (rawValue === undefined || rawValue === null) return null;
 
   const handleChange = (val: string) => {
     setInputValue(val);
@@ -53,25 +67,21 @@ export const DeviceNumberComponent = ({
     const parsed = parseFloat(val);
 
     if (numberValid(val, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY)) {
-      if (type == "Quantity") {
+      if (rawValue.type == "Quantity") {
         updateDeviceParameter(
           deviceName,
           accessPath,
           { magnitude: parsed, unit: rawValue["value"]["unit"] },
-          type,
+          rawValue.type,
         );
       } else {
-        updateDeviceParameter(deviceName, accessPath, parsed, type);
+        updateDeviceParameter(deviceName, accessPath, parsed, rawValue.type);
       }
       setError(false);
     } else {
       setError(true);
     }
   };
-
-  useEffect(() => {
-    setInputValue(value);
-  }, [value]);
 
   return (
     <BaseNumberComponent
