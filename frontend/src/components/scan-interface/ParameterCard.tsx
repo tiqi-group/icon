@@ -1,28 +1,21 @@
-import { useContext } from "react";
+import { useContext, useState } from "react";
 import {
   Box,
-  Table,
-  TableBody,
-  TableContainer,
-  TableRow,
-  TableCell,
-  Paper,
   IconButton,
-  Typography,
   TextField,
   Checkbox,
   FormControlLabel,
-  TableHead,
   Select,
   MenuItem,
   FormControl,
   InputLabel,
 } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { useScanContext } from "../hooks/useScanContext";
-import { ParameterMetadataContext } from "../contexts/ParameterMetadataContext";
-import { ScanParameterInfo } from "../types/ScanParameterInfo";
+import { useScanContext } from "../../hooks/useScanContext";
+import { ParameterMetadataContext } from "../../contexts/ParameterMetadataContext";
+import { ScanParameterInfo } from "../../types/ScanParameterInfo";
+import { ParameterDisplayGroupsContext } from "../../contexts/ParameterDisplayGroupsContext";
+import { DeviceInfoContext } from "../../contexts/DeviceInfoContext";
 
 const generateScanValues = (
   start: number,
@@ -37,7 +30,7 @@ const generateScanValues = (
   return scatter ? values.sort(() => Math.random() - 0.5) : values;
 };
 
-const ParameterCard = ({
+export const ParameterCard = ({
   param,
   index,
 }: {
@@ -45,6 +38,7 @@ const ParameterCard = ({
   index: number;
 }) => {
   const { state, dispatch } = useScanContext();
+
   const parameterMetadata = useContext(ParameterMetadataContext);
 
   return (
@@ -192,46 +186,3 @@ const ParameterCard = ({
     </Box>
   );
 };
-
-const ScanParameterTable = () => {
-  const { state, dispatch } = useScanContext();
-
-  return (
-    <Box
-      display="flex"
-      flexDirection="column"
-      sx={{ width: "400px", maxHeight: "600px" }}
-    >
-      <TableContainer component={Paper} sx={{ overflowY: "auto", maxHeight: "400px" }}>
-        <Table stickyHeader size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell colSpan={2} align="center">
-                <Typography>Scan Parameters</Typography>
-              </TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {state.parameters.map((param, index) => (
-              <TableRow key={index}>
-                <TableCell width="5%" sx={{ py: 0, pr: 0 }}>
-                  {index + 1}
-                </TableCell>
-                <TableCell>
-                  <ParameterCard param={param} index={index} />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        <Box display="flex" justifyContent="center">
-          <IconButton onClick={() => dispatch({ type: "ADD_PARAMETER" })}>
-            <AddIcon />
-          </IconButton>
-        </Box>
-      </TableContainer>
-    </Box>
-  );
-};
-
-export default ScanParameterTable;

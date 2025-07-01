@@ -9,15 +9,15 @@ import {
   Button,
   FormHelperText,
 } from "@mui/material";
+import { useScanContext } from "../../hooks/useScanContext";
+import { submitJob } from "../../utils/submitJob";
 import ScanParameterTable from "./ScanParameterTable";
-import { useScanContext } from "../hooks/useScanContext";
-import { submitJob } from "../utils/submitJob";
 
 interface ScanInterfaceProps {
   experimentId: string;
 }
 const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
-  const { state, dispatch } = useScanContext();
+  const { state: scanInfoState, dispatch: scanInfoDispatch } = useScanContext();
   const [errors, setErrors] = useState<{
     priority?: string;
     shots?: string;
@@ -30,25 +30,25 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
     const newErrors: typeof errors = {};
 
     // Validate priority
-    if (state.priority < 1 || state.priority > 20) {
+    if (scanInfoState.priority < 1 || scanInfoState.priority > 20) {
       newErrors.priority = "Priority must be between 1 and 20";
       valid = false;
     }
 
     // Validate number of shots
-    if (state.shots < 1) {
+    if (scanInfoState.shots < 1) {
       newErrors.shots = "Number of shots must be at least 1";
       valid = false;
     }
 
     // Validate scan repetitions
-    if (state.repetitions < 1) {
+    if (scanInfoState.repetitions < 1) {
       newErrors.repetitions = "Scan repetitions must be at least 1";
       valid = false;
     }
 
     // Validate scan parameters
-    for (const param of state.parameters) {
+    for (const param of scanInfoState.parameters) {
       if (!param.id) {
         newErrors.parameters = "Each scan parameter must have an ID";
         valid = false;
@@ -69,7 +69,7 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
     event.preventDefault();
 
     if (validateForm()) {
-      console.log("Scan Config:", state);
+      console.log("Scan Config:", scanInfoState);
       submitJob(experimentId, scanInfoState);
     }
   };
@@ -85,9 +85,9 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
             <Select
               label="Priority"
               size="small"
-              value={state.priority}
+              value={scanInfoState.priority}
               onChange={(e) =>
-                dispatch({
+                scanInfoDispatch({
                   type: "SET_PRIORITY",
                   payload: Number(e.target.value),
                 })
@@ -106,11 +106,11 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
             label="Number of Shots"
             type="number"
             size="small"
-            value={state.shots}
+            value={scanInfoState.shots}
             onChange={(e) =>
-              dispatch({ type: "SET_SHOTS", payload: Number(e.target.value) })
+              scanInfoDispatch({ type: "SET_SHOTS", payload: Number(e.target.value) })
             }
-            error={state.shots < 1}
+            error={scanInfoState.shots < 1}
             helperText={errors.shots}
             slotProps={{
               input: {
@@ -125,11 +125,14 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
             label="Scan Repetitions"
             type="number"
             size="small"
-            value={state.repetitions}
+            value={scanInfoState.repetitions}
             onChange={(e) =>
-              dispatch({ type: "SET_REPETITIONS", payload: Number(e.target.value) })
+              scanInfoDispatch({
+                type: "SET_REPETITIONS",
+                payload: Number(e.target.value),
+              })
             }
-            error={state.repetitions < 1}
+            error={scanInfoState.repetitions < 1}
             slotProps={{
               input: {
                 inputProps: {
