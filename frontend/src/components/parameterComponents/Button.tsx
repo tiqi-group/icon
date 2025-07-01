@@ -8,36 +8,42 @@ import { useParameter } from "../../hooks/useParameter";
 
 interface ButtonComponentProps {
   id: string;
+  namespace: string;
+  displayGroup: string;
   label?: string;
 }
 
-export const ButtonComponent = React.memo(({ id, label }: ButtonComponentProps) => {
-  const { handleRightClick } = useScanContext();
-  const parameterMetadata = useContext(ParameterMetadataContext);
+export const ButtonComponent = React.memo(
+  ({ id, label, namespace, displayGroup }: ButtonComponentProps) => {
+    const { handleRightClick } = useScanContext();
+    const parameterMetadata = useContext(ParameterMetadataContext);
 
-  const displayName = label ?? parameterMetadata[id]?.display_name ?? id;
-  const [value, setValue] = useParameter(id);
-  const displayValue = Boolean(value ?? parameterMetadata[id]?.default_value ?? false);
-  const onClick = (newValue: boolean) => {
-    updateParameterValue(id, newValue);
-    setValue(newValue);
-  };
+    const displayName = label ?? parameterMetadata[id]?.display_name ?? id;
+    const [value, setValue] = useParameter(id);
+    const displayValue = Boolean(
+      value ?? parameterMetadata[id]?.default_value ?? false,
+    );
+    const onClick = (newValue: boolean) => {
+      updateParameterValue(id, newValue);
+      setValue(newValue);
+    };
 
-  return (
-    <Box display="flex" alignItems="center" gap={1}>
+    return (
       <Box display="flex" alignItems="center" gap={1}>
-        <Typography noWrap>{displayName}</Typography>
-        {id && <HelpButton docString={id} />}
-      </Box>
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography noWrap>{displayName}</Typography>
+          {id && <HelpButton docString={id} />}
+        </Box>
 
-      <Button
-        variant="outlined"
-        color={displayValue === true ? "success" : "inherit"}
-        onClick={() => onClick(!displayValue)}
-        onContextMenu={(e) => handleRightClick(e, id)}
-      >
-        {displayValue === true ? "On" : "Off"}
-      </Button>
-    </Box>
-  );
-});
+        <Button
+          variant="outlined"
+          color={displayValue === true ? "success" : "inherit"}
+          onClick={() => onClick(!displayValue)}
+          onContextMenu={(e) => handleRightClick(e, id, displayGroup, namespace)}
+        >
+          {displayValue === true ? "On" : "Off"}
+        </Button>
+      </Box>
+    );
+  },
+);

@@ -1,7 +1,8 @@
 export interface ScanParameterInfo {
   id: string;
   values: number[];
-  device_name?: string;
+  deviceNameOrDisplayGroup: string;
+  namespace: string;
   generation: {
     start: number;
     stop: number;

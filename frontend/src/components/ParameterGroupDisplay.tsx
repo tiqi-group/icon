@@ -13,6 +13,11 @@ interface ParameterGroupDisplayProps {
   displayGroup?: string;
 }
 
+const extractNamespaceFromParamId = (parameterId: string): string | null => {
+  const match = parameterId.match(/namespace='([^']+)'/);
+  return match ? match[1] : null;
+};
+
 export const ParameterGroupDisplay = ({
   experimentKey,
   experimentGroup,
@@ -67,15 +72,52 @@ export const ParameterGroupDisplay = ({
         display: "grid",
         rowGap: 1,
         columnGap: 3,
-
         gridTemplateColumns,
       }}
     >
       {sortedParameters.map(([paramId]) => {
         if (paramId.includes("param_type='ParameterTypes.BOOLEAN'")) {
-          return <ButtonComponent key={paramId} id={paramId} />;
+          return (
+            <ButtonComponent
+              key={paramId}
+              id={paramId}
+              namespace={
+                namespace === undefined
+                  ? experimentKey === undefined
+                    ? ""
+                    : extractNamespaceFromParamId(paramId)!
+                  : namespace
+              }
+              displayGroup={
+                displayGroup === undefined
+                  ? experimentGroup === undefined
+                    ? ""
+                    : experimentGroup
+                  : displayGroup
+              }
+            />
+          );
         }
-        return <ParameterNumberComponent key={paramId} id={paramId} />;
+        return (
+          <ParameterNumberComponent
+            key={paramId}
+            id={paramId}
+            namespace={
+              namespace === undefined
+                ? experimentKey === undefined
+                  ? ""
+                  : extractNamespaceFromParamId(paramId)!
+                : namespace
+            }
+            displayGroup={
+              displayGroup === undefined
+                ? experimentGroup === undefined
+                  ? ""
+                  : experimentGroup
+                : displayGroup
+            }
+          />
+        );
       })}
     </Box>
   );

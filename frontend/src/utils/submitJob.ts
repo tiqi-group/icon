@@ -10,10 +10,10 @@ interface ScanParameterArgument {
 export const submitJob = (experimentId: string, scanInfoState: ScanInfoState) => {
   const scan_parameters = scanInfoState.parameters.map(
     /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
-    ({ generation, device_name, ...rest }) => {
+    ({ namespace, generation, deviceNameOrDisplayGroup, ...rest }) => {
       const param: ScanParameterArgument = { ...rest };
-      if (device_name !== undefined) {
-        param.device_name = device_name;
+      if (namespace == "Devices") {
+        param.device_name = deviceNameOrDisplayGroup;
       }
       return param;
     },

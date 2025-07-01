@@ -12,7 +12,8 @@ const defaultParameter: ScanParameterInfo = {
   id: "",
   values: [],
   generation: { start: 0, stop: 0, points: 2, scatter: false },
-  device_name: undefined,
+  namespace: "",
+  deviceNameOrDisplayGroup: "",
 };
 
 export type Action =
@@ -52,7 +53,8 @@ export const ScanContext = createContext<{
   handleRightClick: (
     event: React.MouseEvent<HTMLDivElement | HTMLButtonElement>,
     paramId: string,
-    deviceName?: string,
+    deviceNameOrDisplayGroup: string,
+    namespace: string,
   ) => void;
   handleCloseMenu: () => void;
 }>({
@@ -81,17 +83,23 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [selectedParam, setSelectedParam] = useState<{
     id: string;
-    device_name?: string;
+    namespace: string;
+    deviceNameOrDisplayGroup: string;
   } | null>(null);
 
   const handleRightClick = (
     event: React.MouseEvent<HTMLDivElement | HTMLButtonElement>,
     paramId: string,
-    deviceName?: string,
+    deviceNameOrDisplayGroup: string,
+    namespace: string,
   ) => {
     console.log(`Right-clicked on: ${paramId}`);
     event.preventDefault();
-    setSelectedParam({ id: paramId, device_name: deviceName });
+    setSelectedParam({
+      id: paramId,
+      namespace: namespace,
+      deviceNameOrDisplayGroup: deviceNameOrDisplayGroup,
+    });
     setMenuAnchor({ mouseX: event.clientX, mouseY: event.clientY });
   };
 
@@ -126,13 +134,11 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   index,
                   payload: {
                     id: selectedParam!.id,
-                    device_name: selectedParam?.device_name,
+                    namespace: selectedParam!.namespace,
+                    deviceNameOrDisplayGroup: selectedParam!.deviceNameOrDisplayGroup,
                   },
                 });
                 handleCloseMenu();
-                console.log(
-                  `Set parameter ${index + 1} to ${selectedParam!.id} ${selectedParam?.device_name}`,
-                );
               }}
             >
               Scan as parameter {index + 1}

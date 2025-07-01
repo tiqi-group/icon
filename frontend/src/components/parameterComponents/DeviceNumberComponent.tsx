@@ -91,7 +91,9 @@ export const DeviceNumberComponent = ({
       error={error}
       onChange={handleChange}
       onBlur={handleBlur}
-      onContextMenu={(event) => handleRightClick(event, accessPath, deviceName)}
+      onContextMenu={(event) =>
+        handleRightClick(event, accessPath, deviceName, "Devices")
+      }
     />
   );
 };

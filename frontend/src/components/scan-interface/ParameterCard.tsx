@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useContext, useMemo } from "react";
 import {
   Box,
   IconButton,
@@ -12,7 +12,6 @@ import {
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useScanContext } from "../../hooks/useScanContext";
-import { ParameterMetadataContext } from "../../contexts/ParameterMetadataContext";
 import { ScanParameterInfo } from "../../types/ScanParameterInfo";
 import { ParameterDisplayGroupsContext } from "../../contexts/ParameterDisplayGroupsContext";
 import { DeviceInfoContext } from "../../contexts/DeviceInfoContext";
@@ -39,31 +38,71 @@ export const ParameterCard = ({
 }) => {
   const { state, dispatch } = useScanContext();
 
-  const parameterMetadata = useContext(ParameterMetadataContext);
+  const [parameterDisplayGroups, parameterNamespaceToDisplayGroup] = useContext(
+    ParameterDisplayGroupsContext,
+  );
+  const deviceInfo = useContext(DeviceInfoContext);
+  const parameterSources: Record<string, string[]> = {
+    ...parameterNamespaceToDisplayGroup,
+    Devices: Object.keys(deviceInfo),
+  };
+  console.log(parameterSources);
+
+  const parameterOptions = useMemo(() => {
+    if (!param.namespace || !param.deviceNameOrDisplayGroup) return {};
+
+    const groupKey = param.deviceNameOrDisplayGroup;
+
+    if (param.namespace === "Devices") {
+      const device = deviceInfo[groupKey];
+      if (!device) return {};
+
+      const prefix = `devices.device_proxies["${groupKey}"].`;
+      const prefixLength = prefix.length;
+
+      return Object.fromEntries(
+        device.scannable_params.map((paramId) => {
+          const shortId = paramId.slice(prefixLength);
+          return [shortId, shortId];
+        }),
+      );
+    }
+
+    const key = `${param.namespace} (${groupKey})`;
+    const group = parameterDisplayGroups[key] || {};
+    return Object.fromEntries(
+      Object.entries(group).map(([paramId, meta]) => [paramId, meta.display_name]),
+    );
+  }, [param, parameterDisplayGroups, deviceInfo]);
 
   return (
     <Box display="flex" flexDirection="column" gap={1}>
       <Box display="flex" alignItems="center" justifyContent="space-between">
         <FormControl fullWidth size="small">
-          <InputLabel>Parameter ID</InputLabel>
+          <InputLabel>Namespace</InputLabel>
           <Select
-            value={param.id}
-            onChange={(e) =>
+            title={param.namespace}
+            value={param.namespace}
+            onChange={(e) => {
               dispatch({
                 type: "UPDATE_PARAMETER",
                 index,
-                payload: { id: e.target.value },
-              })
-            }
+                payload: {
+                  id: "",
+                  deviceNameOrDisplayGroup: "",
+                  namespace: e.target.value,
+                },
+              });
+            }}
             renderValue={(selected) => {
               const truncated =
                 selected.length > 30 ? selected.slice(0, 30) + "..." : selected;
               return truncated;
             }}
           >
-            {Object.keys(parameterMetadata).map((paramId) => (
-              <MenuItem key={paramId} value={paramId}>
-                {paramId}
+            {Object.keys(parameterSources).map((namespace) => (
+              <MenuItem key={namespace} value={namespace}>
+                {namespace}
               </MenuItem>
             ))}
           </Select>
@@ -72,6 +111,68 @@ export const ParameterCard = ({
           <DeleteIcon />
         </IconButton>
       </Box>
+      <FormControl fullWidth size="small" disabled={!param.namespace}>
+        <InputLabel>
+          {param.namespace === "Devices" ? "Device Name" : "Display Group"}
+        </InputLabel>
+        <Select
+          value={param.deviceNameOrDisplayGroup}
+          onChange={(e) => {
+            dispatch({
+              type: "UPDATE_PARAMETER",
+              index,
+              payload: {
+                id: "",
+                deviceNameOrDisplayGroup: e.target.value,
+              },
+            });
+          }}
+          renderValue={(selected) => {
+            const truncated =
+              selected.length > 30 ? selected.slice(0, 30) + "..." : selected;
+            return truncated;
+          }}
+        >
+          {(parameterSources[param.namespace!] ?? []).map((groupOrDevice: string) => (
+            <MenuItem key={groupOrDevice} value={groupOrDevice}>
+              {groupOrDevice}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+
+      <FormControl
+        fullWidth
+        size="small"
+        disabled={Object.keys(parameterOptions).length === 0}
+      >
+        <InputLabel>Parameter</InputLabel>
+        <Select
+          value={param.id}
+          title={param.id}
+          onChange={(e) => {
+            dispatch({
+              type: "UPDATE_PARAMETER",
+              index,
+              payload: { id: e.target.value },
+            });
+          }}
+          renderValue={(value) => {
+            const selectedDisplayName = parameterOptions[value];
+            console.log(`${value} in `, parameterOptions);
+            if (selectedDisplayName === undefined) return value;
+            return selectedDisplayName.length > 30
+              ? selectedDisplayName.slice(0, 30) + "..."
+              : selectedDisplayName;
+          }}
+        >
+          {Object.entries(parameterOptions).map(([paramId, displayName]) => (
+            <MenuItem key={paramId} value={paramId} title={paramId}>
+              {displayName}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
       <Box display="flex" flexDirection="column" gap={1}>
         <TextField
           required
