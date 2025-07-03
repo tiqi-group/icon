@@ -5,6 +5,7 @@ import { ExperimentsContext } from "../contexts/ExperimentsContext";
 import { ParameterDisplayGroupsContext } from "../contexts/ParameterDisplayGroupsContext";
 import { ButtonComponent } from "./parameterComponents/Button";
 import { ParameterNumberComponent } from "./parameterComponents/ParameterNumberComponent";
+import { Combobox } from "./parameterComponents/Combobox";
 
 interface ParameterGroupDisplayProps {
   experimentKey?: string;
@@ -97,27 +98,30 @@ export const ParameterGroupDisplay = ({
               }
             />
           );
+        } else if (paramId.includes("param_type='ParameterTypes.ENUM'")) {
+          return <Combobox key={paramId} id={paramId} />;
+        } else {
+          return (
+            <ParameterNumberComponent
+              key={paramId}
+              id={paramId}
+              namespace={
+                namespace === undefined
+                  ? experimentKey === undefined
+                    ? ""
+                    : extractNamespaceFromParamId(paramId)!
+                  : namespace
+              }
+              displayGroup={
+                displayGroup === undefined
+                  ? experimentGroup === undefined
+                    ? ""
+                    : experimentGroup
+                  : displayGroup
+              }
+            />
+          );
         }
-        return (
-          <ParameterNumberComponent
-            key={paramId}
-            id={paramId}
-            namespace={
-              namespace === undefined
-                ? experimentKey === undefined
-                  ? ""
-                  : extractNamespaceFromParamId(paramId)!
-                : namespace
-            }
-            displayGroup={
-              displayGroup === undefined
-                ? experimentGroup === undefined
-                  ? ""
-                  : experimentGroup
-                : displayGroup
-            }
-          />
-        );
       })}
     </Box>
   );

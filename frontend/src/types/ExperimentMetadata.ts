@@ -7,6 +7,7 @@ export interface ParameterMetadata {
   min_value: number | null;
   max_value: number | null;
   read_only?: boolean;
+  allowed_values?: string[];
 }
 
 interface ExperimentMetadata {
