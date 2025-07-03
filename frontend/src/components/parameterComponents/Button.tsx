@@ -10,15 +10,14 @@ interface ButtonComponentProps {
   id: string;
   namespace: string;
   displayGroup: string;
-  label?: string;
 }
 
 export const ButtonComponent = React.memo(
-  ({ id, label, namespace, displayGroup }: ButtonComponentProps) => {
+  ({ id, namespace, displayGroup }: ButtonComponentProps) => {
     const { handleRightClick } = useScanContext();
     const parameterMetadata = useContext(ParameterMetadataContext);
 
-    const displayName = label ?? parameterMetadata[id]?.display_name ?? id;
+    const displayName = parameterMetadata[id]?.display_name ?? id;
     const [value, setValue] = useParameter(id);
     const displayValue = Boolean(
       value ?? parameterMetadata[id]?.default_value ?? false,
