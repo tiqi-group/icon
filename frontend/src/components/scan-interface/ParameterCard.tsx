@@ -81,6 +81,7 @@ export const ParameterCard = ({
         <FormControl fullWidth size="small">
           <InputLabel>Namespace</InputLabel>
           <Select
+            label="Namespace"
             title={param.namespace}
             value={param.namespace}
             onChange={(e) => {
@@ -116,6 +117,7 @@ export const ParameterCard = ({
           {param.namespace === "Devices" ? "Device Name" : "Display Group"}
         </InputLabel>
         <Select
+          label={param.namespace === "Devices" ? "Device Name" : "Display Group"}
           value={param.deviceNameOrDisplayGroup}
           onChange={(e) => {
             dispatch({
@@ -148,6 +150,7 @@ export const ParameterCard = ({
       >
         <InputLabel>Parameter</InputLabel>
         <Select
+          label="Parameter"
           value={param.id}
           title={param.id}
           onChange={(e) => {
