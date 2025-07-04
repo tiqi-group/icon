@@ -31,6 +31,7 @@ class ExperimentDataPoint(ResultDict):
     index: int
     scan_params: dict[str, DatabaseValueType]
     timestamp: str
+    sequence_json: str
 
 
 class ExperimentData(TypedDict):
@@ -45,8 +46,41 @@ def get_filename_by_job_id(job_id: int) -> str:
     return f"{scheduled_time}.h5"
 
 
-def resize_dataset(dataset: h5py.Dataset, current_size: int, axis: int) -> None:
-    dataset.resize(current_size + 1, axis)
+def resize_dataset(dataset: h5py.Dataset, next_index: int, axis: int) -> None:
+    dataset.resize(next_index + 1, axis)
+
+
+def write_sequence_json_to_dataset(
+    h5file: h5py.File,
+    data_point_index: int,
+    sequence_json: str,
+) -> None:
+    """Write scan parameters and timestamp to scan_parameters dataset."""
+
+    sequence_json_dtype = [
+        ("index", np.int32),
+        ("Sequence", h5py.string_dtype()),
+    ]
+    sequence_json_dataset = h5file.require_dataset(
+        "sequence_json",
+        shape=(0,),
+        maxshape=(None,),
+        chunks=True,
+        dtype=sequence_json_dtype,
+    )
+
+    index = sequence_json_dataset.shape[0]
+    if index > 0:
+        _, sequence_json_old = cast(
+            "tuple[int, bytes]", sequence_json_dataset[index - 1]
+        )
+        if sequence_json_old.decode() == sequence_json:
+            logger.debug("Sequence JSON didn't change.")
+            return
+
+    resize_dataset(sequence_json_dataset, next_index=index, axis=0)
+
+    sequence_json_dataset[index] = (data_point_index, sequence_json)
 
 
 def write_scan_parameters_and_timestamp_to_dataset(
@@ -71,7 +105,7 @@ def write_scan_parameters_and_timestamp_to_dataset(
     )
 
     if data_point_index >= number_of_data_points:
-        resize_dataset(scan_params_dataset, current_size=number_of_data_points, axis=0)
+        resize_dataset(scan_params_dataset, next_index=number_of_data_points, axis=0)
 
     parameter_values = tuple(scan_params[key] for key in scan_params)
     scan_params_dataset[data_point_index] = (
@@ -98,7 +132,7 @@ def write_results_to_dataset(
     )
 
     if data_point_index >= number_of_data_points:
-        resize_dataset(result_dataset, current_size=number_of_data_points, axis=0)
+        resize_dataset(result_dataset, next_index=number_of_data_points, axis=0)
 
     result_values = tuple(result_channels.values())
     result_dataset[data_point_index] = result_values
@@ -124,7 +158,7 @@ def write_shot_channels_to_datasets(
         )
 
         if data_point_index >= number_of_data_points:
-            resize_dataset(shot_dataset, current_size=number_of_data_points, axis=0)
+            resize_dataset(shot_dataset, next_index=number_of_data_points, axis=0)
         shot_dataset[data_point_index] = value
 
 
@@ -155,9 +189,7 @@ class ExperimentDataRepository:
         number_of_shots: int,
         repetitions: int,
         local_parameter_timestamp: datetime | None = None,
-        parameters: list[
-            ScanParameter
-        ] = [],  # TODO: write parameter metadata to scan_parameters dataset
+        parameters: list[ScanParameter] = [],
     ) -> None:
         """Creates or updates a metadata group and updates its attributes with the
         passed metadata."""
@@ -251,6 +283,12 @@ class ExperimentDataRepository:
                 h5file=h5file,
                 data_point_index=data_point["index"],
                 vector_channels=data_point["vector_channels"],
+            )
+
+            write_sequence_json_to_dataset(
+                h5file=h5file,
+                data_point_index=data_point["index"],
+                sequence_json=data_point["sequence_json"],
             )
 
             # increase the number of data points

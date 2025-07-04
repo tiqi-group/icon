@@ -172,6 +172,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                     "shot_channels": result["shot_channels"],
                     "vector_channels": result["vector_channels"],
                     "timestamp": timestamp.isoformat(),
+                    "sequence_json": task.sequence_json,
                 }
 
                 # TODO: move this to the post-processing worker
