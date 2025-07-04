@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pydase
 
 if TYPE_CHECKING:
     import multiprocessing
+
+    from icon.server.utils.types import UpdateQueue
 
 logger = logging.getLogger(__name__)
 
@@ -21,16 +23,17 @@ class ScansController(pydase.DataService):
 
     def __init__(
         self,
-        pre_processing_update_queues: list[multiprocessing.Queue[dict[str, Any]]],
+        pre_processing_update_queues: list[multiprocessing.Queue[UpdateQueue]],
     ) -> None:
         super().__init__()
         self._pre_processing_update_queues = pre_processing_update_queues
 
-    async def trigger_update_job_params_by_id(self, *, job_id: int) -> None:
+    async def trigger_update_job_params(self, *, job_id: int | None = None) -> None:
         """Triggers an 'update_parameters' event for the given job ID.
 
         Args:
-            job_id: The ID of the job whose parameters should be updated.
+            job_id: The ID of the job whose parameters should be updated. If None, all
+                jobs will update their parameters.
         """
 
         for pre_processing_update_queue in self._pre_processing_update_queues:

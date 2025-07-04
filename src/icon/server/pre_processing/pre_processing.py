@@ -32,6 +32,7 @@ from icon.server.data_access.repositories.pycrystal_library_repository import (
     PycrystalLibraryRepository,
 )
 from icon.server.hardware_processing.task import HardwareProcessingTask
+from icon.server.utils.types import UpdateQueue
 
 if TYPE_CHECKING:
     from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
@@ -141,7 +142,7 @@ class PreProcessingWorker(multiprocessing.Process):
         self,
         worker_number: int,
         pre_processing_queue: queue.PriorityQueue[PreProcessingTask],
-        update_queue: multiprocessing.Queue[dict[str, Any]],
+        update_queue: multiprocessing.Queue[UpdateQueue],
         hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask],
         manager: SharedResourceManager,
     ) -> None:
@@ -161,7 +162,7 @@ class PreProcessingWorker(multiprocessing.Process):
         self._exp_class_name: str
         self._experiment_id: str
         self._scan_parameter_value_combinations: list[dict[str, DatabaseValueType]]
-        self._parameter_dict: dict[str, DatabaseValueType]
+        self._parameter_dict: dict[str, DatabaseValueType] = {}
 
     def run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -169,6 +170,9 @@ class PreProcessingWorker(multiprocessing.Process):
 
             while True:
                 self._pre_processing_task = self._queue.get()
+                # empty update queue
+                self._handle_parameter_updates()
+
                 self._data_points_to_process = self._manager.Queue()
                 self._processed_data_points = self._manager.Queue()
 
@@ -197,11 +201,7 @@ class PreProcessingWorker(multiprocessing.Process):
                         )
                     )
 
-                    self._parameter_dict = cache_parameter_values(
-                        local_params_timestamp=self._pre_processing_task.local_parameters_timestamp,
-                        namespace=f"{self._exp_module_name}.{self._exp_class_name}",
-                    )
-                    self._global_parameter_timestamp = datetime.now(timezone)
+                    self._update_parameter_dict()
 
                     self._scan_parameter_value_combinations = get_scan_combinations(
                         self._pre_processing_task.job
@@ -258,6 +258,65 @@ class PreProcessingWorker(multiprocessing.Process):
                         job=self._pre_processing_task.job, status=JobStatus.PROCESSED
                     )
 
+    def _update_parameter_dict(
+        self,
+        new_parameters: dict[str, DatabaseValueType] | None = None,
+        update_all: bool = False,
+    ) -> None:
+        """Updates self._parameter_dict.
+
+        Args:
+            new_parameters: Dictionary containing parameter IDs and corresponding
+                values. If set to None, the whole parameter dict will be updated with
+                values from the database. Defaults to None.
+            update_all: If True (and new_parameters is None), updates both local
+                (experiment) parameters and global parameters with the latest values. If
+                False, cache the latest global parameter values and the local
+                (experiment) parameter values before the local_params_timestamp from the
+                database job entry.
+        """
+
+        self._global_parameter_timestamp = datetime.now(timezone)
+
+        if new_parameters is not None:
+            self._parameter_dict.update(new_parameters)
+            return
+
+        if update_all:
+            local_params_timestamp = self._global_parameter_timestamp.isoformat()
+        else:
+            local_params_timestamp = (
+                self._pre_processing_task.local_parameters_timestamp
+            )
+
+        self._parameter_dict = cache_parameter_values(
+            local_params_timestamp=local_params_timestamp,
+            namespace=f"{self._exp_module_name}.{self._exp_class_name}",
+        )
+
+    def _handle_parameter_updates(self) -> None:
+        done = False
+
+        while not done:
+            try:
+                parameter_update = self._update_queue.get(block=False)
+
+                event = parameter_update["event"]
+                job_id = parameter_update.get("job_id", None)
+                new_parameters = parameter_update.get("new_parameters", None)
+
+                if event == "update_parameters" and (
+                    job_id is None or job_id == self._pre_processing_task.job.id
+                ):
+                    self._update_parameter_dict(update_all=True)
+                elif event == "calibration" and new_parameters is not None:
+                    self._update_parameter_dict(
+                        update_all=True, new_parameters=new_parameters
+                    )
+
+            except queue.Empty:
+                done = True
+
     def _get_sequence_json(self, parameter_dict: dict[str, DatabaseValueType]) -> str:
         return asyncio.run(
             PycrystalLibraryRepository.generate_json_sequence(
@@ -300,6 +359,8 @@ class PreProcessingWorker(multiprocessing.Process):
         while self._processed_data_points.qsize() != len(
             self._scan_parameter_value_combinations
         ):
+            self._handle_parameter_updates()
+
             # TODO: this should probably be done with multiple workers to
             # speed up the preparation of JSONs
             try:
@@ -337,6 +398,8 @@ class PreProcessingWorker(multiprocessing.Process):
         ):
             if self._data_points_to_process.qsize() != 0:
                 raise Exception("Something went wrong")
+
+            self._handle_parameter_updates()
 
             try:
                 hw_task = self._processed_data_points.get(block=False)

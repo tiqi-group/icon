@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pydase
 import requests.exceptions
@@ -27,12 +27,14 @@ from icon.server.data_access.repositories.pycrystal_library_repository import (
 if TYPE_CHECKING:
     import multiprocessing
 
+    from icon.server.utils.types import UpdateQueue
+
 logger = logging.getLogger(__name__)
 
 
 class APIService(pydase.DataService):
     def __init__(
-        self, pre_processing_update_queues: list[multiprocessing.Queue[dict[str, Any]]]
+        self, pre_processing_update_queues: list[multiprocessing.Queue[UpdateQueue]]
     ) -> None:
         super().__init__()
 
