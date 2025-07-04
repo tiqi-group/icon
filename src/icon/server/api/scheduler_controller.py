@@ -7,7 +7,7 @@ import pydase
 import icon.server.data_access.models.sqlite.scan_parameter as sqlite_scan_parameter
 from icon.server.api.devices_controller import DevicesController
 from icon.server.api.models.scan_parameter import ScanParameter
-from icon.server.data_access.models.enums import JobStatus
+from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
 from icon.server.data_access.models.sqlite.job import Job, timezone
 from icon.server.data_access.repositories.device_repository import DeviceRepository
@@ -15,6 +15,7 @@ from icon.server.data_access.repositories.experiment_source_repository import (
     ExperimentSourceRepository,
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
+from icon.server.data_access.repositories.job_run_repository import JobRunRepository
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
 )
@@ -79,6 +80,18 @@ class SchedulerController(pydase.DataService):
         job = JobRepository.submit_job(job=job)
 
         return job.id
+
+    def cancel_job(self, *, job_id: int) -> None:
+        job = JobRepository.get_job_by_id(job_id=job_id)
+        if job.status in (JobStatus.PROCESSING, JobStatus.SUBMITTED):
+            JobRepository.update_job_status(job=job, status=JobStatus.PROCESSED)
+            job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
+            if job_run.status in (JobRunStatus.PENDING, JobRunStatus.PROCESSING):
+                JobRunRepository.update_run_by_id(
+                    run_id=job_run.id,
+                    status=JobRunStatus.CANCELLED,
+                    log="Cancelled through user interaction.",
+                )
 
     def get_scheduled_jobs(
         self,
