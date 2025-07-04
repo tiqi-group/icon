@@ -36,12 +36,12 @@ class APIService(pydase.DataService):
     ) -> None:
         super().__init__()
 
-        self.scheduler = SchedulerController()
+        self.devices = DevicesController()
+        self.scheduler = SchedulerController(devices_controller=self.devices)
         self.experiments = ExperimentsController()
         self.parameters = ParametersController()
         self.config = ConfigurationController()
         self.data = ExperimentDataController()
-        self.devices = DevicesController()
         self.scans = ScansController(
             pre_processing_update_queues=pre_processing_update_queues
         )

@@ -1,9 +1,11 @@
 import logging
 from datetime import datetime
+from typing import Any
 
 import pydase
 
 import icon.server.data_access.models.sqlite.scan_parameter as sqlite_scan_parameter
+from icon.server.api.devices_controller import DevicesController
 from icon.server.api.models.scan_parameter import ScanParameter
 from icon.server.data_access.models.enums import JobStatus
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
@@ -13,12 +15,19 @@ from icon.server.data_access.repositories.experiment_source_repository import (
     ExperimentSourceRepository,
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
+from icon.server.data_access.repositories.parameters_repository import (
+    ParametersRepository,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class SchedulerController(pydase.DataService):
-    def submit_job(  # noqa: PLR0913
+    def __init__(self, devices_controller: DevicesController) -> None:
+        super().__init__()
+        self.__devices_controller = devices_controller
+
+    async def submit_job(  # noqa: PLR0913
         self,
         *,
         experiment_id: str,
@@ -38,19 +47,24 @@ class SchedulerController(pydase.DataService):
         experiment_source = ExperimentSourceRepository.get_or_create_experiment(
             experiment_source=experiment_source
         )
+        sqlite_scan_parameters = []
 
-        sqlite_scan_parameters = [
-            sqlite_scan_parameter.ScanParameter(
-                variable_id=param["id"],
-                scan_values=param["values"],
-                device_id=DeviceRepository.get_device_by_name(
-                    name=param["device_name"]
-                ).id
-                if "device_name" in param
-                else None,
+        for param in scan_parameters:
+            scan_values = await self.__cast_scan_values_to_param_type(
+                scan_parameter=param
             )
-            for param in scan_parameters
-        ]
+
+            sqlite_scan_parameters.append(
+                sqlite_scan_parameter.ScanParameter(
+                    variable_id=param["id"],
+                    scan_values=scan_values,
+                    device_id=DeviceRepository.get_device_by_name(
+                        name=param["device_name"]
+                    ).id
+                    if "device_name" in param
+                    else None,
+                )
+            )
         job = Job(
             experiment_source=experiment_source,
             priority=priority,
@@ -82,3 +96,26 @@ class SchedulerController(pydase.DataService):
                 status=status, start=start_date, stop=stop_date
             )
         }
+
+    async def __cast_scan_values_to_param_type(
+        self,
+        scan_parameter: ScanParameter,
+    ) -> list[Any]:
+        scan_values = scan_parameter["values"]
+        parameter_id = scan_parameter["id"]
+
+        if "device_name" in scan_parameter:
+            current_value = await self.__devices_controller.get_parameter_value(
+                name=scan_parameter["device_name"],
+                parameter_id=parameter_id,
+            )
+
+        else:
+            current_value = ParametersRepository.get_shared_parameter_by_id(
+                parameter_id=parameter_id
+            )
+            if current_value is None:
+                return scan_values
+
+        current_type = type(current_value)
+        return [current_type(value) for value in scan_values]
