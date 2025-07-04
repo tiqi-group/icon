@@ -341,7 +341,7 @@ class PreProcessingWorker(multiprocessing.Process):
             try:
                 hw_task = self._processed_data_points.get(block=False)
             except queue.Empty:
-                time.sleep(0.01)
+                time.sleep(0.1)
                 continue
 
             if hw_task.global_parameter_timestamp < self._global_parameter_timestamp:
