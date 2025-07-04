@@ -73,6 +73,16 @@ class HardwareProcessingWorker(multiprocessing.Process):
         super().__init__()
         self._queue = hardware_processing_queue
         self._manager = manager
+        self._pydase_clients = {
+            device.name: pydase.Client(
+                url=device.url, block_until_connected=False, auto_update_proxy=False
+            )
+            for device in DeviceRepository.get_devices_by_status(
+                status=DeviceStatus.ENABLED
+            )
+        }
+
+        self._hardware_controller = HardwareController()
 
     def _update_pydase_service_parameter(
         self, device: Device, access_path: str, new_value: DatabaseValueType
@@ -138,17 +148,6 @@ class HardwareProcessingWorker(multiprocessing.Process):
             )
 
     def run(self) -> None:
-        self._pydase_clients = {
-            device.name: pydase.Client(
-                url=device.url, block_until_connected=False, auto_update_proxy=False
-            )
-            for device in DeviceRepository.get_devices_by_status(
-                status=DeviceStatus.ENABLED
-            )
-        }
-
-        hardware_controller = HardwareController()
-
         while True:
             task = self._queue.get()
 
@@ -161,7 +160,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 self._set_pydase_service_values(scanned_params=task.scanned_params)
 
                 timestamp = datetime.now(timezone)
-                result = hardware_controller.run(
+                result = self._hardware_controller.run(
                     sequence=task.sequence_json,
                     number_of_shots=task.pre_processing_task.job.number_of_shots,
                 )
