@@ -9,7 +9,7 @@ import {
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { ExperimentsContext } from "../contexts/ExperimentsContext";
 import { ParameterGroupDisplay } from "./ParameterGroupDisplay";
-import ScanInterface from "./scan-interface/ScanInterfaceComponent";
+import ScanInterface from "./scanInterface/ScanInterfaceComponent";
 
 const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
   const experiments = useContext(ExperimentsContext);
