@@ -94,6 +94,10 @@ def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
     # Generate combinations using itertools.product
     keys = list(parameter_values.keys())
     values = [parameter_values[key] for key in keys]
+
+    if values == []:
+        return []
+
     combinations = itertools.product(*values)
 
     # Map each combination back to variable IDs
@@ -212,6 +216,8 @@ class PreProcessingWorker(multiprocessing.Process):
 
                     if len(self._scan_parameter_value_combinations) > 0:
                         self._handle_regular_scan()
+                    else:
+                        self._handle_continuous_scan()
 
                     logger.info(
                         "JobRun with id '%s' finished",
@@ -314,3 +320,40 @@ class PreProcessingWorker(multiprocessing.Process):
             self._submit_data_point_to_hw_worker(
                 index=index, data_point=data_point, sequence_json=sequence_json
             )
+
+    def _handle_continuous_scan(self) -> None:
+        sequence_json = self._get_sequence_json(parameter_dict=self._parameter_dict)
+
+        continuous_scan_index = 0
+
+        for index in range(2):
+            self._submit_data_point_to_hw_worker(
+                index=index, data_point={}, sequence_json=sequence_json
+            )
+            continuous_scan_index += 1
+
+        while not job_run_cancelled_or_failed(
+            job_id=self._pre_processing_task.job.id,
+        ):
+            if self._data_points_to_process.qsize() != 0:
+                raise Exception("Something went wrong")
+
+            try:
+                hw_task = self._processed_data_points.get(block=False)
+            except queue.Empty:
+                time.sleep(0.01)
+                continue
+
+            if hw_task.global_parameter_timestamp < self._global_parameter_timestamp:
+                sequence_json = self._get_sequence_json(
+                    parameter_dict=self._parameter_dict
+                )
+            else:
+                sequence_json = hw_task.sequence_json
+
+            self._submit_data_point_to_hw_worker(
+                index=continuous_scan_index,
+                data_point={},
+                sequence_json=sequence_json,
+            )
+            continuous_scan_index += 1
