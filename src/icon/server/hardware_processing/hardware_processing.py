@@ -184,4 +184,4 @@ class HardwareProcessingWorker(multiprocessing.Process):
                     log=str(e),
                 )
             finally:
-                task.processed_data_points.put(task.scanned_params)
+                task.processed_data_points.put(task)

@@ -150,7 +150,7 @@ class PreProcessingWorker(multiprocessing.Process):
         self._data_points_to_process: queue.Queue[
             tuple[int, dict[str, DatabaseValueType]]
         ]
-        self._processed_data_points: queue.Queue[Any]
+        self._processed_data_points: queue.Queue[HardwareProcessingTask]
         self._pre_processing_task: PreProcessingTask
         self._src_dir: str
         self._exp_module_name: str
