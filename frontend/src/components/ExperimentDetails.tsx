@@ -30,7 +30,6 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
           defaultExpanded
           disableGutters // Removes extra padding/margin from Accordion
           square
-          sx={{ "&:before": { display: "none" } }}
         >
           <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ m: 0 }}>
             <Typography variant="h6">{group}</Typography>
