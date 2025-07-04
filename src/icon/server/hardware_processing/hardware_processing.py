@@ -4,11 +4,14 @@ import logging
 import multiprocessing
 import re
 import time
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 import pydase
+import pytz
 import socketio.exceptions
 
+from icon.config.config import get_config
 from icon.server.data_access.models.enums import DeviceStatus, JobRunStatus
 from icon.server.data_access.repositories.device_repository import DeviceRepository
 from icon.server.data_access.repositories.experiment_data_repository import (
@@ -30,6 +33,7 @@ if TYPE_CHECKING:
     from icon.server.shared_resource_manager import SharedResourceManager
 
 logger = logging.getLogger(__name__)
+timezone = pytz.timezone(get_config().date.timezone)
 
 
 def parse_parameter_id(param_id: str) -> tuple[str | None, str]:
@@ -156,6 +160,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
             try:
                 self._set_pydase_service_values(scanned_params=task.scanned_params)
 
+                timestamp = datetime.now(timezone)
                 result = hardware_controller.run(
                     sequence=task.sequence_json,
                     number_of_shots=task.pre_processing_task.job.number_of_shots,
@@ -167,7 +172,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                     "result_channels": result["result_channels"],
                     "shot_channels": result["shot_channels"],
                     "vector_channels": result["vector_channels"],
-                    "timestamp": task.global_parameter_timestamp.isoformat(),
+                    "timestamp": timestamp.isoformat(),
                 }
 
                 # TODO: move this to the post-processing worker
