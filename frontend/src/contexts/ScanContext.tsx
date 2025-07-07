@@ -12,10 +12,12 @@ export const ScanContext = createContext<{
     namespace: string,
   ) => void;
   handleCloseMenu: () => void;
+  scannedParamKeys: string[];
 }>({
   state: { priority: 20, shots: 50, repetitions: 1, parameters: [] },
   dispatch: () => {},
   menuAnchor: { mouseX: null, mouseY: null },
   handleRightClick: () => {},
   handleCloseMenu: () => {},
+  scannedParamKeys: [],
 });

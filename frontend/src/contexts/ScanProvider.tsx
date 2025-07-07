@@ -48,6 +48,32 @@ const reducer = (state: ScanInfoState, action: Action): ScanInfoState => {
   return { ...state, [action.type.toLowerCase().replace("set_", "")]: action.payload };
 };
 
+/**
+ * Constructs a unique key for identifying a scanned parameter.
+ *
+ * For experiment parameters, this returns the parameter ID as-is.
+ * For device parameters (i.e., when namespace is "Devices"), it returns
+ * the full access path used to uniquely identify the parameter, including
+ * the device name.
+ *
+ * Example:
+ *   makeScannedParamKey("laser_power", "Devices", "Laser A")
+ *   → 'devices.device_proxies["Laser A"].laser_power'
+ *
+ * @param id - The parameter ID.
+ * @param namespace - The parameter's namespace (e.g., "Devices" or an experiment namespace).
+ * @param deviceNameOrDisplayGroup - Device name (for device parameters) or display group name.
+ * @returns A string key uniquely identifying the scanned parameter.
+ */
+const makeScannedParamKey = (
+  id: string,
+  namespace: string,
+  deviceNameOrDisplayGroup: string,
+): string =>
+  namespace === "Devices"
+    ? `devices.device_proxies["${deviceNameOrDisplayGroup}"].${id}`
+    : id;
+
 export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, {
     priority: 20,
@@ -55,6 +81,10 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     repetitions: 1,
     parameters: [defaultParameter],
   });
+
+  const scannedParamKeys = state.parameters.map((param) =>
+    makeScannedParamKey(param.id, param.namespace, param.deviceNameOrDisplayGroup),
+  );
 
   const [menuAnchor, setMenuAnchor] = useState<{
     mouseX: number | null;
@@ -93,7 +123,14 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <ScanContext.Provider
-      value={{ state, dispatch, menuAnchor, handleRightClick, handleCloseMenu }}
+      value={{
+        state,
+        dispatch,
+        menuAnchor,
+        handleRightClick,
+        handleCloseMenu,
+        scannedParamKeys,
+      }}
     >
       {children}
 
