@@ -13,19 +13,29 @@ class StatusController(pydase.DataService):
     def __init__(self) -> None:
         super().__init__()
         self.__hardware_controller = HardwareController(connect=False)
+        self._influxdb_available = False
+        self._hardware_available = False
+
+    def get_status(self) -> dict[str, bool]:
+        return {
+            "influxdb": self._influxdb_available,
+            "hardware": self._hardware_available,
+        }
 
     def check_influxdb_status(self) -> None:
-        emit_queue.put(
-            {"event": "status.influxdb", "data": influxdb_v1.is_responsive()}
-        )
+        status = influxdb_v1.is_responsive()
+
+        self._influxdb_available = status
+        emit_queue.put({"event": "status.influxdb", "data": status})
 
     async def check_hardware_status(self) -> None:
         if not self.__hardware_controller.connected:
             await asyncio.to_thread(self.__hardware_controller.connect)
 
-        emit_queue.put(
-            {"event": "status.hardware", "data": self.__hardware_controller.connected}
-        )
+        status = self.__hardware_controller.connected
+
+        self._hardware_available = status
+        emit_queue.put({"event": "status.hardware", "data": status})
 
     @task(autostart=True)
     async def check_status(self) -> None:
