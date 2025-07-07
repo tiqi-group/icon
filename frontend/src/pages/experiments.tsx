@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import React, { useContext } from "react";
 import {
   Box,
   List,
@@ -7,17 +7,23 @@ import {
   Divider,
   ListItemButton,
 } from "@mui/material";
+import { useSearchParams } from "react-router";
 import { ExperimentsContext } from "../contexts/ExperimentsContext";
 import ExperimentDetails from "../components/ExperimentDetails";
 
 function getExperimentNameFromExperimentId(experimentId: string): string {
   const match = experimentId.match(/\((.*?)\)/);
-  return match ? match[1] : experimentId; // Return the captured string or the ID if no match
+  return match ? match[1] : experimentId;
 }
 
 const ExperimentsPage = () => {
   const experiments = useContext(ExperimentsContext);
-  const [experiment, setExperiment] = useState<string>("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedExperiment = searchParams.get("experiment") || "";
+
+  const handleSelect = (experimentId: string) => {
+    setSearchParams({ experiment: experimentId });
+  };
 
   return (
     <Box
@@ -38,12 +44,7 @@ const ExperimentsPage = () => {
           borderColor: "action.focus",
         }}
       >
-        <List
-          dense={true}
-          sx={{
-            pt: 0,
-          }}
-        >
+        <List dense sx={{ pt: 0 }}>
           {Object.entries(experiments)
             .sort(([keyA], [keyB]) =>
               getExperimentNameFromExperimentId(keyA).localeCompare(
@@ -53,8 +54,8 @@ const ExperimentsPage = () => {
             .map(([key, metadata], index) => (
               <React.Fragment key={key}>
                 <ListItemButton
-                  selected={experiment == key}
-                  onClick={() => setExperiment(key)}
+                  selected={selectedExperiment === key}
+                  onClick={() => handleSelect(key)}
                 >
                   <ListItemText
                     primary={getExperimentNameFromExperimentId(key)}
@@ -67,12 +68,9 @@ const ExperimentsPage = () => {
         </List>
       </Box>
 
-      {/* Placeholder for the rest of the content */}
       <Box sx={{ flex: 1, overflowX: "scroll" }}>
-        {experiment ? (
-          <>
-            <ExperimentDetails experimentKey={experiment} />
-          </>
+        {selectedExperiment ? (
+          <ExperimentDetails experimentKey={selectedExperiment} />
         ) : (
           <Typography>
             Select an experiment from the left to view details here.
