@@ -17,6 +17,7 @@ from icon.server.api.experiments_controller import ExperimentsController
 from icon.server.api.parameters_controller import ParametersController
 from icon.server.api.scans_controller import ScansController
 from icon.server.api.scheduler_controller import SchedulerController
+from icon.server.api.status_controller import StatusController
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
 )
@@ -47,6 +48,7 @@ class APIService(pydase.DataService):
         self.scans = ScansController(
             pre_processing_update_queues=pre_processing_update_queues
         )
+        self.status = StatusController()
 
     @task(autostart=True)
     async def _update_experiment_and_parameter_metadata_task(self) -> None:
