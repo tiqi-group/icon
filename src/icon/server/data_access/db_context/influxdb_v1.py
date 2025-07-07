@@ -4,7 +4,9 @@ import logging
 import sys
 from typing import TYPE_CHECKING, Any, Literal
 
-import influxdb  # type: ignore
+import requests
+
+import influxdb
 from icon.config.config import get_config
 
 if TYPE_CHECKING:
@@ -24,6 +26,31 @@ DatabaseValueType = bool | float | int | str
 def escape_quotes(value: str) -> str:
     """Escape double quotes and single quotes with backslashes."""
     return value.replace("\\", "\\\\").replace('"', r"\"")
+
+
+def is_responsive() -> bool:
+    success = 200
+
+    params = {
+        "u": f"{get_config().databases.influxdbv1.username}",
+        "p": f"{get_config().databases.influxdbv1.password}",
+        "q": "SHOW DATABASES",
+    }
+
+    url = (
+        f"http{'s' if get_config().databases.influxdbv1.ssl else ''}://"
+        f"{get_config().databases.influxdbv1.host}:"
+        f"{get_config().databases.influxdbv1.port}/query"
+    )
+
+    try:
+        response = requests.get(url, params=params)
+    except Exception:
+        return False
+    return (
+        response.status_code == success
+        and f'["{get_config().databases.influxdbv1.database}"]' in response.text
+    )
 
 
 class InfluxDBv1Session:
