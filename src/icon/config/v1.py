@@ -4,6 +4,10 @@ from confz import BaseConfig
 from pydantic import BaseModel
 
 
+class HealthCheckConfig(BaseModel):
+    interval_seconds: float = 10.0
+
+
 class ExperimentLibraryConfigV1(BaseModel):
     dir: str = str(Path(__file__).parent.parent.parent.parent)
     git_repository: str = "https://..."
@@ -56,3 +60,4 @@ class ServiceConfigV1(BaseConfig):  # type: ignore[misc]
     date: DateConfig = DateConfig()
     server: ServerConfig = ServerConfig()
     hardware: HardwareConfig = HardwareConfig()
+    health_check: HealthCheckConfig = HealthCheckConfig()
