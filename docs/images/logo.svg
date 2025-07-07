@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="34.549923mm"
+   height="38.541668mm"
+   viewBox="0 0 34.549923 38.541667"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.2 (ebf0e940d0, 2025-05-08)"
+   sodipodi:docname="logo.svg"
+   inkscape:export-filename="logo.png"
+   inkscape:export-xdpi="300"
+   inkscape:export-ydpi="300"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="3.8563312"
+     inkscape:cx="28.265207"
+     inkscape:cy="81.165227"
+     inkscape:window-width="1920"
+     inkscape:window-height="1011"
+     inkscape:window-x="26"
+     inkscape:window-y="23"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="g5" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-125.33545,-55.341667)">
+    <!-- Orbits -->
+    <g
+       fill="none"
+       stroke="#708090"
+       stroke-width="4"
+       id="g3"
+       transform="matrix(0.26458333,0,0,0.26458333,116.15208,48.154167)">
+      <!-- Horizontal-like orbit (rotated -30�) -->
+      <ellipse
+         cx="100"
+         cy="100"
+         rx="70"
+         ry="30"
+         transform="rotate(-30,100,100)"
+         id="ellipse1"
+         style="stroke-width:5.66929;stroke-dasharray:none" />
+      <!-- Horizontal-like orbit (rotated 30�) -->
+      <ellipse
+         cx="100"
+         cy="100"
+         rx="70"
+         ry="30"
+         transform="rotate(30,100,100)"
+         id="ellipse2"
+         style="stroke-width:5.66929;stroke-dasharray:none" />
+      <!-- Vertical orbit -->
+      <ellipse
+         cx="100"
+         cy="100"
+         rx="30"
+         ry="70"
+         id="ellipse3"
+         style="stroke-width:5.66929;stroke-dasharray:none" />
+    </g>
+    <!-- Electrons -->
+    <g
+       fill="#4682b4"
+       id="g5"
+       transform="matrix(0.26458333,0,0,0.26458333,116.15208,57.580043)"
+       style="fill:#708090;fill-opacity:1">
+      <!-- On first orbit -->
+      <!-- On second orbit -->
+      <circle
+         id="circle4"
+         style="fill:#5b80a5;fill-opacity:1"
+         cy="107.62994"
+         cx="58.573471"
+         r="7.5237169" />
+      <!-- On vertical orbit -->
+      <text
+         xml:space="preserve"
+         style="font-size:42.6667px;font-family:Comfortaa;-inkscape-font-specification:Comfortaa;text-align:center;writing-mode:lr-tb;direction:ltr;text-anchor:middle;opacity:1;fill:#5b80a5;fill-opacity:1;stroke-width:3.99874;stroke-linejoin:round;stroke-miterlimit:2.6;stroke-dasharray:none"
+         x="100.02084"
+         y="79.926735"
+         id="text1"><tspan
+           sodipodi:role="line"
+           id="tspan1"
+           x="100.02084"
+           y="79.926735"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:42.6667px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono';fill:#5b80a5;fill-opacity:1">I</tspan></text>
+      <circle
+         id="circle4-6"
+         style="fill:#5b80a5;fill-opacity:1"
+         cy="75.460518"
+         cx="156.56454"
+         r="7.5237169" />
+    </g>
+    <!-- Central "I" -->
+  </g>
+</svg>

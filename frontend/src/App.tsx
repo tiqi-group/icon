@@ -25,6 +25,7 @@ import { createParameterStore } from "./stores/parmeterStore";
 import { deviceInfoReducer, DeviceInfoContext } from "./contexts/DeviceInfoContext";
 import { useDevicesSync } from "./hooks/useDevicesSync";
 import { DeviceStateContext, deviceStateReducer } from "./contexts/DeviceStateContext";
+import logo from "./assets/logo.png";
 
 interface ParameterUpdate {
   id: string;
@@ -75,6 +76,7 @@ const NAVIGATION: Navigation = [
 
 const BRANDING = {
   title: "ICON",
+  logo: <img src={logo} alt="ICON logo" />,
 };
 
 const createNamespaceGroups = (
