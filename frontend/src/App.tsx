@@ -15,6 +15,7 @@ import {
   ParameterValueType,
 } from "./types/ExperimentMetadata";
 import { SvgIcon } from "@mui/material";
+import SettingsIcon from "@mui/icons-material/Settings";
 import { ParameterMetadataContext } from "./contexts/ParameterMetadataContext";
 import { ParameterDisplayGroupsContext } from "./contexts/ParameterDisplayGroupsContext";
 import { ScanProvider } from "./contexts/ScanProvider";
@@ -33,10 +34,6 @@ interface ParameterUpdate {
 }
 
 const NAVIGATION: Navigation = [
-  {
-    kind: "header",
-    title: "Main items",
-  },
   {
     title: "Start",
     icon: <DashboardIcon />,
@@ -71,6 +68,14 @@ const NAVIGATION: Navigation = [
         <path d="M192.9 22.9c-3.1 3.1-3.9 4.6-3.9 7.55 0 15.35 21.1 19.1 25.05 4.4 3.5-13.1-11.55-21.6-21.15-11.95m12.25 4.75c2.25 2.05 2.4 5.65.3 7.8-2.15 2.1-5.05 1.95-7.45-.45-4.85-4.85 2.05-11.95 7.15-7.35"></path>
       </SvgIcon>
     ),
+  },
+  {
+    kind: "divider",
+  },
+  {
+    segment: "settings",
+    title: "Settings",
+    icon: <SettingsIcon />,
   },
 ];
 
