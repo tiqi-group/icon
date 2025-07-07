@@ -17,6 +17,8 @@ experiment_library:
 hardware:
   host: localhost
   port: 6098
+health_check:
+  interval_seconds: 10
 ionpulse_plugin:
   host: localhost
   rpc_port: 8002
