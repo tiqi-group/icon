@@ -10,10 +10,11 @@ interface ButtonComponentProps {
   id: string;
   namespace: string;
   displayGroup: string;
+  scanIndex: number | null;
 }
 
 export const ButtonComponent = React.memo(
-  ({ id, namespace, displayGroup }: ButtonComponentProps) => {
+  ({ id, namespace, displayGroup, scanIndex }: ButtonComponentProps) => {
     const { handleRightClick } = useScanContext();
     const parameterMetadata = useContext(ParameterMetadataContext);
 
@@ -39,6 +40,8 @@ export const ButtonComponent = React.memo(
           color={displayValue === true ? "success" : "inherit"}
           onClick={() => onClick(!displayValue)}
           onContextMenu={(e) => handleRightClick(e, id, displayGroup, namespace)}
+          sx={{ backgroundColor: scanIndex !== null ? "#186fc67e" : undefined }}
+          title={scanIndex !== null ? `Scan parameter ${scanIndex + 1}` : undefined}
         >
           {displayValue === true ? "On" : "Off"}
         </Button>

@@ -80,9 +80,12 @@ export const ParameterGroupDisplay = ({
       }}
     >
       {sortedParameters.map(([paramId]) => {
+        const scanIndex = getScanIndex(paramId, scannedParamKeys);
+
         if (paramId.includes("param_type='ParameterTypes.BOOLEAN'")) {
           return (
             <ButtonComponent
+              scanIndex={scanIndex}
               key={paramId}
               id={paramId}
               namespace={
@@ -104,8 +107,6 @@ export const ParameterGroupDisplay = ({
         } else if (paramId.includes("param_type='ParameterTypes.ENUM'")) {
           return <Combobox key={paramId} id={paramId} />;
         } else {
-          const scanIndex = getScanIndex(paramId, scannedParamKeys);
-
           return (
             <ParameterNumberComponent
               scanIndex={scanIndex}
