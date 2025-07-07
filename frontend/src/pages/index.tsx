@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from "react";
-import { Box, Card, CardContent, Grid2 } from "@mui/material";
+import { Box, Card, CardContent, Grid } from "@mui/material";
 import { DeviceInfoContext } from "../contexts/DeviceInfoContext";
 import { DeviceStatus } from "../types/enums";
 import { runMethod, socket } from "../socket";
@@ -61,8 +61,8 @@ export default function DashboardPage() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Grid2 container spacing={2}>
-        <Grid2 size={{ xs: 12, sm: 6, md: 3 }}>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent sx={{ display: "flex", flex: 1, alignItems: "center" }}>
               <InfluxDBStatusCard
@@ -71,8 +71,8 @@ export default function DashboardPage() {
               />
             </CardContent>
           </Card>
-        </Grid2>
-        <Grid2 size={{ xs: 12, sm: 6, md: 3 }}>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent sx={{ display: "flex", flex: 1, alignItems: "center" }}>
               <HardwareStatusCard
@@ -81,8 +81,8 @@ export default function DashboardPage() {
               />
             </CardContent>
           </Card>
-        </Grid2>
-        <Grid2 size={{ sm: 12, md: 6 }}>
+        </Grid>
+        <Grid size={{ sm: 12, md: 6 }}>
           <Card>
             <CardContent sx={{ position: "relative" }}>
               <DevicesStatusCard
@@ -91,8 +91,8 @@ export default function DashboardPage() {
               />
             </CardContent>
           </Card>
-        </Grid2>
-      </Grid2>
+        </Grid>
+      </Grid>
     </Box>
   );
 }
