@@ -6,6 +6,8 @@ import { ParameterDisplayGroupsContext } from "../contexts/ParameterDisplayGroup
 import { ButtonComponent } from "./parameterComponents/Button";
 import { ParameterNumberComponent } from "./parameterComponents/ParameterNumberComponent";
 import { Combobox } from "./parameterComponents/Combobox";
+import { useScanContext } from "../hooks/useScanContext";
+import { getScanIndex } from "../utils/getScanIndex";
 
 interface ParameterGroupDisplayProps {
   experimentKey?: string;
@@ -30,6 +32,7 @@ export const ParameterGroupDisplay = ({
   const isSm = useMediaQuery(theme.breakpoints.only("sm"));
   const isMd = useMediaQuery(theme.breakpoints.only("md"));
   const isLg = useMediaQuery(theme.breakpoints.only("lg"));
+  const { scannedParamKeys } = useScanContext();
 
   const gridTemplateColumns = useMemo(() => {
     if (isXs || isSm || isMd) return "repeat(1, 1fr)";
@@ -101,8 +104,11 @@ export const ParameterGroupDisplay = ({
         } else if (paramId.includes("param_type='ParameterTypes.ENUM'")) {
           return <Combobox key={paramId} id={paramId} />;
         } else {
+          const scanIndex = getScanIndex(paramId, scannedParamKeys);
+
           return (
             <ParameterNumberComponent
+              scanIndex={scanIndex}
               key={paramId}
               id={paramId}
               namespace={

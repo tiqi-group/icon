@@ -19,6 +19,8 @@ interface BaseNumberComponentProps {
     paramId: string,
   ) => void;
   docString?: string;
+  inputBackgroundColor?: string;
+  title?: string;
 }
 export const numberValid = (val: string, minValue: number, maxValue: number) => {
   const parsed = Number.parseFloat(val);
@@ -38,6 +40,8 @@ export const BaseNumberComponent = React.memo(
     onBlur,
     onContextMenu,
     docString,
+    inputBackgroundColor,
+    title,
   }: BaseNumberComponentProps) => {
     const adornmentRef = useRef<HTMLSpanElement | null>(null);
 
@@ -70,6 +74,10 @@ export const BaseNumberComponent = React.memo(
         <Field.Root className="Field" invalid={error} validate={validate}>
           <Box className="InputWrapper">
             <Field.Control
+              title={error ? undefined : title}
+              style={{
+                backgroundColor: inputBackgroundColor,
+              }}
               className="Input"
               value={value}
               onChange={handleChange}

@@ -3,6 +3,8 @@ import { DeviceStateContext } from "../../contexts/DeviceStateContext";
 import { DeviceInfoContext } from "../../contexts/DeviceInfoContext";
 import { DeviceStatus } from "../../types/enums";
 import { DeviceNumberComponent } from "../parameterComponents/DeviceNumberComponent";
+import { getScanIndex } from "../../utils/getScanIndex";
+import { useScanContext } from "../../hooks/useScanContext";
 
 interface ScannableParameterInterfaceProps {
   name: string;
@@ -11,6 +13,8 @@ interface ScannableParameterInterfaceProps {
 export const ScannableParameterInterface = ({
   name,
 }: ScannableParameterInterfaceProps) => {
+  const { scannedParamKeys } = useScanContext();
+
   const stateContext = useContext(DeviceStateContext);
   const infoContext = useContext(DeviceInfoContext);
   const deviceInfo = infoContext?.[name];
@@ -31,11 +35,14 @@ export const ScannableParameterInterface = ({
     return (
       <>
         {scannableParams.map((paramKey: string) => {
+          const scanIndex = getScanIndex(paramKey, scannedParamKeys);
+
           return (
             <DeviceNumberComponent
               key={paramKey}
               deviceName={deviceInfo.name}
               paramId={paramKey}
+              scanIndex={scanIndex}
             />
           );
         })}

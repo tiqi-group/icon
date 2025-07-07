@@ -9,10 +9,11 @@ interface Props {
   id: string;
   namespace: string;
   displayGroup: string;
+  scanIndex: number | null;
 }
 
 export const ParameterNumberComponent = React.memo(
-  ({ id, namespace, displayGroup }: Props) => {
+  ({ id, namespace, displayGroup, scanIndex }: Props) => {
     const { handleRightClick } = useScanContext();
     const parameterMetadata = useContext(ParameterMetadataContext);
     const [value, setValue] = useParameter(id);
@@ -50,6 +51,8 @@ export const ParameterNumberComponent = React.memo(
         onBlur={handleBlur}
         onContextMenu={(event) => handleRightClick(event, id, displayGroup, namespace)}
         docString={id}
+        inputBackgroundColor={scanIndex !== null ? "#186fc67e" : undefined}
+        title={scanIndex !== null ? `Scan parameter ${scanIndex + 1}` : undefined}
       />
     );
   },

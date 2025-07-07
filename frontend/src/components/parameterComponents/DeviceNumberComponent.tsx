@@ -14,11 +14,13 @@ import { useScanContext } from "../../hooks/useScanContext";
 interface DeviceNumberComponentProps {
   deviceName: string;
   paramId: string;
+  scanIndex: number | null;
 }
 
 export const DeviceNumberComponent = ({
   deviceName,
   paramId,
+  scanIndex,
 }: DeviceNumberComponentProps) => {
   const { handleRightClick } = useScanContext();
   const state = useContext(DeviceStateContext);
@@ -94,6 +96,8 @@ export const DeviceNumberComponent = ({
       onContextMenu={(event) =>
         handleRightClick(event, accessPath, deviceName, "Devices")
       }
+      inputBackgroundColor={scanIndex !== null ? "#186fc67e" : undefined}
+      title={scanIndex !== null ? `Scan parameter ${scanIndex + 1}` : undefined}
     />
   );
 };
