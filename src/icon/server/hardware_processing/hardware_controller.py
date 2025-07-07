@@ -4,6 +4,7 @@ import tiqi_zedboard.zedboard  # type: ignore
 
 from icon.config.config import get_config
 from icon.server.data_access.repositories.experiment_data_repository import ResultDict
+from icon.server.utils.sockets import is_socket_closed
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ class HardwareController:
             self._zedboard is not None
             and hasattr(self._zedboard, "_client")
             and self._zedboard._client is not None
+            and not is_socket_closed(self._zedboard._client._socket)
         )
 
     def _update_zedboard_sequence(self, *, sequence: str) -> None:
