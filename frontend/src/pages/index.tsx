@@ -15,24 +15,9 @@ interface Status {
   hardware: boolean;
 }
 
-export interface Configuration {
-  hardware: {
-    host: string;
-    port: number;
-  };
-  databases: {
-    influxdbv1: {
-      host: string;
-      port: number;
-      database: string;
-      username: string;
-      password: string;
-    };
-  };
-}
 export default function DashboardPage() {
   const devices = useContext(DeviceInfoContext);
-  const configuration = useConfiguration() as unknown as Configuration;
+  const configuration = useConfiguration();
 
   const [influxReachable, setInfluxReachable] = useState<boolean>(false);
   const [hardwareReachable, setHardwareReachable] = useState<boolean>(false);

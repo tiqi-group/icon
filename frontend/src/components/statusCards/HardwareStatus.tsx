@@ -1,17 +1,17 @@
 import { Box, Typography, Stack } from "@mui/material";
 import { ReachabilityIndicator } from "../devices/ReachabilityIndicator";
-import { Configuration } from "../../pages";
+import { Configuration } from "../../types/Configuration";
 
 interface HardwareStatusCardProps {
   hardwareReachable: boolean;
-  configuration: Configuration;
+  configuration: Configuration | null;
 }
 
 export const HardwareStatusCard = ({
   hardwareReachable,
   configuration,
 }: HardwareStatusCardProps) => {
-  if (!("databases" in configuration)) {
+  if (configuration == null) {
     return <Typography variant="h6">Hardware</Typography>;
   }
 

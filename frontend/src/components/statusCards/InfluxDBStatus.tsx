@@ -1,17 +1,17 @@
 import { Box, Typography, Stack } from "@mui/material";
 import { ReachabilityIndicator } from "../devices/ReachabilityIndicator";
-import { Configuration } from "../../pages";
+import { Configuration } from "../../types/Configuration";
 
 interface InfluxDBStatusCardProps {
   influxReachable: boolean;
-  configuration: Configuration;
+  configuration: Configuration | null;
 }
 
 export const InfluxDBStatusCard = ({
   influxReachable,
   configuration,
 }: InfluxDBStatusCardProps) => {
-  if (!("databases" in configuration)) {
+  if (configuration == null) {
     return <Typography variant="h6">InfluxDB</Typography>;
   }
 

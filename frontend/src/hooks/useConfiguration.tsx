@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { runMethod } from "../socket";
 import { SerializedDict } from "../types/SerializedObject";
 import { deserialize } from "../utils/deserializer";
+import { Configuration } from "../types/Configuration";
 
-export const useConfiguration = (): Record<string, unknown> => {
-  const [configuration, setConfiguration] = useState<Record<string, unknown>>({});
+export const useConfiguration = (): Configuration | null => {
+  const [configuration, setConfiguration] = useState<Configuration | null>(null);
 
   useEffect(() => {
     runMethod("config.get_config", [], {}, (response) => {
