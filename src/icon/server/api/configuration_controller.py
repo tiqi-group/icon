@@ -43,7 +43,8 @@ class ConfigurationController(pydase.DataService):
         try:
             # Traverse to the nested key
             fields = key.split(".")
-            current = self._config
+            current_config = get_config().model_dump()
+            current = current_config
             for field in fields[:-1]:
                 if field not in current:
                     raise KeyError(f"Key {key!r} not found in configuration.")
@@ -53,7 +54,7 @@ class ConfigurationController(pydase.DataService):
             current[fields[-1]] = value
 
             # Validate the updated configuration
-            updated_config = ServiceConfigV1(config_sources=DataSource(self._config))
+            updated_config = ServiceConfigV1(config_sources=DataSource(current_config))
 
             # Save the updated configuration back to the file
             self._save_configuration(updated_config)
