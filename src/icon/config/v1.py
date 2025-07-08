@@ -15,13 +15,6 @@ class ExperimentLibraryConfigV1(BaseModel):
     results_dir: str = str(Path(__file__).parent.parent.parent.parent / "output")
 
 
-class InfluxDBConfig(BaseModel):
-    url: str = "http://localhost:8086"
-    org: str = "test"
-    token: str = "my-super-secret-auth-token"
-    bucket: str = "Experiment parameters"
-
-
 class InfluxDBv1Config(BaseConfig):  # type: ignore
     host: str = "localhost"
     port: int = 8086
@@ -35,7 +28,6 @@ class InfluxDBv1Config(BaseConfig):  # type: ignore
 
 
 class DatabaseConfig(BaseModel):
-    influxdb: InfluxDBConfig = InfluxDBConfig()
     influxdbv1: InfluxDBv1Config = InfluxDBv1Config()
 
 

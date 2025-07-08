@@ -5,7 +5,6 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from icon.config.config import get_config
-from icon.server.data_access.db_context.influxdb import InfluxDBSession, Record
 from icon.server.data_access.db_context.influxdb_v1 import (
     DatabaseValueType,
     InfluxDBv1Session,
@@ -173,52 +172,4 @@ class ParametersRepository:
     def update_influxdbv1_parameter_by_id(parameter_id: str, new_value: Any) -> None:
         return ParametersRepository.update_influxdbv1_parameters(
             parameter_mapping={parameter_id: new_value}
-        )
-
-    @staticmethod
-    def get_influxdb_parameters() -> list[Record]:
-        with InfluxDBSession() as influxdb:
-            return influxdb.query_last(bucket=get_config().databases.influxdb.bucket)
-
-    @staticmethod
-    def get_influxdb_parameter_by_id(parameter_id: str) -> Record:
-        namespace, parameter_group, specifiers = (
-            get_specifiers_from_parameter_identifier(parameter_id)
-        )
-        with InfluxDBSession() as influxdb:
-            return influxdb.query_last(
-                bucket=get_config().databases.influxdb.bucket,
-                measurement=f"{namespace}: {parameter_group}",
-                fields={"value"},
-                tags=specifiers,
-            )[-1]
-
-    @staticmethod
-    def update_influxdb_parameters(
-        parameter_mapping: dict[str, DatabaseValueType],
-    ) -> None:
-        records: list[dict[str, Any]] = []
-
-        for parameter_id, value in parameter_mapping.items():
-            namespace, parameter_group, specifiers = (
-                get_specifiers_from_parameter_identifier(parameter_id)
-            )
-
-            records.append(
-                {
-                    "measurement": f"{namespace}: {parameter_group}",
-                    "tags": specifiers,
-                    "fields": {"value": value},
-                }
-            )
-
-        with InfluxDBSession() as influxdb:
-            influxdb.write(
-                bucket=get_config().databases.influxdb.bucket, record=records
-            )
-
-    @staticmethod
-    def update_influxdb_parameter_by_id(parameter_id: str, value: Any) -> None:
-        return ParametersRepository.update_influxdb_parameters(
-            parameter_mapping={parameter_id: value}
         )

@@ -16,7 +16,6 @@ dependencies = [
 server = [
     "alembic>=1.14.0",
     "filelock>=3.16.1",
-    "influxdb-client>=1.48.0",
     "influxdb>=5.3.2",
     "sqlalchemy>=2.0.36",
     "tables>=3.10.1",
