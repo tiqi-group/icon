@@ -26,7 +26,7 @@ export const ParameterGroupDisplay = ({
   namespace,
   displayGroup,
 }: ParameterGroupDisplayProps) => {
-  const { scannedParamKeys } = useScanContext();
+  const { scannedParamKeys, handleRightClick } = useScanContext();
   const gridTemplateColumns = useResponsiveGridColumns();
 
   const experiments = useContext(ExperimentsContext);
@@ -73,6 +73,7 @@ export const ParameterGroupDisplay = ({
         if (paramId.includes("param_type='ParameterTypes.BOOLEAN'")) {
           return (
             <ButtonComponent
+              onContextMenu={handleRightClick}
               scanIndex={scanIndex}
               key={paramId}
               id={paramId}
@@ -97,6 +98,7 @@ export const ParameterGroupDisplay = ({
         } else {
           return (
             <ParameterNumberComponent
+              onContextMenu={handleRightClick}
               scanIndex={scanIndex}
               key={paramId}
               id={paramId}

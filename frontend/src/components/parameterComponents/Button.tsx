@@ -1,7 +1,6 @@
 import React, { useContext } from "react";
 import { Button, Typography } from "@mui/material";
 import { ParameterMetadataContext } from "../../contexts/ParameterMetadataContext";
-import { useScanContext } from "../../hooks/useScanContext";
 import { HelpButton } from "../HelpButtonComponent";
 import { updateParameterValue } from "../../utils/updateParameterValue";
 import { useParameter } from "../../hooks/useParameter";
@@ -11,11 +10,16 @@ interface ButtonComponentProps {
   namespace: string;
   displayGroup: string;
   scanIndex: number | null;
+  onContextMenu?: (
+    event: React.MouseEvent<HTMLDivElement | HTMLButtonElement>,
+    paramId: string,
+    namespace: string,
+    displayGroup: string,
+  ) => void;
 }
 
 export const ButtonComponent = React.memo(
-  ({ id, namespace, displayGroup, scanIndex }: ButtonComponentProps) => {
-    const { handleRightClick } = useScanContext();
+  ({ id, namespace, displayGroup, scanIndex, onContextMenu }: ButtonComponentProps) => {
     const parameterMetadata = useContext(ParameterMetadataContext);
 
     const displayName = parameterMetadata[id]?.display_name ?? id;
@@ -39,7 +43,7 @@ export const ButtonComponent = React.memo(
           variant="outlined"
           color={displayValue === true ? "success" : "inherit"}
           onClick={() => onClick(!displayValue)}
-          onContextMenu={(e) => handleRightClick(e, id, displayGroup, namespace)}
+          onContextMenu={(e) => onContextMenu?.(e, id, displayGroup, namespace)}
           sx={{ backgroundColor: scanIndex !== null ? "#186fc67e" : undefined }}
           title={scanIndex !== null ? `Scan parameter ${scanIndex + 1}` : undefined}
         >

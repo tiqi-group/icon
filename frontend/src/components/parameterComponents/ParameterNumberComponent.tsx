@@ -1,7 +1,6 @@
 import React, { useContext, useState } from "react";
 import { useParameter } from "../../hooks/useParameter";
 import { ParameterMetadataContext } from "../../contexts/ParameterMetadataContext";
-import { useScanContext } from "../../hooks/useScanContext";
 import { updateParameterValue } from "../../utils/updateParameterValue";
 import { numberValid } from "../../utils/numberValid";
 import { Input } from "./Input";
@@ -11,11 +10,16 @@ interface Props {
   namespace: string;
   displayGroup: string;
   scanIndex: number | null;
+  onContextMenu?: (
+    event: React.MouseEvent<HTMLDivElement | HTMLButtonElement>,
+    paramId: string,
+    namespace: string,
+    displayGroup: string,
+  ) => void;
 }
 
 export const ParameterNumberComponent = React.memo(
-  ({ id, namespace, displayGroup, scanIndex }: Props) => {
-    const { handleRightClick } = useScanContext();
+  ({ id, namespace, displayGroup, scanIndex, onContextMenu }: Props) => {
     const parameterMetadata = useContext(ParameterMetadataContext);
     const [value, setValue] = useParameter(id);
     const [error, setError] = useState(false);
@@ -51,7 +55,7 @@ export const ParameterNumberComponent = React.memo(
         error={error}
         onChange={handleChange}
         onBlur={handleBlur}
-        onContextMenu={(event) => handleRightClick(event, id, displayGroup, namespace)}
+        onContextMenu={(event) => onContextMenu?.(event, id, displayGroup, namespace)}
         description={id}
         inputBackgroundColor={scanIndex !== null ? "#186fc67e" : undefined}
         title={scanIndex !== null ? `Scan parameter ${scanIndex + 1}` : undefined}
