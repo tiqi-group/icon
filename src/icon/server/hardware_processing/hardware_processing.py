@@ -73,14 +73,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
         super().__init__()
         self._queue = hardware_processing_queue
         self._manager = manager
-        self._pydase_clients = {
-            device.name: pydase.Client(
-                url=device.url, block_until_connected=False, auto_update_proxy=False
-            )
-            for device in DeviceRepository.get_devices_by_status(
-                status=DeviceStatus.ENABLED
-            )
-        }
+        self._pydase_clients: dict[str, pydase.Client] = {}
 
         self._hardware_controller = HardwareController()
 
@@ -148,6 +141,15 @@ class HardwareProcessingWorker(multiprocessing.Process):
             )
 
     def run(self) -> None:
+        self._pydase_clients = {
+            device.name: pydase.Client(
+                url=device.url, block_until_connected=False, auto_update_proxy=False
+            )
+            for device in DeviceRepository.get_devices_by_status(
+                status=DeviceStatus.ENABLED
+            )
+        }
+
         while True:
             task = self._queue.get()
 
