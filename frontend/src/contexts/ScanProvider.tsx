@@ -12,8 +12,8 @@ export interface ScanInfoState {
 
 const defaultParameter: ScanParameterInfo = {
   id: "",
-  values: [],
-  generation: { start: 0, stop: 0, points: 2, scatter: false },
+  values: [0, 1],
+  generation: { start: 0, stop: 1, points: 2, scatter: false },
   namespace: "",
   deviceNameOrDisplayGroup: "",
 };
