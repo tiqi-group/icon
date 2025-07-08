@@ -1,6 +1,8 @@
-import { Box, Typography, Stack } from "@mui/material";
+import { Box, Typography, Stack, IconButton } from "@mui/material";
+import EditIcon from "@mui/icons-material/Edit";
 import { ReachabilityIndicator } from "../devices/ReachabilityIndicator";
 import { Configuration } from "../../types/Configuration";
+import { Link as RouterLink } from "react-router";
 
 interface InfluxDBStatusCardProps {
   influxReachable: boolean;
@@ -22,6 +24,16 @@ export const InfluxDBStatusCard = ({
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         <ReachabilityIndicator enabled reachable={influxReachable} />
         <Typography variant="h6">InfluxDB</Typography>
+        <IconButton
+          component={RouterLink}
+          to="/settings?tab=databases"
+          sx={{ position: "relative" }}
+          size="small"
+          title="Open InfluxDB Settings"
+          aria-label="Open InfluxDB Settings"
+        >
+          <EditIcon fontSize="small" />
+        </IconButton>
       </Box>
       <Typography variant="body2">Host: {host}</Typography>
       <Typography variant="body2">Port: {port}</Typography>
