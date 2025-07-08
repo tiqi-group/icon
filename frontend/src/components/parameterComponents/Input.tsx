@@ -67,7 +67,7 @@ export const Input = React.memo(
     return (
       <div style={{ display: "flex", alignItems: "center", padding: "4px 0" }}>
         {label && (
-          <div style={{ display: "flex", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", padding: "0 4px 0 0" }}>
             <Typography noWrap>{label}</Typography>
             {description && <HelpButton docString={description} />}
           </div>

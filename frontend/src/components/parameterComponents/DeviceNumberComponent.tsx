@@ -89,7 +89,7 @@ export const DeviceNumberComponent = ({
   return (
     <Input
       id={paramId}
-      label={paramId}
+      label={accessPath}
       type="number"
       value={inputValue}
       error={error}
