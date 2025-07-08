@@ -41,14 +41,12 @@ export const ParameterNumberComponent = React.memo(
       }
     };
 
-    const meta = parameterMetadata[id] ?? {};
-
     return (
       <Input
         id={id}
-        label={meta.display_name}
+        label={parameterMetadata[id]?.display_name}
         type="number"
-        unit={meta.unit}
+        unit={parameterMetadata[id]?.unit}
         value={displayValue}
         min={minValue}
         max={maxValue}
