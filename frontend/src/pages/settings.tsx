@@ -4,6 +4,7 @@ import { EditableSettingField } from "../components/settings/EditableSettingsFie
 import { BaseButtonComponent } from "../components/settings/ButtonComponent";
 import { useNotifications } from "@toolpad/core";
 import { useSearchParams } from "react-router";
+import { EditableDictField } from "../components/settings/EditableDictField";
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -119,8 +120,11 @@ export const SettingsPage = () => {
           value={config.databases.influxdbv1.verify_ssl}
           description="Verify SSL certificates when connecting to InfluxDB."
         />
-        <Typography variant="subtitle2">Headers</Typography>
-        <Typography>{JSON.stringify(config.databases.influxdbv1.headers)}</Typography>
+        <EditableDictField
+          configKey="databases.influxdbv1.headers"
+          label="Headers"
+          value={config.databases.influxdbv1.headers}
+        />
       </TabPanel>
 
       <TabPanel value={tab} index={2}>
