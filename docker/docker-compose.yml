@@ -13,6 +13,6 @@ services:
       - INFLUXDB_ADMIN_USER=tester
       - INFLUXDB_ADMIN_PASSWORD=passw0rd
       - INFLUXDB_HTTP_BIND_ADDRESS=:8087
-      - INFLUXDB_HTTP_AUTH_ENABLED=true
+      - INFLUXDB_HTTP_AUTH_ENABLED=false
 volumes:
   influxdb-storage:
