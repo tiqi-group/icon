@@ -73,7 +73,6 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
     event.preventDefault();
 
     if (validateForm()) {
-      console.log("Scan Config:", scanInfoState);
       submitJob(experimentId, scanInfoState);
     }
   };

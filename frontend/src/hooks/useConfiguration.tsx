@@ -9,7 +9,6 @@ export const useConfiguration = (): Configuration | null => {
 
   useEffect(() => {
     socket.on("config.update", (result) => {
-      console.log(result);
       setConfiguration(result);
     });
 

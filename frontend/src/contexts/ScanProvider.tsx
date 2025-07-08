@@ -106,7 +106,6 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     deviceNameOrDisplayGroup: string,
     namespace: string,
   ) => {
-    console.log(`Right-clicked on: ${paramId}`);
     event.preventDefault();
     setSelectedParam({
       id: paramId,
