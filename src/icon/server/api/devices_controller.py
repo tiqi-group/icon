@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import pydase
 import pydase.units as u
+from pydase.task.decorator import task
 from socketio.exceptions import BadNamespaceError  # type: ignore
 
 from icon.server.api.models.device_dict import DeviceDict
@@ -26,7 +27,6 @@ class DevicesController(pydase.DataService):
         super().__init__()
         self._devices: dict[str, pydase.Client] = {}
         self.device_proxies: dict[str, ProxyClass] = {}
-        self._initialise_devices()
 
     def add_device(  # noqa: PLR0913
         self,
@@ -162,7 +162,8 @@ class DevicesController(pydase.DataService):
 
         return device_dict
 
-    def _initialise_devices(self) -> None:
+    @task(autostart=True)
+    async def _initialise_devices(self) -> None:
         devices = DeviceRepository.get_devices_by_status(status=DeviceStatus.ENABLED)
 
         for device in devices:
