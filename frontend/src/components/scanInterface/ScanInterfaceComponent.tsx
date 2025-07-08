@@ -78,89 +78,88 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div style={{ display: "flex", gap: 16, paddingBottom: 16 }}>
-        <ScanParameterTable />
+    <div style={{ display: "flex", gap: 16, paddingBottom: 16 }}>
+      <ScanParameterTable />
 
-        <div
-          style={{ display: "flex", gap: 8, flexDirection: "column", paddingTop: 40 }}
-        >
-          <FormControl>
-            <InputLabel>Priority</InputLabel>
-            <Select
-              label="Priority"
-              size="small"
-              value={scanInfoState.priority}
-              onChange={(e) =>
-                scanInfoDispatch({
-                  type: "SET_PRIORITY",
-                  payload: Number(e.target.value),
-                })
-              }
-            >
-              {Array.from({ length: 20 }, (_, i) => i + 1).map((num) => (
-                <MenuItem key={num} value={num}>
-                  {num}
-                </MenuItem>
-              ))}
-            </Select>
-            {errors.priority && <FormHelperText>{errors.priority}</FormHelperText>}
-          </FormControl>
-
-          <TextField
-            label="Number of Shots"
-            type="number"
+      <div style={{ display: "flex", gap: 8, flexDirection: "column", paddingTop: 40 }}>
+        <FormControl>
+          <InputLabel>Priority</InputLabel>
+          <Select
+            label="Priority"
             size="small"
-            value={scanInfoState.shots}
-            onChange={(e) =>
-              scanInfoDispatch({ type: "SET_SHOTS", payload: Number(e.target.value) })
-            }
-            error={scanInfoState.shots < 1}
-            helperText={errors.shots}
-            slotProps={{
-              input: {
-                inputProps: {
-                  min: 1,
-                },
-              },
-            }}
-          />
-
-          <TextField
-            label="Scan Repetitions"
-            type="number"
-            size="small"
-            value={scanInfoState.repetitions}
+            value={scanInfoState.priority}
             onChange={(e) =>
               scanInfoDispatch({
-                type: "SET_REPETITIONS",
+                type: "SET_PRIORITY",
                 payload: Number(e.target.value),
               })
             }
-            error={scanInfoState.repetitions < 1}
-            slotProps={{
-              input: {
-                inputProps: {
-                  min: 1,
-                },
+          >
+            {Array.from({ length: 20 }, (_, i) => i + 1).map((num) => (
+              <MenuItem key={num} value={num}>
+                {num}
+              </MenuItem>
+            ))}
+          </Select>
+          {errors.priority && <FormHelperText>{errors.priority}</FormHelperText>}
+        </FormControl>
+
+        <TextField
+          label="Number of Shots"
+          type="number"
+          size="small"
+          value={scanInfoState.shots}
+          onChange={(e) =>
+            scanInfoDispatch({ type: "SET_SHOTS", payload: Number(e.target.value) })
+          }
+          error={scanInfoState.shots < 1}
+          helperText={errors.shots}
+          slotProps={{
+            input: {
+              inputProps: {
+                min: 1,
               },
-            }}
-          />
+            },
+          }}
+        />
 
-          {errors.parameters && (
-            <div
-              style={{ color: "var(--mui-palette-error-main)", fontSize: "0.875rem" }}
-            >
-              {errors.parameters}
-            </div>
-          )}
+        <TextField
+          label="Scan Repetitions"
+          type="number"
+          size="small"
+          value={scanInfoState.repetitions}
+          onChange={(e) =>
+            scanInfoDispatch({
+              type: "SET_REPETITIONS",
+              payload: Number(e.target.value),
+            })
+          }
+          error={scanInfoState.repetitions < 1}
+          slotProps={{
+            input: {
+              inputProps: {
+                min: 1,
+              },
+            },
+          }}
+        />
 
-          <Button type="submit" variant="contained" color="primary">
-            Run
-          </Button>
-        </div>
+        {errors.parameters && (
+          <div style={{ color: "var(--mui-palette-error-main)", fontSize: "0.875rem" }}>
+            {errors.parameters}
+          </div>
+        )}
+
+        <Button
+          type="submit"
+          variant="contained"
+          color="primary"
+          onClick={handleSubmit}
+        >
+          Run
+        </Button>
       </div>
-    </form>
+    </div>
   );
 };
 
