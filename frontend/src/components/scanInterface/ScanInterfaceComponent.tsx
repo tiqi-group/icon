@@ -58,6 +58,11 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
         valid = false;
         break;
       }
+      if (param.generation.stop - param.generation.start == 0) {
+        newErrors.parameters = "Start and stop cannot be the same";
+        valid = false;
+        break;
+      }
     }
 
     setErrors(newErrors);
