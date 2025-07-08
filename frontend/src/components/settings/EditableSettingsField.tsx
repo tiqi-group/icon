@@ -9,6 +9,7 @@ interface EditableSettingFieldProps {
   value: string | number;
   description?: string;
   onAfterUpdate?: () => void;
+  onUpdate?: (val: string | number) => void;
 }
 
 export const EditableSettingField = ({
@@ -17,13 +18,18 @@ export const EditableSettingField = ({
   value,
   description,
   onAfterUpdate,
+  onUpdate,
 }: EditableSettingFieldProps) => {
   const [inputValue, setInputValue] = useState(String(value));
 
   const handleUpdate = (val: string) => {
     const parsed = typeof value === "number" ? Number(val) : val;
-    updateConfiguration(configKey, parsed);
-    if (onAfterUpdate) onAfterUpdate();
+    if (onUpdate) {
+      onUpdate(parsed);
+    } else {
+      updateConfiguration(configKey, parsed);
+    }
+    onAfterUpdate?.();
   };
 
   const commonProps = {
