@@ -55,6 +55,9 @@ class SchedulerController(pydase.DataService):
                 scan_parameter=param
             )
 
+            if len(scan_values) == 0:
+                raise RuntimeError(f"Scan value of {param['id']} are empty")
+
             sqlite_scan_parameters.append(
                 sqlite_scan_parameter.ScanParameter(
                     variable_id=param["id"],
