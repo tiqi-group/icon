@@ -1,6 +1,5 @@
 import { useContext, useEffect, useState } from "react";
 import { DeviceStateContext } from "../../contexts/DeviceStateContext";
-import { BaseNumberComponent } from "./BaseNumberComponent";
 import { updateDeviceParameter } from "../../utils/updateDeviceParamter";
 import { getNestedDictByPath } from "../../utils/stateUtils";
 import {
@@ -11,6 +10,7 @@ import {
 } from "../../types/SerializedObject";
 import { useScanContext } from "../../hooks/useScanContext";
 import { numberValid } from "../../utils/numberValid";
+import { Input } from "./Input";
 
 interface DeviceNumberComponentProps {
   deviceName: string;
@@ -87,9 +87,10 @@ export const DeviceNumberComponent = ({
   };
 
   return (
-    <BaseNumberComponent
+    <Input
       id={paramId}
-      displayName={paramId}
+      label={paramId}
+      type="number"
       value={inputValue}
       error={error}
       onChange={handleChange}

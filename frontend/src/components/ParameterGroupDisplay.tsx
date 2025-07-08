@@ -74,7 +74,6 @@ export const ParameterGroupDisplay = ({
     <div
       style={{
         display: "grid",
-        rowGap: 8,
         columnGap: 24,
         gridTemplateColumns,
       }}

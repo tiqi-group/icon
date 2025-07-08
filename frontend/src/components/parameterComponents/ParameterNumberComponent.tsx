@@ -3,8 +3,8 @@ import { useParameter } from "../../hooks/useParameter";
 import { ParameterMetadataContext } from "../../contexts/ParameterMetadataContext";
 import { useScanContext } from "../../hooks/useScanContext";
 import { updateParameterValue } from "../../utils/updateParameterValue";
-import { BaseNumberComponent } from "./BaseNumberComponent";
 import { numberValid } from "../../utils/numberValid";
+import { Input } from "./Input";
 
 interface Props {
   id: string;
@@ -40,18 +40,19 @@ export const ParameterNumberComponent = React.memo(
     const meta = parameterMetadata[id] ?? {};
 
     return (
-      <BaseNumberComponent
+      <Input
         id={id}
-        displayName={meta.display_name}
+        label={meta.display_name}
+        type="number"
         unit={meta.unit}
         value={displayValue}
-        minValue={minValue}
-        maxValue={maxValue}
+        min={minValue}
+        max={maxValue}
         error={error}
         onChange={handleChange}
         onBlur={handleBlur}
         onContextMenu={(event) => handleRightClick(event, id, displayGroup, namespace)}
-        docString={id}
+        description={id}
         inputBackgroundColor={scanIndex !== null ? "#186fc67e" : undefined}
         title={scanIndex !== null ? `Scan parameter ${scanIndex + 1}` : undefined}
       />
