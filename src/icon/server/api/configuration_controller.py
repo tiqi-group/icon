@@ -7,6 +7,7 @@ from confz import DataSource
 
 from icon.config.config import get_config, get_config_source
 from icon.config.v1 import ServiceConfigV1
+from icon.server.web_server.socketio_emit_queue import emit_queue
 
 logger = logging.getLogger(__file__)
 
@@ -58,6 +59,9 @@ class ConfigurationController(pydase.DataService):
 
             # Save the updated configuration back to the file
             self._save_configuration(updated_config)
+            emit_queue.put(
+                {"event": "config.update", "data": updated_config.model_dump()}
+            )
             return True
         except KeyError as e:
             logger.exception("Failed to update configuration: %s", e)
