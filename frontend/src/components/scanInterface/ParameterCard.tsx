@@ -14,6 +14,8 @@ import { useScanContext } from "../../hooks/useScanContext";
 import { ScanParameterInfo } from "../../types/ScanParameterInfo";
 import { ParameterDisplayGroupsContext } from "../../contexts/ParameterDisplayGroupsContext";
 import { DeviceInfoContext } from "../../contexts/DeviceInfoContext";
+import { ParameterMetadataContext } from "../../contexts/ParameterMetadataContext";
+import { ParameterMetadata } from "../../types/ExperimentMetadata";
 
 const generateScanValues = (
   start: number,
@@ -36,6 +38,18 @@ export const ParameterCard = ({
   index: number;
 }) => {
   const { state, dispatch } = useScanContext();
+  const parameterMetadata = useContext(ParameterMetadataContext);
+  let min = -Infinity;
+  let max = Infinity;
+
+  let metadata: ParameterMetadata | undefined = undefined;
+  if (param.namespace != "Devices" && param.id !== "")
+    metadata = parameterMetadata[param.id];
+
+  if (metadata != undefined) {
+    min = metadata.min_value ?? -Infinity;
+    max = metadata.max_value ?? Infinity;
+  }
 
   const [parameterDisplayGroups, parameterNamespaceToDisplayGroup] = useContext(
     ParameterDisplayGroupsContext,
@@ -45,7 +59,6 @@ export const ParameterCard = ({
     ...parameterNamespaceToDisplayGroup,
     Devices: Object.keys(deviceInfo),
   };
-  console.log(parameterSources);
 
   const parameterOptions = useMemo(() => {
     if (!param.namespace || !param.deviceNameOrDisplayGroup) return {};
@@ -167,7 +180,6 @@ export const ParameterCard = ({
           }}
           renderValue={(value) => {
             const selectedDisplayName = parameterOptions[value];
-            console.log(`${value} in `, parameterOptions);
             if (selectedDisplayName === undefined) return value;
             return selectedDisplayName.length > 30
               ? selectedDisplayName.slice(0, 30) + "..."
@@ -208,6 +220,14 @@ export const ParameterCard = ({
             })
           }
           variant="outlined"
+          slotProps={{
+            input: {
+              inputProps: {
+                min,
+                max,
+              },
+            },
+          }}
         />
         <TextField
           required
@@ -235,6 +255,14 @@ export const ParameterCard = ({
             })
           }
           variant="outlined"
+          slotProps={{
+            input: {
+              inputProps: {
+                min,
+                max,
+              },
+            },
+          }}
         />
         <TextField
           required
