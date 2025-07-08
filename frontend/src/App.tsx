@@ -4,6 +4,7 @@ import TimelineIcon from "@mui/icons-material/Timeline";
 import { Outlet } from "react-router";
 import { ReactRouterAppProvider } from "@toolpad/core/react-router";
 import type { Navigation } from "@toolpad/core/AppProvider";
+import { NotificationsProvider } from "@toolpad/core/useNotifications";
 import { useEffect, useReducer, useRef, useState } from "react";
 import { runMethod, socket } from "./socket";
 import { deserialize } from "./utils/deserializer";
@@ -171,25 +172,27 @@ export default function App() {
 
   return (
     <ReactRouterAppProvider navigation={NAVIGATION} branding={BRANDING}>
-      <ParameterStoreProvider store={parameterStore}>
-        <ScanProvider>
-          <DeviceStateContext.Provider value={deviceStates}>
-            <DeviceInfoContext.Provider value={deviceInfo}>
-              <JobsContext.Provider value={scheduledJobs}>
-                <ParameterMetadataContext.Provider value={parameterMetadata}>
-                  <ParameterDisplayGroupsContext.Provider
-                    value={parameterDisplayGroups}
-                  >
-                    <ExperimentsContext.Provider value={experiments}>
-                      <Outlet />
-                    </ExperimentsContext.Provider>
-                  </ParameterDisplayGroupsContext.Provider>
-                </ParameterMetadataContext.Provider>
-              </JobsContext.Provider>
-            </DeviceInfoContext.Provider>
-          </DeviceStateContext.Provider>
-        </ScanProvider>
-      </ParameterStoreProvider>
+      <NotificationsProvider>
+        <ParameterStoreProvider store={parameterStore}>
+          <ScanProvider>
+            <DeviceStateContext.Provider value={deviceStates}>
+              <DeviceInfoContext.Provider value={deviceInfo}>
+                <JobsContext.Provider value={scheduledJobs}>
+                  <ParameterMetadataContext.Provider value={parameterMetadata}>
+                    <ParameterDisplayGroupsContext.Provider
+                      value={parameterDisplayGroups}
+                    >
+                      <ExperimentsContext.Provider value={experiments}>
+                        <Outlet />
+                      </ExperimentsContext.Provider>
+                    </ParameterDisplayGroupsContext.Provider>
+                  </ParameterMetadataContext.Provider>
+                </JobsContext.Provider>
+              </DeviceInfoContext.Provider>
+            </DeviceStateContext.Provider>
+          </ScanProvider>
+        </ParameterStoreProvider>
+      </NotificationsProvider>
     </ReactRouterAppProvider>
   );
 }
