@@ -1,5 +1,3 @@
-import { useMediaQuery } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
 import { useContext, useMemo } from "react";
 import { ExperimentsContext } from "../contexts/ExperimentsContext";
 import { ParameterDisplayGroupsContext } from "../contexts/ParameterDisplayGroupsContext";
@@ -8,6 +6,7 @@ import { ParameterNumberComponent } from "./parameterComponents/ParameterNumberC
 import { Combobox } from "./parameterComponents/Combobox";
 import { useScanContext } from "../hooks/useScanContext";
 import { getScanIndex } from "../utils/getScanIndex";
+import { useResponsiveGridColumns } from "../hooks/useResponsiveGridColumns";
 
 interface ParameterGroupDisplayProps {
   experimentKey?: string;
@@ -27,18 +26,8 @@ export const ParameterGroupDisplay = ({
   namespace,
   displayGroup,
 }: ParameterGroupDisplayProps) => {
-  const theme = useTheme();
-  const isXs = useMediaQuery(theme.breakpoints.only("xs"));
-  const isSm = useMediaQuery(theme.breakpoints.only("sm"));
-  const isMd = useMediaQuery(theme.breakpoints.only("md"));
-  const isLg = useMediaQuery(theme.breakpoints.only("lg"));
   const { scannedParamKeys } = useScanContext();
-
-  const gridTemplateColumns = useMemo(() => {
-    if (isXs || isSm || isMd) return "repeat(1, 1fr)";
-    if (isLg) return "repeat(2, 1fr)";
-    return "repeat(2, 1fr)"; // xl and larger
-  }, [isXs, isSm, isMd, isLg]);
+  const gridTemplateColumns = useResponsiveGridColumns();
 
   const experiments = useContext(ExperimentsContext);
   const [parameterDisplayGroups] = useContext(ParameterDisplayGroupsContext);
