@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { BaseNumberComponent } from "../parameterComponents/BaseNumberComponent";
-import { BaseTextComponent } from "../settings/BaseTextComponent";
 import { updateConfiguration } from "../../utils/updateConfiguration";
+import { Input } from "../parameterComponents/Input";
 
 interface EditableSettingFieldProps {
   configKey: string;
@@ -21,6 +20,7 @@ export const EditableSettingField = ({
   onUpdate,
 }: EditableSettingFieldProps) => {
   const [inputValue, setInputValue] = useState(String(value));
+  const type = typeof value as "number" | "string";
 
   const handleUpdate = (val: string) => {
     const parsed = typeof value === "number" ? Number(val) : val;
@@ -34,16 +34,12 @@ export const EditableSettingField = ({
 
   const commonProps = {
     id: configKey,
-    displayName: label,
+    label,
     value: inputValue,
     onChange: setInputValue,
     onBlur: handleUpdate,
-    docString: description,
+    description,
   };
 
-  return typeof value === "number" ? (
-    <BaseNumberComponent {...commonProps} />
-  ) : (
-    <BaseTextComponent {...commonProps} />
-  );
+  return <Input type={type} {...commonProps} />;
 };
