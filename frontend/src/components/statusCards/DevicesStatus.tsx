@@ -1,5 +1,4 @@
 import {
-  Box,
   Typography,
   Stack,
   Table,
@@ -40,7 +39,7 @@ export const DevicesStatusCard = ({
       <Typography variant="h6" gutterBottom>
         Devices
       </Typography>
-      <Box sx={{ maxHeight: 300, overflow: "auto" }}>
+      <div style={{ maxHeight: 300, overflow: "auto" }}>
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -62,7 +61,7 @@ export const DevicesStatusCard = ({
             ))}
           </TableBody>
         </Table>
-      </Box>
+      </div>
     </Stack>
   );
 };

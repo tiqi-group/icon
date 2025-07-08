@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Box } from "@mui/material";
 import { socket } from "../socket";
 import { ExperimentData, ExperimentDataPoint } from "../types/ExperimentData";
 import { ReactECharts, ReactEChartsProps } from "./ReactEcharts";
@@ -229,9 +228,9 @@ const PlotInterface = ({ jobId }: PlotInterfaceProps) => {
   }, [experimentData]);
 
   return (
-    <Box sx={{ width: 1, height: 1 }}>
+    <div style={{ width: "100%", height: "100%" }}>
       <ReactECharts option={option} />
-    </Box>
+    </div>
   );
 };
 

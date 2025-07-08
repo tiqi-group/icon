@@ -1,12 +1,5 @@
-import React, { useContext } from "react";
-import {
-  Box,
-  List,
-  ListItemText,
-  Typography,
-  Divider,
-  ListItemButton,
-} from "@mui/material";
+import { useContext } from "react";
+import { List, ListItemText, Typography, Divider, ListItemButton } from "@mui/material";
 import { useSearchParams } from "react-router";
 import { ExperimentsContext } from "../contexts/ExperimentsContext";
 import ExperimentDetails from "../components/ExperimentDetails";
@@ -26,22 +19,20 @@ const ExperimentsPage = () => {
   };
 
   return (
-    <Box
-      display="flex"
-      height="100vh"
-      overflow="hidden"
-      border={1}
-      borderColor="action.focus"
+    <div
+      style={{
+        display: "flex",
+        height: "100vh",
+        overflow: "hidden",
+      }}
     >
-      <Box
-        sx={{
+      <div
+        style={{
           flexShrink: 0,
           width: "fit-content",
           height: "100%",
           overflowY: "auto",
-          bgcolor: "action.selected",
-          borderRight: 1,
-          borderColor: "action.focus",
+          backgroundColor: "var(--mui-palette-action-selected)",
         }}
       >
         <List dense sx={{ pt: 0 }}>
@@ -52,7 +43,7 @@ const ExperimentsPage = () => {
               ),
             )
             .map(([key, metadata], index) => (
-              <React.Fragment key={key}>
+              <div key={key}>
                 <ListItemButton
                   selected={selectedExperiment === key}
                   onClick={() => handleSelect(key)}
@@ -63,12 +54,12 @@ const ExperimentsPage = () => {
                   />
                 </ListItemButton>
                 {index < Object.keys(experiments).length - 1 && <Divider />}
-              </React.Fragment>
+              </div>
             ))}
         </List>
-      </Box>
+      </div>
 
-      <Box sx={{ flex: 1, overflowX: "scroll" }}>
+      <div style={{ flex: 1, overflowX: "scroll" }}>
         {selectedExperiment ? (
           <ExperimentDetails experimentKey={selectedExperiment} />
         ) : (
@@ -76,8 +67,8 @@ const ExperimentsPage = () => {
             Select an experiment from the left to view details here.
           </Typography>
         )}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 };
 

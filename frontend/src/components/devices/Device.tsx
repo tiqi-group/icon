@@ -1,5 +1,5 @@
 import React, { useContext, useState } from "react";
-import { Box, Typography, Button, TextField } from "@mui/material";
+import { Typography, Button, TextField } from "@mui/material";
 import { DeviceInfoContext } from "../../contexts/DeviceInfoContext";
 import { DeviceStatus } from "../../types/enums";
 import { runMethod } from "../../socket";
@@ -73,18 +73,18 @@ export const Device = React.memo(
     };
 
     return (
-      <Box sx={{ mb: 2 }}>
-        <Box sx={{ display: "flex", alignItems: "center" }}>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center" }}>
           <ReachabilityIndicator
             enabled={status === DeviceStatus.ENABLED}
             reachable={reachable}
           />
-          <Box
-            sx={{
+          <div
+            style={{
               flexGrow: 1,
               display: "flex",
               alignItems: "center",
-              gap: 1,
+              gap: 8,
               flexWrap: "wrap",
             }}
           >
@@ -132,7 +132,7 @@ export const Device = React.memo(
                 </Typography>
               </>
             )}
-          </Box>
+          </div>
           <Button
             size="small"
             variant="outlined"
@@ -141,7 +141,7 @@ export const Device = React.memo(
           >
             {status === DeviceStatus.ENABLED ? "Disable" : "Enable"}
           </Button>
-        </Box>
+        </div>
 
         {description && (
           <Typography variant="body2" color="text.secondary" sx={{ pl: 2.4 }}>
@@ -149,7 +149,7 @@ export const Device = React.memo(
           </Typography>
         )}
 
-        <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
           <TextField
             label="Retry Attempts"
             size="small"
@@ -176,7 +176,7 @@ export const Device = React.memo(
             }}
             sx={{ width: "140px" }}
           />
-        </Box>
+        </div>
         {view === "scannable" ? (
           <ScannableParameterInterface name={name} />
         ) : deviceInfo.status === DeviceStatus.ENABLED ? (
@@ -186,7 +186,7 @@ export const Device = React.memo(
             title={`Pydase Interface for ${name}`}
           />
         ) : null}
-      </Box>
+      </div>
     );
   },
 );

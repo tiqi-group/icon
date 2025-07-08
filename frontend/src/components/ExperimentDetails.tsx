@@ -1,6 +1,5 @@
 import { useContext } from "react";
 import {
-  Box,
   Typography,
   Accordion,
   AccordionSummary,
@@ -22,7 +21,7 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
   }
 
   return (
-    <Box display="flex" flexDirection="column">
+    <div style={{ display: "flex", flexDirection: "column" }}>
       <ScanInterface experimentId={experimentKey} />
       {Object.keys(experiment.parameters).map((group) => (
         <Accordion
@@ -42,7 +41,7 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
           </AccordionDetails>
         </Accordion>
       ))}
-    </Box>
+    </div>
   );
 };
 

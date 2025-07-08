@@ -1,6 +1,5 @@
 import { useContext, useState } from "react";
 import {
-  Box,
   Typography,
   Divider,
   Button,
@@ -27,7 +26,7 @@ const DeviceGroup = ({
   devices: [string, DeviceInfo][];
   view: "scannable" | "pydase";
 }) => (
-  <Box sx={{ mb: 4 }}>
+  <div style={{ marginBottom: 32 }}>
     <Typography variant="h6" gutterBottom>
       {title}
     </Typography>
@@ -51,7 +50,7 @@ const DeviceGroup = ({
       ))
     )}
     <Divider sx={{ mt: 2 }} />
-  </Box>
+  </div>
 );
 
 const AddDeviceDialog = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
@@ -147,7 +146,7 @@ const DevicesPage = () => {
   const disabled = entries.filter(([, d]) => d.status !== DeviceStatus.ENABLED);
 
   return (
-    <Box sx={{ p: 2 }}>
+    <div style={{ padding: 16 }}>
       <Tabs
         value={deviceView}
         onChange={(_, newValue) => setDeviceView(newValue)}
@@ -163,7 +162,7 @@ const DevicesPage = () => {
       <AddDeviceDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
       <DeviceGroup title="Enabled Devices" devices={enabled} view={deviceView} />
       <DeviceGroup title="Disabled Devices" devices={disabled} view={deviceView} />
-    </Box>
+    </div>
   );
 };
 

@@ -1,4 +1,4 @@
-import { Box, Typography, Stack, IconButton } from "@mui/material";
+import { Typography, Stack, IconButton } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import { ReachabilityIndicator } from "../devices/ReachabilityIndicator";
 import { Configuration } from "../../types/Configuration";
@@ -21,7 +21,7 @@ export const InfluxDBStatusCard = ({
 
   return (
     <Stack spacing={1}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <ReachabilityIndicator enabled reachable={influxReachable} />
         <Typography variant="h6">InfluxDB</Typography>
         <IconButton
@@ -34,7 +34,7 @@ export const InfluxDBStatusCard = ({
         >
           <EditIcon fontSize="small" />
         </IconButton>
-      </Box>
+      </div>
       <Typography variant="body2">Host: {host}</Typography>
       <Typography variant="body2">Port: {port}</Typography>
       <Typography variant="body2">Database: {database}</Typography>

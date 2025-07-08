@@ -1,4 +1,4 @@
-import { Box, Tabs, Tab, Typography } from "@mui/material";
+import { Tabs, Tab, Typography } from "@mui/material";
 import { useConfiguration } from "../hooks/useConfiguration";
 import { EditableSettingField } from "../components/settings/EditableSettingsField";
 import { BaseButtonComponent } from "../components/settings/ButtonComponent";
@@ -13,7 +13,11 @@ interface TabPanelProps {
 
 const TabPanel = ({ children, value, index }: TabPanelProps) => (
   <div hidden={value !== index} role="tabpanel">
-    {value === index && <Box sx={{ px: 3, pt: 2 }}>{children}</Box>}
+    {value === index && (
+      <div style={{ paddingLeft: 24, paddingRight: 24, paddingTop: 16 }}>
+        {children}
+      </div>
+    )}
   </div>
 );
 
@@ -46,7 +50,7 @@ export const SettingsPage = () => {
   if (!config) return null;
 
   return (
-    <Box>
+    <>
       <Tabs
         value={tab}
         onChange={handleTabChange}
@@ -191,6 +195,6 @@ export const SettingsPage = () => {
           }
         />
       </TabPanel>
-    </Box>
+    </>
   );
 };

@@ -1,4 +1,4 @@
-import { Box, Tooltip } from "@mui/material";
+import { Tooltip } from "@mui/material";
 
 export const ReachabilityIndicator = ({
   enabled,
@@ -11,16 +11,15 @@ export const ReachabilityIndicator = ({
 
   return (
     <Tooltip title={status}>
-      <Box
-        component="span"
-        sx={{
+      <span
+        style={{
           display: "flex",
           alignItems: "center",
           width: 15,
           height: 15,
           borderRadius: "50%",
-          bgcolor: enabled ? (reachable ? "green" : "red") : "grey",
-          mr: 1,
+          backgroundColor: enabled ? (reachable ? "green" : "red") : "grey",
+          marginRight: 8,
         }}
       />
     </Tooltip>

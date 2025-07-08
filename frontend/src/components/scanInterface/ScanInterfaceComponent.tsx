@@ -5,7 +5,6 @@ import {
   FormControl,
   InputLabel,
   TextField,
-  Box,
   Button,
   FormHelperText,
 } from "@mui/material";
@@ -76,10 +75,12 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
 
   return (
     <form onSubmit={handleSubmit}>
-      <Box display="flex" gap={2} pb={2}>
+      <div style={{ display: "flex", gap: 16, paddingBottom: 16 }}>
         <ScanParameterTable />
 
-        <Box display="flex" gap={1} flexDirection="column" pt={5}>
+        <div
+          style={{ display: "flex", gap: 8, flexDirection: "column", paddingTop: 40 }}
+        >
           <FormControl>
             <InputLabel>Priority</InputLabel>
             <Select
@@ -143,16 +144,18 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
           />
 
           {errors.parameters && (
-            <Box sx={{ color: "error.main", fontSize: "0.875rem" }}>
+            <div
+              style={{ color: "var(--mui-palette-error-main)", fontSize: "0.875rem" }}
+            >
               {errors.parameters}
-            </Box>
+            </div>
           )}
 
           <Button type="submit" variant="contained" color="primary">
             Run
           </Button>
-        </Box>
-      </Box>
+        </div>
+      </div>
     </form>
   );
 };

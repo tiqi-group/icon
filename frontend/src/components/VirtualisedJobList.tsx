@@ -1,5 +1,4 @@
 import * as React from "react";
-import Box from "@mui/material/Box";
 import ListItem from "@mui/material/ListItem";
 import ListItemText from "@mui/material/ListItemText";
 import { FixedSizeList, ListChildComponentProps } from "react-window";
@@ -21,38 +20,33 @@ export function VirtualizedJobList() {
 
     return (
       <ListItem style={style} key={job.id} component="div" disablePadding>
-        <Box
-          display="flex"
-          sx={{ flexDirection: "column", width: "100%", height: "100%" }}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            width: "100%",
+            height: "100%",
+          }}
         >
           <ListItemText
             primary={`Job ${job.id}: ${job.status}, priority ${job.priority}`}
             secondary={`Experiment ID: ${job.experiment_source.experiment_id}`}
           />
           <PlotInterface jobId={job.id} />
-        </Box>
+        </div>
       </ListItem>
     );
   };
 
   return (
-    <Box
-      sx={{
-        width: "100%",
-        height: "100%", // or fixed height
-        // maxWidth: 1000,
-        bgcolor: "background.paper",
-      }}
+    <FixedSizeList
+      height={window.innerHeight}
+      width="100%"
+      itemSize={ITEM_HEIGHT}
+      itemCount={sortedJobs.length}
+      overscanCount={2}
     >
-      <FixedSizeList
-        height={window.innerHeight}
-        width="100%"
-        itemSize={ITEM_HEIGHT}
-        itemCount={sortedJobs.length}
-        overscanCount={2}
-      >
-        {renderRow}
-      </FixedSizeList>
-    </Box>
+      {renderRow}
+    </FixedSizeList>
   );
 }

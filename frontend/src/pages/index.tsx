@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from "react";
-import { Box, Card, CardContent, Grid } from "@mui/material";
+import { Card, CardContent, Grid } from "@mui/material";
 import { DeviceInfoContext } from "../contexts/DeviceInfoContext";
 import { DeviceStatus } from "../types/enums";
 import { runMethod, socket } from "../socket";
@@ -45,7 +45,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <Box sx={{ p: 3 }}>
+    <div style={{ padding: 24 }}>
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
@@ -78,6 +78,6 @@ export default function DashboardPage() {
           </Card>
         </Grid>
       </Grid>
-    </Box>
+    </div>
   );
 }

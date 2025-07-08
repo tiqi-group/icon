@@ -1,6 +1,5 @@
 import { useContext, useMemo } from "react";
 import {
-  Box,
   IconButton,
   TextField,
   Checkbox,
@@ -76,8 +75,14 @@ export const ParameterCard = ({
   }, [param, parameterDisplayGroups, deviceInfo]);
 
   return (
-    <Box display="flex" flexDirection="column" gap={1}>
-      <Box display="flex" alignItems="center" justifyContent="space-between">
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
         <FormControl fullWidth size="small">
           <InputLabel>Namespace</InputLabel>
           <Select
@@ -111,7 +116,7 @@ export const ParameterCard = ({
         <IconButton onClick={() => dispatch({ type: "REMOVE_PARAMETER", index })}>
           <DeleteIcon />
         </IconButton>
-      </Box>
+      </div>
       <FormControl fullWidth size="small" disabled={!param.namespace}>
         <InputLabel>
           {param.namespace === "Devices" ? "Device Name" : "Display Group"}
@@ -176,7 +181,7 @@ export const ParameterCard = ({
           ))}
         </Select>
       </FormControl>
-      <Box display="flex" flexDirection="column" gap={1}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <TextField
           required
           label="Start"
@@ -266,7 +271,7 @@ export const ParameterCard = ({
             },
           }}
         />
-      </Box>
+      </div>
       <FormControlLabel
         control={
           <Checkbox
@@ -287,6 +292,6 @@ export const ParameterCard = ({
         }
         label="Scatter"
       />
-    </Box>
+    </div>
   );
 };

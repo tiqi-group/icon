@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { Box, Typography } from "@mui/material";
+import { Typography } from "@mui/material";
 import { Field } from "@base-ui-components/react";
 import "./Number.css";
 import { HelpButton } from "../HelpButtonComponent";
@@ -60,15 +60,15 @@ export const BaseNumberComponent = React.memo(
     };
 
     return (
-      <Box display="flex" alignItems="center" gap={1}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         {displayName && (
-          <Box display="flex" alignItems="center" gap={1}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <Typography noWrap>{displayName}</Typography>
             {docString && <HelpButton docString={docString} />}
-          </Box>
+          </div>
         )}
         <Field.Root className="Field" invalid={error} validate={validate}>
-          <Box className="InputWrapper">
+          <div className="InputWrapper">
             <Field.Control
               title={error ? undefined : title}
               style={{
@@ -86,9 +86,9 @@ export const BaseNumberComponent = React.memo(
                 {unit}
               </span>
             )}
-          </Box>
+          </div>
         </Field.Root>
-      </Box>
+      </div>
     );
   },
 );

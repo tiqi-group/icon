@@ -1,4 +1,4 @@
-import { Box, useMediaQuery } from "@mui/material";
+import { useMediaQuery } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { useContext, useMemo } from "react";
 import { ExperimentsContext } from "../contexts/ExperimentsContext";
@@ -71,11 +71,11 @@ export const ParameterGroupDisplay = ({
   }, [parameters]);
 
   return (
-    <Box
-      sx={{
+    <div
+      style={{
         display: "grid",
-        rowGap: 1,
-        columnGap: 3,
+        rowGap: 8,
+        columnGap: 24,
         gridTemplateColumns,
       }}
     >
@@ -130,6 +130,6 @@ export const ParameterGroupDisplay = ({
           );
         }
       })}
-    </Box>
+    </div>
   );
 };

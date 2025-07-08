@@ -1,5 +1,5 @@
 import React, { useContext } from "react";
-import { Box, Button, Typography } from "@mui/material";
+import { Button, Typography } from "@mui/material";
 import { ParameterMetadataContext } from "../../contexts/ParameterMetadataContext";
 import { useScanContext } from "../../hooks/useScanContext";
 import { HelpButton } from "../HelpButtonComponent";
@@ -29,11 +29,11 @@ export const ButtonComponent = React.memo(
     };
 
     return (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Box display="flex" alignItems="center" gap={1}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <Typography noWrap>{displayName}</Typography>
           {id && <HelpButton docString={id} />}
-        </Box>
+        </div>
 
         <Button
           variant="outlined"
@@ -45,7 +45,7 @@ export const ButtonComponent = React.memo(
         >
           {displayValue === true ? "On" : "Off"}
         </Button>
-      </Box>
+      </div>
     );
   },
 );

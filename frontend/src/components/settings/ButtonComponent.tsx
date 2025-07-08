@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Typography, Button } from "@mui/material";
+import { Typography, Button } from "@mui/material";
 import { HelpButton } from "../HelpButtonComponent";
 import { updateConfiguration } from "../../utils/updateConfiguration";
 
@@ -17,15 +17,15 @@ export const BaseButtonComponent = React.memo(
     };
 
     return (
-      <Box display="flex" alignItems="center" gap={1}>
-        <Box display="flex" alignItems="center" gap={1}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <Typography noWrap>{label}</Typography>
           {description && <HelpButton docString={description} />}
-        </Box>
+        </div>
         <Button variant="contained" onClick={() => onClick(!value)}>
           {value === true ? "True" : "False"}
         </Button>
-      </Box>
+      </div>
     );
   },
 );

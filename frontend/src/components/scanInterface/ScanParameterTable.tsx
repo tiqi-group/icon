@@ -1,5 +1,4 @@
 import {
-  Box,
   Table,
   TableBody,
   TableContainer,
@@ -18,10 +17,13 @@ export const ScanParameterTable = () => {
   const { state, dispatch } = useScanContext();
 
   return (
-    <Box
-      display="flex"
-      flexDirection="column"
-      sx={{ width: "400px", maxHeight: "600px" }}
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        width: "400px",
+        maxHeight: "600px",
+      }}
     >
       <TableContainer component={Paper} sx={{ overflowY: "auto", maxHeight: "450px" }}>
         <Table stickyHeader size="small">
@@ -45,13 +47,13 @@ export const ScanParameterTable = () => {
             ))}
           </TableBody>
         </Table>
-        <Box display="flex" justifyContent="center">
+        <div style={{ display: "flex", justifyContent: "center" }}>
           <IconButton onClick={() => dispatch({ type: "ADD_PARAMETER" })}>
             <AddIcon />
           </IconButton>
-        </Box>
+        </div>
       </TableContainer>
-    </Box>
+    </div>
   );
 };
 
