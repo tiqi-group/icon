@@ -7,11 +7,11 @@ interface BaseButtonComponentProps {
   id: string;
   label: string;
   value: boolean;
-  docString?: string;
+  description?: string;
 }
 
 export const BaseButtonComponent = React.memo(
-  ({ id, label, value, docString }: BaseButtonComponentProps) => {
+  ({ id, label, value, description }: BaseButtonComponentProps) => {
     const onClick = (val: boolean) => {
       updateConfiguration(id, val);
     };
@@ -20,7 +20,7 @@ export const BaseButtonComponent = React.memo(
       <Box display="flex" alignItems="center" gap={1}>
         <Box display="flex" alignItems="center" gap={1}>
           <Typography noWrap>{label}</Typography>
-          {docString && <HelpButton docString={docString} />}
+          {description && <HelpButton docString={description} />}
         </Box>
         <Button variant="contained" onClick={() => onClick(!value)}>
           {value === true ? "True" : "False"}
