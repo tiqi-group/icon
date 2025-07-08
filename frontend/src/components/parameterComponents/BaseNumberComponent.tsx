@@ -3,6 +3,7 @@ import { Box, Typography } from "@mui/material";
 import { Field } from "@base-ui-components/react";
 import "./Number.css";
 import { HelpButton } from "../HelpButtonComponent";
+import { numberValid } from "../../utils/numberValid";
 
 interface BaseNumberComponentProps {
   id: string;
@@ -22,11 +23,6 @@ interface BaseNumberComponentProps {
   inputBackgroundColor?: string;
   title?: string;
 }
-export const numberValid = (val: string, minValue: number, maxValue: number) => {
-  const parsed = Number.parseFloat(val);
-  return !isNaN(+val) && !isNaN(parsed) && parsed >= minValue && parsed <= maxValue;
-};
-
 export const BaseNumberComponent = React.memo(
   ({
     id,

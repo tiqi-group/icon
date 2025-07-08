@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState } from "react";
 import { DeviceStateContext } from "../../contexts/DeviceStateContext";
-import { BaseNumberComponent, numberValid } from "./BaseNumberComponent";
+import { BaseNumberComponent } from "./BaseNumberComponent";
 import { updateDeviceParameter } from "../../utils/updateDeviceParamter";
 import { getNestedDictByPath } from "../../utils/stateUtils";
 import {
@@ -10,6 +10,7 @@ import {
   SerializedQuantity,
 } from "../../types/SerializedObject";
 import { useScanContext } from "../../hooks/useScanContext";
+import { numberValid } from "../../utils/numberValid";
 
 interface DeviceNumberComponentProps {
   deviceName: string;

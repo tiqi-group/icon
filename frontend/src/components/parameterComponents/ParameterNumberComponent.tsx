@@ -3,7 +3,8 @@ import { useParameter } from "../../hooks/useParameter";
 import { ParameterMetadataContext } from "../../contexts/ParameterMetadataContext";
 import { useScanContext } from "../../hooks/useScanContext";
 import { updateParameterValue } from "../../utils/updateParameterValue";
-import { BaseNumberComponent, numberValid } from "./BaseNumberComponent";
+import { BaseNumberComponent } from "./BaseNumberComponent";
+import { numberValid } from "../../utils/numberValid";
 
 interface Props {
   id: string;
