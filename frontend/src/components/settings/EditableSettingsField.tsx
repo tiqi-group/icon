@@ -7,18 +7,21 @@ interface EditableSettingFieldProps {
   configKey: string;
   label: string;
   value: string | number;
+  onAfterUpdate?: () => void;
 }
 
 export const EditableSettingField = ({
   configKey,
   label,
   value,
+  onAfterUpdate,
 }: EditableSettingFieldProps) => {
   const [inputValue, setInputValue] = useState(String(value));
 
   const handleUpdate = (val: string) => {
     const parsed = typeof value === "number" ? Number(val) : val;
     updateConfiguration(configKey, parsed);
+    if (onAfterUpdate) onAfterUpdate();
   };
 
   const commonProps = {
