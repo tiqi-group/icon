@@ -29,8 +29,8 @@ export const ButtonComponent = React.memo(
     };
 
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      <div style={{ display: "flex", alignItems: "center", padding: "4px 0" }}>
+        <div style={{ display: "flex", alignItems: "center" }}>
           <Typography noWrap>{displayName}</Typography>
           {id && <HelpButton docString={id} />}
         </div>
