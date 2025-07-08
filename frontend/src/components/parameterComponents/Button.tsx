@@ -1,9 +1,8 @@
 import React, { useContext } from "react";
-import { Button, Typography } from "@mui/material";
 import { ParameterMetadataContext } from "../../contexts/ParameterMetadataContext";
-import { HelpButton } from "../HelpButtonComponent";
 import { updateParameterValue } from "../../utils/updateParameterValue";
 import { useParameter } from "../../hooks/useParameter";
+import { BaseButton } from "./BaseButton";
 
 interface ButtonComponentProps {
   id: string;
@@ -33,23 +32,17 @@ export const ButtonComponent = React.memo(
     };
 
     return (
-      <div style={{ display: "flex", alignItems: "center", padding: "4px 0" }}>
-        <div style={{ display: "flex", alignItems: "center" }}>
-          <Typography noWrap>{displayName}</Typography>
-          {id && <HelpButton docString={id} />}
-        </div>
-
-        <Button
-          variant="outlined"
-          color={displayValue === true ? "success" : "inherit"}
-          onClick={() => onClick(!displayValue)}
-          onContextMenu={(e) => onContextMenu?.(e, id, displayGroup, namespace)}
-          sx={{ backgroundColor: scanIndex !== null ? "#186fc67e" : undefined }}
-          title={scanIndex !== null ? `Scan parameter ${scanIndex + 1}` : undefined}
-        >
-          {displayValue === true ? "On" : "Off"}
-        </Button>
-      </div>
+      <BaseButton
+        label={displayName}
+        color={displayValue === true ? "success" : "inherit"}
+        onClick={() => onClick(!displayValue)}
+        onContextMenu={(e) => onContextMenu?.(e, id, displayGroup, namespace)}
+        backgroundColor={scanIndex !== null ? "#186fc67e" : undefined}
+        description={id}
+        title={scanIndex !== null ? `Scan parameter ${scanIndex + 1}` : undefined}
+      >
+        {displayValue === true ? "On" : "Off"}
+      </BaseButton>
     );
   },
 );

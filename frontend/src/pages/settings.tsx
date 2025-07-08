@@ -1,10 +1,11 @@
 import { Tabs, Tab, Typography } from "@mui/material";
 import { useConfiguration } from "../hooks/useConfiguration";
 import { EditableSettingField } from "../components/settings/EditableSettingsField";
-import { BaseButtonComponent } from "../components/settings/ButtonComponent";
 import { useNotifications } from "@toolpad/core";
 import { useSearchParams } from "react-router";
 import { EditableDictField } from "../components/settings/EditableDictField";
+import { BaseButton } from "../components/parameterComponents/BaseButton";
+import { updateConfiguration } from "../utils/updateConfiguration";
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -108,18 +109,34 @@ export const SettingsPage = () => {
           value={config.databases.influxdbv1.database}
           description="Name of the InfluxDB v1 database to use."
         />
-        <BaseButtonComponent
-          id="databases.influxdbv1.ssl"
+        <BaseButton
           label="SSL"
-          value={config.databases.influxdbv1.ssl}
           description="Enable SSL for secure connection to InfluxDB."
-        />
-        <BaseButtonComponent
-          id="databases.influxdbv1.verify_ssl"
+          color={config.databases.influxdbv1.ssl === true ? "success" : "inherit"}
+          onClick={() =>
+            updateConfiguration(
+              "databases.influxdbv1.ssl",
+              !config.databases.influxdbv1.ssl,
+            )
+          }
+        >
+          {config.databases.influxdbv1.ssl == true ? "True" : "False"}
+        </BaseButton>
+        <BaseButton
           label="Verify SSL"
-          value={config.databases.influxdbv1.verify_ssl}
           description="Verify SSL certificates when connecting to InfluxDB."
-        />
+          color={
+            config.databases.influxdbv1.verify_ssl === true ? "success" : "inherit"
+          }
+          onClick={() =>
+            updateConfiguration(
+              "databases.influxdbv1.verify_ssl",
+              !config.databases.influxdbv1.verify_ssl,
+            )
+          }
+        >
+          {config.databases.influxdbv1.verify_ssl == true ? "True" : "False"}
+        </BaseButton>
         <EditableDictField
           configKey="databases.influxdbv1.headers"
           label="Headers"
