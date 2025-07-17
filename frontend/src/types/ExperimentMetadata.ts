@@ -10,7 +10,7 @@ export interface ParameterMetadata {
   allowed_values?: string[];
 }
 
-interface ExperimentMetadata {
+export interface ExperimentMetadata {
   class_name: string;
   constructor_kwargs: Record<string, string>;
   parameters: Record<string, Record<string, ParameterMetadata>>;
