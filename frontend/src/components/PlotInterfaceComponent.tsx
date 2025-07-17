@@ -14,6 +14,7 @@ const PlotInterface = ({ jobId }: PlotInterfaceProps) => {
     result_channels: {},
     vector_channels: {},
     scan_parameters: {},
+    json_sequences: [],
   });
 
   useEffect(() => {

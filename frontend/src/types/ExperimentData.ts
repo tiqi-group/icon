@@ -8,6 +8,7 @@ export type ExperimentDataPoint = ResultDict & {
   index: number;
   scan_params: Record<string, number | boolean | string>;
   timestamp: string;
+  sequence_json: string;
 };
 
 export interface ExperimentData {
@@ -15,4 +16,5 @@ export interface ExperimentData {
   result_channels: Record<string, Record<number, number>>;
   vector_channels: Record<string, Record<number, number[]>>;
   scan_parameters: Record<string, Record<number, number | boolean | string>>;
+  json_sequences: [number, string][];
 }
