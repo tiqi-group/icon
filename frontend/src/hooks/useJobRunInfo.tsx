@@ -15,21 +15,30 @@ export const useJobRunInfo = (jobId: string | undefined) => {
   useEffect(() => {
     if (jobId === undefined) return;
 
-    runMethod("scheduler.get_job_run_by_id", [], { job_id: jobId }, (ack) => {
-      setJobRunInfo(deserialize(ack as SerializedObject) as JobRun);
-    });
+    const fetchJobRun = () => {
+      runMethod("scheduler.get_job_run_by_id", [], { job_id: jobId }, (ack) => {
+        const deserialized = deserialize(ack as SerializedObject);
+        if (deserialized instanceof Error) {
+          console.info("Failed to fetch job run:", deserialized);
+          return;
+        }
+        setJobRunInfo(deserialized as JobRun);
+      });
+    };
+
+    fetchJobRun();
 
     const handleJobRunUpdate = (data: JobRunUpdate) => {
-      setJobRunInfo((prevJobRunInfo) => {
-        if (!prevJobRunInfo || data.run_id !== prevJobRunInfo?.id)
-          return prevJobRunInfo;
+      setJobRunInfo((prev) => {
+        if (!prev || data.run_id !== prev.id) {
+          fetchJobRun();
+          return prev;
+        }
 
-        const updatedJobRun = {
-          ...prevJobRunInfo,
+        return {
+          ...prev,
           ...data.updated_properties,
-        };
-
-        return updatedJobRun as JobRun;
+        } as JobRun;
       });
     };
 
