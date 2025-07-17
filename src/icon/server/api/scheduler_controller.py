@@ -10,6 +10,7 @@ from icon.server.api.models.scan_parameter import ScanParameter
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
 from icon.server.data_access.models.sqlite.job import Job, timezone
+from icon.server.data_access.models.sqlite.job_run import JobRun
 from icon.server.data_access.repositories.device_repository import DeviceRepository
 from icon.server.data_access.repositories.experiment_source_repository import (
     ExperimentSourceRepository,
@@ -112,6 +113,12 @@ class SchedulerController(pydase.DataService):
                 status=status, start=start_date, stop=stop_date
             )
         }
+
+    def get_job_by_id(self, *, job_id: int) -> Job:
+        return JobRepository.get_job_by_id(job_id=job_id, load_experiment_source=True)
+
+    def get_job_run_by_id(self, *, job_id: int) -> JobRun:
+        return JobRunRepository.get_run_by_job_id(job_id=job_id)
 
     async def __cast_scan_values_to_param_type(
         self,
