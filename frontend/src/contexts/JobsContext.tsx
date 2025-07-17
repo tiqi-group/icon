@@ -2,11 +2,11 @@ import { createContext } from "react";
 import { Job } from "../types/Job";
 
 export interface JobUpdate {
-  job_id: string;
+  job_id: number;
   updated_properties: Record<string, string>;
 }
 
-export type ScheduledJobs = Record<string, Job>;
+export type ScheduledJobs = Record<number, Job>;
 
 export type Action =
   | { type: "SET_JOBS"; payload: ScheduledJobs }
