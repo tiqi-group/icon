@@ -9,6 +9,9 @@ const statusColorMap: Record<JobRunStatus, string> = {
   [JobRunStatus.FAILED]: "red",
 };
 
+const capitalize = (s: string | undefined) =>
+  s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
+
 export const JobStatusIndicator = ({
   status,
   log,
@@ -17,7 +20,7 @@ export const JobStatusIndicator = ({
   log: string | null | undefined;
 }) => {
   return (
-    <Tooltip title={log ? log : status}>
+    <Tooltip title={log ? `${capitalize(status)}: ${log}` : capitalize(status)}>
       <span
         style={{
           display: "flex",
