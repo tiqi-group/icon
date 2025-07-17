@@ -1,18 +1,19 @@
 import { useEffect, useState } from "react";
-import { socket } from "../socket";
+import { runMethod, socket } from "../socket";
 import { ExperimentData, ExperimentDataPoint } from "../types/ExperimentData";
+import { SerializedObject } from "../types/SerializedObject";
+import { deserialize } from "../utils/deserializer";
 
 /**
- * Subscribes to real-time experiment updates over a WebSocket and accumulates
- * shot data, result data, vector data, scan parameters, and sequence JSONs
- * indexed by shot index.
+ * Hook to fetch and subscribe to experiment data for a given job ID.
  *
- * - On mount (or jobId change): fetches initial state and sets up live listener.
- * - Accumulates incoming data by merging into current state.
- * - Appends to `json_sequences` only if the sequence differs from the last one.
+ * - Fetches initial experiment data via RPC.
+ * - Subscribes to live updates via WebSocket and merges new data.
+ * - Updates json_sequences only when the sequence changes.
+ * - Captures any fetch error in `experimentDataError`.
  *
- * @param jobId - The job identifier to subscribe to. If undefined, no action is taken.
- * @returns The current ExperimentData object including accumulated data and sequence history.
+ * @param jobId - The job ID to fetch and subscribe to.
+ * @returns The current experiment data and any fetch error.
  */
 export function useExperimentData(jobId: string | undefined) {
   const [experimentData, setExperimentData] = useState<ExperimentData>({
@@ -22,6 +23,7 @@ export function useExperimentData(jobId: string | undefined) {
     scan_parameters: {},
     json_sequences: [],
   });
+  const [experimentDataError, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!jobId) return;
@@ -29,6 +31,7 @@ export function useExperimentData(jobId: string | undefined) {
     const eventName = `experiment_${jobId}`;
 
     const handleData = (data: ExperimentDataPoint) => {
+      setError(null);
       setExperimentData((currentData) => {
         const newShot = { ...currentData.shot_channels };
         for (const channel of Object.keys(data.shot_channels)) {
@@ -75,8 +78,19 @@ export function useExperimentData(jobId: string | undefined) {
     };
 
     socket.on(eventName, handleData);
-    socket.emit("get_experiment_data", jobId, (data: ExperimentData) => {
-      setExperimentData(data);
+
+    runMethod("data.get_experiment_data_by_job_id", [], { job_id: jobId }, (ack) => {
+      const deserialized = deserialize(ack as SerializedObject) as
+        | Error
+        | ExperimentData;
+
+      if (deserialized instanceof Error) {
+        console.info("Failed to fetch job run:", deserialized);
+        setError(deserialized);
+        return;
+      }
+
+      setExperimentData(deserialized);
     });
 
     return () => {
@@ -84,5 +98,5 @@ export function useExperimentData(jobId: string | undefined) {
     };
   }, [jobId]);
 
-  return experimentData;
+  return { experimentData, experimentDataError };
 }
