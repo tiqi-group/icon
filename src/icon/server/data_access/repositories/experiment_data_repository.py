@@ -13,6 +13,7 @@ from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
+from icon.server.utils.h5py import get_hdf5_dtype
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 if TYPE_CHECKING:
@@ -39,6 +40,7 @@ class ExperimentData(TypedDict):
     result_channels: dict[str, dict[int, float]]
     vector_channels: dict[str, dict[int, list[float]]]
     scan_parameters: dict[str, dict[int, str | float]]
+    json_sequences: dict[int, str]
 
 
 def get_filename_by_job_id(job_id: int) -> str:
@@ -305,6 +307,61 @@ class ExperimentDataRepository:
         )
 
     @staticmethod
+    def write_parameter_update_by_job_id(
+        *,
+        job_id: int,
+        timestamp: str,
+        parameter_values: dict[str, str | int | float | bool],
+    ) -> None:
+        """Write parameter updates to a dataset for each parameter under 'parameters'.
+        Datasets contain (timestamp, value). Only appends if the value changed.
+        """
+
+        filename = get_filename_by_job_id(job_id)
+        file = f"{get_config().experiment_library.results_dir}/{filename}"
+        lock_path = (
+            f"{get_config().experiment_library.results_dir}/.{filename}"
+            f"{ExperimentDataRepository.LOCK_EXTENSION}"
+        )
+
+        with FileLock(lock_path), h5py.File(file, "a") as h5file:
+            parameters_group = h5file.require_group("parameters")
+
+            for param_id, value in parameter_values.items():
+                dtype = [("timestamp", "S26"), ("value", get_hdf5_dtype(value))]
+
+                if param_id in parameters_group:
+                    ds = cast("h5py.Dataset", parameters_group[param_id])
+                    if ds.shape[0] > 0:
+                        last_entry = ds[-1]
+                        last_value = last_entry["value"]
+                        if isinstance(value, str):
+                            if last_value.decode() == value:
+                                continue
+                        elif last_value == value:
+                            continue
+
+                    index = ds.shape[0]
+                    resize_dataset(ds, next_index=index, axis=0)
+                else:
+                    ds = parameters_group.create_dataset(
+                        param_id,
+                        shape=(1,),
+                        maxshape=(None,),
+                        chunks=True,
+                        dtype=dtype,
+                    )
+                    index = 0
+
+                ds[index] = (timestamp.encode(), value)
+
+            logger.debug(
+                "Wrote parameter update for job %d at %s",
+                job_id,
+                timestamp,
+            )
+
+    @staticmethod
     def get_experiment_data_by_job_id(
         *,
         job_id: int,
@@ -314,6 +371,7 @@ class ExperimentDataRepository:
             "result_channels": {},
             "vector_channels": {},
             "scan_parameters": {},
+            "json_sequences": {},
         }
 
         filename = get_filename_by_job_id(job_id)
@@ -372,5 +430,11 @@ class ExperimentDataRepository:
                 for channel_name, vector_group in cast(
                     "Sequence[tuple[str, h5py.Group]]", vector_channels_group.items()
                 )
+            }
+
+            sequence_json_dataset = cast("h5py.Dataset", h5file["sequence_json"])
+            data["json_sequences"] = {
+                cast("np.int32", entry["index"]).item(): entry["Sequence"].decode()
+                for entry in sequence_json_dataset
             }
             return data
