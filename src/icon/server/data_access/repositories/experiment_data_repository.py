@@ -40,7 +40,7 @@ class ExperimentData(TypedDict):
     result_channels: dict[str, dict[int, float]]
     vector_channels: dict[str, dict[int, list[float]]]
     scan_parameters: dict[str, dict[int, str | float]]
-    json_sequences: dict[int, str]
+    json_sequences: list[tuple[int, str]]
 
 
 def get_filename_by_job_id(job_id: int) -> str:
@@ -371,7 +371,7 @@ class ExperimentDataRepository:
             "result_channels": {},
             "vector_channels": {},
             "scan_parameters": {},
-            "json_sequences": {},
+            "json_sequences": [],
         }
 
         filename = get_filename_by_job_id(job_id)
@@ -433,8 +433,8 @@ class ExperimentDataRepository:
             }
 
             sequence_json_dataset = cast("h5py.Dataset", h5file["sequence_json"])
-            data["json_sequences"] = {
-                cast("np.int32", entry["index"]).item(): entry["Sequence"].decode()
+            data["json_sequences"] = [
+                [cast("np.int32", entry["index"]).item(), entry["Sequence"].decode()]
                 for entry in sequence_json_dataset
-            }
+            ]
             return data
