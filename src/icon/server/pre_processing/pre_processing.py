@@ -32,13 +32,13 @@ from icon.server.data_access.repositories.pycrystal_library_repository import (
     PycrystalLibraryRepository,
 )
 from icon.server.hardware_processing.task import HardwareProcessingTask
-from icon.server.utils.types import UpdateQueue
 
 if TYPE_CHECKING:
     from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
     from icon.server.data_access.models.sqlite.job import Job
     from icon.server.pre_processing.task import PreProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
+    from icon.server.utils.types import UpdateQueue
 
 logger = logging.getLogger(__name__)
 timezone = pytz.timezone(get_config().date.timezone)
@@ -280,18 +280,24 @@ class PreProcessingWorker(multiprocessing.Process):
 
         if new_parameters is not None:
             self._parameter_dict.update(new_parameters)
-            return
 
-        if update_all:
-            local_params_timestamp = self._global_parameter_timestamp.isoformat()
         else:
-            local_params_timestamp = (
-                self._pre_processing_task.local_parameters_timestamp
+            if update_all:
+                local_params_timestamp = self._global_parameter_timestamp.isoformat()
+            else:
+                local_params_timestamp = (
+                    self._pre_processing_task.local_parameters_timestamp
+                )
+
+            self._parameter_dict = cache_parameter_values(
+                local_params_timestamp=local_params_timestamp,
+                namespace=f"{self._exp_module_name}.{self._exp_class_name}",
             )
 
-        self._parameter_dict = cache_parameter_values(
-            local_params_timestamp=local_params_timestamp,
-            namespace=f"{self._exp_module_name}.{self._exp_class_name}",
+        ExperimentDataRepository.write_parameter_update_by_job_id(
+            job_id=self._pre_processing_task.job.id,
+            timestamp=self._global_parameter_timestamp.isoformat(),
+            parameter_values=self._parameter_dict,
         )
 
     def _handle_parameter_updates(self) -> None:
@@ -313,6 +319,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     self._update_parameter_dict(
                         update_all=True, new_parameters=new_parameters
                     )
+
 
             except queue.Empty:
                 done = True
