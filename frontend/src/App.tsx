@@ -80,7 +80,7 @@ const NAVIGATION: Navigation = [
   },
 ];
 
-const BRANDING = {
+export const BRANDING = {
   title: "ICON",
   logo: <img src={logo} alt="ICON logo" />,
 };

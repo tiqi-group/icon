@@ -9,6 +9,8 @@ import ParameterPage from "./pages/parameters";
 import { DataPage } from "./pages/data";
 import DevicesPage from "./pages/devices";
 import { SettingsPage } from "./pages/settings";
+import JobViewerLayout from "./layouts/job-viewer";
+import { JobViewerPage } from "./pages/job-viewer";
 
 const router = createBrowserRouter([
   {
@@ -43,6 +45,16 @@ const router = createBrowserRouter([
             Component: SettingsPage,
           },
         ],
+      },
+    ],
+  },
+  {
+    path: "/data/:jobId",
+    Component: JobViewerLayout,
+    children: [
+      {
+        index: true,
+        Component: JobViewerPage,
       },
     ],
   },
