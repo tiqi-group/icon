@@ -88,7 +88,7 @@ export function ReactECharts({ option, style, settings, loading }: ReactEChartsP
       ref={chartRef}
       style={{
         width: "100%",
-        height: "100%",
+        height: "300px",
         ...style,
       }}
     />
