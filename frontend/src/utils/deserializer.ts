@@ -1,7 +1,9 @@
+import { SignJsonWebKeyInput } from "crypto";
 import {
   SerializedDataService,
   SerializedDict,
   SerializedEnum,
+  SerializedException,
   SerializedList,
   SerializedObject,
 } from "../types/SerializedObject";
@@ -32,7 +34,7 @@ class Deserializer {
     NumberSlider: Deserializer.deserializeDataService,
     DeviceConnection: Deserializer.deserializeDataService,
     Task: Deserializer.deserializeDataService,
-    Exception: undefined,
+    Exception: Deserializer.deserializeException,
     Quantity: undefined,
   };
 
@@ -53,6 +55,12 @@ class Deserializer {
       return parseFloat(serializedObject.value as unknown as string);
     }
     return serializedObject.value;
+  }
+
+  private static deserializeException(serializedObject: SerializedException): Error {
+    const error = new Error(serializedObject.value);
+    error.name = serializedObject.name;
+    return error;
   }
 
   private static deserializeEnum(serializedObject: SerializedEnum): DeserializedValue {
