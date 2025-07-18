@@ -7,8 +7,13 @@ interface ResultChannelPlotProps {
   experimentData: ExperimentData;
 }
 
+const formatAxisLabel = (value: string): string => {
+  const num = parseFloat(value);
+  return isNaN(num) ? value : num.toFixed(3);
+};
+
 const ResultChannelPlot = ({ experimentData }: ResultChannelPlotProps) => {
-  const option = useMemo<ReactEChartsProps["option"]>(() => {
+  const option = useMemo<ReactEChartsProps["option"] | undefined>(() => {
     if (!experimentData || Object.keys(experimentData.scan_parameters).length === 0)
       return {};
 
@@ -38,6 +43,10 @@ const ResultChannelPlot = ({ experimentData }: ResultChannelPlotProps) => {
       min: "dataMin",
       max: "dataMax",
       type: "value",
+      axisLabel: {
+        // hide overlapping labels
+        hideOverlap: true,
+      },
     };
     const yAxis: EChartsOption["yAxis"] = {
       nameLocation: "middle",
@@ -70,6 +79,9 @@ const ResultChannelPlot = ({ experimentData }: ResultChannelPlotProps) => {
     } else if (scanParamsOnly.length === 1 && timestampEntry) {
       xAxisData = scanParamsOnly[0].scan_interval as number[];
 
+      // @ts-expect-error Type hint of ECharts is wrong
+      xAxis.axisLabel = { formatter: formatAxisLabel };
+
       const fullDataSet = xAxisData.map((xVal, index) => [
         xVal,
         ...resultChannels.map((ch) => ch.data[index]),
@@ -86,28 +98,29 @@ const ResultChannelPlot = ({ experimentData }: ResultChannelPlotProps) => {
       }));
     } else if (scanParamsOnly.length === 2) {
       const [xScan, yScan] = scanParamsOnly;
-      const data: number[][] = [];
-      for (let i = 0; i < xScan.scan_interval.length; i++) {
-        for (let j = 0; j < yScan.scan_interval.length; j++) {
-          data.push([i, j, resultChannels[0].data[i + xScan.scan_interval.length * j]]);
-        }
-      }
+      const resultChannel = resultChannels.at(-1);
+      if (!resultChannel) return;
 
-      //@ts-expect-error
-      xAxis.data = xScan.scan_interval;
-      xAxis.type = "category";
-      //@ts-expect-error
-      yAxis.data = yScan.scan_interval;
-      //@ts-expect-error
-      yAxis.type = "category";
+      const data: [number | string, number | string, number][] =
+        xScan.scan_interval.map((x, i) => [
+          x,
+          yScan.scan_interval[i],
+          resultChannel.data[i],
+        ]);
 
       return {
         tooltip: {},
-        xAxis,
-        yAxis,
+        xAxis: {
+          type: "category",
+          axisLabel: { formatter: formatAxisLabel },
+        },
+        yAxis: {
+          type: "category",
+          axisLabel: { formatter: formatAxisLabel },
+        },
         series: [
           {
-            name: "Heatmap",
+            name: resultChannel.name,
             type: "heatmap",
             data,
             emphasis: { itemStyle: { borderColor: "#333", borderWidth: 1 } },
@@ -116,15 +129,12 @@ const ResultChannelPlot = ({ experimentData }: ResultChannelPlotProps) => {
           },
         ],
         visualMap: {
-          min: 0,
-          max: 1,
-          calculable: true,
-          realtime: false,
+          left: "right",
+          min: Math.min(...resultChannel.data),
+          max: Math.max(1, ...resultChannel.data),
           inRange: { color: ["#313695", "#1483d5", "#73bf7f", "#fcbe3d", "#ffff00"] },
         },
       };
-    } else {
-      return {};
     }
 
     return {
@@ -150,7 +160,8 @@ const ResultChannelPlot = ({ experimentData }: ResultChannelPlotProps) => {
 
   return (
     <>
-      {Object.keys(experimentData.result_channels).length === 0 ? (
+      {Object.keys(experimentData.result_channels).length === 0 ||
+      option === undefined ? (
         <div
           style={{
             display: "flex",
