@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { List, ListItemText, Divider, ListItemButton } from "@mui/material";
+import { List, ListItemText, ListItemButton, ListSubheader } from "@mui/material";
 import { useSearchParams } from "react-router";
 import { ExperimentsContext } from "../contexts/ExperimentsContext";
 import ExperimentDetails from "../components/ExperimentDetails";
@@ -19,52 +19,57 @@ const ExperimentsPage = () => {
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        height: "100vh",
-        overflow: "hidden",
-      }}
-    >
+    <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
       <div
         style={{
           flexShrink: 0,
           width: "fit-content",
           height: "100%",
           overflowY: "auto",
-          backgroundColor: "var(--mui-palette-action-selected)",
+          borderRight: "1px solid #ccc",
         }}
       >
-        <List dense sx={{ pt: 0 }}>
+        <List
+          dense
+          disablePadding
+          subheader={
+            <ListSubheader
+              sx={{
+                position: "sticky",
+                borderBottom: "1px solid #ccc",
+              }}
+            >
+              Experiments
+            </ListSubheader>
+          }
+        >
           {Object.entries(experiments)
             .sort(([keyA], [keyB]) =>
               getExperimentNameFromExperimentId(keyA).localeCompare(
                 getExperimentNameFromExperimentId(keyB),
               ),
             )
-            .map(([key, metadata], index) => (
-              <div key={key}>
-                <ListItemButton
-                  selected={selectedExperiment === key}
-                  onClick={() => handleSelect(key)}
-                >
-                  <ListItemText
-                    primary={getExperimentNameFromExperimentId(key)}
-                    secondary={metadata.class_name}
-                  />
-                </ListItemButton>
-                {index < Object.keys(experiments).length - 1 && <Divider />}
-              </div>
+            .map(([key, metadata]) => (
+              <ListItemButton
+                key={key}
+                selected={selectedExperiment === key}
+                onClick={() => handleSelect(key)}
+              >
+                <ListItemText
+                  primary={getExperimentNameFromExperimentId(key)}
+                  secondary={metadata.class_name}
+                />
+              </ListItemButton>
             ))}
         </List>
       </div>
 
-      <div style={{ flex: 1, overflowX: "scroll" }}>
+      <div style={{ flexGrow: 1, height: "100%", overflow: "auto" }}>
         {selectedExperiment ? (
           <ExperimentDetails experimentKey={selectedExperiment} />
         ) : (
           <div style={{ padding: 16 }}>
-            Select an experiment from the left to view details here.
+            Select an experiment from the list to view details.
           </div>
         )}
       </div>
