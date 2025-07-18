@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import multiprocessing
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import icon.server.shared_resource_manager
 import icon.server.web_server.icon_server
@@ -10,8 +11,9 @@ from icon.server.api.api_service import APIService
 from icon.server.hardware_processing.hardware_processing import HardwareProcessingWorker
 from icon.server.pre_processing.pre_processing import PreProcessingWorker
 from icon.server.scheduler.scheduler import Scheduler
-from icon.server.utils.types import UpdateQueue
-from icon.server.web_server.sio_setup import patch_sio_setup
+
+if TYPE_CHECKING:
+    from icon.server.utils.types import UpdateQueue
 
 
 def patch_serialization_methods() -> None:
@@ -27,7 +29,6 @@ def patch_serialization_methods() -> None:
     )
 
 
-patch_sio_setup()
 patch_serialization_methods()
 
 scheduler = Scheduler(

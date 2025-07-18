@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { socket } from "../socket";
+import { runMethod, socket } from "../socket";
 import { ExperimentData, ExperimentDataPoint } from "../types/ExperimentData";
 import { ReactECharts, ReactEChartsProps } from "./ReactEcharts";
 import { EChartsOption } from "echarts";
+import { deserialize } from "../utils/deserializer";
+import { SerializedObject } from "../types/SerializedObject";
 
 interface PlotInterfaceProps {
   jobId: number;
@@ -56,8 +58,17 @@ const PlotInterface = ({ jobId }: PlotInterfaceProps) => {
       });
     });
 
-    socket.emit("get_experiment_data", jobId, (data: ExperimentData) => {
-      setExperimentData(data);
+    runMethod("data.get_experiment_data_by_job_id", [], { job_id: jobId }, (ack) => {
+      const deserialized = deserialize(ack as SerializedObject) as
+        | Error
+        | ExperimentData;
+
+      if (deserialized instanceof Error) {
+        console.info("Failed to fetch job run:", deserialized);
+        return;
+      }
+
+      setExperimentData(deserialized);
     });
 
     return () => {
