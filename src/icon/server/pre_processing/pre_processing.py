@@ -177,6 +177,18 @@ class PreProcessingWorker(multiprocessing.Process):
                 self._processed_data_points = self._manager.Queue()
 
                 try:
+                    ExperimentDataRepository.update_metadata_by_job_id(
+                        job_id=self._pre_processing_task.job.id,
+                        number_of_shots=self._pre_processing_task.job.number_of_shots,
+                        repetitions=self._pre_processing_task.job.repetitions,
+                        parameters=self._pre_processing_task.job.scan_parameters,
+                    )
+
+                    if job_run_cancelled_or_failed(
+                        job_id=self._pre_processing_task.job.id,
+                    ):
+                        continue
+
                     JobRunRepository.update_run_by_id(
                         run_id=self._pre_processing_task.job_run.id,
                         status=JobRunStatus.PROCESSING,
@@ -205,13 +217,6 @@ class PreProcessingWorker(multiprocessing.Process):
 
                     self._scan_parameter_value_combinations = get_scan_combinations(
                         self._pre_processing_task.job
-                    )
-
-                    ExperimentDataRepository.update_metadata_by_job_id(
-                        job_id=self._pre_processing_task.job.id,
-                        number_of_shots=self._pre_processing_task.job.number_of_shots,
-                        repetitions=self._pre_processing_task.job.repetitions,
-                        parameters=self._pre_processing_task.job.scan_parameters,
                     )
 
                     if len(self._scan_parameter_value_combinations) > 0:

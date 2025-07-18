@@ -18,7 +18,7 @@ def job_run_cancelled_or_failed(job_id: int) -> bool:
     job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
     if job_run.status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
         logger.info(
-            "JobRun with id %s %s. Discarding data point.",
+            "JobRun with id %s %s.",
             job_run.id,
             job_run.status.value,
         )
