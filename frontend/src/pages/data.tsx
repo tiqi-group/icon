@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Box, List, ListItemButton, ListItemText, ListSubheader } from "@mui/material";
+import { List, ListItemButton, ListItemText, ListSubheader } from "@mui/material";
 import { JobsContext } from "../contexts/JobsContext";
 import { JobView } from "../components/JobView";
 import { useSearchParams } from "react-router";
@@ -82,7 +82,7 @@ export function DataPage() {
         {selectedJobId ? (
           <JobView jobId={selectedJobId} />
         ) : (
-          <Box p={2}>Select a job to view its details</Box>
+          <div style={{ padding: 16 }}>Select a job to view its details</div>
         )}
       </div>
     </div>

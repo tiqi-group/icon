@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { List, ListItemText, Typography, Divider, ListItemButton } from "@mui/material";
+import { List, ListItemText, Divider, ListItemButton } from "@mui/material";
 import { useSearchParams } from "react-router";
 import { ExperimentsContext } from "../contexts/ExperimentsContext";
 import ExperimentDetails from "../components/ExperimentDetails";
@@ -63,9 +63,9 @@ const ExperimentsPage = () => {
         {selectedExperiment ? (
           <ExperimentDetails experimentKey={selectedExperiment} />
         ) : (
-          <Typography>
+          <div style={{ padding: 16 }}>
             Select an experiment from the left to view details here.
-          </Typography>
+          </div>
         )}
       </div>
     </div>
