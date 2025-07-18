@@ -72,6 +72,15 @@ export function DataPage() {
                       key={job.id}
                       selected={String(job.id) === selectedJobId}
                       onClick={() => handleSelectJob(job.id)}
+                      onDoubleClick={() => {
+                        const base = window.location.origin;
+                        const url = `${base}/data/${job.id}`;
+                        window.open(
+                          url,
+                          "_blank",
+                          "toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,width=600,height=500,left=100,top=100",
+                        );
+                      }}
                     >
                       <ListItemText primary={`Job ${job.id}`} secondary={job.created} />
                     </ListItemButton>
