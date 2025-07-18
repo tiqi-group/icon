@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router";
 import { ExperimentsContext } from "../contexts/ExperimentsContext";
 import ExperimentDetails from "../components/ExperimentDetails";
 
-function getExperimentNameFromExperimentId(experimentId: string): string {
+export function getExperimentNameFromExperimentId(experimentId: string): string {
   const match = experimentId.match(/\((.*?)\)/);
   return match ? match[1] : experimentId;
 }

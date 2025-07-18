@@ -5,6 +5,7 @@ import { JobView } from "../components/JobView";
 import { useSearchParams } from "react-router";
 import { Job } from "../types/Job";
 import { JobStatus } from "../types/enums";
+import { getExperimentNameFromExperimentId } from "./experiments";
 
 const statusLabels: Record<JobStatus, string> = {
   [JobStatus.PROCESSING]: "In Progress",
@@ -67,24 +68,41 @@ export function DataPage() {
                   >
                     {statusLabels[status]}
                   </ListSubheader>
-                  {jobList.map((job) => (
-                    <ListItemButton
-                      key={job.id}
-                      selected={String(job.id) === selectedJobId}
-                      onClick={() => handleSelectJob(job.id)}
-                      onDoubleClick={() => {
-                        const base = window.location.origin;
-                        const url = `${base}/data/${job.id}`;
-                        window.open(
-                          url,
-                          "_blank",
-                          "toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,width=600,height=500,left=100,top=100",
-                        );
-                      }}
-                    >
-                      <ListItemText primary={`Job ${job.id}`} secondary={job.created} />
-                    </ListItemButton>
-                  ))}
+                  {jobList.map((job) => {
+                    const formattedTime = new Intl.DateTimeFormat("ch", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }).format(new Date(job.created));
+
+                    return (
+                      <ListItemButton
+                        key={job.id}
+                        selected={String(job.id) === selectedJobId}
+                        onClick={() => handleSelectJob(job.id)}
+                        onDoubleClick={() => {
+                          const base = window.location.origin;
+                          const url = `${base}/data/${job.id}`;
+                          window.open(
+                            url,
+                            "_blank",
+                            "toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,width=600,height=500,left=100,top=100",
+                          );
+                        }}
+                      >
+                        <ListItemText
+                          primary={`${getExperimentNameFromExperimentId(job.experiment_source.experiment_id)} (${
+                            job.scan_parameters.length === 0
+                              ? "continuous scan"
+                              : `${job.scan_parameters.length}d scan`
+                          })`}
+                          secondary={formattedTime}
+                        />
+                      </ListItemButton>
+                    );
+                  })}
                 </React.Fragment>
               ),
           )}
