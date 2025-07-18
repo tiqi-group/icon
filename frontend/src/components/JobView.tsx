@@ -1,4 +1,4 @@
-import { Box, Button, Card, CardContent, Grid, Typography } from "@mui/material";
+import { Button, Card, CardContent, Grid, Typography } from "@mui/material";
 import { useExperimentData } from "../hooks/useExperimentData";
 import ResultChannelPlot from "../components/ResultChannelPlot";
 import { useEffect, useState } from "react";
@@ -33,9 +33,9 @@ export const JobView = ({ jobId }: { jobId: string | undefined }) => {
   }, [jobInfo]);
 
   return (
-    <Box p={2}>
+    <div style={{ padding: 16 }}>
       <Grid container spacing={2}>
-        <Grid size={{ sm: 12, lg: 5 }}>
+        <Grid size={{ xs: 12, sm: 12, lg: 5 }}>
           <Card>
             <CardContent>
               <div style={{ display: "flex", alignItems: "center" }}>
@@ -78,7 +78,7 @@ export const JobView = ({ jobId }: { jobId: string | undefined }) => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid size={{ sm: 12, lg: 7 }}>
+        <Grid size={{ xs: 12, sm: 12, lg: 7 }}>
           {experimentDataError ? (
             <Card>
               <CardContent>
@@ -118,6 +118,6 @@ export const JobView = ({ jobId }: { jobId: string | undefined }) => {
           </Card>
         </Grid>
       </Grid>
-    </Box>
+    </div>
   );
 };
