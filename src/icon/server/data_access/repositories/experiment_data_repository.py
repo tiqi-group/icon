@@ -128,7 +128,9 @@ def write_results_to_dataset(
 ) -> None:
     """Write results to result_channels dataset."""
 
-    result_dtype = [(key, np.float64) for key in result_channels]
+    sorted_keys = sorted(result_channels)
+    result_dtype = np.dtype([(key, np.float64) for key in sorted_keys])
+
     result_dataset = h5file.require_dataset(
         "result_channels",
         shape=(number_of_data_points,),
@@ -138,6 +140,12 @@ def write_results_to_dataset(
         compression="gzip",
         compression_opts=9,
     )
+
+    if set(result_dataset.dtype.names) != set(sorted_keys):
+        raise RuntimeError(
+            f"Result channels changed from {list(result_dataset.dtype.names)} to "
+            f"{sorted_keys}"
+        )
 
     if data_point_index >= number_of_data_points:
         resize_dataset(result_dataset, next_index=number_of_data_points, axis=0)
