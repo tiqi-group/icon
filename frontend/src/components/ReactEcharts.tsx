@@ -1,6 +1,6 @@
 import { useRef, useEffect, useMemo } from "react";
 import * as echarts from "echarts/core";
-import { LineChart } from "echarts/charts";
+import { HeatmapChart, LineChart } from "echarts/charts";
 import {
   LegendComponent,
   GridComponent,
@@ -8,6 +8,7 @@ import {
   TitleComponent,
   DataZoomComponent,
   ToolboxComponent,
+  VisualMapComponent,
 } from "echarts/components";
 import type { CSSProperties } from "react";
 import type { EChartsCoreOption, ECharts, SetOptionOpts } from "echarts/core";
@@ -30,6 +31,8 @@ echarts.use([
   DataZoomComponent,
   ToolboxComponent,
   CanvasRenderer,
+  HeatmapChart,
+  VisualMapComponent,
 ]);
 
 export function ReactECharts({ option, style, settings, loading }: ReactEChartsProps) {

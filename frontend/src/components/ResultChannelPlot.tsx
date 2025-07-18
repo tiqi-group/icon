@@ -95,8 +95,11 @@ const ResultChannelPlot = ({ experimentData }: ResultChannelPlotProps) => {
 
       //@ts-expect-error
       xAxis.data = xScan.scan_interval;
+      xAxis.type = "category";
       //@ts-expect-error
       yAxis.data = yScan.scan_interval;
+      //@ts-expect-error
+      yAxis.type = "category";
 
       return {
         tooltip: {},
