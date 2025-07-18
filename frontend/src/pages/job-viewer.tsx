@@ -12,6 +12,7 @@ import { useJobInfo } from "../hooks/useJobInfo";
 import { useJobRunInfo } from "../hooks/useJobRunInfo";
 import { cancelJob } from "../utils/cancelJob";
 import { JobStatus } from "../types/enums";
+import { updateJobParams } from "../utils/updateJobParams";
 
 export function JobViewerPage() {
   const { jobId } = useParams();
@@ -100,7 +101,21 @@ export function JobViewerPage() {
         <Grid size={{ xs: 12 }}>
           <Card>
             <CardContent>
-              <Typography variant="h6">Parameter Values</Typography>
+              <div style={{ display: "flex" }}>
+                <Typography variant="h6">Parameter Values</Typography>
+                <div style={{ flexGrow: 1, alignContent: "center" }} />
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  disabled={jobInfo === null}
+                  size="small"
+                  onClick={() => {
+                    if (jobId) updateJobParams(Number(jobId));
+                  }}
+                >
+                  Update Scan Parameters
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </Grid>
