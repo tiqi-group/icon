@@ -37,7 +37,7 @@ const ResultChannelPlot = ({ experimentData }: ResultChannelPlotProps) => {
     let xAxisData: string[] | number[];
     const xAxis: EChartsOption["xAxis"] = {
       nameLocation: "middle",
-      nameGap: 20,
+      nameGap: 25,
       minorTick: { show: true },
       minorSplitLine: { show: true },
       min: "dataMin",
@@ -49,8 +49,9 @@ const ResultChannelPlot = ({ experimentData }: ResultChannelPlotProps) => {
       },
     };
     const yAxis: EChartsOption["yAxis"] = {
+      name: "counts",
       nameLocation: "middle",
-      nameGap: 20,
+      nameGap: 35,
       minorTick: { show: true },
       minorSplitLine: { show: true },
       scale: true,
@@ -60,6 +61,7 @@ const ResultChannelPlot = ({ experimentData }: ResultChannelPlotProps) => {
 
     if (scanParamsOnly.length === 0 && timestampEntry) {
       xAxis.type = "time";
+      xAxis.name = "Time";
       xAxisData = timestampEntry.scan_interval as string[];
 
       const fullDataSet = xAxisData.map((xVal, index) => [
@@ -79,6 +81,7 @@ const ResultChannelPlot = ({ experimentData }: ResultChannelPlotProps) => {
     } else if (scanParamsOnly.length === 1 && timestampEntry) {
       xAxisData = scanParamsOnly[0].scan_interval as number[];
 
+      xAxis.name = scanParamsOnly[0].parameter_name;
       // @ts-expect-error Type hint of ECharts is wrong
       xAxis.axisLabel = { formatter: formatAxisLabel };
 
@@ -113,10 +116,16 @@ const ResultChannelPlot = ({ experimentData }: ResultChannelPlotProps) => {
         xAxis: {
           type: "category",
           axisLabel: { formatter: formatAxisLabel },
+          name: xScan.parameter_name,
+          nameLocation: "middle",
+          nameGap: 25,
         },
         yAxis: {
           type: "category",
           axisLabel: { formatter: formatAxisLabel },
+          name: yScan.parameter_name,
+          nameLocation: "middle",
+          nameGap: 45,
         },
         series: [
           {
@@ -146,10 +155,9 @@ const ResultChannelPlot = ({ experimentData }: ResultChannelPlotProps) => {
       animation: false,
       legend: { data: channelNames },
       grid: {
-        left: "3%",
-        right: "10%",
-        bottom: "3%",
-        containLabel: true,
+        left: "8%",
+        right: "3%",
+        bottom: "12%",
         show: true,
       },
       xAxis,
