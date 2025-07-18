@@ -26,6 +26,7 @@ export function useExperimentData(jobId: string | undefined) {
   const [experimentDataError, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    setError(null);
     if (!jobId) return;
 
     const eventName = `experiment_${jobId}`;
