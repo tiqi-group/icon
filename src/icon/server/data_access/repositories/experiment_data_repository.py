@@ -40,7 +40,7 @@ class ExperimentData(TypedDict):
     result_channels: dict[str, dict[int, float]]
     vector_channels: dict[str, dict[int, list[float]]]
     scan_parameters: dict[str, dict[int, str | float]]
-    json_sequences: list[tuple[int, str]]
+    json_sequences: list[list[int | str]]
 
 
 def get_filename_by_job_id(job_id: int) -> str:
@@ -69,6 +69,8 @@ def write_sequence_json_to_dataset(
         maxshape=(None,),
         chunks=True,
         dtype=sequence_json_dtype,
+        compression="gzip",
+        compression_opts=9,
     )
 
     index = sequence_json_dataset.shape[0]
@@ -104,6 +106,8 @@ def write_scan_parameters_and_timestamp_to_dataset(
         maxshape=(None, 1),
         chunks=True,
         dtype=scan_parameter_dtype,
+        compression="gzip",
+        compression_opts=9,
     )
 
     if data_point_index >= number_of_data_points:
@@ -131,6 +135,8 @@ def write_results_to_dataset(
         maxshape=(None,),
         chunks=True,
         dtype=result_dtype,
+        compression="gzip",
+        compression_opts=9,
     )
 
     if data_point_index >= number_of_data_points:
@@ -157,6 +163,8 @@ def write_shot_channels_to_datasets(
             maxshape=(None, number_of_shots),
             chunks=True,
             dtype=np.float64,
+            compression="gzip",
+            compression_opts=9,
         )
 
         if data_point_index >= number_of_data_points:
@@ -178,6 +186,8 @@ def write_vector_channels_to_datasets(
             channel_group.create_dataset(
                 str(data_point_index),
                 data=vector,
+                compression="gzip",
+                compression_opts=9,
             )
 
 
@@ -224,6 +234,8 @@ class ExperimentDataRepository:
                 maxshape=(None, 1),
                 chunks=True,
                 dtype=scan_parameter_dtype,
+                compression="gzip",
+                compression_opts=9,
             )
 
             for parameter in parameters:
@@ -348,7 +360,6 @@ class ExperimentDataRepository:
                         param_id,
                         shape=(1,),
                         maxshape=(None,),
-                        chunks=True,
                         dtype=dtype,
                     )
                     index = 0
