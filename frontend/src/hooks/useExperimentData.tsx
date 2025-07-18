@@ -4,6 +4,14 @@ import { ExperimentData, ExperimentDataPoint } from "../types/ExperimentData";
 import { SerializedObject } from "../types/SerializedObject";
 import { deserialize } from "../utils/deserializer";
 
+const emptyExperimentData: ExperimentData = {
+  shot_channels: {},
+  result_channels: {},
+  vector_channels: {},
+  scan_parameters: {},
+  json_sequences: [],
+};
+
 /**
  * Hook to fetch and subscribe to experiment data for a given job ID.
  *
@@ -16,64 +24,53 @@ import { deserialize } from "../utils/deserializer";
  * @returns The current experiment data and any fetch error.
  */
 export function useExperimentData(jobId: string | undefined) {
-  const [experimentData, setExperimentData] = useState<ExperimentData>({
-    shot_channels: {},
-    result_channels: {},
-    vector_channels: {},
-    scan_parameters: {},
-    json_sequences: [],
-  });
+  const [experimentData, setExperimentData] =
+    useState<ExperimentData>(emptyExperimentData);
   const [experimentDataError, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     setError(null);
+    setExperimentData(emptyExperimentData);
     if (!jobId) return;
 
     const eventName = `experiment_${jobId}`;
 
     const handleData = (data: ExperimentDataPoint) => {
       setError(null);
-      setExperimentData((currentData) => {
-        const newShot = { ...currentData.shot_channels };
-        for (const channel of Object.keys(data.shot_channels)) {
-          if (!(channel in newShot)) newShot[channel] = {};
-          newShot[channel][data.index] = data.shot_channels[channel];
+      setExperimentData((prev) => {
+        const shot_channels = { ...prev.shot_channels };
+        for (const [channel, value] of Object.entries(data.shot_channels)) {
+          (shot_channels[channel] ??= {})[data.index] = value;
         }
 
-        const newResult = { ...currentData.result_channels };
-        for (const channel of Object.keys(data.result_channels)) {
-          if (!(channel in newResult)) newResult[channel] = {};
-          newResult[channel][data.index] = data.result_channels[channel];
+        const result_channels = { ...prev.result_channels };
+        for (const [channel, value] of Object.entries(data.result_channels)) {
+          (result_channels[channel] ??= {})[data.index] = value;
         }
 
-        const newVector = { ...currentData.vector_channels };
-        for (const channel of Object.keys(data.vector_channels)) {
-          if (!(channel in newVector)) newVector[channel] = {};
-          newVector[channel][data.index] = data.vector_channels[channel];
+        const vector_channels = { ...prev.vector_channels };
+        for (const [channel, value] of Object.entries(data.vector_channels)) {
+          (vector_channels[channel] ??= {})[data.index] = value;
         }
 
-        const newScanParams = { ...currentData.scan_parameters };
-        for (const scanParam of Object.keys(data.scan_params)) {
-          if (!(scanParam in newScanParams)) newScanParams[scanParam] = {};
-          newScanParams[scanParam][data.index] = data.scan_params[scanParam];
+        const scan_parameters = { ...prev.scan_parameters };
+        for (const [param, value] of Object.entries(data.scan_params)) {
+          (scan_parameters[param] ??= {})[data.index] = value;
         }
-        if (!("timestamp" in newScanParams)) newScanParams["timestamp"] = {};
-        newScanParams.timestamp[data.index] = data.timestamp;
+        (scan_parameters["timestamp"] ??= {})[data.index] = data.timestamp;
 
-        const newJsonSequences = [...currentData.json_sequences];
-        const lastEntry = newJsonSequences.at(-1);
-
+        const json_sequences = [...prev.json_sequences];
+        const lastEntry = json_sequences.at(-1);
         if (!lastEntry || lastEntry[1] !== data.sequence_json) {
-          newJsonSequences.push([data.index, data.sequence_json]);
+          json_sequences.push([data.index, data.sequence_json]);
         }
 
         return {
-          ...currentData,
-          shot_channels: newShot,
-          result_channels: newResult,
-          vector_channels: newVector,
-          scan_parameters: newScanParams,
-          json_sequences: newJsonSequences,
+          shot_channels,
+          result_channels,
+          vector_channels,
+          scan_parameters,
+          json_sequences,
         };
       });
     };
@@ -88,10 +85,9 @@ export function useExperimentData(jobId: string | undefined) {
       if (deserialized instanceof Error) {
         console.info("Failed to fetch job run:", deserialized);
         setError(deserialized);
-        return;
+      } else {
+        setExperimentData(deserialized);
       }
-
-      setExperimentData(deserialized);
     });
 
     return () => {
