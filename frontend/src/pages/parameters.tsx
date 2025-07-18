@@ -6,6 +6,16 @@ import { Accordion, AccordionSummary, AccordionDetails } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { ParameterDisplayGroupsContext } from "../contexts/ParameterDisplayGroupsContext";
 
+const getDisplayNameFromNamespace = (namespace: string): string => {
+  if (namespace.endsWith(".globals.global_parameters")) return "Global Parameters";
+  else {
+    const namespaceParts = namespace.split(".");
+    const experimentName = namespaceParts.at(-1);
+    if (experimentName) return experimentName;
+  }
+  return namespace;
+};
+
 const ParameterPage = () => {
   const [, namespaceGroups] = useContext(ParameterDisplayGroupsContext);
 
@@ -14,12 +24,16 @@ const ParameterPage = () => {
       {Object.entries(namespaceGroups).map(([namespace, displayGroupList]) => (
         <Accordion
           key={namespace}
-          disableGutters // Removes extra padding/margin from Accordion
-          square
+          disableGutters
           sx={{ "&:before": { display: "none" } }}
         >
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h5">{namespace}</Typography>
+            <div>
+              <Typography variant="h5">
+                {getDisplayNameFromNamespace(namespace)}
+              </Typography>
+              <Typography variant="body2">{namespace}</Typography>
+            </div>
           </AccordionSummary>
           <AccordionDetails>
             {displayGroupList.map((displayGroup, index) => (
