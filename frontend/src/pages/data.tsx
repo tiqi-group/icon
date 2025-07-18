@@ -35,6 +35,10 @@ export function DataPage() {
     return group;
   }, [jobs]);
 
+  const layoutReady = React.useMemo(() => {
+    return Object.values(groupedJobs).some((list) => list.length > 0);
+  }, [groupedJobs]);
+
   const handleSelectJob = (jobId: number) => {
     setSearchParams({ jobId: String(jobId) });
   };
@@ -80,7 +84,13 @@ export function DataPage() {
 
       <div style={{ width: "100%" }}>
         {selectedJobId ? (
-          <JobView jobId={selectedJobId} />
+          <div style={{ width: "100%" }}>
+            {layoutReady ? (
+              <JobView jobId={selectedJobId} />
+            ) : (
+              <div style={{ padding: 16 }}>Loading...</div>
+            )}
+          </div>
         ) : (
           <div style={{ padding: 16 }}>Select a job to view its details</div>
         )}
