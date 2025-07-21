@@ -35,13 +35,13 @@ const DevicesPage = () => {
           width: 300,
           height: "100%",
           overflowY: "auto",
-          borderRight: "1px solid #ccc",
+          borderRight: "1px solid var(--mui-palette-divider)",
         }}
       >
         <div
           style={{
             position: "sticky",
-            borderBottom: "1px solid #ccc",
+            borderBottom: "1px solid var(--mui-palette-divider)",
             padding: 8,
             display: "flex",
             alignItems: "center",
@@ -99,8 +99,6 @@ const DevicesPage = () => {
             ))}
           </List>
         )}
-
-        <Divider />
 
         <div style={{ display: "flex", justifyContent: "center", padding: 8 }}>
           <Button variant="contained" onClick={() => setDialogOpen(true)}>

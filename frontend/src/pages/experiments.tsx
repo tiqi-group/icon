@@ -26,7 +26,7 @@ const ExperimentsPage = () => {
           width: "fit-content",
           height: "100%",
           overflowY: "auto",
-          borderRight: "1px solid #ccc",
+          borderRight: "1px solid var(--mui-palette-divider)",
         }}
       >
         <List
@@ -36,7 +36,7 @@ const ExperimentsPage = () => {
             <ListSubheader
               sx={{
                 position: "sticky",
-                borderBottom: "1px solid #ccc",
+                borderBottom: "1px solid var(--mui-palette-divider)",
               }}
             >
               Experiments

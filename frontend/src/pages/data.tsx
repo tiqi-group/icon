@@ -52,7 +52,7 @@ export function DataPage() {
           width: "fit-content",
           height: "100%",
           overflowY: "auto",
-          borderRight: "1px solid #ccc",
+          borderRight: "1px solid var(--mui-palette-divider)",
         }}
       >
         <List dense disablePadding>
@@ -63,7 +63,7 @@ export function DataPage() {
                   <ListSubheader
                     sx={{
                       position: "sticky",
-                      borderBottom: "1px solid #ccc",
+                      borderBottom: "1px solid var(--mui-palette-divider)",
                     }}
                   >
                     {statusLabels[status]}
