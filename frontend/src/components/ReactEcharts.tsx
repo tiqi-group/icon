@@ -38,9 +38,6 @@ echarts.use([
 export function ReactECharts({ option, style, settings, loading }: ReactEChartsProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const { mode } = useColorScheme();
-  if (!mode) {
-    return;
-  }
 
   // Dynamically set background color based on theme mode
   const updatedOption = useMemo<EChartsCoreOption>(() => {
