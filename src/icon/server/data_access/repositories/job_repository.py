@@ -30,6 +30,8 @@ class JobRepository:
             session.add(job)
             session.commit()
             session.refresh(job)  # Refresh to get the ID
+            session.expunge(job)
+
             logger.debug("Submitted new job %s", job)
 
         emit_queue.put(
@@ -72,6 +74,7 @@ class JobRepository:
             session.add(job)
             session.commit()
             session.refresh(job)  # Refresh to get the ID
+            session.expunge(job)
 
         emit_queue.put(
             {
@@ -100,16 +103,22 @@ class JobRepository:
         """Updates a job instance in the database and returns this instance."""
 
         with sqlalchemy.orm.Session(engine) as session:
-            stmt = (
-                update(Job)
-                .where(Job.id == job.id)
-                .values(status=status)
-                .returning(Job)
-                .options(sqlalchemy.orm.joinedload(Job.experiment_source))
-                .options(sqlalchemy.orm.joinedload(Job.scan_parameters))
-            )
-            job = session.execute(stmt).scalar_one()
+            session.execute(update(Job).where(Job.id == job.id).values(status=status))
             session.commit()
+
+            job = (
+                session.execute(
+                    select(Job)
+                    .where(Job.id == job.id)
+                    .options(
+                        sqlalchemy.orm.joinedload(Job.experiment_source),
+                        sqlalchemy.orm.joinedload(Job.scan_parameters),
+                    )
+                )
+                .unique()
+                .scalar_one()
+            )
+            session.expunge(job)
 
             logger.debug("Updated job %s", job)
 
