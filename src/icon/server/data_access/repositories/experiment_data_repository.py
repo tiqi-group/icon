@@ -111,7 +111,7 @@ def write_scan_parameters_and_timestamp_to_dataset(
     )
 
     if data_point_index >= number_of_data_points:
-        resize_dataset(scan_params_dataset, next_index=number_of_data_points, axis=0)
+        resize_dataset(scan_params_dataset, next_index=data_point_index, axis=0)
 
     parameter_values = tuple(scan_params[key] for key in scan_params)
     scan_params_dataset[data_point_index] = (
@@ -148,7 +148,7 @@ def write_results_to_dataset(
         )
 
     if data_point_index >= number_of_data_points:
-        resize_dataset(result_dataset, next_index=number_of_data_points, axis=0)
+        resize_dataset(result_dataset, next_index=data_point_index, axis=0)
 
     result_dataset[data_point_index] = tuple(result_channels[k] for k in sorted_keys)
 
@@ -175,7 +175,7 @@ def write_shot_channels_to_datasets(
         )
 
         if data_point_index >= number_of_data_points:
-            resize_dataset(shot_dataset, next_index=number_of_data_points, axis=0)
+            resize_dataset(shot_dataset, next_index=data_point_index, axis=0)
         shot_dataset[data_point_index] = value
 
 
