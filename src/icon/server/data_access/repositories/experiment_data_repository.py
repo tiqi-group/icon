@@ -150,8 +150,7 @@ def write_results_to_dataset(
     if data_point_index >= number_of_data_points:
         resize_dataset(result_dataset, next_index=number_of_data_points, axis=0)
 
-    result_values = tuple(result_channels.values())
-    result_dataset[data_point_index] = result_values
+    result_dataset[data_point_index] = tuple(result_channels[k] for k in sorted_keys)
 
 
 def write_shot_channels_to_datasets(
