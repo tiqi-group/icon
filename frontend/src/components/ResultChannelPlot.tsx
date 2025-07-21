@@ -5,6 +5,7 @@ import { EChartsOption } from "echarts";
 
 interface ResultChannelPlotProps {
   experimentData: ExperimentData;
+  loading: boolean;
 }
 
 const formatAxisLabel = (value: string): string => {
@@ -12,7 +13,7 @@ const formatAxisLabel = (value: string): string => {
   return isNaN(num) ? value : num.toFixed(3);
 };
 
-const ResultChannelPlot = ({ experimentData }: ResultChannelPlotProps) => {
+const ResultChannelPlot = ({ experimentData, loading }: ResultChannelPlotProps) => {
   const option = useMemo<ReactEChartsProps["option"] | undefined>(() => {
     if (!experimentData || Object.keys(experimentData.scan_parameters).length === 0)
       return {};
@@ -170,20 +171,35 @@ const ResultChannelPlot = ({ experimentData }: ResultChannelPlotProps) => {
     <>
       {Object.keys(experimentData.result_channels).length === 0 ||
       option === undefined ? (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            height: "100%",
-            fontSize: "1.2rem",
-            color: "#888",
-          }}
-        >
-          No result data available.
-        </div>
+        loading ? (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              height: "100%",
+              fontSize: "1.2rem",
+              color: "#888",
+            }}
+          >
+            Loading...
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              height: "100%",
+              fontSize: "1.2rem",
+              color: "#888",
+            }}
+          >
+            No result data available.
+          </div>
+        )
       ) : (
-        <ReactECharts option={option} />
+        <ReactECharts option={option} loading={loading} />
       )}
     </>
   );

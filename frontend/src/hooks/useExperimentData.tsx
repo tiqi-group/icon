@@ -27,8 +27,10 @@ export function useExperimentData(jobId: string | undefined) {
   const [experimentData, setExperimentData] =
     useState<ExperimentData>(emptyExperimentData);
   const [experimentDataError, setError] = useState<Error | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    setLoading(true);
     setError(null);
     setExperimentData(emptyExperimentData);
     if (!jobId) return;
@@ -88,6 +90,7 @@ export function useExperimentData(jobId: string | undefined) {
       } else {
         setExperimentData(deserialized);
       }
+      setLoading(false);
     });
 
     return () => {
@@ -95,5 +98,5 @@ export function useExperimentData(jobId: string | undefined) {
     };
   }, [jobId]);
 
-  return { experimentData, experimentDataError };
+  return { experimentData, experimentDataError, loading };
 }

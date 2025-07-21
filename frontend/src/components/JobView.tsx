@@ -19,7 +19,6 @@ export const JobView = ({ jobId }: { jobId: string | undefined }) => {
 
   const jobInfo = useJobInfo(jobId);
   const jobRunInfo = useJobRunInfo(jobId);
-  const { experimentData, experimentDataError } = useExperimentData(jobId);
 
   useEffect(() => {
     if (jobInfo?.experiment_source.experiment_id)
@@ -31,6 +30,8 @@ export const JobView = ({ jobId }: { jobId: string | undefined }) => {
         );
       });
   }, [jobInfo]);
+
+  const { experimentData, experimentDataError, loading } = useExperimentData(jobId);
 
   return (
     <div style={{ padding: 16 }}>
@@ -91,7 +92,7 @@ export const JobView = ({ jobId }: { jobId: string | undefined }) => {
           ) : (
             <Card>
               <CardContent>
-                <ResultChannelPlot experimentData={experimentData} />
+                <ResultChannelPlot experimentData={experimentData} loading={loading} />
               </CardContent>
             </Card>
           )}
