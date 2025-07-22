@@ -9,9 +9,9 @@ Create Date: 2024-12-17 14:09:52.531594
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from alembic import op
 
 import icon.server.data_access.models.sqlite.scan_parameter
-from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "5b41d0d6c856"
