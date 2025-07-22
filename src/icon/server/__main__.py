@@ -36,7 +36,7 @@ scheduler = Scheduler(
 )
 scheduler.start()
 
-number_of_pre_processing_workers = 2
+number_of_pre_processing_workers = get_config().server.pre_processing.workers
 pre_processing_update_queues: list[multiprocessing.Queue[UpdateQueue]] = []
 
 for i in range(number_of_pre_processing_workers):

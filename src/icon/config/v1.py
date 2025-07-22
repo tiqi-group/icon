@@ -35,9 +35,14 @@ class DateConfig(BaseModel):
     timezone: str = "Europe/Zurich"
 
 
+class PreProcessingConfig(BaseModel):
+    workers: int = 2
+
+
 class ServerConfig(BaseModel):
     port: int = 8004
     host: str = "0.0.0.0"
+    pre_processing: PreProcessingConfig = PreProcessingConfig()
 
 
 class HardwareConfig(BaseModel):

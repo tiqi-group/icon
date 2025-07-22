@@ -325,7 +325,6 @@ class PreProcessingWorker(multiprocessing.Process):
                         update_all=True, new_parameters=new_parameters
                     )
 
-
             except queue.Empty:
                 done = True
 
