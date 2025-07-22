@@ -17,7 +17,9 @@ config.set_main_option(
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-if config.config_file_name is not None:
+if config.config_file_name is not None and not getattr(
+    context, "_from_application", False
+):
     fileConfig(config.config_file_name)
 
 # add your model's MetaData object here

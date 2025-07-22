@@ -8,6 +8,7 @@ import icon.server.shared_resource_manager
 import icon.server.web_server.icon_server
 from icon.config.config import get_config
 from icon.server.api.api_service import APIService
+from icon.server.data_access.db_context.sqlite.migrations import run_migrations
 from icon.server.hardware_processing.hardware_processing import HardwareProcessingWorker
 from icon.server.pre_processing.pre_processing import PreProcessingWorker
 from icon.server.scheduler.scheduler import Scheduler
@@ -30,6 +31,7 @@ def patch_serialization_methods() -> None:
 
 
 patch_serialization_methods()
+run_migrations()
 
 scheduler = Scheduler(
     pre_processing_queue=icon.server.shared_resource_manager.pre_processing_queue
