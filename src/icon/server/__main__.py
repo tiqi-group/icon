@@ -35,17 +35,20 @@ scheduler = Scheduler(
     pre_processing_queue=icon.server.shared_resource_manager.pre_processing_queue
 )
 scheduler.start()
+
+number_of_pre_processing_workers = 2
 pre_processing_update_queues: list[multiprocessing.Queue[UpdateQueue]] = []
 
-pre_processing_update_queues.append(multiprocessing.Queue())
-pre_processing_worker = PreProcessingWorker(
-    worker_number=0,
-    hardware_processing_queue=icon.server.shared_resource_manager.hardware_processing_queue,
-    pre_processing_queue=icon.server.shared_resource_manager.pre_processing_queue,
-    update_queue=pre_processing_update_queues[0],
-    manager=icon.server.shared_resource_manager.manager,
-)
-pre_processing_worker.start()
+for i in range(number_of_pre_processing_workers):
+    pre_processing_update_queues.append(multiprocessing.Queue())
+    pre_processing_worker = PreProcessingWorker(
+        worker_number=i,
+        hardware_processing_queue=icon.server.shared_resource_manager.hardware_processing_queue,
+        pre_processing_queue=icon.server.shared_resource_manager.pre_processing_queue,
+        update_queue=pre_processing_update_queues[i],
+        manager=icon.server.shared_resource_manager.manager,
+    )
+    pre_processing_worker.start()
 
 hardware_processing_worker = HardwareProcessingWorker(
     hardware_processing_queue=icon.server.shared_resource_manager.hardware_processing_queue,
