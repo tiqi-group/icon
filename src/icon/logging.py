@@ -43,6 +43,11 @@ LOGGING_CONFIG = {
             "level": logging.WARNING,
             "propagate": True,
         },
+        "alembic": {
+            "handlers": ["default"],
+            "level": logging.INFO,
+            "propagate": True,
+        },
     },
 }
 
