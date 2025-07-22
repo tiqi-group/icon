@@ -355,6 +355,7 @@ class PreProcessingWorker(multiprocessing.Process):
             sequence_json=sequence_json,
             processed_data_points=self._processed_data_points,
             data_points_to_process=self._data_points_to_process,
+            created=datetime.now(timezone),
         )
 
         logger.debug(

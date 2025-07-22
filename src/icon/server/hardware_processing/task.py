@@ -21,9 +21,10 @@ class HardwareProcessingTask(pydantic.BaseModel):
     global_parameter_timestamp: datetime
     sequence_json: str
     src_dir: str
+    created: datetime
 
     if TYPE_CHECKING:
-        processed_data_points: Queue[Any]
+        processed_data_points: Queue[HardwareProcessingTask]
         data_points_to_process: Queue[tuple[int, dict[str, DatabaseValueType]]]
     else:
         # must be Any as the queues are AutoProxy instances, which I didn't figure out
@@ -32,4 +33,4 @@ class HardwareProcessingTask(pydantic.BaseModel):
         data_points_to_process: Any
 
     def __lt__(self, other: HardwareProcessingTask) -> bool:
-        return self.priority < other.priority
+        return self.priority < other.priority or self.created < other.created
