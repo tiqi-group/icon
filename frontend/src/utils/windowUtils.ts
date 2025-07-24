@@ -12,9 +12,18 @@ export function openJobWindow(jobId: string | number, experimentId: string) {
     left=${storedWindowSettings.left || 100},
     top=${storedWindowSettings.top || 100}`;
 
-  const separateJobWindows = localStorage.getItem("separateJobWindows") === "true";
+  let separateJobWindows = localStorage.getItem("separateJobWindows");
+  if (separateJobWindows === null) {
+    const result = window.confirm(
+      "Should jobs reuse one window per experiment?\n\n" +
+        "You can change this later in Settings > Browser > Use separate job windows.",
+    );
+    separateJobWindows = result ? "false" : "true";
+    localStorage.setItem("separateJobWindows", separateJobWindows);
+  }
 
-  const windowName = separateJobWindows ? `${storageKey}:${jobId}` : storageKey;
+  const useSeparate = separateJobWindows === "true";
+  const windowName = useSeparate ? `${storageKey}:${jobId}` : storageKey;
 
   window.open(url, windowName, features);
 }
