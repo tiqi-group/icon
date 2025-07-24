@@ -1,17 +1,24 @@
 import { useEffect, useCallback } from "react";
 import { useParams } from "react-router";
 import { JobView } from "../components/JobView";
-import { extractStorageKey, getWindowName } from "../utils/windowUtils";
+import {
+  extractExperimentId,
+  extractStorageKey,
+  getWindowName,
+} from "../utils/windowUtils";
 
 export function JobViewerPage() {
   const { jobId } = useParams();
 
   const windowName = getWindowName();
   const storageKey = extractStorageKey(windowName);
+  const experimentId = extractExperimentId(windowName);
 
   useEffect(() => {
     if (!storageKey) return;
-    document.title = `ICON - Experiment View ${jobId}`;
+    if (localStorage.getItem("separateJobWindows") === "true")
+      document.title = `Experiment View ${jobId}`;
+    else document.title = `Experiment View ${experimentId}`;
 
     const saveBounds = () => {
       const bounds = {
