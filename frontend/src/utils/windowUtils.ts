@@ -29,6 +29,15 @@ export function extractStorageKey(windowName: string): string | null {
   return hasJobId ? parts.slice(0, -1).join(":") : windowName;
 }
 
+export function extractExperimentId(windowName: string): string | null {
+  const prefix = "jobWindow:";
+  if (!windowName.startsWith(prefix)) return null;
+
+  const parts = windowName.split(":");
+
+  return parts[1];
+}
+
 export function getWindowName(): string {
   return window.name || document.title;
 }
