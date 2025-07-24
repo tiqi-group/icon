@@ -6,6 +6,7 @@ import { useSearchParams } from "react-router";
 import { EditableDictField } from "../components/settings/EditableDictField";
 import { BaseButton } from "../components/parameterComponents/BaseButton";
 import { updateConfiguration } from "../utils/updateConfiguration";
+import { useBrowserSetting } from "../hooks/useBrowserSetting";
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -30,12 +31,17 @@ const tabLabels = [
   "hardware",
   "health-check",
   "server",
+  "browser",
 ];
 
 export const SettingsPage = () => {
   const config = useConfiguration();
   const notifications = useNotifications();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [separateJobWindows, setSeparateJobWindows] = useBrowserSetting<boolean>(
+    "separateJobWindows",
+    false,
+  );
 
   const tabParam = searchParams.get("tab");
   let tab = tabParam ? tabLabels.indexOf(tabParam) : -1;
@@ -66,6 +72,7 @@ export const SettingsPage = () => {
         <Tab label="Hardware" />
         <Tab label="Health Check" />
         <Tab label="Server" />
+        <Tab label="Browser" />
       </Tabs>
 
       <TabPanel value={tab} index={0}>
@@ -215,6 +222,16 @@ export const SettingsPage = () => {
             )
           }
         />
+      </TabPanel>
+      <TabPanel value={tab} index={6}>
+        <BaseButton
+          label="Use separate job windows"
+          description="Open each job of the same experiment in a separate window."
+          color={separateJobWindows ? "success" : "inherit"}
+          onClick={() => setSeparateJobWindows(!separateJobWindows)}
+        >
+          {separateJobWindows ? "True" : "False"}
+        </BaseButton>
       </TabPanel>
     </>
   );
