@@ -1,4 +1,4 @@
-import * as React from "react";
+import React, { useContext, useMemo } from "react";
 import { List, ListItemButton, ListItemText, ListSubheader } from "@mui/material";
 import { JobsContext } from "../contexts/JobsContext";
 import { JobView } from "../components/JobView";
@@ -7,36 +7,34 @@ import { Job } from "../types/Job";
 import { JobStatus } from "../types/enums";
 import { getExperimentNameFromExperimentId } from "./experiments";
 
-const statusLabels: Record<JobStatus, string> = {
-  [JobStatus.PROCESSING]: "In Progress",
-  [JobStatus.SUBMITTED]: "Queued",
-  [JobStatus.PROCESSED]: "Finished",
-};
-
 export function DataPage() {
-  const jobs = React.useContext(JobsContext);
+  const jobs = useContext(JobsContext);
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedJobId = searchParams.get("jobId");
 
-  const groupedJobs = React.useMemo(() => {
+  const groupedJobs = useMemo(() => {
     const group = {
-      [JobStatus.PROCESSING]: [] as Job[],
-      [JobStatus.SUBMITTED]: [] as Job[],
-      [JobStatus.PROCESSED]: [] as Job[],
+      "In Progress": [] as Job[],
+      Queued: [] as Job[],
+      Finished: [] as Job[],
     };
 
     for (const job of Object.values(jobs)) {
-      if (job.status in group) group[job.status].push(job);
+      if (job.status == JobStatus.PROCESSED) group["Finished"].push(job);
+      else if (job.status == JobStatus.PROCESSING) group["In Progress"].push(job);
+      else if (job.status == JobStatus.SUBMITTED) group["Queued"].push(job);
     }
 
     for (const status of Object.keys(group)) {
-      group[status as JobStatus].sort((a, b) => b.id - a.id);
+      group[status as "Queued" | "Finished" | "In Progress"].sort(
+        (a, b) => b.id - a.id,
+      );
     }
 
     return group;
   }, [jobs]);
 
-  const layoutReady = React.useMemo(() => {
+  const layoutReady = useMemo(() => {
     return Object.values(groupedJobs).some((list) => list.length > 0);
   }, [groupedJobs]);
 
@@ -66,7 +64,7 @@ export function DataPage() {
                       borderBottom: "1px solid var(--mui-palette-divider)",
                     }}
                   >
-                    {statusLabels[status]}
+                    {status}
                   </ListSubheader>
                   {jobList.map((job) => {
                     const formattedTime = new Intl.DateTimeFormat("ch", {
