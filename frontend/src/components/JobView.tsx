@@ -13,7 +13,13 @@ import { cancelJob } from "../utils/cancelJob";
 import { JobStatus } from "../types/enums";
 import { updateJobParams } from "../utils/updateJobParams";
 
-export const JobView = ({ jobId }: { jobId: string | undefined }) => {
+export const JobView = ({
+  jobId,
+  onLoaded,
+}: {
+  jobId: string | undefined;
+  onLoaded?: () => void;
+}) => {
   const [experimentMetadata, setExperimentMetadata] =
     useState<ExperimentMetadata | null>(null);
 
@@ -32,6 +38,12 @@ export const JobView = ({ jobId }: { jobId: string | undefined }) => {
   }, [jobInfo]);
 
   const { experimentData, experimentDataError, loading } = useExperimentData(jobId);
+
+  useEffect(() => {
+    if (!loading && onLoaded) {
+      onLoaded();
+    }
+  }, [loading, experimentDataError, onLoaded]);
 
   return (
     <div style={{ padding: 16 }}>
