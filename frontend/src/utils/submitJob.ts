@@ -1,7 +1,8 @@
 import { ScanInfoState } from "../contexts/ScanProvider";
-import { authority, forwardedProto, runMethod } from "../socket";
+import { runMethod } from "../socket";
 import { SerializedInteger } from "../types/SerializedObject";
 import { deserialize } from "./deserializer";
+import { openJobWindow } from "./windowUtils";
 
 interface ScanParameterArgument {
   id: string;
@@ -33,13 +34,7 @@ export const submitJob = (experimentId: string, scanInfoState: ScanInfoState) =>
     },
     (ack) => {
       const jobId = deserialize(ack as SerializedInteger);
-      const url = `${forwardedProto}://${authority}/data/${jobId}`;
-      console.log(url);
-      window.open(
-        url,
-        "_blank",
-        "toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,width=600,height=500,left=100,top=100",
-      );
+      openJobWindow(jobId, experimentId);
     },
   );
 };
