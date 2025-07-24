@@ -6,6 +6,7 @@ import { useSearchParams } from "react-router";
 import { Job } from "../types/Job";
 import { JobStatus } from "../types/enums";
 import { getExperimentNameFromExperimentId } from "./experiments";
+import { openJobWindow } from "../utils/windowUtils";
 
 export function DataPage() {
   const jobs = useContext(JobsContext);
@@ -80,15 +81,9 @@ export function DataPage() {
                         key={job.id}
                         selected={String(job.id) === selectedJobId}
                         onClick={() => handleSelectJob(job.id)}
-                        onDoubleClick={() => {
-                          const base = window.location.origin;
-                          const url = `${base}/data/${job.id}`;
-                          window.open(
-                            url,
-                            "_blank",
-                            "toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,width=600,height=500,left=100,top=100",
-                          );
-                        }}
+                        onDoubleClick={() =>
+                          openJobWindow(job.id, job.experiment_source.experiment_id)
+                        }
                       >
                         <ListItemText
                           primary={`${getExperimentNameFromExperimentId(job.experiment_source.experiment_id)} (${
