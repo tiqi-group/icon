@@ -20,6 +20,8 @@ export interface ReactEChartsProps {
   style?: CSSProperties;
   settings?: SetOptionOpts;
   loading?: boolean;
+  /** Called once after the chart is created */
+  onChartReady?: (chart: ECharts) => void;
 }
 
 echarts.use([
@@ -35,11 +37,17 @@ echarts.use([
   VisualMapComponent,
 ]);
 
-export function ReactECharts({ option, style, settings, loading }: ReactEChartsProps) {
-  const chartRef = useRef<HTMLDivElement>(null);
+export function ReactECharts({
+  option,
+  style,
+  settings,
+  loading,
+  onChartReady,
+}: ReactEChartsProps) {
+  const chartDivRef = useRef<HTMLDivElement>(null);
+  const chartInstanceRef = useRef<ECharts | null>(null);
   const { mode } = useColorScheme();
 
-  // Dynamically set background color based on theme mode
   const updatedOption = useMemo<EChartsCoreOption>(() => {
     return {
       ...option,
@@ -48,44 +56,39 @@ export function ReactECharts({ option, style, settings, loading }: ReactEChartsP
   }, [option, mode]);
 
   useEffect(() => {
-    let chart: ECharts | undefined;
-    if (chartRef.current !== null) {
-      chart = echarts.init(chartRef.current, mode);
+    if (!chartDivRef.current) return;
+
+    const chart = echarts.init(chartDivRef.current, mode);
+    chartInstanceRef.current = chart;
+
+    if (onChartReady) {
+      onChartReady(chart);
     }
 
-    function resizeChart() {
-      chart?.resize();
-    }
+    const resizeChart = () => chart.resize();
     window.addEventListener("resize", resizeChart);
 
     return () => {
-      chart?.dispose();
+      chart.dispose();
+      chartInstanceRef.current = null;
       window.removeEventListener("resize", resizeChart);
     };
-  }, [mode]);
+  }, [mode, onChartReady]);
 
   useEffect(() => {
-    if (chartRef.current !== null) {
-      const chart = echarts.getInstanceByDom(chartRef.current);
-      if (chart !== undefined) {
-        chart.setOption(updatedOption, settings);
-      }
-    }
-  }, [updatedOption, settings, mode]);
+    chartInstanceRef.current?.setOption(updatedOption, settings);
+  }, [updatedOption, settings]);
 
   useEffect(() => {
-    if (chartRef.current !== null) {
-      const chart = echarts.getInstanceByDom(chartRef.current);
-      if (chart !== undefined) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-        loading === true ? chart.showLoading() : chart.hideLoading();
-      }
-    }
-  }, [loading, mode]);
+    if (!chartInstanceRef.current) return;
+
+    if (loading) chartInstanceRef.current.showLoading();
+    else chartInstanceRef.current.hideLoading();
+  }, [loading]);
 
   return (
     <div
-      ref={chartRef}
+      ref={chartDivRef}
       style={{
         width: "100%",
         height: "300px",
