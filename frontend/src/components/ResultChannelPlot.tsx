@@ -1,7 +1,8 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useRef } from "react";
 import { ExperimentData } from "../types/ExperimentData";
 import { ReactECharts, ReactEChartsProps } from "./ReactEcharts";
 import { EChartsOption } from "echarts";
+import type { ECharts } from "echarts/core";
 
 interface ResultChannelPlotProps {
   experimentData: ExperimentData;
@@ -19,6 +20,24 @@ const ResultChannelPlot = ({
   loading,
   title,
 }: ResultChannelPlotProps) => {
+  const chartRef = useRef<ECharts | null>(null);
+
+  async function copyEChartsToClipboard() {
+    if (!chartRef.current) return;
+
+    const originalToolbox = chartRef.current.getOption().toolbox;
+    chartRef.current.setOption({ toolbox: { show: false } });
+
+    const dataUrl = chartRef.current.getDataURL({ pixelRatio: 2 });
+
+    chartRef.current.setOption({ toolbox: originalToolbox });
+
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+
+    await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+  }
+
   const option = useMemo<ReactEChartsProps["option"] | undefined>(() => {
     if (!experimentData || Object.keys(experimentData.scan_parameters).length === 0)
       return {};
@@ -161,7 +180,15 @@ const ResultChannelPlot = ({
       textStyle: { fontFamily: "sans-serif", fontSize: 12 },
       tooltip: { trigger: "axis" },
       toolbox: {
-        feature: { dataZoom: { yAxisIndex: "none" }, saveAsImage: {} },
+        feature: {
+          dataZoom: { yAxisIndex: "none" },
+          myCopyToClipboard: {
+            show: true,
+            title: "Copy to Clipboard",
+            icon: "path://M48.7643 38.2962H100.5807a6.0158 6.0158 0 0 1 6.0158 6.0158V115.2992a6.0158 6.0158 0 0 1-6.0158 6.0158H48.7643a6.0158 6.0158 0 0 1-6.0158-6.0158V44.312a6.0158 6.0158 0 0 1 6.0158-6.0158zM31.3642 21.6047c-3.3328 0-6.0162 2.6829-6.0162 6.0157v70.9874c0 3.3328 2.6834 6.0157 6.0162 6.0157H42.7485V44.3119c0-3.3328 2.6829-6.0157 6.0157-6.0157h40.4322V27.6204c0-3.3328-2.6829-6.0157-6.0157-6.0157z",
+            onclick: copyEChartsToClipboard,
+          },
+        },
       },
       animation: false,
       legend: {
@@ -212,7 +239,13 @@ const ResultChannelPlot = ({
           </div>
         )
       ) : (
-        <ReactECharts option={option} loading={loading} />
+        <ReactECharts
+          option={option}
+          loading={loading}
+          onChartReady={(chart: ECharts) => {
+            chartRef.current = chart;
+          }}
+        />
       )}
     </>
   );
