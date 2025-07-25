@@ -5,8 +5,8 @@ import { JobView } from "../components/JobView";
 import { useSearchParams } from "react-router";
 import { Job } from "../types/Job";
 import { JobStatus } from "../types/enums";
-import { getExperimentNameFromExperimentId } from "./experiments";
 import { openJobWindow } from "../utils/windowUtils";
+import { getExperimentNameFromExperimentId } from "../utils/experimentUtils";
 
 export function DataPage() {
   const jobs = useContext(JobsContext);
