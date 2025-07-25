@@ -14,7 +14,7 @@ import { useScanContext } from "../../hooks/useScanContext";
 import { ParameterCard } from "./ParameterCard";
 
 export const ScanParameterTable = () => {
-  const { state, dispatch } = useScanContext();
+  const { scanInfoState, dispatchScanInfoStateUpdate } = useScanContext();
 
   return (
     <div
@@ -35,7 +35,7 @@ export const ScanParameterTable = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {state.parameters.map((param, index) => (
+            {scanInfoState.parameters.map((param, index) => (
               <TableRow key={index}>
                 <TableCell width="5%" sx={{ py: 0, pr: 0 }}>
                   {index + 1}
@@ -48,7 +48,9 @@ export const ScanParameterTable = () => {
           </TableBody>
         </Table>
         <div style={{ display: "flex", justifyContent: "center" }}>
-          <IconButton onClick={() => dispatch({ type: "ADD_PARAMETER" })}>
+          <IconButton
+            onClick={() => dispatchScanInfoStateUpdate({ type: "ADD_PARAMETER" })}
+          >
             <AddIcon />
           </IconButton>
         </div>

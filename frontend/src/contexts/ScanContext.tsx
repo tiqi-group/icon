@@ -1,9 +1,9 @@
-import React, { createContext } from "react";
-import { Action, ScanInfoState } from "./ScanProvider";
+import { createContext } from "react";
+import { ScanInfoAction, ScanInfoState } from "../hooks/useScanInfoState";
 
-export const ScanContext = createContext<{
-  state: ScanInfoState;
-  dispatch: React.Dispatch<Action>;
+interface ScanContextValue {
+  scanInfoState: ScanInfoState;
+  dispatchScanInfoStateUpdate: React.Dispatch<ScanInfoAction>;
   menuAnchor: { mouseX: number | null; mouseY: number | null };
   handleRightClick: (
     event: React.MouseEvent<HTMLDivElement | HTMLButtonElement>,
@@ -13,11 +13,6 @@ export const ScanContext = createContext<{
   ) => void;
   handleCloseMenu: () => void;
   scannedParamKeys: string[];
-}>({
-  state: { priority: 20, shots: 50, repetitions: 1, parameters: [] },
-  dispatch: () => {},
-  menuAnchor: { mouseX: null, mouseY: null },
-  handleRightClick: () => {},
-  handleCloseMenu: () => {},
-  scannedParamKeys: [],
-});
+}
+
+export const ScanContext = createContext<ScanContextValue | undefined>(undefined);

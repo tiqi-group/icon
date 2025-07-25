@@ -16,7 +16,8 @@ interface ScanInterfaceProps {
   experimentId: string;
 }
 const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
-  const { state: scanInfoState, dispatch: scanInfoDispatch } = useScanContext();
+  const { scanInfoState, dispatchScanInfoStateUpdate } = useScanContext();
+
   const [errors, setErrors] = useState<{
     priority?: string;
     shots?: string;
@@ -89,7 +90,7 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
             size="small"
             value={scanInfoState.priority}
             onChange={(e) =>
-              scanInfoDispatch({
+              dispatchScanInfoStateUpdate({
                 type: "SET_PRIORITY",
                 payload: Number(e.target.value),
               })
@@ -110,7 +111,10 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
           size="small"
           value={scanInfoState.shots}
           onChange={(e) =>
-            scanInfoDispatch({ type: "SET_SHOTS", payload: Number(e.target.value) })
+            dispatchScanInfoStateUpdate({
+              type: "SET_SHOTS",
+              payload: Number(e.target.value),
+            })
           }
           error={scanInfoState.shots < 1}
           helperText={errors.shots}
@@ -129,7 +133,7 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
           size="small"
           value={scanInfoState.repetitions}
           onChange={(e) =>
-            scanInfoDispatch({
+            dispatchScanInfoStateUpdate({
               type: "SET_REPETITIONS",
               payload: Number(e.target.value),
             })

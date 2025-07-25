@@ -37,7 +37,7 @@ export const ParameterCard = ({
   param: ScanParameterInfo;
   index: number;
 }) => {
-  const { state, dispatch } = useScanContext();
+  const { dispatchScanInfoStateUpdate } = useScanContext();
   const parameterMetadata = useContext(ParameterMetadataContext);
   let min = -Infinity;
   let max = Infinity;
@@ -103,7 +103,7 @@ export const ParameterCard = ({
             title={param.namespace}
             value={param.namespace}
             onChange={(e) => {
-              dispatch({
+              dispatchScanInfoStateUpdate({
                 type: "UPDATE_PARAMETER",
                 index,
                 payload: {
@@ -126,7 +126,11 @@ export const ParameterCard = ({
             ))}
           </Select>
         </FormControl>
-        <IconButton onClick={() => dispatch({ type: "REMOVE_PARAMETER", index })}>
+        <IconButton
+          onClick={() =>
+            dispatchScanInfoStateUpdate({ type: "REMOVE_PARAMETER", index })
+          }
+        >
           <DeleteIcon />
         </IconButton>
       </div>
@@ -138,7 +142,7 @@ export const ParameterCard = ({
           label={param.namespace === "Devices" ? "Device Name" : "Display Group"}
           value={param.deviceNameOrDisplayGroup}
           onChange={(e) => {
-            dispatch({
+            dispatchScanInfoStateUpdate({
               type: "UPDATE_PARAMETER",
               index,
               payload: {
@@ -172,7 +176,7 @@ export const ParameterCard = ({
           value={param.id}
           title={param.id}
           onChange={(e) => {
-            dispatch({
+            dispatchScanInfoStateUpdate({
               type: "UPDATE_PARAMETER",
               index,
               payload: { id: e.target.value },
@@ -202,7 +206,7 @@ export const ParameterCard = ({
           fullWidth
           value={param.generation.start}
           onChange={(e) =>
-            dispatch({
+            dispatchScanInfoStateUpdate({
               type: "UPDATE_PARAMETER",
               index,
               payload: {
@@ -237,7 +241,7 @@ export const ParameterCard = ({
           fullWidth
           value={param.generation.stop}
           onChange={(e) =>
-            dispatch({
+            dispatchScanInfoStateUpdate({
               type: "UPDATE_PARAMETER",
               index,
               payload: {
@@ -273,7 +277,7 @@ export const ParameterCard = ({
           error={param.generation.points < 1}
           value={param.generation.points}
           onChange={(e) =>
-            dispatch({
+            dispatchScanInfoStateUpdate({
               type: "UPDATE_PARAMETER",
               index,
               payload: {
@@ -303,14 +307,14 @@ export const ParameterCard = ({
       <FormControlLabel
         control={
           <Checkbox
-            checked={state.parameters[index!]?.generation.scatter ?? false}
+            checked={param.generation.scatter ?? false}
             onChange={(e) => {
-              dispatch({
+              dispatchScanInfoStateUpdate({
                 type: "UPDATE_PARAMETER",
                 index: index!,
                 payload: {
                   generation: {
-                    ...state.parameters[index!]?.generation,
+                    ...param.generation,
                     scatter: e.target.checked,
                   },
                 },
