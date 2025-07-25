@@ -3,6 +3,7 @@ import { ExperimentData } from "../types/ExperimentData";
 import { ReactECharts, ReactEChartsProps } from "./ReactEcharts";
 import { EChartsOption } from "echarts";
 import type { ECharts } from "echarts/core";
+import { useNotifications } from "@toolpad/core";
 
 interface ResultChannelPlotProps {
   experimentData: ExperimentData;
@@ -21,6 +22,7 @@ const ResultChannelPlot = ({
   title,
 }: ResultChannelPlotProps) => {
   const chartRef = useRef<ECharts | null>(null);
+  const notifications = useNotifications();
 
   async function copyEChartsToClipboard() {
     if (!chartRef.current) return;
@@ -36,6 +38,11 @@ const ResultChannelPlot = ({
     const blob = await res.blob();
 
     await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+
+    notifications.show("Image copied to the clipboard", {
+      autoHideDuration: 3000,
+      severity: "info",
+    });
   }
 
   const option = useMemo<ReactEChartsProps["option"] | undefined>(() => {
