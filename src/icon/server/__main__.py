@@ -12,6 +12,7 @@ from icon.server.data_access.db_context.sqlite.migrations import run_migrations
 from icon.server.hardware_processing.hardware_processing import HardwareProcessingWorker
 from icon.server.pre_processing.pre_processing import PreProcessingWorker
 from icon.server.scheduler.scheduler import Scheduler
+from icon.server.web_server.sio_setup import patch_sio_setup
 
 if TYPE_CHECKING:
     from icon.server.utils.types import UpdateQueue
@@ -30,6 +31,7 @@ def patch_serialization_methods() -> None:
     )
 
 
+patch_sio_setup()
 patch_serialization_methods()
 run_migrations()
 
