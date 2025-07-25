@@ -175,7 +175,6 @@ const ResultChannelPlot = ({
       title: {
         text: title,
         top: "-1%",
-        left: "center",
       },
       textStyle: { fontFamily: "sans-serif", fontSize: 12 },
       tooltip: { trigger: "axis" },
@@ -193,13 +192,13 @@ const ResultChannelPlot = ({
       animation: false,
       legend: {
         data: channelNames,
-        top: "10%",
+        top: 25,
       },
       grid: {
-        left: "8%",
-        right: "3%",
-        bottom: "12%",
-        show: true,
+        left: 30,
+        right: 20,
+        bottom: 20,
+        containLabel: true,
       },
       xAxis,
       yAxis,
