@@ -46,7 +46,7 @@ export const JobView = ({
   const { experimentData, experimentDataError, loading } = useExperimentData(jobId);
 
   useEffect(() => {
-    if (!loading && onLoaded) {
+    if (!loading && !experimentDataError && onLoaded) {
       onLoaded();
     }
   }, [loading, experimentDataError, onLoaded]);
