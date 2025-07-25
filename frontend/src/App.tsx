@@ -19,7 +19,6 @@ import { SvgIcon } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { ParameterMetadataContext } from "./contexts/ParameterMetadataContext";
 import { ParameterDisplayGroupsContext } from "./contexts/ParameterDisplayGroupsContext";
-import { ScanProvider } from "./contexts/ScanProvider";
 import { reducer, JobsContext } from "./contexts/JobsContext";
 import { ParameterStoreProvider } from "./contexts/ParameterStoreContext";
 import { useJobsSync } from "./hooks/useJobsSync";
@@ -174,23 +173,21 @@ export default function App() {
     <ReactRouterAppProvider navigation={NAVIGATION} branding={BRANDING}>
       <NotificationsProvider>
         <ParameterStoreProvider store={parameterStore}>
-          <ScanProvider>
-            <DeviceStateContext.Provider value={deviceStates}>
-              <DeviceInfoContext.Provider value={deviceInfo}>
-                <JobsContext.Provider value={scheduledJobs}>
-                  <ParameterMetadataContext.Provider value={parameterMetadata}>
-                    <ParameterDisplayGroupsContext.Provider
-                      value={parameterDisplayGroups}
-                    >
-                      <ExperimentsContext.Provider value={experiments}>
-                        <Outlet />
-                      </ExperimentsContext.Provider>
-                    </ParameterDisplayGroupsContext.Provider>
-                  </ParameterMetadataContext.Provider>
-                </JobsContext.Provider>
-              </DeviceInfoContext.Provider>
-            </DeviceStateContext.Provider>
-          </ScanProvider>
+          <DeviceStateContext.Provider value={deviceStates}>
+            <DeviceInfoContext.Provider value={deviceInfo}>
+              <JobsContext.Provider value={scheduledJobs}>
+                <ParameterMetadataContext.Provider value={parameterMetadata}>
+                  <ParameterDisplayGroupsContext.Provider
+                    value={parameterDisplayGroups}
+                  >
+                    <ExperimentsContext.Provider value={experiments}>
+                      <Outlet />
+                    </ExperimentsContext.Provider>
+                  </ParameterDisplayGroupsContext.Provider>
+                </ParameterMetadataContext.Provider>
+              </JobsContext.Provider>
+            </DeviceInfoContext.Provider>
+          </DeviceStateContext.Provider>
         </ParameterStoreProvider>
       </NotificationsProvider>
     </ReactRouterAppProvider>
