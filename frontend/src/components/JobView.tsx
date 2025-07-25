@@ -13,6 +13,12 @@ import { cancelJob } from "../utils/cancelJob";
 import { JobStatus } from "../types/enums";
 import { updateJobParams } from "../utils/updateJobParams";
 
+function getPlotTitle(scheduledTime?: string, experimentName?: string): string {
+  if (!scheduledTime) return experimentName || "";
+  const baseTime = scheduledTime.split("+")[0].replace("T", " ");
+  return `${baseTime}_${experimentName || ""}`;
+}
+
 export const JobView = ({
   jobId,
   onLoaded,
@@ -104,7 +110,14 @@ export const JobView = ({
           ) : (
             <Card>
               <CardContent>
-                <ResultChannelPlot experimentData={experimentData} loading={loading} />
+                <ResultChannelPlot
+                  experimentData={experimentData}
+                  loading={loading}
+                  title={getPlotTitle(
+                    jobRunInfo?.scheduled_time,
+                    experimentMetadata?.constructor_kwargs.name,
+                  )}
+                />
               </CardContent>
             </Card>
           )}

@@ -6,6 +6,7 @@ import { EChartsOption } from "echarts";
 interface ResultChannelPlotProps {
   experimentData: ExperimentData;
   loading: boolean;
+  title: string;
 }
 
 const formatAxisLabel = (value: string): string => {
@@ -13,7 +14,11 @@ const formatAxisLabel = (value: string): string => {
   return isNaN(num) ? value : num.toFixed(3);
 };
 
-const ResultChannelPlot = ({ experimentData, loading }: ResultChannelPlotProps) => {
+const ResultChannelPlot = ({
+  experimentData,
+  loading,
+  title,
+}: ResultChannelPlotProps) => {
   const option = useMemo<ReactEChartsProps["option"] | undefined>(() => {
     if (!experimentData || Object.keys(experimentData.scan_parameters).length === 0)
       return {};
@@ -148,13 +153,21 @@ const ResultChannelPlot = ({ experimentData, loading }: ResultChannelPlotProps) 
     }
 
     return {
+      title: {
+        text: title,
+        top: "-1%",
+        left: "center",
+      },
       textStyle: { fontFamily: "sans-serif", fontSize: 12 },
       tooltip: { trigger: "axis" },
       toolbox: {
         feature: { dataZoom: { yAxisIndex: "none" }, saveAsImage: {} },
       },
       animation: false,
-      legend: { data: channelNames },
+      legend: {
+        data: channelNames,
+        top: "10%",
+      },
       grid: {
         left: "8%",
         right: "3%",
@@ -165,7 +178,7 @@ const ResultChannelPlot = ({ experimentData, loading }: ResultChannelPlotProps) 
       yAxis,
       series: chartSeries,
     };
-  }, [experimentData]);
+  }, [experimentData, title]);
 
   return (
     <>
