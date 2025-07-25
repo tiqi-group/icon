@@ -3,11 +3,7 @@ import { List, ListItemText, ListItemButton, ListSubheader } from "@mui/material
 import { useSearchParams } from "react-router";
 import { ExperimentsContext } from "../contexts/ExperimentsContext";
 import ExperimentDetails from "../components/ExperimentDetails";
-
-export function getExperimentNameFromExperimentId(experimentId: string): string {
-  const match = experimentId.match(/\((.*?)\)/);
-  return match ? match[1] : experimentId;
-}
+import { getExperimentNameFromExperimentId } from "../utils/experimentUtils";
 
 const ExperimentsPage = () => {
   const experiments = useContext(ExperimentsContext);
