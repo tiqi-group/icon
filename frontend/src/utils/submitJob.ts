@@ -1,4 +1,4 @@
-import { ScanInfoState } from "../contexts/ScanProvider";
+import { ScanInfoState } from "../hooks/useScanInfoState";
 import { runMethod } from "../socket";
 import { SerializedInteger } from "../types/SerializedObject";
 import { deserialize } from "./deserializer";
