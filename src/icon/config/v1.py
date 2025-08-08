@@ -8,11 +8,14 @@ class HealthCheckConfig(BaseModel):
     interval_seconds: float = 10.0
 
 
+class DataConfiguration(BaseModel):
+    results_dir: str = str(Path(__file__).parent.parent.parent.parent / "output")
+
+
 class ExperimentLibraryConfigV1(BaseModel):
     dir: str = str(Path(__file__).parent.parent.parent.parent)
     git_repository: str = "https://..."
     update_interval: int = 30
-    results_dir: str = str(Path(__file__).parent.parent.parent.parent / "output")
 
 
 class InfluxDBv1Config(BaseConfig):  # type: ignore
@@ -58,3 +61,4 @@ class ServiceConfigV1(BaseConfig):  # type: ignore[misc]
     server: ServerConfig = ServerConfig()
     hardware: HardwareConfig = HardwareConfig()
     health_check: HealthCheckConfig = HealthCheckConfig()
+    data: DataConfiguration = DataConfiguration()

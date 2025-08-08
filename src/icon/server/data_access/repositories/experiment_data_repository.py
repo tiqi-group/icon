@@ -214,12 +214,12 @@ class ExperimentDataRepository:
         passed metadata."""
 
         filename = get_filename_by_job_id(job_id)
-        file = f"{get_config().experiment_library.results_dir}/{filename}"
+        file = f"{get_config().data.results_dir}/{filename}"
 
         job = JobRepository.get_job_by_id(job_id=job_id, load_experiment_source=True)
 
         lock_path = (
-            f"{get_config().experiment_library.results_dir}/.{filename}"
+            f"{get_config().data.results_dir}/.{filename}"
             f"{ExperimentDataRepository.LOCK_EXTENSION}"
         )
         with FileLock(lock_path), h5py.File(file, "a") as h5file:
@@ -259,10 +259,10 @@ class ExperimentDataRepository:
         data_point: ExperimentDataPoint,
     ) -> None:
         filename = get_filename_by_job_id(job_id)
-        file = f"{get_config().experiment_library.results_dir}/{filename}"
+        file = f"{get_config().data.results_dir}/{filename}"
 
         lock_path = (
-            f"{get_config().experiment_library.results_dir}/.{filename}"
+            f"{get_config().data.results_dir}/.{filename}"
             f"{ExperimentDataRepository.LOCK_EXTENSION}"
         )
         with FileLock(lock_path), h5py.File(file, "a") as h5file:
@@ -337,9 +337,9 @@ class ExperimentDataRepository:
         """
 
         filename = get_filename_by_job_id(job_id)
-        file = f"{get_config().experiment_library.results_dir}/{filename}"
+        file = f"{get_config().data.results_dir}/{filename}"
         lock_path = (
-            f"{get_config().experiment_library.results_dir}/.{filename}"
+            f"{get_config().data.results_dir}/.{filename}"
             f"{ExperimentDataRepository.LOCK_EXTENSION}"
         )
 
@@ -393,13 +393,13 @@ class ExperimentDataRepository:
         }
 
         filename = get_filename_by_job_id(job_id)
-        file = f"{get_config().experiment_library.results_dir}/{filename}"
+        file = f"{get_config().data.results_dir}/{filename}"
 
         if not os.path.exists(file):
             raise FileNotFoundError(f"The file {file} does not exist.")
 
         lock_path = (
-            f"{get_config().experiment_library.results_dir}/.{filename}"
+            f"{get_config().data.results_dir}/.{filename}"
             f"{ExperimentDataRepository.LOCK_EXTENSION}"
         )
         with FileLock(lock_path), h5py.File(file, "r") as h5file:
