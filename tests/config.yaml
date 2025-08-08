@@ -3,6 +3,7 @@ databases:
     database: testing
     headers: {}
     host: localhost
+    measurement: Experiment Parameters
     password: passw0rd
     port: 8087
     ssl: false
@@ -22,4 +23,6 @@ health_check:
 server:
   host: 0.0.0.0
   port: 8004
+  pre_processing:
+    workers: 2
 version: 1
