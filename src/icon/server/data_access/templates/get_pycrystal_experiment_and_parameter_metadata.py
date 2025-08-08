@@ -1,4 +1,5 @@
 import json
+import logging
 import pkgutil
 
 import experiment_library.experiments
@@ -7,6 +8,11 @@ from pycrystal.utils.helpers import (
     ExperimentDict,
     get_experiment_metadata,
 )
+
+log_level = logging.ERROR
+logging.basicConfig(level=log_level)
+logging.getLogger("pycrystal").setLevel(log_level)
+logging.getLogger("ionpulse_sequence_generator").setLevel(log_level)
 
 experiments: ExperimentDict = {}
 for mod_info in pkgutil.iter_modules(experiment_library.experiments.__path__):
