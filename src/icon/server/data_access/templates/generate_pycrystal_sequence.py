@@ -4,8 +4,6 @@ import pycrystal.database.local_cache
 import pycrystal.parameters
 from pycrystal.utils.helpers import get_config_from_module_name
 
-import experiment_library.hardware_description.hardware
-
 log_level = logging.ERROR
 logging.basicConfig(level=log_level)
 logging.getLogger("pycrystal").setLevel(log_level)
@@ -29,6 +27,8 @@ exp_class = exp_config[0]
 exp_kwargs = exp_config[1]
 exp_instance = exp_class(**exp_kwargs)
 
+
+import experiment_library.hardware_description.hardware
 
 experiment_library.hardware_description.hardware.hardware.init()
 exp_instance._init()
