@@ -30,5 +30,11 @@ export interface Configuration {
   server: {
     host: string;
     port: number;
+    pre_processing: {
+      workers: number;
+    };
+  };
+  data: {
+    results_dir: string;
   };
 }

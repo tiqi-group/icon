@@ -25,6 +25,7 @@ const TabPanel = ({ children, value, index }: TabPanelProps) => (
 );
 
 const tabLabels = [
+  "data",
   "date",
   "databases",
   "experiment-library",
@@ -66,6 +67,7 @@ export const SettingsPage = () => {
         scrollButtons="auto"
         sx={{ borderBottom: 1, borderColor: "divider" }}
       >
+        <Tab label="Data" />
         <Tab label="Date" />
         <Tab label="Databases" />
         <Tab label="Experiment Library" />
@@ -76,6 +78,15 @@ export const SettingsPage = () => {
       </Tabs>
 
       <TabPanel value={tab} index={0}>
+        <Typography variant="h6">Data</Typography>
+        <EditableSettingField
+          configKey="data.results_dir"
+          label="Results directory"
+          value={config.data.results_dir}
+          description="The directory the results are written to."
+        />
+      </TabPanel>
+      <TabPanel value={tab} index={1}>
         <Typography variant="h6">Date</Typography>
         <EditableSettingField
           configKey="date.timezone"
@@ -84,7 +95,7 @@ export const SettingsPage = () => {
           description="The system timezone used for logging and scheduling."
         />
       </TabPanel>
-      <TabPanel value={tab} index={1}>
+      <TabPanel value={tab} index={2}>
         <Typography variant="h6">InfluxDBv1</Typography>
         <EditableSettingField
           configKey="databases.influxdbv1.host"
@@ -151,7 +162,7 @@ export const SettingsPage = () => {
         />
       </TabPanel>
 
-      <TabPanel value={tab} index={2}>
+      <TabPanel value={tab} index={3}>
         <Typography variant="h6">Experiment Library</Typography>
         <EditableSettingField
           configKey="experiment_library.dir"
@@ -172,7 +183,7 @@ export const SettingsPage = () => {
           description="Interval (in seconds) to check for experiment library updates."
         />
       </TabPanel>
-      <TabPanel value={tab} index={3}>
+      <TabPanel value={tab} index={4}>
         <Typography variant="h6">Hardware</Typography>
         <EditableSettingField
           configKey="hardware.host"
@@ -187,7 +198,7 @@ export const SettingsPage = () => {
           description="Port number used to communicate with the hardware server."
         />
       </TabPanel>
-      <TabPanel value={tab} index={4}>
+      <TabPanel value={tab} index={5}>
         <Typography variant="h6">Health Check</Typography>
         <EditableSettingField
           configKey="health_check.interval_seconds"
@@ -196,7 +207,7 @@ export const SettingsPage = () => {
           description="Polling interval (in seconds) to check database and hardware availability."
         />
       </TabPanel>
-      <TabPanel value={tab} index={5}>
+      <TabPanel value={tab} index={6}>
         <Typography variant="h6">Icon Server</Typography>
         <EditableSettingField
           configKey="server.host"
@@ -222,8 +233,21 @@ export const SettingsPage = () => {
             )
           }
         />
+        <Typography variant="h6">Pre-processing</Typography>
+        <EditableSettingField
+          configKey="server.pre_processing.workers"
+          label="Number of Workers"
+          value={config.server.pre_processing.workers}
+          description="Number of pre-processing workers working on submitted experiment jobs."
+          onAfterUpdate={() =>
+            notifications.show(
+              "You have to restart ICON for the changes to take effect",
+              { autoHideDuration: 3000, severity: "warning" },
+            )
+          }
+        />
       </TabPanel>
-      <TabPanel value={tab} index={6}>
+      <TabPanel value={tab} index={7}>
         <BaseButton
           label="Use separate job windows"
           description="Open each job of the same experiment in a separate window."
