@@ -55,6 +55,9 @@ dev = [
     "types-pyyaml>=6.0.12.20250402",
     "types-requests>=2.32.0.20250328",
 ]
+build = [
+    "pyinstaller>=6.15.0",
+]
 
 
 [tool.pyright]
