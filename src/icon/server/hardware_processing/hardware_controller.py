@@ -19,6 +19,8 @@ class HardwareController:
 
     def connect(self) -> None:
         logger.info("Connecting to the Zedboard")
+        self._host = get_config().hardware.host
+        self._port = get_config().hardware.port
         self._zedboard = tiqi_zedboard.zedboard.Zedboard(
             hostname=self._host, port=self._port
         )
