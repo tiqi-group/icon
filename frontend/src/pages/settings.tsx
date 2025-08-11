@@ -7,6 +7,7 @@ import { EditableDictField } from "../components/settings/EditableDictField";
 import { BaseButton } from "../components/parameterComponents/BaseButton";
 import { updateConfiguration } from "../utils/updateConfiguration";
 import { useBrowserSetting } from "../hooks/useBrowserSetting";
+import { useEffect } from "react";
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -46,15 +47,16 @@ export const SettingsPage = () => {
 
   const tabParam = searchParams.get("tab");
   let tab = tabParam ? tabLabels.indexOf(tabParam) : -1;
-
-  if (tab === -1) {
-    tab = 0;
-    setSearchParams({ tab: tabLabels[tab] });
-  }
-
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setSearchParams({ tab: tabLabels[newValue] });
   };
+
+  useEffect(() => {
+    if (tab === -1) {
+      tab = 0;
+      setSearchParams({ tab: tabLabels[tab] });
+    }
+  }, []);
 
   if (!config) return null;
 
