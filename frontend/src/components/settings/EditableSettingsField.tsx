@@ -5,10 +5,10 @@ import { Input } from "../parameterComponents/Input";
 interface EditableSettingFieldProps {
   configKey: string;
   label: string;
-  value: string | number;
+  value: string | number | null;
   description?: string;
   onAfterUpdate?: () => void;
-  onUpdate?: (val: string | number) => void;
+  onUpdate?: (val: string | number | null) => void;
 }
 
 export const EditableSettingField = ({
@@ -19,11 +19,20 @@ export const EditableSettingField = ({
   onAfterUpdate,
   onUpdate,
 }: EditableSettingFieldProps) => {
-  const [inputValue, setInputValue] = useState(String(value));
+  const [inputValue, setInputValue] = useState(value === null ? "" : String(value));
   const type = typeof value as "number" | "string";
 
   const handleUpdate = (val: string) => {
-    const parsed = typeof value === "number" ? Number(val) : val;
+    let parsed: string | number | null;
+
+    if (val === "") {
+      parsed = null;
+    } else if (typeof value === "number") {
+      parsed = Number(val);
+    } else {
+      parsed = val;
+    }
+
     if (onUpdate) {
       onUpdate(parsed);
     } else {
