@@ -20,26 +20,27 @@ export const EditableDictField = ({
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
 
-  const handleUpdate = (updated: Record<string, string>) => {
+  const handleUpdate = async (updated: Record<string, string>) => {
     setDict(updated);
-    updateConfiguration(configKey, updated);
+    await updateConfiguration(configKey, updated);
   };
 
-  const handleChange = (key: string, val: string) => {
-    const updated = { ...dict, [key]: val };
-    handleUpdate(updated);
+  const handleChange = async (key: string, val: string | number | null) => {
+    const updated = { ...dict, [key]: String(val) };
+    setDict(updated);
+    await handleUpdate(updated);
   };
 
-  const handleDelete = (key: string) => {
+  const handleDelete = async (key: string) => {
     const updated = { ...dict };
     delete updated[key];
-    handleUpdate(updated);
+    await handleUpdate(updated);
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (newKey.trim() === "") return;
     const updated = { ...dict, [newKey]: newValue };
-    handleUpdate(updated);
+    await handleUpdate(updated);
     setNewKey("");
     setNewValue("");
   };
@@ -56,13 +57,9 @@ export const EditableDictField = ({
               configKey={`${configKey}.${key}`}
               label={key}
               value={value}
-              onUpdate={(newVal) => {
-                const updated = { ...dict, [key]: String(newVal) };
-                setDict(updated);
-                updateConfiguration(configKey, updated);
-              }}
+              onUpdate={(value) => handleChange(key, value)}
             />
-            <IconButton onClick={() => handleDelete(key)} size="small">
+            <IconButton onClick={async () => handleDelete(key)} size="small">
               <DeleteIcon fontSize="small" />
             </IconButton>
           </Stack>
