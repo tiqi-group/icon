@@ -13,7 +13,7 @@ class DataConfiguration(BaseModel):
 
 
 class ExperimentLibraryConfigV1(BaseModel):
-    dir: str = str(Path(__file__).parent.parent.parent.parent)
+    dir: str | None = None
     git_repository: str = "https://..."
     update_interval: int = 30
 

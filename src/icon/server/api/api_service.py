@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pydase
@@ -33,6 +34,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def check_experiment_library_directory() -> bool:
+    exp_lib_dir = get_config().experiment_library.dir
+    if exp_lib_dir is None:
+        logger.warning("Experiment library is not configured yet")
+        return False
+    if not Path(exp_lib_dir).exists():
+        logger.warning("Experiment library directory %a does not exist", exp_lib_dir)
+        return False
+    return True
+
+
 class APIService(pydase.DataService):
     def __init__(
         self, pre_processing_update_queues: list[multiprocessing.Queue[UpdateQueue]]
@@ -58,6 +70,9 @@ class APIService(pydase.DataService):
             await asyncio.sleep(get_config().experiment_library.update_interval)
 
     async def update_experiment_and_parameter_metadata(self) -> None:
+        if not check_experiment_library_directory():
+            return
+
         pycrystal_library_metadata = (
             await PycrystalLibraryRepository.get_experiment_and_parameter_metadata()
         )
