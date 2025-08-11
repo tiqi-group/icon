@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { updateConfiguration } from "../../utils/updateConfiguration";
 import { Input } from "../parameterComponents/Input";
+import { useNotifications } from "@toolpad/core";
 
 interface EditableSettingFieldProps {
   configKey: string;
@@ -19,10 +20,11 @@ export const EditableSettingField = ({
   onAfterUpdate,
   onUpdate,
 }: EditableSettingFieldProps) => {
+  const notifications = useNotifications();
   const [inputValue, setInputValue] = useState(value === null ? "" : String(value));
   const type = typeof value as "number" | "string";
 
-  const handleUpdate = (val: string) => {
+  const handleUpdate = async (val: string) => {
     let parsed: string | number | null;
 
     if (val === "") {
@@ -33,12 +35,22 @@ export const EditableSettingField = ({
       parsed = val;
     }
 
+    let err: Error | null = null;
     if (onUpdate) {
       onUpdate(parsed);
     } else {
-      updateConfiguration(configKey, parsed);
+      err = await updateConfiguration(configKey, parsed);
     }
     onAfterUpdate?.();
+
+    if (err instanceof Error) {
+      setInputValue(String(value));
+
+      const msg = err.message || String(err);
+      notifications.show(`Failed to update configuration: ${msg}`, {
+        severity: "error",
+      });
+    }
   };
 
   const commonProps = {
