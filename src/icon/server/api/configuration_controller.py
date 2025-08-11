@@ -5,7 +5,8 @@ import pydase
 import yaml
 from confz import DataSource
 
-from icon.config.config import get_config, get_config_source
+from icon.config.config import get_config
+from icon.config.config_path import get_config_path
 from icon.config.v1 import ServiceConfigV1
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
@@ -77,5 +78,5 @@ class ConfigurationController(pydase.DataService):
                 The validated configuration instance.
         """
 
-        with get_config_source().open("w") as file:
+        with get_config_path().open("w") as file:
             file.write(yaml.dump(new_config.model_dump()))

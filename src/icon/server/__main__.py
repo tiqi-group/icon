@@ -1,21 +1,13 @@
+# ruff: noqa: PLC0415
 from __future__ import annotations
 
-import multiprocessing
-from pathlib import Path
-from typing import TYPE_CHECKING
+import logging
+import pathlib
 
-import icon.server.shared_resource_manager
-import icon.server.web_server.icon_server
-from icon.config.config import get_config
-from icon.server.api.api_service import APIService
-from icon.server.data_access.db_context.sqlite.migrations import run_migrations
-from icon.server.hardware_processing.hardware_processing import HardwareProcessingWorker
-from icon.server.pre_processing.pre_processing import PreProcessingWorker
-from icon.server.scheduler.scheduler import Scheduler
-from icon.server.web_server.sio_setup import patch_sio_setup
+import click
 
-if TYPE_CHECKING:
-    from icon.server.utils.types import UpdateQueue
+from icon.config.config_path import set_config_path
+from icon.logging import setup_logging
 
 
 def patch_serialization_methods() -> None:
@@ -31,39 +23,87 @@ def patch_serialization_methods() -> None:
     )
 
 
-patch_sio_setup()
-patch_serialization_methods()
-run_migrations()
+def _level_from_verbosity(v: int) -> int:
+    level = logging.WARNING - 10 * v
+    return min(max(level, logging.DEBUG), logging.CRITICAL)
 
-scheduler = Scheduler(
-    pre_processing_queue=icon.server.shared_resource_manager.pre_processing_queue
-)
-scheduler.start()
 
-number_of_pre_processing_workers = get_config().server.pre_processing.workers
-pre_processing_update_queues: list[multiprocessing.Queue[UpdateQueue]] = []
+def start_server() -> None:
+    from typing import TYPE_CHECKING
 
-for i in range(number_of_pre_processing_workers):
-    pre_processing_update_queues.append(multiprocessing.Queue())
-    pre_processing_worker = PreProcessingWorker(
-        worker_number=i,
+    if TYPE_CHECKING:
+        from icon.server.utils.types import UpdateQueue
+    import multiprocessing
+    from pathlib import Path
+
+    import icon.server.shared_resource_manager
+    import icon.server.web_server.icon_server
+    from icon.config.config import get_config
+    from icon.server.api.api_service import APIService
+    from icon.server.data_access.db_context.sqlite.migrations import run_migrations
+    from icon.server.hardware_processing.hardware_processing import (
+        HardwareProcessingWorker,
+    )
+    from icon.server.pre_processing.pre_processing import PreProcessingWorker
+    from icon.server.scheduler.scheduler import Scheduler
+    from icon.server.web_server.sio_setup import patch_sio_setup
+
+    patch_sio_setup()
+    patch_serialization_methods()
+    run_migrations()
+
+    scheduler = Scheduler(
+        pre_processing_queue=icon.server.shared_resource_manager.pre_processing_queue
+    )
+    scheduler.start()
+
+    number_of_pre_processing_workers = get_config().server.pre_processing.workers
+    pre_processing_update_queues: list[multiprocessing.Queue[UpdateQueue]] = []
+
+    for i in range(number_of_pre_processing_workers):
+        pre_processing_update_queues.append(multiprocessing.Queue())
+        pre_processing_worker = PreProcessingWorker(
+            worker_number=i,
+            hardware_processing_queue=icon.server.shared_resource_manager.hardware_processing_queue,
+            pre_processing_queue=icon.server.shared_resource_manager.pre_processing_queue,
+            update_queue=pre_processing_update_queues[i],
+            manager=icon.server.shared_resource_manager.manager,
+        )
+        pre_processing_worker.start()
+
+    hardware_processing_worker = HardwareProcessingWorker(
         hardware_processing_queue=icon.server.shared_resource_manager.hardware_processing_queue,
-        pre_processing_queue=icon.server.shared_resource_manager.pre_processing_queue,
-        update_queue=pre_processing_update_queues[i],
         manager=icon.server.shared_resource_manager.manager,
     )
-    pre_processing_worker.start()
+    hardware_processing_worker.start()
 
-hardware_processing_worker = HardwareProcessingWorker(
-    hardware_processing_queue=icon.server.shared_resource_manager.hardware_processing_queue,
-    manager=icon.server.shared_resource_manager.manager,
+    icon.server.web_server.icon_server.IconServer(
+        APIService(pre_processing_update_queues=pre_processing_update_queues),
+        host=get_config().server.host,
+        web_port=get_config().server.port,
+        frontend_src=Path(__file__).parent / "frontend",
+    ).run()
+
+
+@click.command(context_settings={"help_option_names": ["-h", "--help"]})
+@click.option("-v", "--verbose", count=True, help="Increase verbosity (-v, -vv).")
+@click.option("-q", "--quiet", count=True, help="Decrease verbosity (-q).")
+@click.option(
+    "-c",
+    "--config",
+    type=click.Path(exists=False, dir_okay=False, path_type=pathlib.Path),
+    default=pathlib.Path.home() / ".config/icon/config.yaml",
+    show_default=True,
+    help="Path to the configuration file.",
 )
-hardware_processing_worker.start()
+def main(verbose: int, quiet: int, config: pathlib.Path) -> None:
+    """Start the ICON server"""
+    level = _level_from_verbosity(verbose - quiet)
+    setup_logging(level)
+
+    set_config_path(config or pathlib.Path.home() / ".config/icon/config.yaml")
+    start_server()
 
 
-icon.server.web_server.icon_server.IconServer(
-    APIService(pre_processing_update_queues=pre_processing_update_queues),
-    host=get_config().server.host,
-    web_port=get_config().server.port,
-    frontend_src=Path(__file__).parent / "frontend",
-).run()
+if __name__ == "__main__":
+    main()

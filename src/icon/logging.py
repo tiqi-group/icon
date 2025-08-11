@@ -1,14 +1,7 @@
 import logging
 import logging.config
 
-import pydase.config
-
 logger = logging.getLogger(__name__)
-
-if pydase.config.OperationMode().environment == "development":
-    LOG_LEVEL = logging.DEBUG
-else:
-    LOG_LEVEL = logging.INFO
 
 LOGGING_CONFIG = {
     "version": 1,
@@ -28,11 +21,26 @@ LOGGING_CONFIG = {
             "class": "logging.StreamHandler",
             "stream": "ext://sys.stderr",
         },
+        "stdout": {
+            "formatter": "default",
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",
+        },
     },
     "loggers": {
-        "icon": {"handlers": ["default"], "level": LOG_LEVEL, "propagate": False},
+        "pydase.server.server": {
+            "handlers": ["stdout"],
+            "level": logging.INFO,
+            "propagate": False,
+        },
+        "pydase.server.web_server.web_server": {
+            "handlers": ["stdout"],
+            "level": logging.INFO,
+            "propagate": False,
+        },
+        "icon": {"handlers": ["default"], "propagate": False},  # level set at runtime
+        "pydase": {"handlers": ["default"], "propagate": False},  # level set at runtime
         "asyncio": {"handlers": ["default"], "level": logging.INFO, "propagate": True},
-        "pydase": {"handlers": ["default"], "level": LOG_LEVEL, "propagate": False},
         "socketio": {
             "handlers": ["default"],
             "level": logging.WARNING,
@@ -43,25 +51,34 @@ LOGGING_CONFIG = {
             "level": logging.WARNING,
             "propagate": True,
         },
-        "alembic": {
-            "handlers": ["default"],
-            "level": logging.INFO,
-            "propagate": True,
-        },
+        "alembic": {"handlers": ["default"], "propagate": True},  # level set at runtime
+        "aiohttp": {"handlers": ["default"], "propagate": True},  # level set at runtime
     },
 }
 
 
-def setup_logging() -> None:
-    """
-    Configures the logging settings for the application.
+def setup_logging(log_level: int) -> None:
+    """Configure the logging system for the application.
 
-    This function sets up logging with specific formatting and colorization of log
-    messages. The log level is determined based on the application's operation mode. By
-    default, in a development environment, the log level is set to DEBUG, whereas in
-    other environments, it is set to INFO.
+    This function applies the application's logging configuration and sets the log level
+    for the main 'icon' and 'pydase' loggers. The log level should be determined by the
+    caller, typically based on command-line arguments such as '-v' (increase verbosity)
+    or '-q' (decrease verbosity).
+
+    Args:
+        log_level: The logging level (e.g., logging.DEBUG, logging.INFO,
+            logging.WARNING).
+
+    Notes:
+        - By default, the log level is WARNING.
+        - Each '-v' flag decreases the threshold (e.g., WARNING → INFO → DEBUG).
+        - Each '-q' flag increases the threshold (e.g., WARNING → ERROR → CRITICAL).
     """
 
+    LOGGING_CONFIG["loggers"]["icon"]["level"] = log_level
+    LOGGING_CONFIG["loggers"]["pydase"]["level"] = log_level
+    LOGGING_CONFIG["loggers"]["alembic"]["level"] = log_level
+    LOGGING_CONFIG["loggers"]["aiohttp"]["level"] = log_level
     logging.config.dictConfig(LOGGING_CONFIG)
 
-    logger.debug("Configured icon logging.")
+    logger.info("Configured log level: %s", logging.getLevelName(log_level))

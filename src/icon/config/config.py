@@ -1,9 +1,9 @@
 from pathlib import Path, PosixPath
 
-import pydase.config
 import yaml
 from confz import FileSource
 
+from icon.config.config_path import get_config_path
 from icon.config.v1 import ServiceConfigV1
 
 
@@ -15,16 +15,8 @@ def path_representer(dumper: yaml.Dumper, data: Path) -> yaml.ScalarNode:
 yaml.add_representer(PosixPath, path_representer)
 
 
-def get_config_source() -> Path:
-    if pydase.config.OperationMode().environment in ["development", "testing"]:
-        source = Path(__file__).parent.parent.parent.parent / "tests" / "config.yaml"
-    else:
-        source = Path("~/.config/icon/config.yaml")
-    return source
-
-
 def get_config() -> ServiceConfigV1:
-    source = get_config_source()
+    source = get_config_path()
 
     if not source.is_file():
         source.parent.mkdir(parents=True, exist_ok=True)
