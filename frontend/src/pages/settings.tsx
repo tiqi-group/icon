@@ -162,6 +162,14 @@ export const SettingsPage = () => {
           label="Headers"
           value={config.databases.influxdbv1.headers}
         />
+        <br />
+        <Typography variant="h6">SQLite</Typography>
+        <EditableSettingField
+          configKey="databases.sqlite.file"
+          label="File"
+          value={config.databases.sqlite.file}
+          description="File path of the sqlite database."
+        />
       </TabPanel>
 
       <TabPanel value={tab} index={3}>

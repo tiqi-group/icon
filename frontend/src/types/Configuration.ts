@@ -14,9 +14,12 @@ export interface Configuration {
       username: string;
       verify_ssl: boolean;
     };
+    sqlite: {
+      file: string | null;
+    };
   };
   experiment_library: {
-    dir: string;
+    dir: string | null;
     git_repository: string;
     update_interval: number;
   };
