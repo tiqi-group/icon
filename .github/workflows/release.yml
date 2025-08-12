@@ -12,7 +12,7 @@ jobs:
   release:
     runs-on: ubuntu-22.04
     steps:
-      - name: Create release (draft)
+      - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref_name }}
@@ -20,7 +20,6 @@ jobs:
           gh release create "$tag" \
             --repo="$GITHUB_REPOSITORY" \
             --title="$tag" \
-            --draft \
             --generate-notes
 
   build:
@@ -30,8 +29,8 @@ jobs:
       fail-fast: false
       matrix:
         distro:
-          - { name: "ubuntu", image: "ubuntu:latest", suffix: "linux-ubuntu-amd64" }
-          - { name: "debian", image: "debian:latest", suffix: "linux-debian-amd64" }
+          # - { name: "ubuntu", image: "ubuntu:latest", suffix: "linux-ubuntu-amd64" }
+          - { name: "debian", image: "debian:latest", suffix: "linux-amd64" }
 
     container:
       image: ${{ matrix.distro.image }}
