@@ -18,7 +18,7 @@ class ExperimentLibraryConfigV1(BaseModel):
     update_interval: int = 30
 
 
-class InfluxDBv1Config(BaseConfig):  # type: ignore
+class InfluxDBv1Config(BaseModel):
     host: str = "localhost"
     port: int = 8086
     username: str = "admin"
@@ -27,11 +27,16 @@ class InfluxDBv1Config(BaseConfig):  # type: ignore
     measurement: str = "Experiment Parameters"
     ssl: bool = True
     verify_ssl: bool = True
-    headers: dict[str, str] = {}  # noqa: RUF012
+    headers: dict[str, str] = {}
+
+
+class SQLiteConfig(BaseModel):
+    file: str | None = None
 
 
 class DatabaseConfig(BaseModel):
     influxdbv1: InfluxDBv1Config = InfluxDBv1Config()
+    sqlite: SQLiteConfig = SQLiteConfig()
 
 
 class DateConfig(BaseModel):
