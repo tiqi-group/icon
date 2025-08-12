@@ -10,10 +10,9 @@ permissions:
 
 jobs:
   release:
-    name: Release pushed tag
     runs-on: ubuntu-22.04
     steps:
-      - name: Create release
+      - name: Create release (draft)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref_name }}
@@ -23,9 +22,20 @@ jobs:
             --title="$tag" \
             --draft \
             --generate-notes
-  build-binary:
-    name: Build (Linux)
+
+  build:
+    name: Build (${{ matrix.distro.name }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        distro:
+          - { name: "ubuntu", image: "ubuntu:latest", suffix: "linux-ubuntu-amd64" }
+          - { name: "debian", image: "debian:latest", suffix: "linux-debian-amd64" }
+
+    container:
+      image: ${{ matrix.distro.image }}
+
     env:
       BIN_NAME: icon
 
@@ -38,6 +48,12 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Install system deps
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            openssh-client git ca-certificates curl binutils gh
+
       - name: Install uv
         run: |
           curl -fsSL https://astral.sh/uv/install.sh | sh
@@ -48,11 +64,12 @@ jobs:
           ssh-private-key: |
             ${{ secrets.GITLAB_TIQI_RPC_SSH_KEY }}
 
-      - name: Add gitlab.phys.ethz.ch to known hosts
+      - name: Configure SSH for GitLab
+        env:
+          SSH_KEY: ${{ secrets.GITLAB_TIQI_RPC_SSH_KEY }}
         run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          ssh-keyscan gitlab.phys.ethz.ch >> ~/.ssh/known_hosts
+          mkdir -p /root/.ssh && chmod 700 /root/.ssh
+          ssh-keyscan gitlab.phys.ethz.ch >> /root/.ssh/known_hosts
 
       - name: Sync build dependencies
         env:
@@ -66,10 +83,10 @@ jobs:
         run: uv run pyinstaller icon.spec
 
       - name: Package artifact
-        shell: bash
         run: |
           mkdir -p out
-          cp "dist/${BIN_NAME}" "out/${BIN_NAME}-linux-amd64"
+          cp "dist/${BIN_NAME}" "out/${BIN_NAME}-${{ matrix.distro.suffix }}"
+          chmod +x "out/${BIN_NAME}-${{ matrix.distro.suffix }}"
 
       - name: Upload binaries to GitHub Release
         env:
