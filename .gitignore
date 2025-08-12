@@ -1,6 +1,5 @@
 emulator/
 poetry.lock
-uv.lock
 .python-version
 
 # Byte-compiled / optimized / DLL files
