@@ -23,7 +23,7 @@ server = [
     "psutil>=7.0.0",
 ]
 zedboard = [
-    "tiqi-zedboard @ git+ssh://git@gitlab.phys.ethz.ch/tiqi-projects/drivers/tiqi-zedboard.git",
+    "tiqi-zedboard @ git+ssh://git@gitlab.phys.ethz.ch/tiqi-projects/drivers/tiqi-zedboard.git@v1.3.0",
 ]
 client = [
     "ipympl>=0.9.5",
