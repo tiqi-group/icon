@@ -13,7 +13,7 @@ from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
-from icon.server.utils.h5py import get_hdf5_dtype
+from icon.server.utils.h5py import get_hdf5_dtype, get_result_channels_dataset
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 if TYPE_CHECKING:
@@ -129,16 +129,11 @@ def write_results_to_dataset(
     """Write results to result_channels dataset."""
 
     sorted_keys = sorted(result_channels)
-    result_dtype = np.dtype([(key, np.float64) for key in sorted_keys])
 
-    result_dataset = h5file.require_dataset(
-        "result_channels",
-        shape=(number_of_data_points,),
-        maxshape=(None,),
-        chunks=True,
-        dtype=result_dtype,
-        compression="gzip",
-        compression_opts=9,
+    result_dataset = get_result_channels_dataset(
+        h5file=h5file,
+        result_channels=sorted_keys,
+        number_of_data_points=number_of_data_points,
     )
 
     if set(result_dataset.dtype.names) != set(sorted_keys):
