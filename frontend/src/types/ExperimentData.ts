@@ -12,9 +12,9 @@ export type ExperimentDataPoint = ResultDict & {
 };
 
 export interface ExperimentData {
-  shot_channels: Record<string, Record<number, number[]>>;
-  result_channels: Record<string, Record<number, number>>;
-  vector_channels: Record<string, Record<number, number[]>>;
-  scan_parameters: Record<string, Record<number, number | boolean | string>>;
+  shot_channels: Record<string, Record<string, number[]>>;
+  result_channels: Record<string, Record<string, number>>;
+  vector_channels: Record<string, Record<string, number[]>>;
+  scan_parameters: Record<string, Record<string, number | boolean | string>>;
   json_sequences: [number, string][];
 }
