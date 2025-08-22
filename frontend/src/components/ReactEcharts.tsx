@@ -1,6 +1,6 @@
 import { useRef, useEffect, useMemo } from "react";
 import * as echarts from "echarts/core";
-import { HeatmapChart, LineChart } from "echarts/charts";
+import { BarChart, HeatmapChart, LineChart } from "echarts/charts";
 import {
   LegendComponent,
   GridComponent,
@@ -35,6 +35,7 @@ echarts.use([
   CanvasRenderer,
   HeatmapChart,
   VisualMapComponent,
+  BarChart,
 ]);
 
 export function ReactECharts({
