@@ -1188,7 +1188,7 @@ requires-dist = [
     { name = "pytz", specifier = ">=2024.2" },
     { name = "sqlalchemy", marker = "extra == 'server'", specifier = ">=2.0.36" },
     { name = "tables", marker = "extra == 'server'", specifier = ">=3.10.1" },
-    { name = "tiqi-zedboard", marker = "extra == 'zedboard'", git = "ssh://git@gitlab.phys.ethz.ch/tiqi-projects/drivers/tiqi-zedboard.git" },
+    { name = "tiqi-zedboard", marker = "extra == 'zedboard'", git = "ssh://git@gitlab.phys.ethz.ch/tiqi-projects/drivers/tiqi-zedboard.git?rev=v1.3.0" },
 ]
 provides-extras = ["server", "zedboard", "client"]
 
@@ -3807,16 +3807,16 @@ wheels = [
 
 [[package]]
 name = "tiqi-rpc"
-version = "2.0.0"
-source = { git = "ssh://git@gitlab.phys.ethz.ch/tiqi-projects/tiqi-rpc-python.git?rev=v1.0.0#6d178efabcb190966d5b78e1e3d4960c1a3357d5" }
+version = "2.1.0"
+source = { git = "ssh://git@gitlab.phys.ethz.ch/tiqi-projects/tiqi-rpc-python.git?rev=v2.1.0#7bfb0094f1796056fa85671072d53f1100e0f7b9" }
 dependencies = [
     { name = "msgpack" },
 ]
 
 [[package]]
 name = "tiqi-zedboard"
-version = "0.1.0"
-source = { git = "ssh://git@gitlab.phys.ethz.ch/tiqi-projects/drivers/tiqi-zedboard.git#7b001093f1ef1e0271bff0ff92e8c6eebad391fe" }
+version = "1.3.0"
+source = { git = "ssh://git@gitlab.phys.ethz.ch/tiqi-projects/drivers/tiqi-zedboard.git?rev=v1.3.0#c1aeb05cb3d503d1177ff4451313782047948dba" }
 dependencies = [
     { name = "msgpack" },
     { name = "tiqi-rpc" },
