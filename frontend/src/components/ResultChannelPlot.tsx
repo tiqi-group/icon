@@ -10,6 +10,7 @@ interface ResultChannelPlotProps {
   experimentData: ExperimentData;
   loading: boolean;
   title: string;
+  subtitle: string;
 }
 
 const formatAxisLabel = (value: string): string => {
@@ -21,6 +22,7 @@ const ResultChannelPlot = ({
   experimentData,
   loading,
   title,
+  subtitle,
 }: ResultChannelPlotProps) => {
   const chartRef = useRef<ECharts | null>(null);
   const notifications = useNotifications();
@@ -161,11 +163,17 @@ const ResultChannelPlot = ({
     return {
       title: {
         text: title,
+        left: "center",
+        subtext: subtitle,
+        subtextStyle: {
+          lineHeight: 0,
+        },
         top: "-1%",
       },
       textStyle: { fontFamily: "sans-serif", fontSize: 12 },
       tooltip: { trigger: "axis" },
       toolbox: {
+        top: -6,
         feature: {
           dataZoom: { yAxisIndex: "none" },
           myCopyToClipboard: {
@@ -179,12 +187,14 @@ const ResultChannelPlot = ({
       animation: false,
       legend: {
         data: channelNames,
-        top: 25,
+        top: 40,
+        left: "right",
       },
       grid: {
         left: 30,
         right: 20,
         bottom: 20,
+        top: 75,
         containLabel: true,
       },
       xAxis,

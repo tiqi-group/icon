@@ -129,7 +129,8 @@ export const JobView = ({
                 <ResultChannelPlot
                   experimentData={experimentData}
                   loading={loading}
-                  title={getPlotTitle(
+                  title="Result channels"
+                  subtitle={getPlotTitle(
                     jobRunInfo?.scheduled_time,
                     experimentMetadata?.constructor_kwargs.name,
                   )}
