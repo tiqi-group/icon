@@ -39,6 +39,9 @@ LOGGING_CONFIG = {
             "propagate": False,
         },
         "icon": {"handlers": ["default"], "propagate": False},  # level set at runtime
+        "tiqi_zedboard": {
+            "handlers": ["default"],
+        },  # level set at runtime
         "pydase": {"handlers": ["default"], "propagate": False},  # level set at runtime
         "asyncio": {"handlers": ["default"], "level": logging.INFO, "propagate": True},
         "socketio": {
@@ -79,6 +82,7 @@ def setup_logging(log_level: int) -> None:
     LOGGING_CONFIG["loggers"]["pydase"]["level"] = log_level
     LOGGING_CONFIG["loggers"]["alembic"]["level"] = log_level
     LOGGING_CONFIG["loggers"]["aiohttp"]["level"] = log_level
+    LOGGING_CONFIG["loggers"]["tiqi_zedboard"]["level"] = log_level
     logging.config.dictConfig(LOGGING_CONFIG)
 
     logger.info("Configured log level: %s", logging.getLevelName(log_level))
