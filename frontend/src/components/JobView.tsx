@@ -12,6 +12,7 @@ import { useJobRunInfo } from "../hooks/useJobRunInfo";
 import { cancelJob } from "../utils/cancelJob";
 import { JobStatus } from "../types/enums";
 import { updateJobParams } from "../utils/updateJobParams";
+import HistogramPlot from "./jobView/HistogramPlot";
 
 function getPlotTitle(scheduledTime?: string, experimentName?: string): string {
   if (!scheduledTime) return experimentName || "";
@@ -54,7 +55,7 @@ export const JobView = ({
   return (
     <div style={{ padding: 16 }}>
       <Grid container spacing={2}>
-        <Grid size={{ xs: 12, sm: 12, lg: 5 }}>
+        <Grid size={{ xs: 12, sm: 12, lg: 12 }}>
           <Card>
             <CardContent>
               <div style={{ display: "flex", alignItems: "center" }}>
@@ -94,6 +95,21 @@ export const JobView = ({
                 )}
               </Typography>
               <Typography variant="body1">{jobInfo?.status}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 12, lg: 5 }}>
+          <Card>
+            <CardContent>
+              <HistogramPlot
+                experimentData={experimentData}
+                loading={loading}
+                title="Histogram"
+                subtitle={getPlotTitle(
+                  jobRunInfo?.scheduled_time,
+                  experimentMetadata?.constructor_kwargs.name,
+                )}
+              />
             </CardContent>
           </Card>
         </Grid>
