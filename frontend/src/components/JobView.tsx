@@ -1,4 +1,4 @@
-import { Button, Card, CardContent, Grid, Typography } from "@mui/material";
+import { Button, Card, CardContent, Grid, Typography, IconButton } from "@mui/material";
 import { useExperimentData } from "../hooks/useExperimentData";
 import ResultChannelPlot from "../components/ResultChannelPlot";
 import { useEffect, useState } from "react";
@@ -13,6 +13,7 @@ import { cancelJob } from "../utils/cancelJob";
 import { JobStatus } from "../types/enums";
 import { updateJobParams } from "../utils/updateJobParams";
 import HistogramPlot from "./jobView/HistogramPlot";
+import { ExpandLess, ExpandMore } from "@mui/icons-material";
 
 function getPlotTitle(scheduledTime?: string, experimentName?: string): string {
   if (!scheduledTime) return experimentName || "";
@@ -32,6 +33,59 @@ export const JobView = ({
 
   const jobInfo = useJobInfo(jobId);
   const jobRunInfo = useJobRunInfo(jobId);
+  const { experimentData, experimentDataError, loading } = useExperimentData(jobId);
+
+  // States to track whether the plot sections are expanded or collapsed
+  const [expandedShotChannels, setExpandedShotChannels] = useState<
+    Record<string, boolean>
+  >({});
+  const [expandedResultChannels, setExpandedResultChannels] = useState<
+    Record<string, boolean>
+  >({});
+
+  const toggleShotChannel = (name: string) => {
+    const newState = {
+      ...expandedShotChannels,
+      [name]: expandedShotChannels[name] === false,
+    };
+    setExpandedShotChannels(newState);
+    localStorage.setItem(
+      `shotChannelsState_${jobInfo?.experiment_source_id}`,
+      JSON.stringify(newState),
+    );
+  };
+
+  const toggleResultChannel = (name: string) => {
+    const newState = {
+      ...expandedResultChannels,
+      [name]: expandedResultChannels[name] === false,
+    };
+    setExpandedResultChannels(newState);
+    localStorage.setItem(
+      `resultChannelsState_${jobInfo?.experiment_source_id}`,
+      JSON.stringify(newState),
+    );
+  };
+
+  // Load expanded/collapsed state from localStorage once after jobInfo has loaded
+  useEffect(() => {
+    if (jobInfo) {
+      const storedShotChannelsState = localStorage.getItem(
+        `shotChannelsState_${jobInfo.experiment_source_id}`,
+      );
+      const storedResultChannelsState = localStorage.getItem(
+        `resultChannelsState_${jobInfo.experiment_source_id}`,
+      );
+
+      if (storedShotChannelsState) {
+        setExpandedShotChannels(JSON.parse(storedShotChannelsState));
+      }
+
+      if (storedResultChannelsState) {
+        setExpandedResultChannels(JSON.parse(storedResultChannelsState));
+      }
+    }
+  }, [jobInfo]);
 
   useEffect(() => {
     if (jobInfo?.experiment_source.experiment_id)
@@ -43,8 +97,6 @@ export const JobView = ({
         );
       });
   }, [jobInfo]);
-
-  const { experimentData, experimentDataError, loading } = useExperimentData(jobId);
 
   useEffect(() => {
     if (!loading && !experimentDataError && onLoaded) {
@@ -98,46 +150,84 @@ export const JobView = ({
             </CardContent>
           </Card>
         </Grid>
-        <Grid size={{ xs: 12, sm: 12, lg: 5 }}>
-          <Card>
-            <CardContent>
-              <HistogramPlot
-                experimentData={experimentData}
-                loading={loading}
-                title="Histogram"
-                subtitle={getPlotTitle(
-                  jobRunInfo?.scheduled_time,
-                  experimentMetadata?.constructor_kwargs.name,
-                )}
-              />
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 12, lg: 7 }}>
-          {experimentDataError ? (
+
+        {experimentData?.plot_windows?.shot_channels?.map((win) => (
+          <Grid size={{ xs: 12, sm: 12, lg: 4 }} key={`shot-${win.index}`}>
             <Card>
-              <CardContent>
-                <Typography variant="h6" color="error">
-                  Failed to load experiment data
-                </Typography>
-                <Typography variant="body2">{experimentDataError.message}</Typography>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent>
-                <ResultChannelPlot
-                  experimentData={experimentData}
-                  loading={loading}
-                  title={getPlotTitle(
-                    jobRunInfo?.scheduled_time,
-                    experimentMetadata?.constructor_kwargs.name,
+              <CardContent sx={{ padding: 1 }}>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  {!expandedShotChannels[win.name] && (
+                    <Typography variant="h6">{win.name}</Typography>
                   )}
-                />
+                  <div style={{ flexGrow: 1 }} />
+                  <IconButton
+                    title={
+                      expandedShotChannels[win.name] === false ? "Expand" : "Collapse"
+                    }
+                    onClick={() => toggleShotChannel(win.name)}
+                  >
+                    {expandedShotChannels[win.name] === false ? (
+                      <ExpandMore />
+                    ) : (
+                      <ExpandLess />
+                    )}
+                  </IconButton>
+                </div>
+                {expandedShotChannels[win.name] !== false && (
+                  <HistogramPlot
+                    experimentData={experimentData}
+                    channelNames={win.channel_names}
+                    loading={loading}
+                    title={win.name}
+                    subtitle={getPlotTitle(
+                      jobRunInfo?.scheduled_time,
+                      experimentMetadata?.constructor_kwargs.name,
+                    )}
+                  />
+                )}
               </CardContent>
             </Card>
-          )}
-        </Grid>
+          </Grid>
+        ))}
+
+        {experimentData?.plot_windows?.result_channels?.map((win) => (
+          <Grid size={{ xs: 12, sm: 12, lg: 6 }} key={`result-${win.index}`}>
+            <Card>
+              <CardContent sx={{ padding: 1 }}>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  {!expandedResultChannels[win.name] && (
+                    <Typography variant="h6">{win.name}</Typography>
+                  )}
+                  <div style={{ flexGrow: 1 }} />
+                  <IconButton
+                    title={
+                      expandedResultChannels[win.name] === false ? "Expand" : "Collapse"
+                    }
+                    onClick={() => toggleResultChannel(win.name)}
+                  >
+                    {expandedResultChannels[win.name] === false ? (
+                      <ExpandMore />
+                    ) : (
+                      <ExpandLess />
+                    )}
+                  </IconButton>
+                </div>
+                {expandedResultChannels[win.name] !== false && (
+                  <ResultChannelPlot
+                    experimentData={experimentData}
+                    channelNames={win.channel_names}
+                    loading={loading}
+                    title={win.name}
+                    subtitle={getPlotTitle(
+                      jobRunInfo?.scheduled_time,
+                      experimentMetadata?.constructor_kwargs.name,
+                    )}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
         <Grid size={{ xs: 12 }}>
           <Card>
             <CardContent>

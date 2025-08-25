@@ -1,7 +1,8 @@
+import json
 import logging
 import os
 from datetime import datetime
-from typing import TYPE_CHECKING, TypedDict, cast
+from typing import TYPE_CHECKING, Literal, TypedDict, cast
 
 import h5py  # type: ignore
 import numpy as np
@@ -13,7 +14,7 @@ from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
-from icon.server.utils.h5py import get_hdf5_dtype
+from icon.server.utils.h5py import get_hdf5_dtype, get_result_channels_dataset
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 if TYPE_CHECKING:
@@ -35,12 +36,60 @@ class ExperimentDataPoint(ResultDict):
     sequence_json: str
 
 
+class PlotWindowMetadata(TypedDict):
+    """Metadata describing a single plot window for visualization in the frontend.
+
+    This metadata includes the plot's index within its type, the type of plot (e.g.,
+    vector, histogram, or readout), and the list of channel names that are to be plotted
+    in the respective window.
+    """
+
+    name: str
+    """The name of the plot window"""
+    index: int
+    """The order of the plot window within its type (e.g., 0, 1, 2...)"""
+    type: Literal["vector", "histogram", "readout"]
+    """The type of the plot window"""
+    channel_names: list[str]
+    """A list of channel names to be plotted in this window"""
+
+
+class ReadoutMetadata(TypedDict):
+    """Metadata describing the `ionpulse_sequence_generator` hardware's readout channels
+    and their corresponding plot windows. It contains information about the various
+    channel names (readout, shot, and vector channels), as well as the configuration of
+    plot windows for each type of channel.
+    """
+
+    readout_channel_names: list[str]
+    """A list of all readout channel names"""
+    shot_channel_names: list[str]
+    """A list of all shot channel names"""
+    vector_channel_names: list[str]
+    """A list of all vector channel names"""
+    readout_channel_windows: list[PlotWindowMetadata]
+    """List of `PlotWindowMetadata` of result channels"""
+    shot_channel_windows: list[PlotWindowMetadata]
+    """List of `PlotWindowMetadata` of shot channels"""
+    vector_channel_windows: list[PlotWindowMetadata]
+    """List of `PlotWindowMetadata` of vector channels"""
+
+
+class PlotWindowsDict(TypedDict):
+    result_channels: list[PlotWindowMetadata]
+    shot_channels: list[PlotWindowMetadata]
+    vector_channels: list[PlotWindowMetadata]
+
+
 class ExperimentData(TypedDict):
+    plot_windows: PlotWindowsDict
     shot_channels: dict[str, dict[int, list[int]]]
     result_channels: dict[str, dict[int, float]]
     vector_channels: dict[str, dict[int, list[float]]]
     scan_parameters: dict[str, dict[int, str | float]]
     json_sequences: list[list[int | str]]
+    """List of [index, sequence_json] objects. This is using a list instead of a tuple
+    as tuples are not serializable in pydase yet."""
 
 
 def get_filename_by_job_id(job_id: int) -> str:
@@ -129,16 +178,11 @@ def write_results_to_dataset(
     """Write results to result_channels dataset."""
 
     sorted_keys = sorted(result_channels)
-    result_dtype = np.dtype([(key, np.float64) for key in sorted_keys])
 
-    result_dataset = h5file.require_dataset(
-        "result_channels",
-        shape=(number_of_data_points,),
-        maxshape=(None,),
-        chunks=True,
-        dtype=result_dtype,
-        compression="gzip",
-        compression_opts=9,
+    result_dataset = get_result_channels_dataset(
+        h5file=h5file,
+        result_channels=sorted_keys,
+        number_of_data_points=number_of_data_points,
     )
 
     if set(result_dataset.dtype.names) != set(sorted_keys):
@@ -207,6 +251,7 @@ class ExperimentDataRepository:
         job_id: int,
         number_of_shots: int,
         repetitions: int,
+        readout_metadata: ReadoutMetadata,
         local_parameter_timestamp: datetime | None = None,
         parameters: list[ScanParameter] = [],
     ) -> None:
@@ -251,6 +296,35 @@ class ExperimentDataRepository:
                         f"name={parameter.device.name} url={parameter.device.url}"
                         f"description={parameter.device.description}"
                     )
+
+            result_dataset = get_result_channels_dataset(
+                h5file=h5file, result_channels=readout_metadata["readout_channel_names"]
+            )
+
+            result_dataset.attrs["Plot window metadata"] = json.dumps(
+                readout_metadata["readout_channel_windows"]
+            )
+            shot_group = h5file.require_group("shot_channels")
+            shot_group.attrs["Plot window metadata"] = json.dumps(
+                readout_metadata["shot_channel_windows"]
+            )
+            vector_group = h5file.require_group("vector_channels")
+            vector_group.attrs["Plot window metadata"] = json.dumps(
+                readout_metadata["vector_channel_windows"]
+            )
+
+        emit_queue.put(
+            {
+                "event": f"experiment_{job_id}_metadata",
+                "data": {
+                    "readout_metadata": {
+                        "result_channels": readout_metadata["readout_channel_windows"],
+                        "shot_channels": readout_metadata["shot_channel_windows"],
+                        "vector_channels": readout_metadata["vector_channel_windows"],
+                    },
+                },
+            }
+        )
 
     @staticmethod
     def write_experiment_data_by_job_id(
@@ -385,6 +459,11 @@ class ExperimentDataRepository:
         job_id: int,
     ) -> ExperimentData:
         data: ExperimentData = {
+            "plot_windows": {
+                "result_channels": [],
+                "shot_channels": [],
+                "vector_channels": [],
+            },
             "shot_channels": {},
             "result_channels": {},
             "vector_channels": {},
@@ -396,7 +475,8 @@ class ExperimentDataRepository:
         file = f"{get_config().data.results_dir}/{filename}"
 
         if not os.path.exists(file):
-            raise FileNotFoundError(f"The file {file} does not exist.")
+            logger.warning("The file %s does not exist.", file)
+            return data
 
         lock_path = (
             f"{get_config().data.results_dir}/.{filename}"
@@ -418,7 +498,11 @@ class ExperimentDataRepository:
                 for param in cast("tuple[str, ...]", scan_parameters.dtype.names)
             }
 
-            result_channels: npt.NDArray = h5file["result_channels"][:]  # type: ignore
+            result_channel_dataset = cast("h5py.Dataset", h5file["result_channels"])
+            data["plot_windows"]["result_channels"] = json.loads(
+                cast("str", result_channel_dataset.attrs["Plot window metadata"])
+            )
+            result_channels = cast("npt.NDArray", result_channel_dataset[:])  # type: ignore
             data["result_channels"] = {
                 channel_name: dict(
                     enumerate(
@@ -430,6 +514,9 @@ class ExperimentDataRepository:
 
             # Convert shot channels into dicts with index as key
             shot_channels_group = cast("h5py.Group", h5file["shot_channels"])
+            data["plot_windows"]["shot_channels"] = json.loads(
+                cast("str", shot_channels_group.attrs["Plot window metadata"])
+            )
             data["shot_channels"] = {
                 key: dict(enumerate(value[:].tolist()))  # type: ignore
                 for key, value in cast(
@@ -438,6 +525,9 @@ class ExperimentDataRepository:
             }
 
             vector_channels_group = cast("h5py.Group", h5file["vector_channels"])
+            data["plot_windows"]["vector_channels"] = json.loads(
+                cast("str", vector_channels_group.attrs["Plot window metadata"])
+            )
             data["vector_channels"] = {
                 channel_name: {
                     int(data_point): vector_dataset[:].tolist()

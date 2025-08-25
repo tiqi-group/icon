@@ -10,6 +10,8 @@ interface ResultChannelPlotProps {
   experimentData: ExperimentData;
   loading: boolean;
   title: string;
+  subtitle: string;
+  channelNames: string[];
 }
 
 const formatAxisLabel = (value: string): string => {
@@ -21,6 +23,8 @@ const ResultChannelPlot = ({
   experimentData,
   loading,
   title,
+  subtitle,
+  channelNames,
 }: ResultChannelPlotProps) => {
   const chartRef = useRef<ECharts | null>(null);
   const notifications = useNotifications();
@@ -38,14 +42,14 @@ const ResultChannelPlot = ({
     const timestampEntry = scanInfo.find((p) => p.parameter_name === "timestamp");
     const scanParamsOnly = scanInfo.filter((p) => p.parameter_name !== "timestamp");
 
-    const resultChannels = Object.entries(experimentData.result_channels).map(
-      ([name, data]) => ({
+    const resultChannels = Object.entries(experimentData.result_channels)
+      .filter(([name]) => channelNames.includes(name))
+      .map(([name, data]) => ({
         name,
         data: Object.values(data),
-      }),
-    );
+      }));
 
-    const channelNames = resultChannels.map(({ name }) => name);
+    const resultChannelNames = resultChannels.map(({ name }) => name);
     let xAxisData: string[] | number[];
     const xAxis: EChartsOption["xAxis"] = {
       nameLocation: "middle",
@@ -161,11 +165,17 @@ const ResultChannelPlot = ({
     return {
       title: {
         text: title,
+        left: "center",
+        subtext: subtitle,
+        subtextStyle: {
+          lineHeight: 0,
+        },
         top: "-1%",
       },
       textStyle: { fontFamily: "sans-serif", fontSize: 12 },
       tooltip: { trigger: "axis" },
       toolbox: {
+        top: -6,
         feature: {
           dataZoom: { yAxisIndex: "none" },
           myCopyToClipboard: {
@@ -178,20 +188,22 @@ const ResultChannelPlot = ({
       },
       animation: false,
       legend: {
-        data: channelNames,
-        top: 25,
+        data: resultChannelNames,
+        top: 40,
+        left: "right",
       },
       grid: {
         left: 30,
         right: 20,
         bottom: 20,
+        top: 75,
         containLabel: true,
       },
       xAxis,
       yAxis,
       series: chartSeries,
     };
-  }, [experimentData, title]);
+  }, [experimentData, title, subtitle]);
 
   return (
     <>
