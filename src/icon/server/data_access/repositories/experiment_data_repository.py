@@ -1,7 +1,8 @@
+import json
 import logging
 import os
 from datetime import datetime
-from typing import TYPE_CHECKING, TypedDict, cast
+from typing import TYPE_CHECKING, Literal, TypedDict, cast
 
 import h5py  # type: ignore
 import numpy as np
@@ -33,6 +34,45 @@ class ExperimentDataPoint(ResultDict):
     scan_params: dict[str, DatabaseValueType]
     timestamp: str
     sequence_json: str
+
+
+class PlotWindowMetadata(TypedDict):
+    """Metadata describing a single plot window for visualization in the frontend.
+
+    This metadata includes the plot's index within its type, the type of plot (e.g.,
+    vector, histogram, or readout), and the list of channel names that are to be plotted
+    in the respective window.
+    """
+
+    name: str
+    """The name of the plot window"""
+    index: int
+    """The order of the plot window within its type (e.g., 0, 1, 2...)"""
+    type: Literal["vector", "histogram", "readout"]
+    """The type of the plot window"""
+    channel_names: list[str]
+    """A list of channel names to be plotted in this window"""
+
+
+class ReadoutMetadata(TypedDict):
+    """Metadata describing the `ionpulse_sequence_generator` hardware's readout channels
+    and their corresponding plot windows. It contains information about the various
+    channel names (readout, shot, and vector channels), as well as the configuration of
+    plot windows for each type of channel.
+    """
+
+    readout_channel_names: list[str]
+    """A list of all readout channel names"""
+    shot_channel_names: list[str]
+    """A list of all shot channel names"""
+    vector_channel_names: list[str]
+    """A list of all vector channel names"""
+    readout_channel_windows: list[PlotWindowMetadata]
+    """List of `PlotWindowMetadata` of result channels"""
+    shot_channel_windows: list[PlotWindowMetadata]
+    """List of `PlotWindowMetadata` of shot channels"""
+    vector_channel_windows: list[PlotWindowMetadata]
+    """List of `PlotWindowMetadata` of vector channels"""
 
 
 class ExperimentData(TypedDict):
@@ -202,6 +242,7 @@ class ExperimentDataRepository:
         job_id: int,
         number_of_shots: int,
         repetitions: int,
+        readout_metadata: ReadoutMetadata,
         local_parameter_timestamp: datetime | None = None,
         parameters: list[ScanParameter] = [],
     ) -> None:
@@ -246,6 +287,22 @@ class ExperimentDataRepository:
                         f"name={parameter.device.name} url={parameter.device.url}"
                         f"description={parameter.device.description}"
                     )
+
+            result_dataset = get_result_channels_dataset(
+                h5file=h5file, result_channels=readout_metadata["readout_channel_names"]
+            )
+
+            result_dataset.attrs["Plot window metadata"] = json.dumps(
+                readout_metadata["readout_channel_windows"]
+            )
+            shot_group = h5file.require_group("shot_channels")
+            shot_group.attrs["Plot window metadata"] = json.dumps(
+                readout_metadata["shot_channel_windows"]
+            )
+            vector_group = h5file.require_group("vector_channels")
+            vector_group.attrs["Plot window metadata"] = json.dumps(
+                readout_metadata["vector_channel_windows"]
+            )
 
     @staticmethod
     def write_experiment_data_by_job_id(
