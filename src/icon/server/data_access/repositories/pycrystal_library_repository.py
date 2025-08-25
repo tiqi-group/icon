@@ -11,6 +11,9 @@ from icon.server.api.models.parameter_metadata import (
     ParameterMetadata,
 )
 from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+from icon.server.data_access.repositories.experiment_data_repository import (
+    ReadoutMetadata,
+)
 
 ParameterMetadataDict = TypedDict(
     "ParameterMetadataDict",
@@ -90,3 +93,24 @@ class PycrystalLibraryRepository:
             **template_vars,
         )
         return await PycrystalLibraryRepository._run_code(code)
+
+    @staticmethod
+    async def get_experiment_readout_metadata(
+        *,
+        exp_module_name: str,
+        exp_instance_name: str,
+        parameter_dict: dict[str, DatabaseValueType],
+    ) -> ReadoutMetadata:
+        template_vars = {
+            "key_val_dict": parameter_dict,
+            "module_name": exp_module_name,
+            "exp_instance_name": exp_instance_name,
+        }
+
+        code = PycrystalLibraryRepository._get_code(
+            Path(__file__).parent.parent
+            / "templates/get_experiment_readout_windows.py",
+            **template_vars,
+        )
+        stdout = await PycrystalLibraryRepository._run_code(code)
+        return json.loads(stdout)
