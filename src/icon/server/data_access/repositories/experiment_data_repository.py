@@ -391,7 +391,8 @@ class ExperimentDataRepository:
         file = f"{get_config().data.results_dir}/{filename}"
 
         if not os.path.exists(file):
-            raise FileNotFoundError(f"The file {file} does not exist.")
+            logger.warning("The file %s does not exist.", file)
+            return data
 
         lock_path = (
             f"{get_config().data.results_dir}/.{filename}"
