@@ -5,6 +5,11 @@ import { SerializedObject } from "../types/SerializedObject";
 import { deserialize } from "../utils/deserializer";
 
 const emptyExperimentData: ExperimentData = {
+  plot_windows: {
+    result_channels: [],
+    shot_channels: [],
+    vector_channels: [],
+  },
   shot_channels: {},
   result_channels: {},
   vector_channels: {},
@@ -68,6 +73,7 @@ export function useExperimentData(jobId: string | undefined) {
         }
 
         return {
+          ...prev,
           shot_channels,
           result_channels,
           vector_channels,

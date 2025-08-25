@@ -10,8 +10,21 @@ export type ExperimentDataPoint = ResultDict & {
   timestamp: string;
   sequence_json: string;
 };
+interface PlotWindowMetadata {
+  name: string;
+  index: number;
+  type: "readout" | "histogram" | "vector";
+  channel_names: string[];
+}
+
+interface PlotWindows {
+  result_channels: PlotWindowMetadata[];
+  shot_channels: PlotWindowMetadata[];
+  vector_channels: PlotWindowMetadata[];
+}
 
 export interface ExperimentData {
+  plot_windows: PlotWindows;
   shot_channels: Record<string, Record<string, number[]>>;
   result_channels: Record<string, Record<string, number>>;
   vector_channels: Record<string, Record<string, number[]>>;
