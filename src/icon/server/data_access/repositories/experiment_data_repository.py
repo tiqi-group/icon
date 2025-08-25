@@ -313,6 +313,19 @@ class ExperimentDataRepository:
                 readout_metadata["vector_channel_windows"]
             )
 
+        emit_queue.put(
+            {
+                "event": f"experiment_{job_id}_metadata",
+                "data": {
+                    "readout_metadata": {
+                        "result_channels": readout_metadata["readout_channel_windows"],
+                        "shot_channels": readout_metadata["shot_channel_windows"],
+                        "vector_channels": readout_metadata["vector_channel_windows"],
+                    },
+                },
+            }
+        )
+
     @staticmethod
     def write_experiment_data_by_job_id(
         *,

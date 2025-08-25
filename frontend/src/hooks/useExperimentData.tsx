@@ -40,9 +40,9 @@ export function useExperimentData(jobId: string | undefined) {
     setExperimentData(emptyExperimentData);
     if (!jobId) return;
 
-    const eventName = `experiment_${jobId}`;
+    const dataPointEvent = `experiment_${jobId}`;
 
-    const handleData = (data: ExperimentDataPoint) => {
+    const handleNewDataPoint = (data: ExperimentDataPoint) => {
       setError(null);
       setExperimentData((prev) => {
         const shot_channels = { ...prev.shot_channels };
@@ -83,7 +83,20 @@ export function useExperimentData(jobId: string | undefined) {
       });
     };
 
-    socket.on(eventName, handleData);
+    const metadataEvent = `experiment_${jobId}_metadata`;
+
+    const handleMetadata = (data: {
+      readout_metadata: ExperimentData["plot_windows"];
+    }) => {
+      console.info("Got experiment metadata");
+      console.info(data.readout_metadata);
+      setExperimentData((prev) => {
+        return { ...prev, plot_windows: data.readout_metadata };
+      });
+    };
+
+    socket.on(dataPointEvent, handleNewDataPoint);
+    socket.on(metadataEvent, handleMetadata);
 
     runMethod("data.get_experiment_data_by_job_id", [], { job_id: jobId }, (ack) => {
       const deserialized = deserialize(ack as SerializedObject) as
@@ -100,7 +113,7 @@ export function useExperimentData(jobId: string | undefined) {
     });
 
     return () => {
-      socket.off(eventName, handleData);
+      socket.off(dataPointEvent, handleNewDataPoint);
     };
   }, [jobId]);
 
