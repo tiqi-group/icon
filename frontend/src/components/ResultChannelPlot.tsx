@@ -11,6 +11,7 @@ interface ResultChannelPlotProps {
   loading: boolean;
   title: string;
   subtitle: string;
+  channelNames: string[];
 }
 
 const formatAxisLabel = (value: string): string => {
@@ -23,6 +24,7 @@ const ResultChannelPlot = ({
   loading,
   title,
   subtitle,
+  channelNames,
 }: ResultChannelPlotProps) => {
   const chartRef = useRef<ECharts | null>(null);
   const notifications = useNotifications();
@@ -40,14 +42,14 @@ const ResultChannelPlot = ({
     const timestampEntry = scanInfo.find((p) => p.parameter_name === "timestamp");
     const scanParamsOnly = scanInfo.filter((p) => p.parameter_name !== "timestamp");
 
-    const resultChannels = Object.entries(experimentData.result_channels).map(
-      ([name, data]) => ({
+    const resultChannels = Object.entries(experimentData.result_channels)
+      .filter(([name]) => channelNames.includes(name))
+      .map(([name, data]) => ({
         name,
         data: Object.values(data),
-      }),
-    );
+      }));
 
-    const channelNames = resultChannels.map(({ name }) => name);
+    const resultChannelNames = resultChannels.map(({ name }) => name);
     let xAxisData: string[] | number[];
     const xAxis: EChartsOption["xAxis"] = {
       nameLocation: "middle",
@@ -186,7 +188,7 @@ const ResultChannelPlot = ({
       },
       animation: false,
       legend: {
-        data: channelNames,
+        data: resultChannelNames,
         top: 40,
         left: "right",
       },
@@ -201,7 +203,7 @@ const ResultChannelPlot = ({
       yAxis,
       series: chartSeries,
     };
-  }, [experimentData, title]);
+  }, [experimentData, title, subtitle]);
 
   return (
     <>

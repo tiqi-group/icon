@@ -8,6 +8,7 @@ import { useNotifications } from "@toolpad/core";
 
 interface HistogramPlotProps {
   experimentData: ExperimentData;
+  channelNames: string[];
   title: string;
   subtitle: string;
   loading: boolean;
@@ -18,6 +19,7 @@ export const HistogramPlot = ({
   title,
   subtitle,
   loading,
+  channelNames,
 }: HistogramPlotProps) => {
   const chartRef = useRef<ECharts | null>(null);
   const notifications = useNotifications();
@@ -26,7 +28,7 @@ export const HistogramPlot = ({
   const sc = experimentData?.shot_channels ?? {};
 
   for (const [channelName, groups] of Object.entries(sc)) {
-    if (!groups) continue;
+    if (!groups || !channelNames.includes(channelName)) continue;
 
     // Get the latest key by calculating the max of the available keys
     const keys = Object.keys(groups).map(Number);
