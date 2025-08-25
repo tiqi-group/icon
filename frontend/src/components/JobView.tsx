@@ -98,38 +98,17 @@ export const JobView = ({
             </CardContent>
           </Card>
         </Grid>
-        <Grid size={{ xs: 12, sm: 12, lg: 5 }}>
-          <Card>
-            <CardContent>
-              <HistogramPlot
-                experimentData={experimentData}
-                loading={loading}
-                title="Histogram"
-                subtitle={getPlotTitle(
-                  jobRunInfo?.scheduled_time,
-                  experimentMetadata?.constructor_kwargs.name,
-                )}
-              />
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 12, lg: 7 }}>
-          {experimentDataError ? (
+
+        {/* Shot channel histograms */}
+        {experimentData?.plot_windows?.shot_channels?.map((win) => (
+          <Grid size={{ xs: 12, sm: 12, lg: 4 }} key={`shot-${win.index}`}>
             <Card>
               <CardContent>
-                <Typography variant="h6" color="error">
-                  Failed to load experiment data
-                </Typography>
-                <Typography variant="body2">{experimentDataError.message}</Typography>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent>
-                <ResultChannelPlot
+                <HistogramPlot
                   experimentData={experimentData}
+                  channelNames={win.channel_names}
                   loading={loading}
-                  title="Result channels"
+                  title={win.name}
                   subtitle={getPlotTitle(
                     jobRunInfo?.scheduled_time,
                     experimentMetadata?.constructor_kwargs.name,
@@ -137,8 +116,28 @@ export const JobView = ({
                 />
               </CardContent>
             </Card>
-          )}
-        </Grid>
+          </Grid>
+        ))}
+
+        {experimentData.plot_windows.result_channels?.map((win) => (
+          <Grid size={{ xs: 12, sm: 12, lg: 6 }} key={`result-${win.index}`}>
+            <Card>
+              <CardContent>
+                <ResultChannelPlot
+                  experimentData={experimentData}
+                  channelNames={win.channel_names}
+                  loading={loading}
+                  title={win.name}
+                  subtitle={getPlotTitle(
+                    jobRunInfo?.scheduled_time,
+                    experimentMetadata?.constructor_kwargs.name,
+                  )}
+                />
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+
         <Grid size={{ xs: 12 }}>
           <Card>
             <CardContent>
