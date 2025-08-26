@@ -4,6 +4,7 @@ from collections.abc import Sequence
 
 import sqlalchemy.exc
 import sqlalchemy.orm.session
+from sqlalchemy import select, update
 
 from icon.server.data_access.db_context.sqlite import engine
 from icon.server.data_access.models.enums import DeviceStatus
@@ -66,15 +67,16 @@ class DeviceRepository:
             if device.status == DeviceStatus.ENABLED:
                 raise RuntimeError("Cannot change url of an enabled device")
 
-        with sqlalchemy.orm.session.Session(engine) as session:
-            stmt = (
-                sqlalchemy.update(Device)
-                .where(Device.name == name)
-                .values(updated_properties)
-                .returning(Device)
+        with sqlalchemy.orm.Session(engine) as session:
+            session.execute(
+                update(Device).where(Device.name == name).values(updated_properties)
             )
-            device = session.execute(stmt).scalar_one()
             session.commit()
+
+            device = session.execute(
+                select(Device).where(Device.name == name)
+            ).scalar_one()
+            session.expunge(device)
 
             logger.debug("Updated device %s", device)
 
