@@ -177,6 +177,11 @@ class PreProcessingWorker(multiprocessing.Process):
                 self._processed_data_points = self._manager.Queue()
 
                 try:
+                    JobRunRepository.update_run_by_id(
+                        run_id=self._pre_processing_task.job_run.id,
+                        status=JobRunStatus.PROCESSING,
+                    )
+
                     # empty update queue
                     self._handle_parameter_updates()
 
@@ -233,11 +238,6 @@ class PreProcessingWorker(multiprocessing.Process):
                         repetitions=self._pre_processing_task.job.repetitions,
                         parameters=self._pre_processing_task.job.scan_parameters,
                         readout_metadata=readout_metadata,
-                    )
-
-                    JobRunRepository.update_run_by_id(
-                        run_id=self._pre_processing_task.job_run.id,
-                        status=JobRunStatus.PROCESSING,
                     )
 
                     if len(self._scan_parameter_value_combinations) > 0:
