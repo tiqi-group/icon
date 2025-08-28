@@ -41,10 +41,11 @@ def start_server() -> None:
     from icon.config.config import get_config
     from icon.server.api.api_service import APIService
     from icon.server.data_access.db_context.sqlite.migrations import run_migrations
-    from icon.server.hardware_processing.hardware_processing import (
+    from icon.server.hardware_processing.worker import (
         HardwareProcessingWorker,
     )
-    from icon.server.pre_processing.pre_processing import PreProcessingWorker
+    from icon.server.post_processing.worker import PostProcessingWorker
+    from icon.server.pre_processing.worker import PreProcessingWorker
     from icon.server.scheduler.scheduler import Scheduler
     from icon.server.web_server.sio_setup import patch_sio_setup
 
@@ -73,9 +74,15 @@ def start_server() -> None:
 
     hardware_processing_worker = HardwareProcessingWorker(
         hardware_processing_queue=icon.server.shared_resource_manager.hardware_processing_queue,
+        post_processing_queue=icon.server.shared_resource_manager.post_processing_queue,
         manager=icon.server.shared_resource_manager.manager,
     )
     hardware_processing_worker.start()
+
+    post_processing_worker = PostProcessingWorker(
+        post_processing_queue=icon.server.shared_resource_manager.post_processing_queue,
+    )
+    post_processing_worker.start()
 
     icon.server.web_server.icon_server.IconServer(
         APIService(pre_processing_update_queues=pre_processing_update_queues),

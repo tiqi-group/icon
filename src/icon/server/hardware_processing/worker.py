@@ -14,21 +14,21 @@ import socketio.exceptions
 from icon.config.config import get_config
 from icon.server.data_access.models.enums import DeviceStatus, JobRunStatus
 from icon.server.data_access.repositories.device_repository import DeviceRepository
-from icon.server.data_access.repositories.experiment_data_repository import (
-    ExperimentDataPoint,
-    ExperimentDataRepository,
-)
 from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
     job_run_cancelled_or_failed,
 )
 from icon.server.hardware_processing.hardware_controller import HardwareController
+from icon.server.post_processing.task import PostProcessingTask
 
 if TYPE_CHECKING:
     import queue
 
     from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
     from icon.server.data_access.models.sqlite.device import Device
+    from icon.server.data_access.repositories.experiment_data_repository import (
+        ExperimentDataPoint,
+    )
     from icon.server.hardware_processing.task import HardwareProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
 
@@ -68,10 +68,12 @@ class HardwareProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
         hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask],
+        post_processing_queue: queue.PriorityQueue[PostProcessingTask],
         manager: SharedResourceManager,
     ) -> None:
         super().__init__()
         self._queue = hardware_processing_queue
+        self._post_processing_queue = post_processing_queue
         self._manager = manager
         self._pydase_clients: dict[str, pydase.Client] = {}
 
@@ -177,12 +179,15 @@ class HardwareProcessingWorker(multiprocessing.Process):
                     "sequence_json": task.sequence_json,
                 }
 
-                # TODO: move this to the post-processing worker
-                ExperimentDataRepository.write_experiment_data_by_job_id(
-                    job_id=task.pre_processing_task.job.id,
+                post_processing_task = PostProcessingTask(
+                    priority=task.priority,
+                    pre_processing_task=task.pre_processing_task,
                     data_point=experiment_data_point,
+                    src_dir=task.src_dir,
+                    created=task.created,
                 )
 
+                self._post_processing_queue.put(post_processing_task)
             except Exception as e:
                 logger.exception(e)
                 JobRunRepository.update_run_by_id(
