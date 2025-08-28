@@ -29,14 +29,14 @@ class StatusController(pydase.DataService):
         emit_queue.put({"event": "status.influxdb", "data": status})
 
     async def check_hardware_status(self) -> None:
+        status = self.__hardware_controller.connected
+
         if (
-            not self.__hardware_controller.connected
+            not status
             or self.__hardware_controller._host != get_config().hardware.host
             or self.__hardware_controller._port != get_config().hardware.port
         ):
             await asyncio.to_thread(self.__hardware_controller.connect)
-
-        status = self.__hardware_controller.connected
 
         self._hardware_available = status
         emit_queue.put({"event": "status.hardware", "data": status})
