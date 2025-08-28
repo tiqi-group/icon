@@ -8,6 +8,7 @@ import click
 
 from icon.config.config_path import set_config_path
 from icon.logging import setup_logging
+from icon.server.post_processing.post_processing import PostProcessingWorker
 
 
 def patch_serialization_methods() -> None:
@@ -73,9 +74,15 @@ def start_server() -> None:
 
     hardware_processing_worker = HardwareProcessingWorker(
         hardware_processing_queue=icon.server.shared_resource_manager.hardware_processing_queue,
+        post_processing_queue=icon.server.shared_resource_manager.post_processing_queue,
         manager=icon.server.shared_resource_manager.manager,
     )
     hardware_processing_worker.start()
+
+    post_processing_worker = PostProcessingWorker(
+        post_processing_queue=icon.server.shared_resource_manager.post_processing_queue,
+    )
+    post_processing_worker.start()
 
     icon.server.web_server.icon_server.IconServer(
         APIService(pre_processing_update_queues=pre_processing_update_queues),
