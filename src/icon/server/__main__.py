@@ -8,7 +8,6 @@ import click
 
 from icon.config.config_path import set_config_path
 from icon.logging import setup_logging
-from icon.server.post_processing.post_processing import PostProcessingWorker
 
 
 def patch_serialization_methods() -> None:
@@ -42,10 +41,11 @@ def start_server() -> None:
     from icon.config.config import get_config
     from icon.server.api.api_service import APIService
     from icon.server.data_access.db_context.sqlite.migrations import run_migrations
-    from icon.server.hardware_processing.hardware_processing import (
+    from icon.server.hardware_processing.worker import (
         HardwareProcessingWorker,
     )
-    from icon.server.pre_processing.pre_processing import PreProcessingWorker
+    from icon.server.post_processing.worker import PostProcessingWorker
+    from icon.server.pre_processing.worker import PreProcessingWorker
     from icon.server.scheduler.scheduler import Scheduler
     from icon.server.web_server.sio_setup import patch_sio_setup
 
