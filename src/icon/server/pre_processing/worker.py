@@ -172,13 +172,19 @@ class PreProcessingWorker(multiprocessing.Process):
 
             while True:
                 self._pre_processing_task = self._queue.get()
-                # empty update queue
-                self._handle_parameter_updates()
 
                 self._data_points_to_process = self._manager.Queue()
                 self._processed_data_points = self._manager.Queue()
 
                 try:
+                    JobRunRepository.update_run_by_id(
+                        run_id=self._pre_processing_task.job_run.id,
+                        status=JobRunStatus.PROCESSING,
+                    )
+
+                    # empty update queue
+                    self._handle_parameter_updates()
+
                     if job_run_cancelled_or_failed(
                         job_id=self._pre_processing_task.job.id,
                     ):
@@ -232,11 +238,6 @@ class PreProcessingWorker(multiprocessing.Process):
                         repetitions=self._pre_processing_task.job.repetitions,
                         parameters=self._pre_processing_task.job.scan_parameters,
                         readout_metadata=readout_metadata,
-                    )
-
-                    JobRunRepository.update_run_by_id(
-                        run_id=self._pre_processing_task.job_run.id,
-                        status=JobRunStatus.PROCESSING,
                     )
 
                     if len(self._scan_parameter_value_combinations) > 0:
