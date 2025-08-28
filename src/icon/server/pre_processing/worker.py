@@ -165,9 +165,11 @@ class PreProcessingWorker(multiprocessing.Process):
         self._exp_instance_name: str
         self._scan_parameter_value_combinations: list[dict[str, DatabaseValueType]]
         self._parameter_dict: dict[str, DatabaseValueType] = {}
+        self._tmp_dir: str
 
     def run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
+            self._tmp_dir = tmp_dir
             logger.debug("Created temporary directory %s", tmp_dir)
 
             while True:
@@ -177,73 +179,7 @@ class PreProcessingWorker(multiprocessing.Process):
                 self._processed_data_points = self._manager.Queue()
 
                 try:
-                    JobRunRepository.update_run_by_id(
-                        run_id=self._pre_processing_task.job_run.id,
-                        status=JobRunStatus.PROCESSING,
-                    )
-
-                    # empty update queue
-                    self._handle_parameter_updates()
-
-                    if job_run_cancelled_or_failed(
-                        job_id=self._pre_processing_task.job.id,
-                    ):
-                        continue
-
-                    change_process_priority(self._pre_processing_task.priority)
-
-                    if (
-                        experiment_library_dir := get_config().experiment_library.dir
-                    ) is None:
-                        raise RuntimeError(
-                            "Config: experiment_library.dir is not defined"
-                        )
-
-                    self._src_dir = (
-                        experiment_library_dir
-                        if self._pre_processing_task.debug_mode
-                        else tmp_dir
-                    )
-
-                    prepare_experiment_library_folder(
-                        src_dir=self._src_dir,
-                        pre_processing_task=self._pre_processing_task,
-                    )
-
-                    (
-                        self._exp_module_name,
-                        self._exp_class_name,
-                        self._exp_instance_name,
-                    ) = parse_experiment_identifier(
-                        self._pre_processing_task.job.experiment_source.experiment_id
-                    )
-
-                    self._update_parameter_dict()
-
-                    self._scan_parameter_value_combinations = get_scan_combinations(
-                        self._pre_processing_task.job
-                    )
-
-                    readout_metadata = asyncio.run(
-                        PycrystalLibraryRepository.get_experiment_readout_metadata(
-                            exp_module_name=self._exp_module_name,
-                            exp_instance_name=self._exp_instance_name,
-                            parameter_dict=self._parameter_dict,
-                        )
-                    )
-
-                    ExperimentDataRepository.update_metadata_by_job_id(
-                        job_id=self._pre_processing_task.job.id,
-                        number_of_shots=self._pre_processing_task.job.number_of_shots,
-                        repetitions=self._pre_processing_task.job.repetitions,
-                        parameters=self._pre_processing_task.job.scan_parameters,
-                        readout_metadata=readout_metadata,
-                    )
-
-                    if len(self._scan_parameter_value_combinations) > 0:
-                        self._handle_regular_scan()
-                    else:
-                        self._handle_continuous_scan()
+                    self._process_task()
 
                     logger.info(
                         "JobRun with id '%s' finished",
@@ -260,7 +196,6 @@ class PreProcessingWorker(multiprocessing.Process):
                             run_id=self._pre_processing_task.job_run.id,
                             status=JobRunStatus.DONE,
                         )
-
                 except Exception as e:
                     logger.exception(
                         "JobRun with id '%s' failed with error: %s",
@@ -283,6 +218,71 @@ class PreProcessingWorker(multiprocessing.Process):
                     JobRepository.update_job_status(
                         job=self._pre_processing_task.job, status=JobStatus.PROCESSED
                     )
+
+    def _process_task(self) -> None:
+        JobRunRepository.update_run_by_id(
+            run_id=self._pre_processing_task.job_run.id,
+            status=JobRunStatus.PROCESSING,
+        )
+
+        # empty update queue
+        self._handle_parameter_updates()
+
+        if job_run_cancelled_or_failed(
+            job_id=self._pre_processing_task.job.id,
+        ):
+            return
+
+        change_process_priority(self._pre_processing_task.priority)
+
+        if (experiment_library_dir := get_config().experiment_library.dir) is None:
+            raise RuntimeError("Config: experiment_library.dir is not defined")
+
+        self._src_dir = (
+            experiment_library_dir
+            if self._pre_processing_task.debug_mode
+            else self._tmp_dir
+        )
+
+        prepare_experiment_library_folder(
+            src_dir=self._src_dir,
+            pre_processing_task=self._pre_processing_task,
+        )
+
+        (
+            self._exp_module_name,
+            self._exp_class_name,
+            self._exp_instance_name,
+        ) = parse_experiment_identifier(
+            self._pre_processing_task.job.experiment_source.experiment_id
+        )
+
+        self._update_parameter_dict()
+
+        self._scan_parameter_value_combinations = get_scan_combinations(
+            self._pre_processing_task.job
+        )
+
+        readout_metadata = asyncio.run(
+            PycrystalLibraryRepository.get_experiment_readout_metadata(
+                exp_module_name=self._exp_module_name,
+                exp_instance_name=self._exp_instance_name,
+                parameter_dict=self._parameter_dict,
+            )
+        )
+
+        ExperimentDataRepository.update_metadata_by_job_id(
+            job_id=self._pre_processing_task.job.id,
+            number_of_shots=self._pre_processing_task.job.number_of_shots,
+            repetitions=self._pre_processing_task.job.repetitions,
+            parameters=self._pre_processing_task.job.scan_parameters,
+            readout_metadata=readout_metadata,
+        )
+
+        if len(self._scan_parameter_value_combinations) > 0:
+            self._handle_regular_scan()
+        else:
+            self._handle_continuous_scan()
 
     def _update_parameter_dict(
         self,
