@@ -172,13 +172,14 @@ class PreProcessingWorker(multiprocessing.Process):
 
             while True:
                 self._pre_processing_task = self._queue.get()
-                # empty update queue
-                self._handle_parameter_updates()
 
                 self._data_points_to_process = self._manager.Queue()
                 self._processed_data_points = self._manager.Queue()
 
                 try:
+                    # empty update queue
+                    self._handle_parameter_updates()
+
                     if job_run_cancelled_or_failed(
                         job_id=self._pre_processing_task.job.id,
                     ):
