@@ -46,9 +46,6 @@ class ParametersController(pydase.DataService):
     ) -> dict[str, DatabaseValueType]:
         return dict(ParametersRepository.get_shared_parameters())
 
-    def get_parameter_metadata(self) -> dict[str, ParameterMetadata]:
-        return self._all_parameter_metadata
-
     def get_display_groups(
         self,
     ) -> dict[str, dict[str, ParameterMetadata]]:
