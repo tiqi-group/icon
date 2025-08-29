@@ -176,11 +176,6 @@ export const ParameterCard = ({
           value={param.id}
           title={param.id}
           onChange={(e) => {
-            console.log({
-              id: e.target.value,
-              min: parameterOptions[e.target.value].min,
-              max: parameterOptions[e.target.value].max,
-            });
             dispatchScanInfoStateUpdate({
               type: "UPDATE_PARAMETER",
               index,
@@ -232,8 +227,8 @@ export const ParameterCard = ({
           slotProps={{
             input: {
               inputProps: {
-                min: parameterOptions[param.id].min,
-                max: parameterOptions[param.id].max,
+                min: parameterOptions[param.id]?.min,
+                max: parameterOptions[param.id]?.max,
               },
             },
           }}
@@ -267,8 +262,8 @@ export const ParameterCard = ({
           slotProps={{
             input: {
               inputProps: {
-                min: parameterOptions[param.id].min,
-                max: parameterOptions[param.id].max,
+                min: parameterOptions[param.id]?.min,
+                max: parameterOptions[param.id]?.max,
               },
             },
           }}

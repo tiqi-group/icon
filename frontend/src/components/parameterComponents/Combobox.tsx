@@ -8,7 +8,7 @@ import {
   Typography,
 } from "@mui/material";
 import { HelpButton } from "../HelpButtonComponent";
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback } from "react";
 
 interface ComboboxProps {
   id: string;
