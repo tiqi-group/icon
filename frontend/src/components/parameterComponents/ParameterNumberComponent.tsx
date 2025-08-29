@@ -58,7 +58,6 @@ export const ParameterNumberComponent = React.memo(
       [setError, id],
     );
 
-    console.log("something changed");
     return (
       <Input
         id={id}
