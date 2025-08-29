@@ -8,6 +8,7 @@ import {
   Typography,
 } from "@mui/material";
 import { HelpButton } from "../HelpButtonComponent";
+import React, { useCallback, useEffect } from "react";
 
 interface ComboboxProps {
   id: string;
@@ -16,36 +17,36 @@ interface ComboboxProps {
   allowedValues: string[];
 }
 
-export const Combobox = ({
-  id,
-  defaultValue,
-  displayName,
-  allowedValues,
-}: ComboboxProps) => {
-  const [value, setValue] = useParameter(id);
-  const displayValue = value ?? defaultValue;
+export const Combobox = React.memo(
+  ({ id, defaultValue, displayName, allowedValues }: ComboboxProps) => {
+    const [value, setValue] = useParameter(id);
+    const displayValue = value ?? defaultValue;
 
-  const handleChange = (event: SelectChangeEvent<string | number | boolean>) => {
-    const newValue = event.target.value;
-    updateParameterValue(id, newValue);
-    setValue(newValue);
-  };
+    const handleChange = useCallback(
+      (event: SelectChangeEvent<string | number | boolean>) => {
+        const newValue = event.target.value;
+        updateParameterValue(id, newValue);
+        setValue(newValue);
+      },
+      [id, setValue],
+    );
 
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+    return (
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <Typography noWrap>{displayName ?? id}</Typography>
-        {id && <HelpButton docString={id} />}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <Typography noWrap>{displayName ?? id}</Typography>
+          {id && <HelpButton docString={id} />}
+        </div>
+        <FormControl size="small">
+          <Select value={displayValue} onChange={handleChange}>
+            {allowedValues.map((value) => (
+              <MenuItem key={value} value={value}>
+                {value}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
       </div>
-      <FormControl size="small">
-        <Select value={displayValue} onChange={handleChange}>
-          {allowedValues.map((value) => (
-            <MenuItem key={value} value={value}>
-              {value}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-    </div>
-  );
-};
+    );
+  },
+);

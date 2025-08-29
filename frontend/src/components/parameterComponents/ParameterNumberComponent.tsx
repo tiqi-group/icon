@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { useParameter } from "../../hooks/useParameter";
 import { updateParameterValue } from "../../utils/updateParameterValue";
 import { numberValid } from "../../utils/numberValid";
@@ -44,17 +44,21 @@ export const ParameterNumberComponent = React.memo(
 
     const handleChange = (val: string) => setValue(val);
 
-    const handleBlur = (newValue: string) => {
-      const parsedValue = Number.parseFloat(newValue);
+    const handleBlur = useCallback(
+      (newValue: string) => {
+        const parsedValue = Number.parseFloat(newValue);
 
-      if (numberValid(newValue, minValue, maxValue)) {
-        updateParameterValue(id, parsedValue);
-        setError(false);
-      } else {
-        setError(true);
-      }
-    };
+        if (numberValid(newValue, minValue, maxValue)) {
+          updateParameterValue(id, parsedValue);
+          setError(false);
+        } else {
+          setError(true);
+        }
+      },
+      [setError, id],
+    );
 
+    console.log("something changed");
     return (
       <Input
         id={id}
