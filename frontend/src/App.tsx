@@ -10,7 +10,7 @@ import { runMethod } from "./socket";
 import { deserialize } from "./utils/deserializer";
 import { SerializedObject } from "./types/SerializedObject";
 import { ExperimentsContext } from "./contexts/ExperimentsContext";
-import { ExperimentDict, ParameterMetadata } from "./types/ExperimentMetadata";
+import { ExperimentDict } from "./types/ExperimentMetadata";
 import { SvgIcon } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { ParameterDisplayGroupsContext } from "./contexts/ParameterDisplayGroupsContext";
@@ -22,6 +22,7 @@ import { useDevicesSync } from "./hooks/useDevicesSync";
 import { DeviceStateContext, deviceStateReducer } from "./contexts/DeviceStateContext";
 import logo from "./assets/logo.png";
 import { useParameterStore } from "./hooks/useParameterStore";
+import { useParameterDisplayGroups } from "./hooks/useParameterDisplayGroups";
 
 const NAVIGATION: Navigation = [
   {
@@ -74,60 +75,20 @@ export const BRANDING = {
   logo: <img src={logo} alt="ICON logo" />,
 };
 
-const createNamespaceGroups = (
-  parameterMetadata: Record<string, Record<string, ParameterMetadata>>,
-) => {
-  const namespaceGroups: Record<string, string[]> = {};
-
-  // Group display groups by namespace
-  Object.keys(parameterMetadata).forEach((key) => {
-    const [namespace, groupName] = key.split(" (");
-    const cleanGroupName = groupName.replace(")", "");
-
-    if (!namespaceGroups[namespace]) {
-      namespaceGroups[namespace] = [];
-    }
-
-    namespaceGroups[namespace].push(cleanGroupName);
-  });
-
-  // Sort display groups for each namespace
-  Object.keys(namespaceGroups).forEach((namespace) => {
-    namespaceGroups[namespace].sort();
-  });
-
-  // Sort namespaces alphabetically and return a sorted object
-  return Object.fromEntries(
-    Object.entries(namespaceGroups).sort(([a], [b]) => a.localeCompare(b)),
-  );
-};
-
 export default function App() {
   const [experiments, setExperiments] = useState<ExperimentDict>({});
-  const [parameterDisplayGroups, setParameterDisplayGroups] = useState<
-    [Record<string, Record<string, ParameterMetadata>>, Record<string, string[]>]
-  >([{}, {}]);
   const [scheduledJobs, schedulerDispatch] = useReducer(reducer, {});
   const [deviceInfo, deviceInfoDispatch] = useReducer(deviceInfoReducer, {});
   const [deviceStates, deviceStateDispatch] = useReducer(deviceStateReducer, null);
   const parameterStore = useParameterStore();
+  const { parameterDisplayGroups, parameterNamespaceToDisplayGroups } =
+    useParameterDisplayGroups();
 
   useJobsSync(schedulerDispatch);
   useDevicesSync(deviceStateDispatch, deviceInfoDispatch);
   useEffect(() => {
     runMethod("experiments.get_experiments", [], {}, (ack) => {
       setExperiments(deserialize(ack as SerializedObject) as ExperimentDict);
-    });
-
-    runMethod("parameters.get_display_groups", [], {}, (ack) => {
-      const parameterDisplayGroups = deserialize(ack as SerializedObject) as Record<
-        string,
-        Record<string, ParameterMetadata>
-      >;
-      setParameterDisplayGroups([
-        parameterDisplayGroups,
-        createNamespaceGroups(parameterDisplayGroups),
-      ]);
     });
   }, []);
 
@@ -138,7 +99,12 @@ export default function App() {
           <DeviceStateContext.Provider value={deviceStates}>
             <DeviceInfoContext.Provider value={deviceInfo}>
               <JobsContext.Provider value={scheduledJobs}>
-                <ParameterDisplayGroupsContext.Provider value={parameterDisplayGroups}>
+                <ParameterDisplayGroupsContext.Provider
+                  value={{
+                    parameterDisplayGroups,
+                    parameterNamespaceToDisplayGroups,
+                  }}
+                >
                   <ExperimentsContext.Provider value={experiments}>
                     <Outlet />
                   </ExperimentsContext.Provider>
