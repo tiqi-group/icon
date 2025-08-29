@@ -227,8 +227,8 @@ export const ParameterCard = ({
           slotProps={{
             input: {
               inputProps: {
-                min: parameterOptions[param.id].min,
-                max: parameterOptions[param.id].max,
+                min: parameterOptions[param.id]?.min,
+                max: parameterOptions[param.id]?.max,
               },
             },
           }}
@@ -262,8 +262,8 @@ export const ParameterCard = ({
           slotProps={{
             input: {
               inputProps: {
-                min: parameterOptions[param.id].min,
-                max: parameterOptions[param.id].max,
+                min: parameterOptions[param.id]?.min,
+                max: parameterOptions[param.id]?.max,
               },
             },
           }}
