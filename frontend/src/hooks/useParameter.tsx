@@ -1,4 +1,4 @@
-import { useContext, useSyncExternalStore } from "react";
+import { useCallback, useContext, useSyncExternalStore } from "react";
 import { ParameterValueType } from "../types/ExperimentMetadata";
 import { ParameterStoreContext } from "../contexts/ParameterStoreContext";
 
@@ -24,5 +24,12 @@ export function useParameter(
     () => store.get(key),
   );
 
-  return [value, (v: ParameterValueType) => store.set(key, v)];
+  const setValue = useCallback(
+    (v: ParameterValueType) => {
+      store.set(key, v);
+    },
+    [store, key],
+  );
+
+  return [value, setValue];
 }

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback } from "react";
 import { updateParameterValue } from "../../utils/updateParameterValue";
 import { useParameter } from "../../hooks/useParameter";
 import { BaseButton } from "./BaseButton";
@@ -30,10 +30,13 @@ export const ButtonComponent = React.memo(
   }: ButtonComponentProps) => {
     const [value, setValue] = useParameter(id);
     const displayValue = Boolean(value ?? defaultValue);
-    const onClick = (newValue: boolean) => {
-      updateParameterValue(id, newValue);
-      setValue(newValue);
-    };
+    const onClick = useCallback(
+      (newValue: boolean) => {
+        updateParameterValue(id, newValue);
+        setValue(newValue);
+      },
+      [id, setValue],
+    );
 
     return (
       <BaseButton
