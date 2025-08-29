@@ -58,6 +58,24 @@ const createNamespaceGroups = (
   );
 };
 
+/**
+ * React hook that provides access to parameter display group metadata.
+ *
+ * This hook:
+ * - Fetches the full set of parameter display groups from the backend
+ *   using `parameters.get_display_groups`.
+ * - Subscribes to `parameters.update` socket events to refresh groups
+ *   when the backend notifies of changes.
+ * - Cleans up the socket listener automatically on unmount.
+ * - Computes a derived mapping from namespaces → display groups using
+ *   `createNamespaceGroups`.
+ *
+ * @returns An object containing:
+ *   - `parameterDisplayGroups`: the raw mapping of
+ *       { namespace+group → parameter metadata }
+ *   - `parameterNamespaceToDisplayGroups`: a derived mapping
+ *       { namespace → [display group names] }
+ */
 export function useParameterDisplayGroups(): {
   parameterDisplayGroups: GroupsByNamespace;
   parameterNamespaceToDisplayGroups: NamespaceToGroups;
