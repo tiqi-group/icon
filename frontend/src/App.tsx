@@ -5,12 +5,8 @@ import { Outlet } from "react-router";
 import { ReactRouterAppProvider } from "@toolpad/core/react-router";
 import type { Navigation } from "@toolpad/core/AppProvider";
 import { NotificationsProvider } from "@toolpad/core/useNotifications";
-import { useEffect, useReducer, useState } from "react";
-import { runMethod } from "./socket";
-import { deserialize } from "./utils/deserializer";
-import { SerializedObject } from "./types/SerializedObject";
+import { useReducer } from "react";
 import { ExperimentsContext } from "./contexts/ExperimentsContext";
-import { ExperimentDict } from "./types/ExperimentMetadata";
 import { SvgIcon } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { ParameterDisplayGroupsContext } from "./contexts/ParameterDisplayGroupsContext";
@@ -23,6 +19,7 @@ import { DeviceStateContext, deviceStateReducer } from "./contexts/DeviceStateCo
 import logo from "./assets/logo.png";
 import { useParameterStore } from "./hooks/useParameterStore";
 import { useParameterDisplayGroups } from "./hooks/useParameterDisplayGroups";
+import { useExperiments } from "./hooks/useExperiments";
 
 const NAVIGATION: Navigation = [
   {
@@ -76,21 +73,16 @@ export const BRANDING = {
 };
 
 export default function App() {
-  const [experiments, setExperiments] = useState<ExperimentDict>({});
   const [scheduledJobs, schedulerDispatch] = useReducer(reducer, {});
   const [deviceInfo, deviceInfoDispatch] = useReducer(deviceInfoReducer, {});
   const [deviceStates, deviceStateDispatch] = useReducer(deviceStateReducer, null);
   const parameterStore = useParameterStore();
   const { parameterDisplayGroups, parameterNamespaceToDisplayGroups } =
     useParameterDisplayGroups();
+  const experiments = useExperiments();
 
   useJobsSync(schedulerDispatch);
   useDevicesSync(deviceStateDispatch, deviceInfoDispatch);
-  useEffect(() => {
-    runMethod("experiments.get_experiments", [], {}, (ack) => {
-      setExperiments(deserialize(ack as SerializedObject) as ExperimentDict);
-    });
-  }, []);
 
   return (
     <ReactRouterAppProvider navigation={NAVIGATION} branding={BRANDING}>
