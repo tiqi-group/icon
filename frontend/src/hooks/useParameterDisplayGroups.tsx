@@ -73,6 +73,11 @@ export function useParameterDisplayGroups(): {
 
   useEffect(() => {
     fetchGroups();
+    socket.on("parameters.update", fetchGroups);
+
+    return () => {
+      socket.off("parameters.update", fetchGroups);
+    };
   }, []);
 
   const namespaceToGroups = createNamespaceGroups(groups);
