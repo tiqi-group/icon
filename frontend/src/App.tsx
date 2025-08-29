@@ -5,32 +5,23 @@ import { Outlet } from "react-router";
 import { ReactRouterAppProvider } from "@toolpad/core/react-router";
 import type { Navigation } from "@toolpad/core/AppProvider";
 import { NotificationsProvider } from "@toolpad/core/useNotifications";
-import { useEffect, useReducer, useRef, useState } from "react";
-import { runMethod, socket } from "./socket";
+import { useEffect, useReducer, useState } from "react";
+import { runMethod } from "./socket";
 import { deserialize } from "./utils/deserializer";
 import { SerializedObject } from "./types/SerializedObject";
 import { ExperimentsContext } from "./contexts/ExperimentsContext";
-import {
-  ExperimentDict,
-  ParameterMetadata,
-  ParameterValueType,
-} from "./types/ExperimentMetadata";
+import { ExperimentDict, ParameterMetadata } from "./types/ExperimentMetadata";
 import { SvgIcon } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { ParameterDisplayGroupsContext } from "./contexts/ParameterDisplayGroupsContext";
 import { reducer, JobsContext } from "./contexts/JobsContext";
 import { ParameterStoreProvider } from "./contexts/ParameterStoreContext";
 import { useJobsSync } from "./hooks/useJobsSync";
-import { createParameterStore } from "./stores/parmeterStore";
 import { deviceInfoReducer, DeviceInfoContext } from "./contexts/DeviceInfoContext";
 import { useDevicesSync } from "./hooks/useDevicesSync";
 import { DeviceStateContext, deviceStateReducer } from "./contexts/DeviceStateContext";
 import logo from "./assets/logo.png";
-
-interface ParameterUpdate {
-  id: string;
-  value: ParameterValueType;
-}
+import { useParameterStore } from "./hooks/useParameterStore";
 
 const NAVIGATION: Navigation = [
   {
@@ -119,24 +110,11 @@ export default function App() {
   const [scheduledJobs, schedulerDispatch] = useReducer(reducer, {});
   const [deviceInfo, deviceInfoDispatch] = useReducer(deviceInfoReducer, {});
   const [deviceStates, deviceStateDispatch] = useReducer(deviceStateReducer, null);
-  const parameterStore = useRef(createParameterStore()).current;
+  const parameterStore = useParameterStore();
 
   useJobsSync(schedulerDispatch);
   useDevicesSync(deviceStateDispatch, deviceInfoDispatch);
   useEffect(() => {
-    socket.on("parameter.update", ({ id, value }: ParameterUpdate) => {
-      parameterStore.set(id, value);
-    });
-
-    runMethod("parameters.get_all_parameters", [], {}, (ack) => {
-      const parameterMapping = deserialize(ack as SerializedObject) as Record<
-        string,
-        ParameterValueType
-      >;
-      parameterStore.bulkSet(parameterMapping);
-    });
-
-    // Fetch experiments
     runMethod("experiments.get_experiments", [], {}, (ack) => {
       setExperiments(deserialize(ack as SerializedObject) as ExperimentDict);
     });
@@ -151,10 +129,6 @@ export default function App() {
         createNamespaceGroups(parameterDisplayGroups),
       ]);
     });
-
-    return () => {
-      socket.off("parameter.update");
-    };
   }, []);
 
   return (
