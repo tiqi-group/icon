@@ -26,6 +26,7 @@ import { deviceInfoReducer, DeviceInfoContext } from "./contexts/DeviceInfoConte
 import { useDevicesSync } from "./hooks/useDevicesSync";
 import { DeviceStateContext, deviceStateReducer } from "./contexts/DeviceStateContext";
 import logo from "./assets/logo.png";
+import { useParameterStore } from "./hooks/useParameterStore";
 
 interface ParameterUpdate {
   id: string;
@@ -119,24 +120,11 @@ export default function App() {
   const [scheduledJobs, schedulerDispatch] = useReducer(reducer, {});
   const [deviceInfo, deviceInfoDispatch] = useReducer(deviceInfoReducer, {});
   const [deviceStates, deviceStateDispatch] = useReducer(deviceStateReducer, null);
-  const parameterStore = useRef(createParameterStore()).current;
+  const parameterStore = useParameterStore();
 
   useJobsSync(schedulerDispatch);
   useDevicesSync(deviceStateDispatch, deviceInfoDispatch);
   useEffect(() => {
-    socket.on("parameter.update", ({ id, value }: ParameterUpdate) => {
-      parameterStore.set(id, value);
-    });
-
-    runMethod("parameters.get_all_parameters", [], {}, (ack) => {
-      const parameterMapping = deserialize(ack as SerializedObject) as Record<
-        string,
-        ParameterValueType
-      >;
-      parameterStore.bulkSet(parameterMapping);
-    });
-
-    // Fetch experiments
     runMethod("experiments.get_experiments", [], {}, (ack) => {
       setExperiments(deserialize(ack as SerializedObject) as ExperimentDict);
     });
@@ -151,10 +139,6 @@ export default function App() {
         createNamespaceGroups(parameterDisplayGroups),
       ]);
     });
-
-    return () => {
-      socket.off("parameter.update");
-    };
   }, []);
 
   return (
