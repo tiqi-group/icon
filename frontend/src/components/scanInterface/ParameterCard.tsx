@@ -14,8 +14,6 @@ import { useScanContext } from "../../hooks/useScanContext";
 import { ScanParameterInfo } from "../../types/ScanParameterInfo";
 import { ParameterDisplayGroupsContext } from "../../contexts/ParameterDisplayGroupsContext";
 import { DeviceInfoContext } from "../../contexts/DeviceInfoContext";
-import { ParameterMetadataContext } from "../../contexts/ParameterMetadataContext";
-import { ParameterMetadata } from "../../types/ExperimentMetadata";
 
 const generateScanValues = (
   start: number,
@@ -38,18 +36,6 @@ export const ParameterCard = ({
   index: number;
 }) => {
   const { dispatchScanInfoStateUpdate } = useScanContext();
-  const parameterMetadata = useContext(ParameterMetadataContext);
-  let min = -Infinity;
-  let max = Infinity;
-
-  let metadata: ParameterMetadata | undefined = undefined;
-  if (param.namespace != "Devices" && param.id !== "")
-    metadata = parameterMetadata[param.id];
-
-  if (metadata != undefined) {
-    min = metadata.min_value ?? -Infinity;
-    max = metadata.max_value ?? Infinity;
-  }
 
   const [parameterDisplayGroups, parameterNamespaceToDisplayGroup] = useContext(
     ParameterDisplayGroupsContext,
@@ -75,7 +61,14 @@ export const ParameterCard = ({
       return Object.fromEntries(
         device.scannable_params.map((paramId) => {
           const shortId = paramId.slice(prefixLength);
-          return [shortId, shortId];
+          return [
+            shortId,
+            {
+              displayName: shortId,
+              min: null,
+              max: null,
+            },
+          ];
         }),
       );
     }
@@ -83,7 +76,14 @@ export const ParameterCard = ({
     const key = `${param.namespace} (${groupKey})`;
     const group = parameterDisplayGroups[key] || {};
     return Object.fromEntries(
-      Object.entries(group).map(([paramId, meta]) => [paramId, meta.display_name]),
+      Object.entries(group).map(([paramId, meta]) => [
+        paramId,
+        {
+          displayName: meta.display_name,
+          min: meta.min_value,
+          max: meta.max_value,
+        },
+      ]),
     );
   }, [param, parameterDisplayGroups, deviceInfo]);
 
@@ -176,6 +176,11 @@ export const ParameterCard = ({
           value={param.id}
           title={param.id}
           onChange={(e) => {
+            console.log({
+              id: e.target.value,
+              min: parameterOptions[e.target.value].min,
+              max: parameterOptions[e.target.value].max,
+            });
             dispatchScanInfoStateUpdate({
               type: "UPDATE_PARAMETER",
               index,
@@ -183,16 +188,16 @@ export const ParameterCard = ({
             });
           }}
           renderValue={(value) => {
-            const selectedDisplayName = parameterOptions[value];
+            const selectedDisplayName = parameterOptions[value]?.displayName;
             if (selectedDisplayName === undefined) return value;
             return selectedDisplayName.length > 30
               ? selectedDisplayName.slice(0, 30) + "..."
               : selectedDisplayName;
           }}
         >
-          {Object.entries(parameterOptions).map(([paramId, displayName]) => (
+          {Object.entries(parameterOptions).map(([paramId, metadata]) => (
             <MenuItem key={paramId} value={paramId} title={paramId}>
-              {displayName}
+              {metadata.displayName}
             </MenuItem>
           ))}
         </Select>
@@ -227,8 +232,8 @@ export const ParameterCard = ({
           slotProps={{
             input: {
               inputProps: {
-                min,
-                max,
+                min: parameterOptions[param.id].min,
+                max: parameterOptions[param.id].max,
               },
             },
           }}
@@ -262,8 +267,8 @@ export const ParameterCard = ({
           slotProps={{
             input: {
               inputProps: {
-                min,
-                max,
+                min: parameterOptions[param.id].min,
+                max: parameterOptions[param.id].max,
               },
             },
           }}

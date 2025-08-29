@@ -17,7 +17,6 @@ import {
 } from "./types/ExperimentMetadata";
 import { SvgIcon } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
-import { ParameterMetadataContext } from "./contexts/ParameterMetadataContext";
 import { ParameterDisplayGroupsContext } from "./contexts/ParameterDisplayGroupsContext";
 import { reducer, JobsContext } from "./contexts/JobsContext";
 import { ParameterStoreProvider } from "./contexts/ParameterStoreContext";
@@ -117,9 +116,6 @@ export default function App() {
   const [parameterDisplayGroups, setParameterDisplayGroups] = useState<
     [Record<string, Record<string, ParameterMetadata>>, Record<string, string[]>]
   >([{}, {}]);
-  const [parameterMetadata, setParameterMetadata] = useState<
-    Record<string, ParameterMetadata>
-  >({});
   const [scheduledJobs, schedulerDispatch] = useReducer(reducer, {});
   const [deviceInfo, deviceInfoDispatch] = useReducer(deviceInfoReducer, {});
   const [deviceStates, deviceStateDispatch] = useReducer(deviceStateReducer, null);
@@ -145,14 +141,6 @@ export default function App() {
       setExperiments(deserialize(ack as SerializedObject) as ExperimentDict);
     });
 
-    runMethod("parameters.get_parameter_metadata", [], {}, (ack) => {
-      const parameterMetadata = deserialize(ack as SerializedObject) as Record<
-        string,
-        ParameterMetadata
-      >;
-      setParameterMetadata(parameterMetadata);
-    });
-
     runMethod("parameters.get_display_groups", [], {}, (ack) => {
       const parameterDisplayGroups = deserialize(ack as SerializedObject) as Record<
         string,
@@ -176,15 +164,11 @@ export default function App() {
           <DeviceStateContext.Provider value={deviceStates}>
             <DeviceInfoContext.Provider value={deviceInfo}>
               <JobsContext.Provider value={scheduledJobs}>
-                <ParameterMetadataContext.Provider value={parameterMetadata}>
-                  <ParameterDisplayGroupsContext.Provider
-                    value={parameterDisplayGroups}
-                  >
-                    <ExperimentsContext.Provider value={experiments}>
-                      <Outlet />
-                    </ExperimentsContext.Provider>
-                  </ParameterDisplayGroupsContext.Provider>
-                </ParameterMetadataContext.Provider>
+                <ParameterDisplayGroupsContext.Provider value={parameterDisplayGroups}>
+                  <ExperimentsContext.Provider value={experiments}>
+                    <Outlet />
+                  </ExperimentsContext.Provider>
+                </ParameterDisplayGroupsContext.Provider>
               </JobsContext.Provider>
             </DeviceInfoContext.Provider>
           </DeviceStateContext.Provider>
