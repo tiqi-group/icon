@@ -67,7 +67,7 @@ export const ParameterGroupDisplay = ({
         gridTemplateColumns,
       }}
     >
-      {sortedParameters.map(([paramId]) => {
+      {sortedParameters.map(([paramId, paramMetadata]) => {
         const scanIndex = getScanIndex(paramId, scannedParamKeys);
 
         if (paramId.includes("param_type='ParameterTypes.BOOLEAN'")) {
@@ -77,6 +77,8 @@ export const ParameterGroupDisplay = ({
               scanIndex={scanIndex}
               key={paramId}
               id={paramId}
+              displayName={paramMetadata.display_name}
+              defaultValue={Boolean(paramMetadata.default_value)}
               namespace={
                 namespace === undefined
                   ? experimentKey === undefined
@@ -94,7 +96,15 @@ export const ParameterGroupDisplay = ({
             />
           );
         } else if (paramId.includes("param_type='ParameterTypes.ENUM'")) {
-          return <Combobox key={paramId} id={paramId} />;
+          return (
+            <Combobox
+              key={paramId}
+              id={paramId}
+              defaultValue={String(paramMetadata.default_value)}
+              displayName={paramMetadata.display_name}
+              allowedValues={paramMetadata.allowed_values!}
+            />
+          );
         } else {
           return (
             <ParameterNumberComponent
@@ -102,6 +112,11 @@ export const ParameterGroupDisplay = ({
               scanIndex={scanIndex}
               key={paramId}
               id={paramId}
+              displayName={paramMetadata.display_name}
+              defaultValue={String(paramMetadata.default_value)}
+              min={paramMetadata?.min_value}
+              max={paramMetadata?.max_value}
+              unit={paramMetadata?.unit}
               namespace={
                 namespace === undefined
                   ? experimentKey === undefined

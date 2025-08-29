@@ -1,6 +1,5 @@
-import React, { useContext, useState } from "react";
+import React, { useState } from "react";
 import { useParameter } from "../../hooks/useParameter";
-import { ParameterMetadataContext } from "../../contexts/ParameterMetadataContext";
 import { updateParameterValue } from "../../utils/updateParameterValue";
 import { numberValid } from "../../utils/numberValid";
 import { Input } from "./Input";
@@ -10,6 +9,11 @@ interface Props {
   namespace: string;
   displayGroup: string;
   scanIndex: number | null;
+  defaultValue: string;
+  displayName: string;
+  min?: number | null;
+  max?: number | null;
+  unit?: string;
   onContextMenu?: (
     event: React.MouseEvent<HTMLDivElement | HTMLButtonElement>,
     paramId: string,
@@ -19,14 +23,24 @@ interface Props {
 }
 
 export const ParameterNumberComponent = React.memo(
-  ({ id, namespace, displayGroup, scanIndex, onContextMenu }: Props) => {
-    const parameterMetadata = useContext(ParameterMetadataContext);
+  ({
+    id,
+    namespace,
+    displayGroup,
+    scanIndex,
+    defaultValue,
+    displayName,
+    min,
+    max,
+    unit,
+    onContextMenu,
+  }: Props) => {
     const [value, setValue] = useParameter(id);
     const [error, setError] = useState(false);
 
-    const displayValue = String(value ?? parameterMetadata[id]?.default_value ?? "0");
-    const minValue = parameterMetadata[id]?.min_value ?? Number.NEGATIVE_INFINITY;
-    const maxValue = parameterMetadata[id]?.max_value ?? Number.POSITIVE_INFINITY;
+    const displayValue = String(value ?? defaultValue);
+    const minValue = min ?? Number.NEGATIVE_INFINITY;
+    const maxValue = max ?? Number.POSITIVE_INFINITY;
 
     const handleChange = (val: string) => setValue(val);
 
@@ -44,9 +58,9 @@ export const ParameterNumberComponent = React.memo(
     return (
       <Input
         id={id}
-        label={parameterMetadata[id]?.display_name}
+        label={displayName}
         type="number"
-        unit={parameterMetadata[id]?.unit}
+        unit={unit}
         value={displayValue}
         min={minValue}
         max={maxValue}

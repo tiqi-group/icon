@@ -1,5 +1,4 @@
-import React, { useContext } from "react";
-import { ParameterMetadataContext } from "../../contexts/ParameterMetadataContext";
+import React from "react";
 import { updateParameterValue } from "../../utils/updateParameterValue";
 import { useParameter } from "../../hooks/useParameter";
 import { BaseButton } from "./BaseButton";
@@ -9,6 +8,8 @@ interface ButtonComponentProps {
   namespace: string;
   displayGroup: string;
   scanIndex: number | null;
+  displayName: string;
+  defaultValue: boolean;
   onContextMenu?: (
     event: React.MouseEvent<HTMLDivElement | HTMLButtonElement>,
     paramId: string,
@@ -18,14 +19,17 @@ interface ButtonComponentProps {
 }
 
 export const ButtonComponent = React.memo(
-  ({ id, namespace, displayGroup, scanIndex, onContextMenu }: ButtonComponentProps) => {
-    const parameterMetadata = useContext(ParameterMetadataContext);
-
-    const displayName = parameterMetadata[id]?.display_name ?? id;
+  ({
+    id,
+    namespace,
+    displayGroup,
+    scanIndex,
+    displayName,
+    defaultValue,
+    onContextMenu,
+  }: ButtonComponentProps) => {
     const [value, setValue] = useParameter(id);
-    const displayValue = Boolean(
-      value ?? parameterMetadata[id]?.default_value ?? false,
-    );
+    const displayValue = Boolean(value ?? defaultValue);
     const onClick = (newValue: boolean) => {
       updateParameterValue(id, newValue);
       setValue(newValue);

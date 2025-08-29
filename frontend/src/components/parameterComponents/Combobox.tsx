@@ -1,7 +1,5 @@
-import { useContext } from "react";
 import { useParameter } from "../../hooks/useParameter";
 import { updateParameterValue } from "../../utils/updateParameterValue";
-import { ParameterMetadataContext } from "../../contexts/ParameterMetadataContext";
 import {
   FormControl,
   MenuItem,
@@ -13,15 +11,19 @@ import { HelpButton } from "../HelpButtonComponent";
 
 interface ComboboxProps {
   id: string;
+  defaultValue: string;
+  displayName: string;
+  allowedValues: string[];
 }
 
-export const Combobox = ({ id }: ComboboxProps) => {
-  const parameterMetadata = useContext(ParameterMetadataContext);
-
-  const displayName = parameterMetadata[id]?.display_name ?? id;
-  const allowedValues = parameterMetadata[id].allowed_values!;
+export const Combobox = ({
+  id,
+  defaultValue,
+  displayName,
+  allowedValues,
+}: ComboboxProps) => {
   const [value, setValue] = useParameter(id);
-  const displayValue = value ?? parameterMetadata[id]?.default_value ?? "";
+  const displayValue = value ?? defaultValue;
 
   const handleChange = (event: SelectChangeEvent<string | number | boolean>) => {
     const newValue = event.target.value;
@@ -32,7 +34,7 @@ export const Combobox = ({ id }: ComboboxProps) => {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <Typography noWrap>{displayName}</Typography>
+        <Typography noWrap>{displayName ?? id}</Typography>
         {id && <HelpButton docString={id} />}
       </div>
       <FormControl size="small">
