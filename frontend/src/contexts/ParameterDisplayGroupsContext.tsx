@@ -1,6 +1,13 @@
 import { createContext } from "react";
-import { ParameterMetadata } from "../types/ExperimentMetadata";
+import {
+  GroupsByNamespace,
+  NamespaceToGroups,
+} from "../hooks/useParameterDisplayGroups";
 
-export const ParameterDisplayGroupsContext = createContext<
-  [Record<string, Record<string, ParameterMetadata>>, Record<string, string[]>]
->([{}, {}]);
+export const ParameterDisplayGroupsContext = createContext<{
+  parameterDisplayGroups: GroupsByNamespace;
+  parameterNamespaceToDisplayGroups: NamespaceToGroups;
+}>({
+  parameterDisplayGroups: {},
+  parameterNamespaceToDisplayGroups: {},
+});

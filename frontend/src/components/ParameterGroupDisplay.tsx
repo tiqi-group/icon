@@ -30,7 +30,7 @@ export const ParameterGroupDisplay = ({
   const gridTemplateColumns = useResponsiveGridColumns();
 
   const experiments = useContext(ExperimentsContext);
-  const [parameterDisplayGroups] = useContext(ParameterDisplayGroupsContext);
+  const { parameterDisplayGroups } = useContext(ParameterDisplayGroupsContext);
 
   // Determine parameters based on props
   const parameters = useMemo(() => {

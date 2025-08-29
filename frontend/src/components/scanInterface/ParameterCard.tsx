@@ -37,12 +37,12 @@ export const ParameterCard = ({
 }) => {
   const { dispatchScanInfoStateUpdate } = useScanContext();
 
-  const [parameterDisplayGroups, parameterNamespaceToDisplayGroup] = useContext(
+  const { parameterDisplayGroups, parameterNamespaceToDisplayGroups } = useContext(
     ParameterDisplayGroupsContext,
   );
   const deviceInfo = useContext(DeviceInfoContext);
   const parameterSources: Record<string, string[]> = {
-    ...parameterNamespaceToDisplayGroup,
+    ...parameterNamespaceToDisplayGroups,
     Devices: Object.keys(deviceInfo),
   };
 

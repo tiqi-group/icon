@@ -17,38 +17,41 @@ const getDisplayNameFromNamespace = (namespace: string): string => {
 };
 
 const ParameterPage = () => {
-  const [, namespaceGroups] = useContext(ParameterDisplayGroupsContext);
+  const { parameterNamespaceToDisplayGroups: parameterNamespaceToDisplayGroups } =
+    useContext(ParameterDisplayGroupsContext);
 
   return (
     <>
-      {Object.entries(namespaceGroups).map(([namespace, displayGroupList]) => (
-        <Accordion
-          key={namespace}
-          disableGutters
-          sx={{ "&:before": { display: "none" } }}
-        >
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <div>
-              <Typography variant="h5">
-                {getDisplayNameFromNamespace(namespace)}
-              </Typography>
-              <Typography variant="body2">{namespace}</Typography>
-            </div>
-          </AccordionSummary>
-          <AccordionDetails>
-            {displayGroupList.map((displayGroup, index) => (
-              <div key={namespace + " (" + displayGroup + ")"}>
-                <Typography variant="h6">{displayGroup}</Typography>
-                <ParameterGroupDisplay
-                  namespace={namespace}
-                  displayGroup={displayGroup}
-                />
-                {index < displayGroupList.length - 1 && <Divider sx={{ pt: 2 }} />}
+      {Object.entries(parameterNamespaceToDisplayGroups).map(
+        ([namespace, displayGroupList]) => (
+          <Accordion
+            key={namespace}
+            disableGutters
+            sx={{ "&:before": { display: "none" } }}
+          >
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <div>
+                <Typography variant="h5">
+                  {getDisplayNameFromNamespace(namespace)}
+                </Typography>
+                <Typography variant="body2">{namespace}</Typography>
               </div>
-            ))}
-          </AccordionDetails>
-        </Accordion>
-      ))}
+            </AccordionSummary>
+            <AccordionDetails>
+              {displayGroupList.map((displayGroup, index) => (
+                <div key={namespace + " (" + displayGroup + ")"}>
+                  <Typography variant="h6">{displayGroup}</Typography>
+                  <ParameterGroupDisplay
+                    namespace={namespace}
+                    displayGroup={displayGroup}
+                  />
+                  {index < displayGroupList.length - 1 && <Divider sx={{ pt: 2 }} />}
+                </div>
+              ))}
+            </AccordionDetails>
+          </Accordion>
+        ),
+      )}
     </>
   );
 };
