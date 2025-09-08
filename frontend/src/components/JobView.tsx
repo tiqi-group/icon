@@ -156,7 +156,7 @@ export const JobView = ({
             <Card>
               <CardContent sx={{ padding: 1 }}>
                 <div style={{ display: "flex", alignItems: "center" }}>
-                  {!expandedShotChannels[win.name] && (
+                  {expandedShotChannels[win.name] === false && (
                     <Typography variant="h6">{win.name}</Typography>
                   )}
                   <div style={{ flexGrow: 1 }} />
