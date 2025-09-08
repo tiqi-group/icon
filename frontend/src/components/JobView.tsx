@@ -222,6 +222,9 @@ export const JobView = ({
                       jobRunInfo?.scheduled_time,
                       experimentMetadata?.constructor_kwargs.name,
                     )}
+                    repetitions={jobInfo?.repetitions}
+                    showRepetitions={true}
+                    scanParameters={jobInfo?.scan_parameters}
                   />
                 )}
               </CardContent>

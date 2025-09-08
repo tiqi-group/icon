@@ -5,6 +5,8 @@ import { EChartsOption } from "echarts";
 import type { ECharts } from "echarts/core";
 import { useNotifications } from "@toolpad/core";
 import { copyEChartsToClipboard } from "../utils/copyEChartsToClipboard";
+import { ScanParameter } from "../types/ScanParameter";
+import { buildResultChannelChartSeries } from "../utils/buildResultChannelChartSeries";
 
 interface ResultChannelPlotProps {
   experimentData: ExperimentData;
@@ -12,6 +14,9 @@ interface ResultChannelPlotProps {
   title: string;
   subtitle: string;
   channelNames: string[];
+  repetitions: number | undefined;
+  showRepetitions: boolean;
+  scanParameters: ScanParameter[] | undefined;
 }
 
 const formatAxisLabel = (value: string): string => {
@@ -25,6 +30,9 @@ const ResultChannelPlot = ({
   title,
   subtitle,
   channelNames,
+  repetitions = 1,
+  showRepetitions = false,
+  scanParameters = [],
 }: ResultChannelPlotProps) => {
   const chartRef = useRef<ECharts | null>(null);
   const notifications = useNotifications();
@@ -35,12 +43,11 @@ const ResultChannelPlot = ({
 
     const scanParams = Object.entries(experimentData.scan_parameters);
     const scanInfo = scanParams.map(([param, values]) => ({
-      parameter_name: param,
-      scan_interval: Object.values(values) as string[] | number[],
+      name: param,
+      scanValues: Object.values(values) as string[] | number[],
     }));
 
-    const timestampEntry = scanInfo.find((p) => p.parameter_name === "timestamp");
-    const scanParamsOnly = scanInfo.filter((p) => p.parameter_name !== "timestamp");
+    const timestampEntry = scanInfo.find((param) => param.name === "timestamp");
 
     const resultChannels = Object.entries(experimentData.result_channels)
       .filter(([name]) => channelNames.includes(name))
@@ -49,7 +56,6 @@ const ResultChannelPlot = ({
         data: Object.values(data),
       }));
 
-    const resultChannelNames = resultChannels.map(({ name }) => name);
     let xAxisData: string[] | number[];
     const xAxis: EChartsOption["xAxis"] = {
       nameLocation: "middle",
@@ -75,10 +81,10 @@ const ResultChannelPlot = ({
     };
     let chartSeries: EChartsOption["series"] = [];
 
-    if (scanParamsOnly.length === 0 && timestampEntry) {
+    if (scanParameters.length === 0 && timestampEntry) {
       xAxis.type = "time";
       xAxis.name = "Time";
-      xAxisData = timestampEntry.scan_interval as string[];
+      xAxisData = timestampEntry.scanValues as string[];
 
       const fullDataSet = xAxisData.map((xVal, index) => [
         xVal,
@@ -94,52 +100,41 @@ const ResultChannelPlot = ({
         data: fullDataSet,
         showSymbol: false,
       }));
-    } else if (scanParamsOnly.length === 1 && timestampEntry) {
-      xAxisData = scanParamsOnly[0].scan_interval as number[];
+    } else if (scanParameters.length === 1) {
+      xAxisData = scanParameters[0].scan_values;
 
-      xAxis.name = scanParamsOnly[0].parameter_name;
+      xAxis.name = scanParameters[0].variable_id;
       // @ts-expect-error Type hint of ECharts is wrong
       xAxis.axisLabel = { formatter: formatAxisLabel };
 
-      const fullDataSet = xAxisData.map((xVal, index) => [
-        xVal,
-        ...resultChannels.map((ch) => ch.data[index]),
-      ]);
-
-      chartSeries = resultChannels.map((channel, index) => ({
-        name: channel.name,
-        type: "line",
-        clip: true,
-        sampling: "lttb",
-        encode: { x: 0, y: index + 1 },
-        data: fullDataSet,
-        showSymbol: true,
-      }));
-    } else if (scanParamsOnly.length === 2) {
-      const [xScan, yScan] = scanParamsOnly;
+      chartSeries = buildResultChannelChartSeries(
+        xAxisData,
+        resultChannels,
+        repetitions,
+        showRepetitions,
+      );
+    } else if (scanParameters.length === 2) {
+      const [xScan, yScan] = scanParameters;
       const resultChannel = resultChannels.at(-1);
       if (!resultChannel) return;
 
-      const data: [number | string, number | string, number][] =
-        xScan.scan_interval.map((x, i) => [
-          x,
-          yScan.scan_interval[i],
-          resultChannel.data[i],
-        ]);
+      const data: [number | string, number | string, number][] = xScan.scan_values.map(
+        (x, i) => [x, yScan.scan_values[i], resultChannel.data[i]],
+      );
 
       return {
         tooltip: {},
         xAxis: {
           type: "category",
           axisLabel: { formatter: formatAxisLabel },
-          name: xScan.parameter_name,
+          name: xScan.variable_id,
           nameLocation: "middle",
           nameGap: 25,
         },
         yAxis: {
           type: "category",
           axisLabel: { formatter: formatAxisLabel },
-          name: yScan.parameter_name,
+          name: yScan.variable_id,
           nameLocation: "middle",
           nameGap: 45,
         },
@@ -188,7 +183,6 @@ const ResultChannelPlot = ({
       },
       animation: false,
       legend: {
-        data: resultChannelNames,
         top: 40,
         left: "right",
       },
@@ -203,7 +197,7 @@ const ResultChannelPlot = ({
       yAxis,
       series: chartSeries,
     };
-  }, [experimentData, title, subtitle]);
+  }, [experimentData, title, subtitle, scanParameters, repetitions, showRepetitions]);
 
   return (
     <>
