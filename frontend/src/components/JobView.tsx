@@ -1,4 +1,12 @@
-import { Button, Card, CardContent, Grid, Typography, IconButton } from "@mui/material";
+import {
+  Button,
+  Card,
+  CardContent,
+  Grid,
+  Typography,
+  IconButton,
+  Switch,
+} from "@mui/material";
 import { useExperimentData } from "../hooks/useExperimentData";
 import ResultChannelPlot from "../components/ResultChannelPlot";
 import { useEffect, useState } from "react";
@@ -34,6 +42,11 @@ export const JobView = ({
   const jobInfo = useJobInfo(jobId);
   const jobRunInfo = useJobRunInfo(jobId);
   const { experimentData, experimentDataError, loading } = useExperimentData(jobId);
+
+  const [showRepetitions, setShowRepetitions] = useState<boolean>(() => {
+    const v = localStorage.getItem("showRepetitions");
+    return v ? JSON.parse(v) : false;
+  });
 
   // States to track whether the plot sections are expanded or collapsed
   const [expandedShotChannels, setExpandedShotChannels] = useState<
@@ -99,6 +112,10 @@ export const JobView = ({
   }, [jobInfo]);
 
   useEffect(() => {
+    localStorage.setItem("showRepetitions", JSON.stringify(showRepetitions));
+  }, [showRepetitions]);
+
+  useEffect(() => {
     if (!loading && !experimentDataError && onLoaded) {
       onLoaded();
     }
@@ -147,6 +164,13 @@ export const JobView = ({
                 )}
               </Typography>
               <Typography variant="body1">{jobInfo?.status}</Typography>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <Typography variant="body2">Show repetitions</Typography>
+                <Switch
+                  checked={showRepetitions}
+                  onChange={(_, v) => setShowRepetitions(v)}
+                />
+              </div>
             </CardContent>
           </Card>
         </Grid>
@@ -223,7 +247,7 @@ export const JobView = ({
                       experimentMetadata?.constructor_kwargs.name,
                     )}
                     repetitions={jobInfo?.repetitions}
-                    showRepetitions={true}
+                    showRepetitions={showRepetitions}
                     scanParameters={jobInfo?.scan_parameters}
                   />
                 )}
