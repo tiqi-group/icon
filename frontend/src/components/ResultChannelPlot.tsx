@@ -24,10 +24,14 @@ const formatAxisLabel = (value: string): string => {
   return isNaN(num) ? value : num.toFixed(3);
 };
 
-function updateVisualMap(chart: ECharts, selectedChannelName: string | null) {
+function updateVisualMap(chart: ECharts, selectedChannelName: string | undefined) {
   const opt = chart.getOption();
 
-  if (!selectedChannelName) return;
+  if (!selectedChannelName)
+    selectedChannelName = Object.entries(
+      // @ts-expect-error Type hint of ECharts is wrong
+      opt.legend[0].selected as Record<string, boolean>,
+    ).find(([, v]) => v)?.[0];
 
   // @ts-expect-error Type hint of ECharts is wrong
   const s = opt.series.find((ss) => ss.name === selectedChannelName);
@@ -65,7 +69,7 @@ const ResultChannelPlot = ({
   const [chart, setChart] = useState<ECharts | null>(null);
   const notifications = useNotifications();
 
-  const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
+  const [selectedChannel, setSelectedChannel] = useState<string | undefined>(undefined);
 
   const is1D = scanParameters.length === 1;
 
