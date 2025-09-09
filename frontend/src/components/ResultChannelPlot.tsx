@@ -269,14 +269,14 @@ const ResultChannelPlot = ({
     [setChart],
   );
 
-  // Update the visual map (min, max) for 2D scans when selecting a channel through the
-  // legend
   useEffect(() => {
-    if (!is2D) return;
-    if (!chart) return;
+    if (!is2D || !chart) return;
 
-    // run once on mount
     updateVisualMap(chart, selectedChannel);
+  }, [option, chart]);
+
+  useEffect(() => {
+    if (!is2D || !chart) return;
 
     // @ts-expect-error Typing is incorrect
     chart.on("legendselectchanged", (e: { name: string }) => {
