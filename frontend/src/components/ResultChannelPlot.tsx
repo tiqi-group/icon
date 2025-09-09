@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { ExperimentData } from "../types/ExperimentData";
 import { ReactECharts, ReactEChartsProps } from "./ReactEcharts";
 import { EChartsOption } from "echarts";
@@ -23,6 +23,33 @@ const formatAxisLabel = (value: string): string => {
   const num = parseFloat(value);
   return isNaN(num) ? value : num.toFixed(3);
 };
+
+function updateVisualMap(chart: ECharts) {
+  const opt = chart.getOption();
+
+  const selectedChannelName = Object.entries(
+    // @ts-expect-error Type hint of ECharts is wrong
+    opt.legend[0].selected as Record<string, boolean>,
+  ).find(([, v]) => v)?.[0];
+  if (!selectedChannelName) return;
+
+  // @ts-expect-error Type hint of ECharts is wrong
+  const s = opt.series.find((ss) => ss.name === selectedChannelName);
+  if (!s || !s.data) return;
+
+  const channelValues = (s.data as [number, number, number][])
+    .map((d) => d[2])
+    .filter((v: number) => Number.isFinite(v));
+
+  if (!channelValues.length) return;
+
+  const min = Math.min(...channelValues);
+  const max = Math.max(...channelValues);
+
+  chart.setOption({
+    visualMap: [{ min, max }],
+  });
+}
 
 const ResultChannelPlot = ({
   experimentData,
@@ -115,21 +142,51 @@ const ResultChannelPlot = ({
       );
     } else if (scanParameters.length === 2) {
       const [xScan, yScan] = scanParameters;
-      const resultChannel = resultChannels.at(-1);
-      if (!resultChannel) return;
+      const series = [];
 
-      const data: [number | string, number | string, number][] = [];
-      for (let i = 0; i < xScan.scan_values.length; i++) {
-        for (let j = 0; j < yScan.scan_values.length; j++) {
-          data.push([
-            xScan.scan_values[i],
-            yScan.scan_values[j],
-            resultChannel.data[i * yScan.scan_values.length + j],
-          ]);
+      for (const resultChannel of resultChannels) {
+        const data: [number | string, number | string, number][] = [];
+        for (let i = 0; i < xScan.scan_values.length; i++) {
+          for (let j = 0; j < yScan.scan_values.length; j++) {
+            data.push([
+              xScan.scan_values[i],
+              yScan.scan_values[j],
+              resultChannel.data[i * yScan.scan_values.length + j],
+            ]);
+          }
         }
+
+        series.push({
+          name: resultChannel.name,
+          type: "heatmap",
+          data,
+          emphasis: { itemStyle: { borderColor: "#333", borderWidth: 1 } },
+          animation: false,
+        });
       }
 
       return {
+        title: {
+          text: title,
+          left: "center",
+          subtext: subtitle,
+          subtextStyle: {
+            lineHeight: 0,
+          },
+          top: "-1%",
+        },
+        legend: {
+          selectedMode: "single",
+          left: "right",
+          top: 40,
+        },
+        grid: {
+          left: 30,
+          right: 40,
+          bottom: 20,
+          top: 70,
+          containLabel: true,
+        },
         tooltip: {},
         xAxis: {
           type: "category",
@@ -145,20 +202,10 @@ const ResultChannelPlot = ({
           nameLocation: "middle",
           nameGap: 45,
         },
-        series: [
-          {
-            name: resultChannel.name,
-            type: "heatmap",
-            data,
-            emphasis: { itemStyle: { borderColor: "#333", borderWidth: 1 } },
-            progressive: 1000,
-            animation: false,
-          },
-        ],
+        series,
         visualMap: {
           left: "right",
-          min: Math.min(...resultChannel.data),
-          max: Math.max(1, ...resultChannel.data),
+          bottom: 30,
           inRange: { color: ["#313695", "#1483d5", "#73bf7f", "#fcbe3d", "#ffff00"] },
         },
       };
@@ -205,6 +252,22 @@ const ResultChannelPlot = ({
       series: chartSeries,
     };
   }, [experimentData, title, subtitle, scanParameters, repetitions, showRepetitions]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+
+    // run once on mount
+    updateVisualMap(chart);
+
+    // run on legend toggle
+    chart.on("legendselectchanged", () => updateVisualMap(chart));
+
+    // optional: cleanup
+    return () => {
+      chart.off("legendselectchanged");
+    };
+  }, [chartRef.current]);
 
   return (
     <>
