@@ -71,7 +71,7 @@ const ResultChannelPlot = ({
 
   const [selectedChannel, setSelectedChannel] = useState<string | undefined>(undefined);
 
-  const is1D = scanParameters.length === 1;
+  const is2D = scanParameters.length === 2;
 
   const option = useMemo<ReactEChartsProps["option"] | undefined>(() => {
     if (!experimentData || Object.keys(experimentData.scan_parameters).length === 0)
@@ -272,7 +272,7 @@ const ResultChannelPlot = ({
   // Update the visual map (min, max) for 2D scans when selecting a channel through the
   // legend
   useEffect(() => {
-    if (is1D) return;
+    if (!is2D) return;
     if (!chart) return;
 
     // run once on mount
