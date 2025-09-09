@@ -2,17 +2,17 @@ import { ShowNotification } from "@toolpad/core";
 import type { ECharts } from "echarts/core";
 
 export async function copyEChartsToClipboard(
-  chartRef: React.RefObject<ECharts | null>,
+  chart: ECharts | null,
   showNotification: ShowNotification,
 ) {
-  if (!chartRef.current) return;
+  if (!chart) return;
 
-  const originalToolbox = chartRef.current.getOption().toolbox;
-  chartRef.current.setOption({ toolbox: { show: false } });
+  const originalToolbox = chart.getOption().toolbox;
+  chart.setOption({ toolbox: { show: false } });
 
-  const dataUrl = chartRef.current.getDataURL({ pixelRatio: 2 });
+  const dataUrl = chart.getDataURL({ pixelRatio: 2 });
 
-  chartRef.current.setOption({ toolbox: originalToolbox });
+  chart.setOption({ toolbox: originalToolbox });
 
   const res = await fetch(dataUrl);
   const blob = await res.blob();

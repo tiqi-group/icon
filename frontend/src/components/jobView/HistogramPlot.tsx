@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ECharts } from "echarts/core";
 import { ReactECharts } from "../ReactEcharts";
 import { ExperimentData } from "../../types/ExperimentData";
@@ -21,7 +21,7 @@ export const HistogramPlot = ({
   loading,
   channelNames,
 }: HistogramPlotProps) => {
-  const chartRef = useRef<ECharts | null>(null);
+  const [chart, setChart] = useState<ECharts | null>(null);
   const notifications = useNotifications();
 
   const latestPerChannel: Record<string, number[]> = {};
@@ -81,7 +81,7 @@ export const HistogramPlot = ({
             show: true,
             title: "Copy to Clipboard",
             icon: "path://M48.7643 38.2962H100.5807a6.0158 6.0158 0 0 1 6.0158 6.0158V115.2992a6.0158 6.0158 0 0 1-6.0158 6.0158H48.7643a6.0158 6.0158 0 0 1-6.0158-6.0158V44.312a6.0158 6.0158 0 0 1 6.0158-6.0158zM31.3642 21.6047c-3.3328 0-6.0162 2.6829-6.0162 6.0157v70.9874c0 3.3328 2.6834 6.0157 6.0162 6.0157H42.7485V44.3119c0-3.3328 2.6829-6.0157 6.0157-6.0157h40.4322V27.6204c0-3.3328-2.6829-6.0157-6.0157-6.0157z",
-            onclick: () => copyEChartsToClipboard(chartRef, notifications.show),
+            onclick: () => copyEChartsToClipboard(chart, notifications.show),
           },
         },
       },
@@ -133,6 +133,13 @@ export const HistogramPlot = ({
 
   const empty = !option;
 
+  const updateChart = useCallback(
+    (chart: ECharts) => {
+      setChart(chart);
+    },
+    [setChart],
+  );
+
   return (
     <>
       {empty ? (
@@ -168,9 +175,7 @@ export const HistogramPlot = ({
           option={option}
           loading={loading}
           style={{ width: "100%", height: 300 }}
-          onChartReady={(chart: ECharts) => {
-            chartRef.current = chart;
-          }}
+          onChartReady={updateChart}
         />
       )}
     </>

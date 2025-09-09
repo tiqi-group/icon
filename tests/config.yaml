@@ -14,14 +14,14 @@ databases:
 date:
   timezone: Europe/Zurich
 experiment_library:
-  dir: ../
-  git_repository: https://...
+  dir: ../wiqr_experiment_library/
+  git_repository: https://gitlab.phys.ethz.ch/tiqi-projects/waveguides/wiqr_experiment_library.git
   update_interval: 30
 hardware:
   host: localhost
   port: 6098
 health_check:
-  interval_seconds: 10
+  interval_seconds: 5.0
 server:
   host: 0.0.0.0
   port: 8004
