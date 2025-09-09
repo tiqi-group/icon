@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ExperimentData } from "../types/ExperimentData";
 import { ReactECharts, ReactEChartsProps } from "./ReactEcharts";
 import { EChartsOption } from "echarts";
@@ -24,13 +24,9 @@ const formatAxisLabel = (value: string): string => {
   return isNaN(num) ? value : num.toFixed(3);
 };
 
-function updateVisualMap(chart: ECharts) {
+function updateVisualMap(chart: ECharts, selectedChannelName: string | null) {
   const opt = chart.getOption();
 
-  const selectedChannelName = Object.entries(
-    // @ts-expect-error Type hint of ECharts is wrong
-    opt.legend[0].selected as Record<string, boolean>,
-  ).find(([, v]) => v)?.[0];
   if (!selectedChannelName) return;
 
   // @ts-expect-error Type hint of ECharts is wrong
@@ -45,6 +41,11 @@ function updateVisualMap(chart: ECharts) {
 
   const min = Math.min(...channelValues);
   const max = Math.max(...channelValues);
+
+  chart.dispatchAction({
+    type: "legendSelect",
+    name: selectedChannelName,
+  });
 
   chart.setOption({
     visualMap: [{ min, max }],
@@ -63,6 +64,10 @@ const ResultChannelPlot = ({
 }: ResultChannelPlotProps) => {
   const [chart, setChart] = useState<ECharts | null>(null);
   const notifications = useNotifications();
+
+  const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
+
+  const is1D = scanParameters.length === 1;
 
   const option = useMemo<ReactEChartsProps["option"] | undefined>(() => {
     if (!experimentData || Object.keys(experimentData.scan_parameters).length === 0)
@@ -260,16 +265,21 @@ const ResultChannelPlot = ({
     [setChart],
   );
 
+  // Update the visual map (min, max) for 2D scans when selecting a channel through the
+  // legend
   useEffect(() => {
+    if (is1D) return;
     if (!chart) return;
 
     // run once on mount
-    updateVisualMap(chart);
+    updateVisualMap(chart, selectedChannel);
 
-    // run on legend toggle
-    chart.on("legendselectchanged", () => updateVisualMap(chart));
+    // @ts-expect-error Typing is incorrect
+    chart.on("legendselectchanged", (e: { name: string }) => {
+      setSelectedChannel(e.name);
+      updateVisualMap(chart, e.name);
+    });
 
-    // optional: cleanup
     return () => {
       chart.off("legendselectchanged");
     };
