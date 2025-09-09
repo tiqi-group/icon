@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ExperimentData } from "../types/ExperimentData";
 import { ReactECharts, ReactEChartsProps } from "./ReactEcharts";
 import { EChartsOption } from "echarts";
@@ -24,6 +24,38 @@ const formatAxisLabel = (value: string): string => {
   return isNaN(num) ? value : num.toFixed(3);
 };
 
+function updateVisualMap(chart: ECharts, selectedChannelName: string | undefined) {
+  const opt = chart.getOption();
+
+  if (!selectedChannelName)
+    selectedChannelName = Object.entries(
+      // @ts-expect-error Type hint of ECharts is wrong
+      opt.legend[0].selected as Record<string, boolean>,
+    ).find(([, v]) => v)?.[0];
+
+  // @ts-expect-error Type hint of ECharts is wrong
+  const s = opt.series.find((ss) => ss.name === selectedChannelName);
+  if (!s || !s.data) return;
+
+  const channelValues = (s.data as [number, number, number][])
+    .map((d) => d[2])
+    .filter((v: number) => Number.isFinite(v));
+
+  if (!channelValues.length) return;
+
+  const min = Math.min(...channelValues);
+  const max = Math.max(...channelValues);
+
+  chart.dispatchAction({
+    type: "legendSelect",
+    name: selectedChannelName,
+  });
+
+  chart.setOption({
+    visualMap: [{ min, max }],
+  });
+}
+
 const ResultChannelPlot = ({
   experimentData,
   loading,
@@ -34,8 +66,12 @@ const ResultChannelPlot = ({
   showRepetitions = false,
   scanParameters = [],
 }: ResultChannelPlotProps) => {
-  const chartRef = useRef<ECharts | null>(null);
+  const [chart, setChart] = useState<ECharts | null>(null);
   const notifications = useNotifications();
+
+  const [selectedChannel, setSelectedChannel] = useState<string | undefined>(undefined);
+
+  const is2D = scanParameters.length === 2;
 
   const option = useMemo<ReactEChartsProps["option"] | undefined>(() => {
     if (!experimentData || Object.keys(experimentData.scan_parameters).length === 0)
@@ -115,21 +151,51 @@ const ResultChannelPlot = ({
       );
     } else if (scanParameters.length === 2) {
       const [xScan, yScan] = scanParameters;
-      const resultChannel = resultChannels.at(-1);
-      if (!resultChannel) return;
+      const series = [];
 
-      const data: [number | string, number | string, number][] = [];
-      for (let i = 0; i < xScan.scan_values.length; i++) {
-        for (let j = 0; j < yScan.scan_values.length; j++) {
-          data.push([
-            xScan.scan_values[i],
-            yScan.scan_values[j],
-            resultChannel.data[i * yScan.scan_values.length + j],
-          ]);
+      for (const resultChannel of resultChannels) {
+        const data: [number | string, number | string, number][] = [];
+        for (let i = 0; i < xScan.scan_values.length; i++) {
+          for (let j = 0; j < yScan.scan_values.length; j++) {
+            data.push([
+              xScan.scan_values[i],
+              yScan.scan_values[j],
+              resultChannel.data[i * yScan.scan_values.length + j],
+            ]);
+          }
         }
+
+        series.push({
+          name: resultChannel.name,
+          type: "heatmap",
+          data,
+          emphasis: { itemStyle: { borderColor: "#333", borderWidth: 1 } },
+          animation: false,
+        });
       }
 
       return {
+        title: {
+          text: title,
+          left: "center",
+          subtext: subtitle,
+          subtextStyle: {
+            lineHeight: 0,
+          },
+          top: "-1%",
+        },
+        legend: {
+          selectedMode: "single",
+          left: "right",
+          top: 40,
+        },
+        grid: {
+          left: 30,
+          right: 40,
+          bottom: 20,
+          top: 70,
+          containLabel: true,
+        },
         tooltip: {},
         xAxis: {
           type: "category",
@@ -145,20 +211,10 @@ const ResultChannelPlot = ({
           nameLocation: "middle",
           nameGap: 45,
         },
-        series: [
-          {
-            name: resultChannel.name,
-            type: "heatmap",
-            data,
-            emphasis: { itemStyle: { borderColor: "#333", borderWidth: 1 } },
-            progressive: 1000,
-            animation: false,
-          },
-        ],
+        series,
         visualMap: {
           left: "right",
-          min: Math.min(...resultChannel.data),
-          max: Math.max(1, ...resultChannel.data),
+          bottom: 30,
           inRange: { color: ["#313695", "#1483d5", "#73bf7f", "#fcbe3d", "#ffff00"] },
         },
       };
@@ -184,7 +240,7 @@ const ResultChannelPlot = ({
             show: true,
             title: "Copy to Clipboard",
             icon: "path://M48.7643 38.2962H100.5807a6.0158 6.0158 0 0 1 6.0158 6.0158V115.2992a6.0158 6.0158 0 0 1-6.0158 6.0158H48.7643a6.0158 6.0158 0 0 1-6.0158-6.0158V44.312a6.0158 6.0158 0 0 1 6.0158-6.0158zM31.3642 21.6047c-3.3328 0-6.0162 2.6829-6.0162 6.0157v70.9874c0 3.3328 2.6834 6.0157 6.0162 6.0157H42.7485V44.3119c0-3.3328 2.6829-6.0157 6.0157-6.0157h40.4322V27.6204c0-3.3328-2.6829-6.0157-6.0157-6.0157z",
-            onclick: () => copyEChartsToClipboard(chartRef, notifications.show),
+            onclick: () => copyEChartsToClipboard(chart, notifications.show),
           },
         },
       },
@@ -205,6 +261,33 @@ const ResultChannelPlot = ({
       series: chartSeries,
     };
   }, [experimentData, title, subtitle, scanParameters, repetitions, showRepetitions]);
+
+  const updateChart = useCallback(
+    (chart: ECharts) => {
+      setChart(chart);
+    },
+    [setChart],
+  );
+
+  // Update the visual map (min, max) for 2D scans when selecting a channel through the
+  // legend
+  useEffect(() => {
+    if (!is2D) return;
+    if (!chart) return;
+
+    // run once on mount
+    updateVisualMap(chart, selectedChannel);
+
+    // @ts-expect-error Typing is incorrect
+    chart.on("legendselectchanged", (e: { name: string }) => {
+      setSelectedChannel(e.name);
+      updateVisualMap(chart, e.name);
+    });
+
+    return () => {
+      chart.off("legendselectchanged");
+    };
+  }, [chart]);
 
   return (
     <>
@@ -238,13 +321,7 @@ const ResultChannelPlot = ({
           </div>
         )
       ) : (
-        <ReactECharts
-          option={option}
-          loading={loading}
-          onChartReady={(chart: ECharts) => {
-            chartRef.current = chart;
-          }}
-        />
+        <ReactECharts option={option} loading={loading} onChartReady={updateChart} />
       )}
     </>
   );

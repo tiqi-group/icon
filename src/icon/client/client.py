@@ -5,11 +5,9 @@ from typing import TYPE_CHECKING, Any, TypedDict
 
 import pandas as pd
 import pydase
-import pydase.client.proxy_loader
 import socketio  # type: ignore[import-untyped]
 
 from icon.client.api.experiments_controller import ExperimentsController
-from icon.client.api.scheduler_controller import SchedulerController
 from icon.serialization.deserializer import loads
 from icon.serialization.serializer import dump
 
@@ -116,7 +114,7 @@ class Client(pydase.Client):
         del self.proxy
 
         self._experiment_job_data: dict[int, pd.DataFrame] = {}
-        self.scheduler = SchedulerController(self)
+        # self.scheduler = SchedulerController(self)
         self.experiments = ExperimentsController(self)
 
     async def _handle_experiment_data(self, data: ExperimentData) -> None:
