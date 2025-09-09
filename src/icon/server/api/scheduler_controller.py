@@ -115,7 +115,9 @@ class SchedulerController(pydase.DataService):
         }
 
     def get_job_by_id(self, *, job_id: int) -> Job:
-        return JobRepository.get_job_by_id(job_id=job_id, load_experiment_source=True)
+        return JobRepository.get_job_by_id(
+            job_id=job_id, load_experiment_source=True, load_scan_parameters=True
+        )
 
     def get_job_run_by_id(self, *, job_id: int) -> JobRun:
         return JobRunRepository.get_run_by_job_id(job_id=job_id)

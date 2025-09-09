@@ -1,4 +1,13 @@
-import { Button, Card, CardContent, Grid, Typography, IconButton } from "@mui/material";
+import {
+  Button,
+  Card,
+  CardContent,
+  Grid,
+  Typography,
+  IconButton,
+  Switch,
+  Tooltip,
+} from "@mui/material";
 import { useExperimentData } from "../hooks/useExperimentData";
 import ResultChannelPlot from "../components/ResultChannelPlot";
 import { useEffect, useState } from "react";
@@ -34,6 +43,12 @@ export const JobView = ({
   const jobInfo = useJobInfo(jobId);
   const jobRunInfo = useJobRunInfo(jobId);
   const { experimentData, experimentDataError, loading } = useExperimentData(jobId);
+  const is1D = jobInfo?.scan_parameters.length === 1;
+
+  const [showRepetitions, setShowRepetitions] = useState<boolean>(() => {
+    const v = localStorage.getItem("showRepetitions");
+    return v ? JSON.parse(v) : false;
+  });
 
   // States to track whether the plot sections are expanded or collapsed
   const [expandedShotChannels, setExpandedShotChannels] = useState<
@@ -99,6 +114,10 @@ export const JobView = ({
   }, [jobInfo]);
 
   useEffect(() => {
+    localStorage.setItem("showRepetitions", JSON.stringify(showRepetitions));
+  }, [showRepetitions]);
+
+  useEffect(() => {
     if (!loading && !experimentDataError && onLoaded) {
       onLoaded();
     }
@@ -147,6 +166,21 @@ export const JobView = ({
                 )}
               </Typography>
               <Typography variant="body1">{jobInfo?.status}</Typography>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <Typography variant="body2">Show repetitions</Typography>
+                <Tooltip
+                  title={is1D ? "" : "Repetitions can only be shown for 1D scans"}
+                  disableHoverListener={is1D}
+                >
+                  <span>
+                    <Switch
+                      checked={showRepetitions}
+                      onChange={(_, v) => setShowRepetitions(v)}
+                      disabled={!is1D}
+                    />
+                  </span>
+                </Tooltip>
+              </div>
             </CardContent>
           </Card>
         </Grid>
@@ -222,6 +256,9 @@ export const JobView = ({
                       jobRunInfo?.scheduled_time,
                       experimentMetadata?.constructor_kwargs.name,
                     )}
+                    repetitions={jobInfo?.repetitions}
+                    showRepetitions={showRepetitions}
+                    scanParameters={jobInfo?.scan_parameters}
                   />
                 )}
               </CardContent>
