@@ -118,9 +118,16 @@ const ResultChannelPlot = ({
       const resultChannel = resultChannels.at(-1);
       if (!resultChannel) return;
 
-      const data: [number | string, number | string, number][] = xScan.scan_values.map(
-        (x, i) => [x, yScan.scan_values[i], resultChannel.data[i]],
-      );
+      const data: [number | string, number | string, number][] = [];
+      for (let i = 0; i < xScan.scan_values.length; i++) {
+        for (let j = 0; j < yScan.scan_values.length; j++) {
+          data.push([
+            xScan.scan_values[i],
+            yScan.scan_values[j],
+            resultChannel.data[i * yScan.scan_values.length + j],
+          ]);
+        }
+      }
 
       return {
         tooltip: {},
