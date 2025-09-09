@@ -6,6 +6,7 @@ import {
   Typography,
   IconButton,
   Switch,
+  Tooltip,
 } from "@mui/material";
 import { useExperimentData } from "../hooks/useExperimentData";
 import ResultChannelPlot from "../components/ResultChannelPlot";
@@ -42,6 +43,7 @@ export const JobView = ({
   const jobInfo = useJobInfo(jobId);
   const jobRunInfo = useJobRunInfo(jobId);
   const { experimentData, experimentDataError, loading } = useExperimentData(jobId);
+  const is1D = jobInfo?.scan_parameters.length === 1;
 
   const [showRepetitions, setShowRepetitions] = useState<boolean>(() => {
     const v = localStorage.getItem("showRepetitions");
@@ -166,10 +168,18 @@ export const JobView = ({
               <Typography variant="body1">{jobInfo?.status}</Typography>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <Typography variant="body2">Show repetitions</Typography>
-                <Switch
-                  checked={showRepetitions}
-                  onChange={(_, v) => setShowRepetitions(v)}
-                />
+                <Tooltip
+                  title={is1D ? "" : "Repetitions can only be shown for 1D scans"}
+                  disableHoverListener={is1D}
+                >
+                  <span>
+                    <Switch
+                      checked={showRepetitions}
+                      onChange={(_, v) => setShowRepetitions(v)}
+                      disabled={!is1D}
+                    />
+                  </span>
+                </Tooltip>
               </div>
             </CardContent>
           </Card>
