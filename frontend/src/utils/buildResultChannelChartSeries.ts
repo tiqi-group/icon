@@ -9,7 +9,7 @@ interface Channel {
  * Build chart series for result channels with optional repetition traces.
  *
  * - Computes a merged dataset by averaging all repetitions for each channel.
- * - Always creates one "merged" series per channel (coloured from the palette).
+ * - Always creates one "merged" series per channel.
  * - Optionally creates one series per channel per repetition (if `showRepetitions` is
  *   true). These repetition series are appended after the merged series and drawn in
  *   lower opacity.
@@ -19,7 +19,6 @@ interface Channel {
  *   `data` is a flat array of values across all repetitions.
  * @param repetitions - Number of experiment repetitions (used to slice channel data).
  * @param showRepetitions - If true, adds individual traces for each repetition.
- * @param palette - Colour palette for merged channels.
  * @returns EChartsOption["series"] - Series configuration for ECharts.
  */
 export function buildResultChannelChartSeries(
@@ -27,7 +26,6 @@ export function buildResultChannelChartSeries(
   resultChannels: Channel[],
   repetitions: number,
   showRepetitions: boolean,
-  palette: string[] = ["#37A2DA", "#ffd85c", "#fd7b5f"],
 ): EChartsOption["series"] {
   const xLen = xAxisData.length;
   const getVal = (ch: Channel, rep: number, i: number): number =>
@@ -50,7 +48,7 @@ export function buildResultChannelChartSeries(
     return [x, ...ys];
   });
 
-  // merged series with explicit colours from palette
+  // merged series
   const chartSeries: EChartsOption["series"] = resultChannels.map((ch, chIdx) => ({
     name: ch.name,
     type: "line",
@@ -60,7 +58,6 @@ export function buildResultChannelChartSeries(
     data: fullDataSet,
     showSymbol: true,
     lineStyle: { width: 2 },
-    itemStyle: { color: palette[chIdx % palette.length] },
   }));
 
   if (showRepetitions && repetitions > 1) {

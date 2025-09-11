@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from "react";
+import { useRef, useEffect } from "react";
 import * as echarts from "echarts/core";
 import { BarChart, HeatmapChart, LineChart } from "echarts/charts";
 import {
@@ -11,14 +11,13 @@ import {
   VisualMapComponent,
 } from "echarts/components";
 import type { CSSProperties } from "react";
-import type { EChartsCoreOption, ECharts, SetOptionOpts } from "echarts/core";
+import type { EChartsCoreOption, ECharts } from "echarts/core";
 import { useColorScheme } from "@mui/material";
 import { CanvasRenderer } from "echarts/renderers";
 
 export interface ReactEChartsProps {
   option: EChartsCoreOption;
   style?: CSSProperties;
-  settings?: SetOptionOpts;
   loading?: boolean;
   /** Called once after the chart is created */
   onChartReady?: (chart: ECharts) => void;
@@ -41,20 +40,12 @@ echarts.use([
 export function ReactECharts({
   option,
   style,
-  settings,
   loading,
   onChartReady,
 }: ReactEChartsProps) {
   const chartDivRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<ECharts | null>(null);
   const { mode } = useColorScheme();
-
-  const updatedOption = useMemo<EChartsCoreOption>(() => {
-    return {
-      ...option,
-      backgroundColor: mode === "dark" ? "#1e1e1e" : "#ffffff",
-    };
-  }, [option, mode]);
 
   useEffect(() => {
     if (!chartDivRef.current) return;
@@ -77,8 +68,14 @@ export function ReactECharts({
   }, [mode, onChartReady]);
 
   useEffect(() => {
-    chartInstanceRef.current?.setOption(updatedOption, settings);
-  }, [updatedOption, settings]);
+    chartInstanceRef.current?.setOption(
+      {
+        ...option,
+        backgroundColor: mode === "dark" ? "#1e1e1e" : "#ffffff",
+      },
+      { notMerge: true },
+    );
+  }, [option, mode]);
 
   useEffect(() => {
     if (!chartInstanceRef.current) return;
