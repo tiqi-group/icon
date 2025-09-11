@@ -100,7 +100,6 @@ const ResultChannelPlot = ({
       minorSplitLine: { show: true },
       min: "dataMin",
       max: "dataMax",
-      type: "value",
       axisLabel: {
         // hide overlapping labels
         hideOverlap: true,
@@ -137,11 +136,11 @@ const ResultChannelPlot = ({
         showSymbol: false,
       }));
     } else if (scanParameters.length === 1) {
-      xAxisData = scanParameters[0].scan_values;
-
+      xAxis.type = "value";
       xAxis.name = scanParameters[0].variable_id;
-      // @ts-expect-error Type hint of ECharts is wrong
       xAxis.axisLabel = { formatter: formatAxisLabel };
+
+      xAxisData = scanParameters[0].scan_values;
 
       chartSeries = buildResultChannelChartSeries(
         xAxisData,
