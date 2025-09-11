@@ -14,6 +14,7 @@ export interface ExperimentMetadata {
   class_name: string;
   constructor_kwargs: Record<string, string>;
   parameters: Record<string, Record<string, ParameterMetadata>>;
+  device_parameter_groups?: string[];
 }
 
 export type ExperimentDict = Record<string, ExperimentMetadata>;
