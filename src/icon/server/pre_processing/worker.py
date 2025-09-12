@@ -10,6 +10,7 @@ import re
 import tempfile
 import time
 from datetime import datetime
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 import psutil
@@ -42,6 +43,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 timezone = pytz.timezone(get_config().date.timezone)
+
+
+class ParamUpdateMode(str, Enum):
+    ALL_UP_TO_DATE = "all_up_to_date"
+    ALL_FROM_TIMESTAMP = "all_from_timestamp"
+    LOCALS_FROM_TS_GLOBALS_LATEST = "locals_ts_globals_now"
+    ONLY_NEW_PARAMETERS = "only_new_parameters"
 
 
 def prepare_experiment_library_folder(
@@ -123,20 +131,6 @@ def parse_experiment_identifier(identifier: str) -> tuple[str, str, str]:
     if match:
         return match.group(1), match.group(2), match.group(3)
     raise ValueError("Unexpected format of experiment identifier: ", identifier)
-
-
-def cache_parameter_values(
-    local_params_timestamp: str, namespace: str
-) -> dict[str, DatabaseValueType]:
-    parameter_dict: dict[str, DatabaseValueType] = {}
-    parameter_dict.update(ParametersRepository.get_influxdbv1_parameters())
-    parameter_dict.update(
-        ParametersRepository.get_influxdbv1_parameters(
-            before=local_params_timestamp,
-            namespace=namespace,
-        )
-    )
-    return parameter_dict
 
 
 class PreProcessingWorker(multiprocessing.Process):
@@ -287,38 +281,61 @@ class PreProcessingWorker(multiprocessing.Process):
     def _update_parameter_dict(
         self,
         new_parameters: dict[str, DatabaseValueType] | None = None,
-        update_all: bool = False,
+        mode: ParamUpdateMode = ParamUpdateMode.LOCALS_FROM_TS_GLOBALS_LATEST,
     ) -> None:
-        """Updates self._parameter_dict.
+        """Update self._parameter_dict according to the requested mode.
 
         Args:
             new_parameters: Dictionary containing parameter IDs and corresponding
                 values. If set to None, the whole parameter dict will be updated with
                 values from the database. Defaults to None.
-            update_all: If True (and new_parameters is None), updates both local
-                (experiment) parameters and global parameters with the latest values. If
-                False, cache the latest global parameter values and the local
-                (experiment) parameter values before the local_params_timestamp from the
-                database job entry.
+            mode: parameter update mode. One of:
+                  1) ALL_UP_TO_DATE: locals & globals from latest
+                  2) ALL_FROM_TIMESTAMP: locals & globals from local_params_timestamp
+                  3) LOCALS_FROM_TS_GLOBALS_LATEST: locals from local_params_timestamp,
+                    globals latest (default)
+                  4) ONLY_NEW_PARAMETERS: only merge `new_parameters`, no DB queries
         """
 
         self._global_parameter_timestamp = datetime.now(timezone)
 
-        if new_parameters is not None:
-            self._parameter_dict.update(new_parameters)
-
-        else:
-            if update_all:
-                local_params_timestamp = self._global_parameter_timestamp.isoformat()
-            else:
-                local_params_timestamp = (
-                    self._pre_processing_task.local_parameters_timestamp
-                )
-
-            self._parameter_dict = cache_parameter_values(
-                local_params_timestamp=local_params_timestamp,
-                namespace=f"{self._exp_module_name}.{self._exp_class_name}",
+        if mode == ParamUpdateMode.ONLY_NEW_PARAMETERS:
+            if new_parameters:
+                self._parameter_dict.update(new_parameters)
+            ExperimentDataRepository.write_parameter_update_by_job_id(
+                job_id=self._pre_processing_task.job.id,
+                timestamp=self._global_parameter_timestamp.isoformat(),
+                parameter_values=self._parameter_dict,
             )
+            return
+
+        namespace = (
+            f"{self._exp_module_name}.{self._exp_class_name}.{self._exp_instance_name}"
+        )
+
+        if mode == ParamUpdateMode.ALL_UP_TO_DATE:
+            locals_before = None
+            globals_before = None
+        elif mode == ParamUpdateMode.ALL_FROM_TIMESTAMP:
+            locals_before = self._pre_processing_task.local_parameters_timestamp
+            globals_before = self._pre_processing_task.local_parameters_timestamp
+        elif mode == ParamUpdateMode.LOCALS_FROM_TS_GLOBALS_LATEST:
+            locals_before = self._pre_processing_task.local_parameters_timestamp
+            globals_before = None
+
+        global_values = ParametersRepository.get_influxdbv1_parameters(
+            before=globals_before,
+        )
+        local_values = ParametersRepository.get_influxdbv1_parameters(
+            before=locals_before,
+            namespace=namespace,
+        )
+
+        updated = dict(self._parameter_dict)
+        updated.update(global_values)
+        updated.update(local_values)
+
+        self._parameter_dict = updated
 
         ExperimentDataRepository.write_parameter_update_by_job_id(
             job_id=self._pre_processing_task.job.id,
@@ -340,10 +357,11 @@ class PreProcessingWorker(multiprocessing.Process):
                 if event == "update_parameters" and (
                     job_id is None or job_id == self._pre_processing_task.job.id
                 ):
-                    self._update_parameter_dict(update_all=True)
+                    self._update_parameter_dict(mode=ParamUpdateMode.ALL_UP_TO_DATE)
                 elif event == "calibration" and new_parameters is not None:
                     self._update_parameter_dict(
-                        update_all=True, new_parameters=new_parameters
+                        new_parameters=new_parameters,
+                        mode=ParamUpdateMode.ONLY_NEW_PARAMETERS,
                     )
 
             except queue.Empty:
