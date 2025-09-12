@@ -23,19 +23,12 @@ class NotInitialisedError(Exception):
 
 def get_specifiers_from_parameter_identifier(
     parameter_identifier: str,
-) -> tuple[str, str, dict[str, str]]:
+) -> dict[str, str]:
     # Regex pattern to match key='value' pairs, including namespace and parameter_group
     pattern = re.compile(r"(\w+)='([^']*)'")
     matches = pattern.findall(parameter_identifier)
 
-    # Construct the dictionary from the matched key-value pairs
-    specifiers = dict(matches)
-
-    # Pop namespace and parameter_group
-    namespace = specifiers.pop("namespace")
-    parameter_group = specifiers.pop("parameter_group")
-
-    return namespace, parameter_group, specifiers
+    return dict(matches)
 
 
 class ParametersRepository:
@@ -155,12 +148,10 @@ class ParametersRepository:
         records: list[dict[str, Any]] = []
 
         for parameter_id, value in parameter_mapping.items():
-            _, _, specifiers = get_specifiers_from_parameter_identifier(parameter_id)
-
             records.append(
                 {
                     "measurement": get_config().databases.influxdbv1.measurement,
-                    "tags": specifiers,
+                    "tags": get_specifiers_from_parameter_identifier(parameter_id),
                     "fields": {parameter_id: value},
                 }
             )
