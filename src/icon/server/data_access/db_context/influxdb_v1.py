@@ -4,9 +4,9 @@ import logging
 import sys
 from typing import TYPE_CHECKING, Any, Literal
 
+import influxdb
 import requests
 
-import influxdb
 from icon.config.config import get_config
 
 if TYPE_CHECKING:
