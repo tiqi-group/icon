@@ -1,4 +1,4 @@
-![icon Banner](./docs/images/logo.png)
+![icon Banner](./docs/images/logo.svg)
 
 # The Ion CONtrol Software (ICON)
 

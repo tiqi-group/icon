@@ -19,20 +19,21 @@ markdown_extensions:
   - smarty
   - toc: 
       permalink: true
-  # - pymdownx.highlight:
-  #     use_pygments: true
-  #     anchor_linenums: true
-  #     line_spans: __span
-  #     pygments_lang_class: true
-  # - pymdownx.snippets
-  # - pymdownx.superfences
-  # - pymdownx.inlinehilite
+  - pymdownx.highlight:
+      use_pygments: true
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
 
 
 plugins:
 - include-markdown
 - search
 - mkdocstrings:
+    default_handler: python
     handlers:
       python:
         paths: [src]  # search packages in the src folder
@@ -74,3 +75,4 @@ plugins:
 
 watch:
   - src/icon
+  - README.md
