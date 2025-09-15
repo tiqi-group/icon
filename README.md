@@ -134,7 +134,10 @@ python -m icon.server
 
 The design of the software is laid out in PlantUML diagrams located in the [`docs/plantuml_diagrams`](./docs/plantuml_diagrams) directory.
 
+## Acknowledgements
+
+This work was funded by the [ETH Zurich-PSI Quantum Computing Hub](https://www.psi.ch/en/lnq/qchub).
+
 ## License
 
 `icon` is licensed under the [MIT License](./LICENSE).
-
