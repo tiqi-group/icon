@@ -32,4 +32,4 @@ jobs:
           uv sync --no-dev --extra docs
 
       - name: Deploy documentation
-        run: mkdocs gh-deploy --force
+        run: uv run mkdocs gh-deploy --force
