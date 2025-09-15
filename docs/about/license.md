@@ -5,6 +5,5 @@ License
 ```{.license}
 {%
 include "../../LICENSE"
-comments=false
 %}
 ```
