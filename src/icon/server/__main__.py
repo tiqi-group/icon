@@ -93,6 +93,7 @@ def start_server() -> None:
 
 
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
+@click.option("-V", "--version", is_flag=True, help="Print version.")
 @click.option("-v", "--verbose", count=True, help="Increase verbosity (-v, -vv).")
 @click.option("-q", "--quiet", count=True, help="Decrease verbosity (-q).")
 @click.option(
@@ -103,8 +104,16 @@ def start_server() -> None:
     show_default=True,
     help="Path to the configuration file.",
 )
-def main(verbose: int, quiet: int, config: pathlib.Path) -> None:
+def main(version: bool, verbose: int, quiet: int, config: pathlib.Path) -> None:
     """Start the ICON server"""
+
+    if version:
+        from importlib.metadata import distribution
+
+        __version__ = distribution("icon").version
+        click.echo(f"icon {__version__}")
+        raise SystemExit(0)
+
     level = _level_from_verbosity(verbose - quiet)
     setup_logging(level)
 
