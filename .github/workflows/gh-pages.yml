@@ -28,8 +28,7 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Sync build dependencies
-        run: |
-          uv sync --no-dev --extra docs
+        run: uv sync --no-dev --extra docs
 
       - name: Deploy documentation
         run: uv run mkdocs gh-deploy --force

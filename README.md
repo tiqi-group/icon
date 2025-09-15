@@ -1,5 +1,12 @@
+![icon Banner](./docs/images/logo.png)
+
 # The Ion CONtrol Software (ICON)
 
+[![Version](https://img.shields.io/github/v/release/tiqi-group/icon)](https://github.com/tiqi-group/icon)
+[![Python Versions](
+https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Ftiqi-group%2Ficon%2Frefs%2Fheads%2Fmain%2Fpyproject.toml
+)](https://github.com/tiqi-group/icon)
+[![Documentation Status](https://github.com/tiqi-group/icon/actions/workflows/gh-pages.yml/badge.svg)](https://tiqi-group.github.io/icon/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 This repository contains the source code for the ICON Experiment Control software. It consists of python code for the backend and react (ts) code for the frontend.
