@@ -1,4 +1,4 @@
-name: Build & Release
+name: Deploy Documentation
 
 on:
   push:
@@ -21,6 +21,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+
+      - name: Install uv
+        run: |
+          curl -fsSL https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Sync build dependencies
         run: |
