@@ -4,6 +4,8 @@ edit_uri: blob/main/docs/
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - Reference:
+    - Icon Server: reference/server.md
   - About:
     - License: about/license.md
 
@@ -40,22 +42,33 @@ plugins:
           - https://confz.readthedocs.io/en/latest/objects.inv
           - https://python-socketio.readthedocs.io/en/stable/objects.inv
         options:
+          # General
           show_source: true
-          inherited_members: true
-          merge_init_into_class: true
-          show_signature_annotations: true
-          signature_crossrefs: true
-          separate_signature: true
-          docstring_options:
-            ignore_init_summary: true
-          # docstring_section_style: list
+
+          # Headings
           heading_level: 2
-          parameter_headings: true
+          parameter_headings: false
           show_root_heading: true
           show_root_full_path: true
           show_symbol_type_heading: true
           show_symbol_type_toc: true
-          # summary: true
+
+          # Members
+          show_submodules: true
+          inherited_members: true
+          summary: true
+
+          # Docstrings
+          merge_init_into_class: true
+          docstring_options:
+            ignore_init_summary: false
+          # docstring_section_style: list
+          show_if_no_docstring: true
+
+          # Signatures
+          show_signature_annotations: true
+          signature_crossrefs: true
+          separate_signature: true
           unwrap_annotated: true
 # - swagger-ui-tag
 
