@@ -33,6 +33,7 @@ client = [
 ]
 docs = [
     "mkdocs>=1.6.1",
+    "mkdocs-include-markdown-plugin>=7.1.7",
     "mkdocs-material>=9.6.19",
     "mkdocstrings[python]>=0.30.0",
 ]
