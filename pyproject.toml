@@ -31,6 +31,11 @@ client = [
     "notebook>=7.3.1",
     "pandas>=2.2.3",
 ]
+docs = [
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.6.19",
+    "mkdocstrings[python]>=0.30.0",
+]
 
 [build-system]
 requires = ["hatchling"]
