@@ -43,6 +43,7 @@ Usage: icon-linux-amd64 [OPTIONS]
   Start the ICON server
 
 Options:
+  -V, --version      Print version.
   -v, --verbose      Increase verbosity (-v, -vv)
   -q, --quiet        Decrease verbosity (-q)
   -c, --config FILE  Path to the configuration file [default: ~/.config/icon/config.yaml]
