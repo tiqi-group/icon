@@ -9,7 +9,7 @@ class HealthCheckConfig(BaseModel):
 
 
 class DataConfiguration(BaseModel):
-    results_dir: str = str(Path(__file__).parent.parent.parent.parent / "output")
+    results_dir: str = str(Path.cwd() / "output")
 
 
 class ExperimentLibraryConfigV1(BaseModel):
@@ -31,7 +31,7 @@ class InfluxDBv1Config(BaseModel):
 
 
 class SQLiteConfig(BaseModel):
-    file: str | None = None
+    file: str = str(Path.cwd() / "icon.db")
 
 
 class DatabaseConfig(BaseModel):
