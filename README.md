@@ -68,40 +68,57 @@ ICON uses a YAML configuration file, located at `~/.config/icon/config.yaml` by 
 
 ### Databases
 
-* **SQLite** — stores metadata about jobs and devices. The path is configurable in the config file (defaults to the binary location).
-* **InfluxDB** — stores parameter time series. Both InfluxDB v1 and v2 are supported (v3 may work but is untested).
-<!--getting-started-1-end-->
+* **SQLite** - stores metadata about jobs and devices. The path needs to be configured in the config file. When first starting ICON without this option set, it will raise a `RuntimeError`.
 
-#### Example: InfluxDB v1
+    ```yaml
+    databases:
+      sqlite:
+        file: my/sqlite/path.db
+    ```
 
-<!--influxdbv1-config-start-->
-```yaml
-databases:
-  influxdbv1:
-    database: testing
-    host: localhost
-    measurement: Experiment Parameters
-    password: passw0rd
-    port: 8086
-    username: tester
-    ...
-```
-<!--influxdbv1-config-end-->
+* **InfluxDB** - stores parameter time series. Both InfluxDB v1 and v2 are supported (v3 may work but is untested).
+  <!--getting-started-1-end-->
+  <table>
+  <tr>
+  <th> InfluxDB v1 </th>
+  <th> InfluxDB v2 </th>
+  </tr>
+  <tr>
+  <td>
 
-#### Example: InfluxDB v2
+  <!--influxdbv1-config-start-->
+  ```yaml
+  databases:
+    influxdbv1:
+      database: testing
+      host: localhost
+      measurement: Experiment Parameters
+      password: passw0rd
+      port: 8086
+      username: tester
+      ...
+  ```
+  <!--influxdbv1-config-end-->
 
-<!--influxdbv2-config-start-->
-```yaml
-databases:
-  influxdbv1:
-    database: testing
-    host: localhost
-    measurement: Experiment Parameters
-    password: <influxdb v2 token>
-    port: 8086
-    ...
-```
-<!--influxdbv2-config-end-->
+  </td>
+  <td>
+
+  <!--influxdbv2-config-start-->
+  ```yaml
+  databases:
+    influxdbv1:
+      database: testing
+      host: localhost
+      measurement: Experiment Parameters
+      password: <influxdb v2 token>
+      port: 8086
+      ...
+  ```
+  <!--influxdbv2-config-end-->
+
+  </td>
+  </tr>
+  </table>
 
 <!--getting-started-2-start-->
 ### Frontend
