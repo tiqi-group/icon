@@ -111,24 +111,57 @@ The web frontend is served automatically by the ICON backend. By default it is a
 
 ## Development
 
+### Backend
+
+Set up the development environment:
+
 ```bash
 uv sync --all-extras --group dev
-source .venv/bin/activate  # activating virtual environment
-```
+source .venv/bin/activate
+````
 
-Initialise the database using alembic:
-
-```bash
-alembic upgrade head
-```
-
-(see [here](./alembic/README.md) for how to update the SQLite database schema)
-
-Running the server (when in the virtual environment):
+Run the server:
 
 ```bash
-python -m icon.server
+uv run python -m icon.server
 ```
+
+### Frontend
+
+The frontend source code is located in the `frontend/` folder. To start development:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+This uses [Vite.js](https://vitejs.dev/) with hot-reloading enabled.
+
+Project structure:
+
+```bash
+frontend
+└── src
+    ├── components  # React components
+    ├── contexts    # React contexts
+    ├── hooks       # React hooks
+    ├── layouts     # Layouts for MUI Toolpad
+    ├── pages       # Page definitions
+    ├── stores      # State stores (e.g. parameter store)
+    ├── types       # Type definitions
+    └── utils       # Utility functions
+```
+
+### SQLite
+
+ICON uses SQLite to store job history and device metadata.
+
+* Models are defined using **SQLAlchemy**.
+* Migrations are managed with **Alembic**.
+* On startup, ICON automatically runs `alembic upgrade head`.
+
+For details on updating schemas, see [Alembic README](./src/icon/server/data_access/db_context/sqlite/alembic/README.md).
 
 ### PlantUML Diagrams
 
@@ -140,4 +173,4 @@ This work was funded by the [ETH Zurich-PSI Quantum Computing Hub](https://www.p
 
 ## License
 
-`icon` is licensed under the [MIT License](./LICENSE).
+ICON is licensed under the [MIT License](./LICENSE).
