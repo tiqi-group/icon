@@ -32,7 +32,7 @@ The system is built with:
 
 ## Getting Started
 
-<!--getting-started-1-start-->
+<!--getting-started-start-->
 ICON runs on Linux and requires Python 3 to start. The easiest way to start is by downloading the binary from the [releases page](https://github.com/tiqi-group/icon/releases). Make it executable and run it:
 
 ```bash
@@ -58,72 +58,25 @@ cd icon
 uv sync --extras server
 uv run python -m icon.server
 ```
+<!--getting-started-end-->
 
 ### Configuration
 
+<!--configuration-start-->
 ICON uses a YAML configuration file, located at `~/.config/icon/config.yaml` by default. You can override this path with the `-c` flag.
 
 * If the file does not exist, ICON will create it with default values.
 * You can adjust settings either in the file or through the frontend settings page.
+<!--configuration-end-->
 
-### Databases
-
-* **SQLite** - stores metadata about jobs and devices. The path needs to be configured in the config file. When first starting ICON without this option set, it will raise a `RuntimeError`.
-
-    ```yaml
-    databases:
-      sqlite:
-        file: my/sqlite/path.db
-    ```
-
-* **InfluxDB** - stores parameter time series. Both InfluxDB v1 and v2 are supported (v3 may work but is untested).
-  <!--getting-started-1-end-->
-  <table>
-  <tr>
-  <th> InfluxDB v1 </th>
-  <th> InfluxDB v2 </th>
-  </tr>
-  <tr>
-  <td>
-
-  <!--influxdbv1-config-start-->
-  ```yaml
-  databases:
-    influxdbv1:
-      database: testing
-      host: localhost
-      measurement: Experiment Parameters
-      password: passw0rd
-      port: 8086
-      username: tester
-      ...
-  ```
-  <!--influxdbv1-config-end-->
-
-  </td>
-  <td>
-
-  <!--influxdbv2-config-start-->
-  ```yaml
-  databases:
-    influxdbv1:
-      database: testing
-      host: localhost
-      measurement: Experiment Parameters
-      password: <influxdb v2 token>
-      port: 8086
-      ...
-  ```
-  <!--influxdbv2-config-end-->
-
-  </td>
-  </tr>
-  </table>
+For more information about the configuration, see [Configuration File](https://tiqi-group.github.io/icon/getting-started/configuration-file/).
 
 <!--getting-started-2-start-->
 ### Frontend
 
-The web frontend is served automatically by the ICON backend. By default it is available at [http://0.0.0.0:8004](http://0.0.0.0:8004). The port and address can be changed in the config file.
+The web frontend is served automatically by the ICON backend. By default it is available at [http://localhost:8004](http://localhost:8004). The port and address can be changed in the config file.
+
+![Start page](./docs/images/ICON_Start_page.png)
 <!--getting-started-2-end-->
 
 ## Development

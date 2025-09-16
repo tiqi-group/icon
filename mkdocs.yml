@@ -3,7 +3,10 @@ repo_url: https://github.com/tiqi-group/icon
 edit_uri: blob/main/docs/
 nav:
   - Home: index.md
-  - Getting Started: getting-started.md
+  - Getting Started:
+    - Running ICON: getting-started/running-icon.md
+    - Configuration File: getting-started/configuration-file.md
+    - Architecture: getting-started/architecture.md
   - Reference:
     - Icon Server: reference/server.md
   - About:
@@ -29,6 +32,7 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.tabbed:
       alternate_style: true
+  - attr_list
 
 
 plugins:
