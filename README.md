@@ -71,13 +71,13 @@ ICON uses a YAML configuration file, located at `~/.config/icon/config.yaml` by 
 
 For more information about the configuration, see [Configuration File](https://tiqi-group.github.io/icon/getting-started/configuration-file/).
 
-<!--getting-started-2-start-->
 ### Frontend
 
+<!--frontend-start-->
 The web frontend is served automatically by the ICON backend. By default it is available at [http://localhost:8004](http://localhost:8004). The port and address can be changed in the config file.
 
 ![Start page](./docs/images/ICON_Start_page.png)
-<!--getting-started-2-end-->
+<!--frontend-end-->
 
 ## Development
 

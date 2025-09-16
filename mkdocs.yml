@@ -6,7 +6,15 @@ nav:
   - Getting Started:
     - Running ICON: getting-started/running-icon.md
     - Configuration File: getting-started/configuration-file.md
+    - Experiment Library: getting-started/experiment-library.md
     - Architecture: getting-started/architecture.md
+    - Frontend:
+       - Start page: getting-started/frontend/start.md
+       - Parameters page: getting-started/frontend/parameters.md
+       - Experiments page: getting-started/frontend/experiments.md
+       - Data page: getting-started/frontend/data.md
+       - Devices page: getting-started/frontend/devices.md
+       - Settings page: getting-started/frontend/settings.md
   - Reference:
     - Icon Server: reference/server.md
   - About:
@@ -33,6 +41,7 @@ markdown_extensions:
   - pymdownx.tabbed:
       alternate_style: true
   - attr_list
+  - admonition
 
 
 plugins:
