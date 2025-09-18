@@ -11,7 +11,7 @@ import tempfile
 import time
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import psutil
 import pytz
@@ -35,6 +35,8 @@ from icon.server.data_access.repositories.pycrystal_library_repository import (
 from icon.server.hardware_processing.task import HardwareProcessingTask
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
     from icon.server.data_access.models.sqlite.job import Job
     from icon.server.pre_processing.task import PreProcessingTask
@@ -344,28 +346,20 @@ class PreProcessingWorker(multiprocessing.Process):
         )
 
     def _handle_parameter_updates(self) -> None:
-        done = False
+        for parameter_update in consume_queue(self._update_queue):
+            event = parameter_update["event"]
+            job_id = parameter_update.get("job_id", None)
+            new_parameters = parameter_update.get("new_parameters", None)
 
-        while not done:
-            try:
-                parameter_update = self._update_queue.get(block=False)
-
-                event = parameter_update["event"]
-                job_id = parameter_update.get("job_id", None)
-                new_parameters = parameter_update.get("new_parameters", None)
-
-                if event == "update_parameters" and (
-                    job_id is None or job_id == self._pre_processing_task.job.id
-                ):
-                    self._update_parameter_dict(mode=ParamUpdateMode.ALL_UP_TO_DATE)
-                elif event == "calibration" and new_parameters is not None:
-                    self._update_parameter_dict(
-                        new_parameters=new_parameters,
-                        mode=ParamUpdateMode.ONLY_NEW_PARAMETERS,
-                    )
-
-            except queue.Empty:
-                done = True
+            if event == "update_parameters" and (
+                job_id is None or job_id == self._pre_processing_task.job.id
+            ):
+                self._update_parameter_dict(mode=ParamUpdateMode.ALL_UP_TO_DATE)
+            elif event == "calibration" and new_parameters is not None:
+                self._update_parameter_dict(
+                    new_parameters=new_parameters,
+                    mode=ParamUpdateMode.ONLY_NEW_PARAMETERS,
+                )
 
     def _get_sequence_json(
         self, n_shots: int, parameter_dict: dict[str, DatabaseValueType]
@@ -479,3 +473,14 @@ class PreProcessingWorker(multiprocessing.Process):
                 sequence_json=sequence_json,
             )
             continuous_scan_index += 1
+
+
+T = TypeVar("T")
+
+
+def consume_queue(q: multiprocessing.Queue[T]) -> Iterator[T]:
+    while True:
+        try:
+            yield q.get(block=False)
+        except queue.Empty:
+            return
