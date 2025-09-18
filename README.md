@@ -86,11 +86,17 @@ The web frontend is served automatically by the ICON backend. By default it is a
 Set up the development environment:
 
 ```bash
-uv sync --all-extras --group dev
-source .venv/bin/activate
+uv sync --all-extras --dev
 ````
 
-Run the server:
+Start a development InfluxDB instance:
+
+```bash
+cd docker
+uv run podman compose up
+```
+
+In a separate terminal, run the ICON server:
 
 ```bash
 uv run python -m icon.server
