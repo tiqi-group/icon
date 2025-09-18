@@ -20,13 +20,13 @@ class ExperimentLibraryConfigV1(BaseModel):
 
 class InfluxDBv1Config(BaseModel):
     host: str = "localhost"
-    port: int = 8086
+    port: int = 8087
     username: str = "admin"
     password: str = "admin"
     database: str = "testing"
     measurement: str = "Experiment Parameters"
-    ssl: bool = True
-    verify_ssl: bool = True
+    ssl: bool = False
+    verify_ssl: bool = False
     headers: dict[str, str] = {}
 
 
