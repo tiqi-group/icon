@@ -17,6 +17,7 @@ import psutil
 import pytz
 
 from icon.config.config import get_config
+from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.scan_parameter import (
     contains_realtime_parameter,
@@ -40,7 +41,6 @@ from icon.server.hardware_processing.task import HardwareProcessingTask
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
     from icon.server.data_access.models.sqlite.job import Job
     from icon.server.pre_processing.task import PreProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
@@ -48,6 +48,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 timezone = pytz.timezone(get_config().date.timezone)
+
+ScanCombination = frozenset[tuple[str, DatabaseValueType]]
 
 
 class ParamUpdateMode(str, Enum):
@@ -74,7 +76,6 @@ def prepare_experiment_library_folder(
     icon.server.utils.git_helpers.checkout_commit(
         git_hash=pre_processing_task.git_commit_hash, cwd=src_dir
     )
-    # update_python_environment(src_dir)
 
 
 def change_process_priority(priority: int) -> None:
@@ -371,29 +372,14 @@ class PreProcessingWorker(multiprocessing.Process):
             )
         )
 
-    def _submit_data_point_to_hw_worker(
+    def _submit_task_to_hw_worker(
         self,
         *,
-        index: int,
-        data_point: dict[str, DatabaseValueType],
-        sequence_json: str,
+        task: HardwareProcessingTask,
     ) -> None:
-        task = HardwareProcessingTask(
-            data_point_index=index,
-            pre_processing_task=self._pre_processing_task,
-            priority=self._pre_processing_task.priority,
-            global_parameter_timestamp=self._global_parameter_timestamp,
-            scanned_params=data_point,
-            src_dir=self._src_dir,
-            sequence_json=sequence_json,
-            processed_data_points=self._processed_data_points,
-            data_points_to_process=self._data_points_to_process,
-            created=datetime.now(timezone),
-        )
-
         logger.debug(
             "Submitting data point %s (job_run_id=%s)",
-            index,
+            task.data_point_index,
             self._pre_processing_task.job_run.id,
         )
         self._hw_processing_queue.put(task)
@@ -424,56 +410,87 @@ class PreProcessingWorker(multiprocessing.Process):
                 parameter_dict={**self._parameter_dict, **data_point}
             )
 
-            self._submit_data_point_to_hw_worker(
-                index=index, data_point=data_point, sequence_json=sequence_json
+            self._submit_task_to_hw_worker(
+                task=self._create_hardware_task(
+                    index=index, data_point=data_point, sequence_json=sequence_json
+                )
             )
+
+    def _create_hardware_task(
+        self,
+        *,
+        index: int,
+        data_point: dict[str, DatabaseValueType],
+        sequence_json: str,
+    ) -> HardwareProcessingTask:
+        return HardwareProcessingTask(
+            data_point_index=index,
+            pre_processing_task=self._pre_processing_task,
+            priority=self._pre_processing_task.priority,
+            global_parameter_timestamp=self._global_parameter_timestamp,
+            scanned_params=data_point,
+            src_dir=self._src_dir,
+            sequence_json=sequence_json,
+            processed_data_points=self._processed_data_points,
+            data_points_to_process=self._data_points_to_process,
+            created=datetime.now(timezone),
+        )
 
     def _handle_realtime_scan(self) -> None:
         sequence_json = self._get_sequence_json(parameter_dict=self._parameter_dict)
 
-        continuous_scan_index = 0
+        params = self._pre_processing_task.job.scan_parameters
+        realtime_param = next(p for p in params if p.realtime)
+        n_scan_values = len(realtime_param.scan_values)
 
-        for index in range(2):
-            self._submit_data_point_to_hw_worker(
-                index=index, data_point={}, sequence_json=sequence_json
-            )
-            continuous_scan_index += 1
+        hardware_tasks: dict[ScanCombination, HardwareProcessingTask] = {}
 
-        while not job_run_cancelled_or_failed(
-            job_id=self._pre_processing_task.job.id,
-        ):
-            if self._data_points_to_process.qsize() != 0:
-                raise Exception("Something went wrong")
-
-            self._handle_parameter_updates()
-
-            try:
-                hw_task = self._processed_data_points.get(block=False)
-            except queue.Empty:
-                time.sleep(0.1)
-                continue
-
-            if hw_task.global_parameter_timestamp < self._global_parameter_timestamp:
-                sequence_json = self._get_sequence_json(
-                    parameter_dict=self._parameter_dict
+        realtime_scan_counter = itertools.count()
+        # n_scan_values iterations if n_scan_values > 0
+        # 0 iterations if n_scan_values == 0
+        times = (n_scan_values,) if n_scan_values > 0 else ()
+        for _ in itertools.repeat(None, *times):
+            for combination in self._scan_parameter_value_combinations:
+                self._data_points_to_process.put(
+                    (next(realtime_scan_counter), combination)
                 )
-            else:
-                sequence_json = hw_task.sequence_json
-
-            self._submit_data_point_to_hw_worker(
-                index=continuous_scan_index,
-                data_point={},
-                sequence_json=sequence_json,
-            )
-            continuous_scan_index += 1
+            if self._data_points_to_process.qsize() == 0:
+                self._data_points_to_process.put((next(realtime_scan_counter), {}))
+            for index, data_point in consume_queue(self._data_points_to_process):
+                if job_run_cancelled_or_failed(
+                    job_id=self._pre_processing_task.job.id,
+                ):
+                    return
+                self._handle_parameter_updates()
+                frozen_data_point = freeze_dict(data_point)
+                hardware_task = hardware_tasks.get(frozen_data_point)
+                if (
+                    hardware_task is None
+                    or hardware_task.global_parameter_timestamp
+                    < self._global_parameter_timestamp
+                ):
+                    sequence_json = self._get_sequence_json(
+                        parameter_dict={**self._parameter_dict, **data_point}
+                    )
+                    hardware_task = self._create_hardware_task(
+                        index=index, data_point=data_point, sequence_json=sequence_json
+                    )
+                    hardware_tasks[frozen_data_point] = hardware_task
+                hardware_task.created = datetime.now(timezone)
+                hardware_task.data_point_index = index
+                self._submit_task_to_hw_worker(task=hardware_task)
 
 
 T = TypeVar("T")
 
 
-def consume_queue(q: multiprocessing.Queue[T]) -> Iterator[T]:
+def consume_queue(q: multiprocessing.Queue[T] | queue.Queue[T]) -> Iterator[T]:
     while True:
         try:
             yield q.get(block=False)
         except queue.Empty:
             return
+
+
+def freeze_dict(combination: dict[str, DatabaseValueType]) -> ScanCombination:
+    return frozenset(combination.items())
