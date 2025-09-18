@@ -14,5 +14,17 @@ services:
       - INFLUXDB_ADMIN_PASSWORD=passw0rd
       - INFLUXDB_HTTP_BIND_ADDRESS=:8087
       - INFLUXDB_HTTP_AUTH_ENABLED=false
+  chronograf:
+    image: chronograf:latest
+    network_mode: host
+    volumes:
+      - chronograf-storage:/var/lib/chronograf
+    depends_on:
+      - influxdbv1
+    environment:
+      - INFLUXDB_URL=http://localhost:8087
+      - INFLUXDB_USERNAME=tester
+      - INFLUXDB_PASSWORD=passw0rd
 volumes:
   influxdb-storage:
+  chronograf-storage:
