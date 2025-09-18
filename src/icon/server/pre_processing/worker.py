@@ -18,6 +18,9 @@ import pytz
 
 from icon.config.config import get_config
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
+from icon.server.data_access.models.sqlite.scan_parameter import (
+    contains_realtime_parameter,
+)
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataRepository,
 )
@@ -98,7 +101,8 @@ def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
     # Extract variable IDs and their scan values from the job's scan parameters
     parameter_values: dict[str, Any] = {}
     for scan_param in job.scan_parameters:
-        parameter_values[scan_param.unique_id()] = scan_param.scan_values
+        if not scan_param.realtime:
+            parameter_values[scan_param.unique_id()] = scan_param.scan_values
 
     # Generate combinations using itertools.product
     keys = list(parameter_values.keys())
@@ -214,6 +218,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     )
 
     def _process_task(self) -> None:
+        job = self._pre_processing_task.job
         JobRunRepository.update_run_by_id(
             run_id=self._pre_processing_task.job_run.id,
             status=JobRunStatus.PROCESSING,
@@ -223,7 +228,7 @@ class PreProcessingWorker(multiprocessing.Process):
         self._handle_parameter_updates()
 
         if job_run_cancelled_or_failed(
-            job_id=self._pre_processing_task.job.id,
+            job_id=job.id,
         ):
             return
 
@@ -247,15 +252,11 @@ class PreProcessingWorker(multiprocessing.Process):
             self._exp_module_name,
             self._exp_class_name,
             self._exp_instance_name,
-        ) = parse_experiment_identifier(
-            self._pre_processing_task.job.experiment_source.experiment_id
-        )
+        ) = parse_experiment_identifier(job.experiment_source.experiment_id)
 
         self._update_parameter_dict()
 
-        self._scan_parameter_value_combinations = get_scan_combinations(
-            self._pre_processing_task.job
-        )
+        self._scan_parameter_value_combinations = get_scan_combinations(job)
 
         readout_metadata = asyncio.run(
             PycrystalLibraryRepository.get_experiment_readout_metadata(
@@ -266,17 +267,17 @@ class PreProcessingWorker(multiprocessing.Process):
         )
 
         ExperimentDataRepository.update_metadata_by_job_id(
-            job_id=self._pre_processing_task.job.id,
-            number_of_shots=self._pre_processing_task.job.number_of_shots,
-            repetitions=self._pre_processing_task.job.repetitions,
-            parameters=self._pre_processing_task.job.scan_parameters,
+            job_id=job.id,
+            number_of_shots=job.number_of_shots,
+            repetitions=job.repetitions,
+            parameters=job.scan_parameters,
             readout_metadata=readout_metadata,
         )
 
-        if len(self._scan_parameter_value_combinations) > 0:
-            self._handle_regular_scan()
+        if contains_realtime_parameter(job.scan_parameters):
+            self._handle_realtime_scan()
         else:
-            self._handle_continuous_scan()
+            self._handle_regular_scan()
 
     def _update_parameter_dict(
         self,
@@ -433,7 +434,7 @@ class PreProcessingWorker(multiprocessing.Process):
                 index=index, data_point=data_point, sequence_json=sequence_json
             )
 
-    def _handle_continuous_scan(self) -> None:
+    def _handle_realtime_scan(self) -> None:
         sequence_json = self._get_sequence_json(parameter_dict=self._parameter_dict)
 
         continuous_scan_index = 0
