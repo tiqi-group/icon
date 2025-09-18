@@ -31,12 +31,6 @@ client = [
     "notebook>=7.3.1",
     "pandas>=2.2.3",
 ]
-docs = [
-    "mkdocs>=1.6.1",
-    "mkdocs-include-markdown-plugin>=7.1.7",
-    "mkdocs-material>=9.6.19",
-    "mkdocstrings[python]>=0.30.0",
-]
 
 [build-system]
 requires = ["hatchling"]
@@ -63,6 +57,12 @@ dev = [
 ]
 build = [
     "pyinstaller>=6.15.0",
+]
+docs = [
+    "mkdocs>=1.6.1",
+    "mkdocs-include-markdown-plugin>=7.1.7",
+    "mkdocs-material>=9.6.19",
+    "mkdocstrings[python]>=0.30.0",
 ]
 
 

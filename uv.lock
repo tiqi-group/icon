@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -1212,12 +1212,6 @@ client = [
     { name = "notebook" },
     { name = "pandas" },
 ]
-docs = [
-    { name = "mkdocs" },
-    { name = "mkdocs-include-markdown-plugin" },
-    { name = "mkdocs-material" },
-    { name = "mkdocstrings", extra = ["python"] },
-]
 server = [
     { name = "alembic" },
     { name = "filelock" },
@@ -1251,6 +1245,12 @@ dev = [
     { name = "types-pyyaml" },
     { name = "types-requests" },
 ]
+docs = [
+    { name = "mkdocs" },
+    { name = "mkdocs-include-markdown-plugin" },
+    { name = "mkdocs-material" },
+    { name = "mkdocstrings", extra = ["python"] },
+]
 
 [package.metadata]
 requires-dist = [
@@ -1260,10 +1260,6 @@ requires-dist = [
     { name = "influxdb", marker = "extra == 'server'", specifier = ">=5.3.2" },
     { name = "ipympl", marker = "extra == 'client'", specifier = ">=0.9.5" },
     { name = "matplotlib", marker = "extra == 'client'", specifier = ">=3.10.0" },
-    { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6.1" },
-    { name = "mkdocs-include-markdown-plugin", marker = "extra == 'docs'", specifier = ">=7.1.7" },
-    { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.6.19" },
-    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=0.30.0" },
     { name = "notebook", marker = "extra == 'client'", specifier = ">=7.3.1" },
     { name = "pandas", marker = "extra == 'client'", specifier = ">=2.2.3" },
     { name = "psutil", marker = "extra == 'server'", specifier = ">=7.0.0" },
@@ -1273,7 +1269,7 @@ requires-dist = [
     { name = "tables", marker = "extra == 'server'", specifier = ">=3.10.1" },
     { name = "tiqi-zedboard", marker = "extra == 'zedboard'", git = "ssh://git@gitlab.phys.ethz.ch/tiqi-projects/drivers/tiqi-zedboard.git?rev=v1.3.0" },
 ]
-provides-extras = ["server", "zedboard", "client", "docs"]
+provides-extras = ["server", "zedboard", "client"]
 
 [package.metadata.requires-dev]
 build = [{ name = "pyinstaller", specifier = ">=6.15.0" }]
@@ -1291,6 +1287,12 @@ dev = [
     { name = "types-pytz", specifier = ">=2024.2.0.20241003" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250402" },
     { name = "types-requests", specifier = ">=2.32.0.20250328" },
+]
+docs = [
+    { name = "mkdocs", specifier = ">=1.6.1" },
+    { name = "mkdocs-include-markdown-plugin", specifier = ">=7.1.7" },
+    { name = "mkdocs-material", specifier = ">=9.6.19" },
+    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.30.0" },
 ]
 
 [[package]]
