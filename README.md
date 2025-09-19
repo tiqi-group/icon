@@ -24,9 +24,9 @@ The system is built with:
 * **Backend**: Python (API server, scheduler, pre-/post-processing, hardware orchestration).
 * **Frontend**: React/TypeScript (configuration, monitoring, visualisation).
 * **Databases**:
-    * SQLite — job and device history
-    * InfluxDB — parameter time series
-    * HDF5 — experiment results
+    * SQLite - job and device history
+    * InfluxDB - parameter time series
+    * HDF5 - experiment results
 <!--introduction-end-->
 
 
