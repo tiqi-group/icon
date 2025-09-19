@@ -58,6 +58,7 @@ plugins:
           - https://confz.readthedocs.io/en/latest/objects.inv
           - https://python-socketio.readthedocs.io/en/stable/objects.inv
           - https://pydase.readthedocs.io/en/latest/objects.inv
+          - https://docs.sqlalchemy.org/en/20/objects.inv
         options:
           # General
           show_source: true
