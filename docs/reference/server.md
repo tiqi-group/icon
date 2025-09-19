@@ -14,6 +14,10 @@
       show_if_no_docstring: false
       inherited_members: false
 ::: icon.server.data_access.repositories
+    options:
+      summary: false
+      show_if_no_docstring: false
+      inherited_members: false
 ::: icon.server.hardware_processing
 ::: icon.server.post_processing
 ::: icon.server.pre_processing

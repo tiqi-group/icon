@@ -24,16 +24,27 @@ logger = logging.getLogger(__name__)
 
 
 class ResultDict(TypedDict):
+    """Scalar/vector/shot readouts for a single data point."""
+
     result_channels: dict[str, float]
+    """Mapping from result channel name to scalar value."""
     vector_channels: dict[str, list[float]]
+    """Mapping from vector channel name to list of floats."""
     shot_channels: dict[str, list[int]]
+    """Mapping from shot channel name to per-shot integers."""
 
 
 class ExperimentDataPoint(ResultDict):
+    """A single data point with its context."""
+
     index: int
+    """Sequential index of this data point."""
     scan_params: dict[str, DatabaseValueType]
+    """Parameter values that produced this data point."""
     timestamp: str
+    """Acquisition timestamp (ISO string)."""
     sequence_json: str
+    """Serialized sequence JSON used for this data point."""
 
 
 class PlotWindowMetadata(TypedDict):
@@ -55,11 +66,7 @@ class PlotWindowMetadata(TypedDict):
 
 
 class ReadoutMetadata(TypedDict):
-    """Metadata describing the `ionpulse_sequence_generator` hardware's readout channels
-    and their corresponding plot windows. It contains information about the various
-    channel names (readout, shot, and vector channels), as well as the configuration of
-    plot windows for each type of channel.
-    """
+    """Metadata describing readout/shot/vector channels and their plot windows."""
 
     readout_channel_names: list[str]
     """A list of all readout channel names"""
@@ -76,28 +83,56 @@ class ReadoutMetadata(TypedDict):
 
 
 class PlotWindowsDict(TypedDict):
+    """Grouping of plot window metadata by channel type."""
+
     result_channels: list[PlotWindowMetadata]
+    """Plot window metadata for result channels."""
     shot_channels: list[PlotWindowMetadata]
+    """Plot window metadata for shot channels."""
     vector_channels: list[PlotWindowMetadata]
+    """Plot window metadata for vector channels."""
 
 
 class ExperimentData(TypedDict):
+    """Container for all experiment data returned to the API."""
+
     plot_windows: PlotWindowsDict
+    """Plot window metadata grouped by channel class."""
     shot_channels: dict[str, dict[int, list[int]]]
+    """Shot channels as channel_name -> {index -> values}."""
     result_channels: dict[str, dict[int, float]]
+    """Result channels as channel_name -> {index -> value}."""
     vector_channels: dict[str, dict[int, list[float]]]
+    """Vector channels as channel_name -> {index -> values}."""
     scan_parameters: dict[str, dict[int, str | float]]
+    """Scan parameters as param_id -> {index -> value/timestamp}."""
     json_sequences: list[list[int | str]]
-    """List of [index, sequence_json] objects. This is using a list instead of a tuple
-    as tuples are not serializable in pydase yet."""
+    """List of [index, sequence_json] pairs (list for pydase JSON compatibility)."""
 
 
 def get_filename_by_job_id(job_id: int) -> str:
+    """Return the HDF5 filename for a job.
+
+    Args:
+        job_id: Job identifier.
+
+    Returns:
+        Filename derived from the job's scheduled time (e.g., "<iso>.h5").
+    """
+
     scheduled_time = JobRunRepository.get_scheduled_time_by_job_id(job_id=job_id)
     return f"{scheduled_time}.h5"
 
 
 def resize_dataset(dataset: h5py.Dataset, next_index: int, axis: int) -> None:
+    """Resize a dataset to accommodate writing at a target index.
+
+    Args:
+        dataset: HDF5 dataset to resize.
+        next_index: Index that must be writable.
+        axis: Axis along which to grow.
+    """
+
     dataset.resize(next_index + 1, axis)
 
 
@@ -106,7 +141,13 @@ def write_sequence_json_to_dataset(
     data_point_index: int,
     sequence_json: str,
 ) -> None:
-    """Write scan parameters and timestamp to scan_parameters dataset."""
+    """Append sequence JSON if it changed since the last entry.
+
+    Args:
+        h5file: Open HDF5 file handle.
+        data_point_index: Index of the current data point.
+        sequence_json: Serialized sequence JSON to append.
+    """
 
     sequence_json_dtype = [
         ("index", np.int32),
@@ -143,7 +184,15 @@ def write_scan_parameters_and_timestamp_to_dataset(
     timestamp: str,
     number_of_data_points: int,
 ) -> None:
-    """Write scan parameters and timestamp to scan_parameters dataset."""
+    """Write scan parameters and timestamp to the 'scan_parameters' dataset.
+
+    Args:
+        h5file: Open HDF5 file handle.
+        data_point_index: Index of the current data point.
+        scan_params: Parameter values for this data point.
+        timestamp: Acquisition timestamp (ISO string).
+        number_of_data_points: Current total number of stored data points.
+    """
 
     scan_parameter_dtype = [
         ("timestamp", "S26"),  # timestamps are strings of length 26
@@ -175,7 +224,14 @@ def write_results_to_dataset(
     result_channels: dict[str, float],
     number_of_data_points: int,
 ) -> None:
-    """Write results to result_channels dataset."""
+    """Write scalar result channels into the 'result_channels' dataset.
+
+    Args:
+        h5file: Open HDF5 file handle.
+        data_point_index: Index of the current data point.
+        result_channels: Mapping of channel name to float value.
+        number_of_data_points: Current total number of stored data points.
+    """
 
     sorted_keys = sorted(result_channels)
 
@@ -204,7 +260,15 @@ def write_shot_channels_to_datasets(
     number_of_data_points: int,
     number_of_shots: int,
 ) -> None:
-    """Write shot channel data into shot_channels group datasets."""
+    """Write per-shot data into datasets under the 'shot_channels' group.
+
+    Args:
+        h5file: Open HDF5 file handle.
+        data_point_index: Index of the current data point.
+        shot_channels: Mapping of channel to per-shot integers.
+        number_of_data_points: Current total number of stored data points.
+        number_of_shots: Expected number of shots per channel.
+    """
 
     shot_group = h5file.require_group("shot_channels")
     for key, value in shot_channels.items():
@@ -228,7 +292,15 @@ def write_vector_channels_to_datasets(
     data_point_index: int,
     vector_channels: dict[str, list[float]],
 ) -> None:
-    """Create a dataset for each vector channel and data point."""
+    """Write vector channel data under the 'vector_channels' group.
+
+    Creates one dataset per channel per data point.
+
+    Args:
+        h5file: Open HDF5 file handle.
+        data_point_index: Index of the current data point.
+        vector_channels: Mapping of channel to vector of floats.
+    """
 
     vector_group = h5file.require_group("vector_channels")
     for channel_name, vector in vector_channels.items():
@@ -243,10 +315,16 @@ def write_vector_channels_to_datasets(
 
 
 class ExperimentDataRepository:
+    """Repository for HDF5-based experiment data.
+
+    Manages HDF5 file creation and updates (metadata, results, parameters), with
+    file-level locking to support concurrent writers.
+    """
+
     LOCK_EXTENSION = ".lock"
 
     @staticmethod
-    def update_metadata_by_job_id(
+    def update_metadata_by_job_id(  # noqa: PLR0913
         *,
         job_id: int,
         number_of_shots: int,
@@ -255,8 +333,19 @@ class ExperimentDataRepository:
         local_parameter_timestamp: datetime | None = None,
         parameters: list[ScanParameter] = [],
     ) -> None:
-        """Creates or updates a metadata group and updates its attributes with the
-        passed metadata."""
+        """Create or update HDF5 metadata for a job.
+
+        Initializes datasets, sets file-level attributes, and stores plot window
+        metadata for result/shot/vector channels.
+
+        Args:
+            job_id: Job identifier.
+            number_of_shots: Shots per data point.
+            repetitions: Number of repetitions.
+            readout_metadata: Plot/window/channel metadata.
+            local_parameter_timestamp: Optional timestamp for local parameters.
+            parameters: Scan parameters.
+        """
 
         filename = get_filename_by_job_id(job_id)
         file = f"{get_config().data.results_dir}/{filename}"
@@ -332,6 +421,15 @@ class ExperimentDataRepository:
         job_id: int,
         data_point: ExperimentDataPoint,
     ) -> None:
+        """Append a complete data point to the HDF5 file and emit an event.
+
+        Writes scan parameters, result/shot/vector channels, and sequence JSON.
+
+        Args:
+            job_id: Job identifier.
+            data_point: Data point payload to append.
+        """
+
         filename = get_filename_by_job_id(job_id)
         file = f"{get_config().data.results_dir}/{filename}"
 
@@ -386,7 +484,6 @@ class ExperimentDataRepository:
                 sequence_json=data_point["sequence_json"],
             )
 
-            # increase the number of data points
             if data_point["index"] >= number_of_data_points:
                 h5file.attrs["number_of_data_points"] = data_point["index"] + 1
 
@@ -406,8 +503,15 @@ class ExperimentDataRepository:
         timestamp: str,
         parameter_values: dict[str, str | int | float | bool],
     ) -> None:
-        """Write parameter updates to a dataset for each parameter under 'parameters'.
-        Datasets contain (timestamp, value). Only appends if the value changed.
+        """Append parameter updates under the 'parameters' group.
+
+        Creates a dataset per parameter storing (timestamp, value) entries.
+        Appends only when the value changed from the last entry.
+
+        Args:
+            job_id: Job identifier.
+            timestamp: ISO timestamp string.
+            parameter_values: Mapping of parameter id to value.
         """
 
         filename = get_filename_by_job_id(job_id)
@@ -458,6 +562,15 @@ class ExperimentDataRepository:
         *,
         job_id: int,
     ) -> ExperimentData:
+        """Load all stored data for a job from its HDF5 file.
+
+        Args:
+            job_id: Job identifier.
+
+        Returns:
+            Experiment data payload suitable for the API.
+        """
+
         data: ExperimentData = {
             "plot_windows": {
                 "result_channels": [],
@@ -483,16 +596,12 @@ class ExperimentDataRepository:
             f"{ExperimentDataRepository.LOCK_EXTENSION}"
         )
         with FileLock(lock_path), h5py.File(file, "r") as h5file:
-            # Parse JSON strings in relevant columns back into Python objects
-
             scan_parameters: npt.NDArray = h5file["scan_parameters"][:]  # type: ignore
             data["scan_parameters"] = {
                 param: {
-                    index: value[0]
-                    .item()
-                    .decode()  # converting timestamp bytes to string
+                    index: value[0].item().decode()
                     if isinstance(value[0], np.bytes_)
-                    else value[0].item()  # value is stored as a list with one entry
+                    else value[0].item()
                     for index, value in enumerate(scan_parameters[param])
                 }
                 for param in cast("tuple[str, ...]", scan_parameters.dtype.names)

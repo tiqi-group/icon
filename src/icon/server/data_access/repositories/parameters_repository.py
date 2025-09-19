@@ -18,13 +18,24 @@ logger = logging.getLogger(__name__)
 
 
 class NotInitialisedError(Exception):
-    pass
+    """Raised when repository methods are called before initialization."""
 
 
 def get_specifiers_from_parameter_identifier(
     parameter_identifier: str,
 ) -> dict[str, str]:
-    # Regex pattern to match key='value' pairs, including namespace and parameter_group
+    """Extract specifiers from a parameter identifier string.
+
+    Parameter identifiers encode metadata as `key='value'` pairs. This helper parses
+    them into a dictionary.
+
+    Args:
+        parameter_identifier: Identifier string to parse.
+
+    Returns:
+        Mapping of specifier keys to values.
+    """
+
     pattern = re.compile(r"(\w+)='([^']*)'")
     matches = pattern.findall(parameter_identifier)
 
@@ -32,6 +43,13 @@ def get_specifiers_from_parameter_identifier(
 
 
 class ParametersRepository:
+    """Repository for parameter values and metadata.
+
+    Provides methods to read and update shared parameter state (via a
+    `multiprocessing.Manager` dict) and to persist/retrieve parameters from InfluxDB.
+    Emits Socket.IO events on updates.
+    """
+
     _shared_parameters: DictProxy[str, DatabaseValueType]
     initialised: bool = False
 
@@ -39,11 +57,19 @@ class ParametersRepository:
     def initialize(
         cls, *, shared_parameters: DictProxy[str, DatabaseValueType]
     ) -> None:
+        """Initialize the repository with a shared parameters dict.
+
+        Args:
+            shared_parameters: Proxy dictionary used to store shared state.
+        """
+
         cls._shared_parameters = shared_parameters
         cls.initialised = True
 
     @classmethod
     def _check_initialised(cls) -> None:
+        """Raise if repository is not initialized."""
+
         if not cls.initialised:
             raise NotInitialisedError("ParametersRepository is not initialised.")
 
@@ -53,6 +79,12 @@ class ParametersRepository:
         *,
         parameter_mapping: dict[str, DatabaseValueType],
     ) -> None:
+        """Update parameters in both shared state and InfluxDB.
+
+        Args:
+            parameter_mapping: Mapping of parameter IDs to values.
+        """
+
         for key, value in parameter_mapping.items():
             if (
                 isinstance(value, int)
@@ -70,6 +102,12 @@ class ParametersRepository:
         *,
         parameter_mapping: dict[str, DatabaseValueType],
     ) -> None:
+        """Update multiple parameters in shared state.
+
+        Args:
+            parameter_mapping: Mapping of parameter IDs to values.
+        """
+
         for key, value in parameter_mapping.items():
             cls._update_shared_parameter_by_id(parameter_id=key, new_value=value)
 
@@ -80,6 +118,13 @@ class ParametersRepository:
         parameter_id: str,
         new_value: DatabaseValueType,
     ) -> None:
+        """Update a single parameter in shared state and emit an event.
+
+        Args:
+            parameter_id: ID of the parameter.
+            new_value: New value to assign.
+        """
+
         cls._check_initialised()
 
         cls._shared_parameters[parameter_id] = new_value
@@ -97,18 +142,35 @@ class ParametersRepository:
         *,
         parameter_id: str,
     ) -> DatabaseValueType | None:
+        """Return a single parameter value from shared state.
+
+        Args:
+            parameter_id: ID of the parameter.
+
+        Returns:
+            The parameter value, or None if not set.
+        """
+
         cls._check_initialised()
 
         return cls._shared_parameters.get(parameter_id, None)
 
     @classmethod
     def get_shared_parameters(cls) -> DictProxy[str, DatabaseValueType]:
+        """Return the full shared parameter dictionary.
+
+        Returns:
+            Proxy dictionary of parameters.
+        """
+
         cls._check_initialised()
 
         return cls._shared_parameters
 
     @staticmethod
     def get_influxdb_parameter_keys() -> list[str]:
+        """Return all parameter field keys from InfluxDB v1."""
+
         with InfluxDBv1Session() as influxdbv1:
             return influxdbv1.get_field_keys(
                 get_config().databases.influxdbv1.measurement
@@ -118,6 +180,16 @@ class ParametersRepository:
     def get_influxdb_parameters(
         *, before: str | None = None, namespace: str | None = None
     ) -> dict[str, DatabaseValueType]:
+        """Return the latest parameter values from InfluxDB.
+
+        Args:
+            before: Optional ISO timestamp to query parameters before.
+            namespace: Optional namespace filter.
+
+        Returns:
+            Mapping of parameter IDs to values.
+        """
+
         with InfluxDBv1Session() as influxdbv1:
             return influxdbv1.query_last(
                 get_config().databases.influxdbv1.measurement,
@@ -127,6 +199,15 @@ class ParametersRepository:
 
     @staticmethod
     def get_influxdb_parameter_by_id(parameter_id: str) -> DatabaseValueType | None:
+        """Return a single parameter value from InfluxDB.
+
+        Args:
+            parameter_id: ID of the parameter.
+
+        Returns:
+            The parameter value, or None if not found.
+        """
+
         with InfluxDBv1Session() as influxdb:
             result_dict = influxdb.query(
                 measurement=get_config().databases.influxdbv1.measurement,
@@ -145,6 +226,12 @@ class ParametersRepository:
     def _update_influxdb_parameters(
         parameter_mapping: dict[str, DatabaseValueType],
     ) -> None:
+        """Write multiple parameter values into InfluxDB.
+
+        Args:
+            parameter_mapping: Mapping of parameter IDs to values.
+        """
+
         records: list[dict[str, Any]] = []
 
         for parameter_id, value in parameter_mapping.items():

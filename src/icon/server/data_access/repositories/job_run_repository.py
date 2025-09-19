@@ -15,6 +15,15 @@ logger = logging.getLogger(__name__)
 
 
 def job_run_cancelled_or_failed(job_id: int) -> bool:
+    """Check if a job's run was cancelled or failed.
+
+    Args:
+        job_id: ID of the job whose run should be checked.
+
+    Returns:
+        True if the run status is CANCELLED or FAILED, False otherwise.
+    """
+
     job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
     if job_run.status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
         logger.info(
@@ -27,19 +36,27 @@ def job_run_cancelled_or_failed(job_id: int) -> bool:
 
 
 class JobRunRepository:
+    """Repository for `JobRun` entities.
+
+    Provides methods to insert, update, and query job runs from the database.
+    Emits Socket.IO events when job runs are created or updated.
+    """
+
     @staticmethod
-    def insert_run(
-        *,
-        run: JobRun,
-    ) -> JobRun:
-        """Creates a new JobRun instance in the database and returns this
-        instance.
+    def insert_run(*, run: JobRun) -> JobRun:
+        """Insert a new job run and emit a creation event.
+
+        Args:
+            run: The job run instance to persist.
+
+        Returns:
+            The persisted job run with generated fields populated.
         """
 
         with sqlalchemy.orm.Session(engine) as session:
             session.add(run)
             session.commit()
-            session.refresh(run)  # Refresh to get the ID
+            session.refresh(run)
             logger.debug("Created new run %s", run)
 
         emit_queue.put(
@@ -60,7 +77,16 @@ class JobRunRepository:
         status: JobRunStatus,
         log: str | None = None,
     ) -> JobRun:
-        """Updates a JobRun instance in the database and returns this instance."""
+        """Update a job run by ID and emit an update event.
+
+        Args:
+            run_id: The ID of the job run to update.
+            status: New status of the run.
+            log: Optional log message (e.g. failure reason).
+
+        Returns:
+            The updated job run.
+        """
 
         with sqlalchemy.orm.Session(engine) as session:
             stmt = (
@@ -95,7 +121,15 @@ class JobRunRepository:
         status: JobRunStatus | list[JobRunStatus],
         load_job: bool = False,
     ) -> Sequence[JobRun]:
-        """Gets all the JobRun instances with given status."""
+        """Return job runs filtered by status.
+
+        Args:
+            status: Single or list of run statuses to filter on.
+            load_job: If True, eagerly load the related `Job`.
+
+        Returns:
+            All matching runs.
+        """
 
         if not isinstance(status, list):
             status = [status]
@@ -113,12 +147,16 @@ class JobRunRepository:
             return session.execute(stmt).scalars().all()
 
     @staticmethod
-    def get_run_by_job_id(
-        *,
-        job_id: int,
-        load_job: bool = False,
-    ) -> JobRun:
-        """Gets the JobRun instances with given job_id."""
+    def get_run_by_job_id(*, job_id: int, load_job: bool = False) -> JobRun:
+        """Return the run associated with a given job ID.
+
+        Args:
+            job_id: ID of the job.
+            load_job: If True, eagerly load the related `Job`.
+
+        Returns:
+            The run linked to the given job.
+        """
 
         with sqlalchemy.orm.Session(engine) as session:
             stmt = select(JobRun).where(JobRun.job_id == job_id)
@@ -131,11 +169,15 @@ class JobRunRepository:
         return run
 
     @staticmethod
-    def get_scheduled_time_by_job_id(
-        *,
-        job_id: int,
-    ) -> datetime:
-        """Gets the scheduled time of the run with given job_id."""
+    def get_scheduled_time_by_job_id(*, job_id: int) -> datetime:
+        """Return the scheduled time of a run by job ID.
+
+        Args:
+            job_id: ID of the job.
+
+        Returns:
+            The scheduled start time of the run.
+        """
 
         with sqlalchemy.orm.Session(engine) as session:
             stmt = select(JobRun.scheduled_time).where(JobRun.job_id == job_id)
