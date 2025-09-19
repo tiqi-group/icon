@@ -5,6 +5,8 @@
       show_if_no_docstring: false
       summary: false
 ::: icon.server.data_access.models.enums
+    options:
+      summary: false
 ::: icon.server.data_access.models.sqlite
     options:
       show_submodules: false
