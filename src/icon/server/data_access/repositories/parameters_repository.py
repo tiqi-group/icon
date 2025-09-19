@@ -61,20 +61,20 @@ class ParametersRepository:
             ):
                 parameter_mapping[key] = float(value)
 
-        cls.update_shared_parameters(parameter_mapping=parameter_mapping)
-        cls.update_influxdbv1_parameters(parameter_mapping=parameter_mapping)
+        cls._update_shared_parameters(parameter_mapping=parameter_mapping)
+        cls._update_influxdb_parameters(parameter_mapping=parameter_mapping)
 
     @classmethod
-    def update_shared_parameters(
+    def _update_shared_parameters(
         cls,
         *,
         parameter_mapping: dict[str, DatabaseValueType],
     ) -> None:
         for key, value in parameter_mapping.items():
-            cls.update_shared_parameter_by_id(parameter_id=key, new_value=value)
+            cls._update_shared_parameter_by_id(parameter_id=key, new_value=value)
 
     @classmethod
-    def update_shared_parameter_by_id(
+    def _update_shared_parameter_by_id(
         cls,
         *,
         parameter_id: str,
@@ -108,14 +108,14 @@ class ParametersRepository:
         return cls._shared_parameters
 
     @staticmethod
-    def get_influxdbv1_parameter_keys() -> list[str]:
+    def get_influxdb_parameter_keys() -> list[str]:
         with InfluxDBv1Session() as influxdbv1:
             return influxdbv1.get_field_keys(
                 get_config().databases.influxdbv1.measurement
             )
 
     @staticmethod
-    def get_influxdbv1_parameters(
+    def get_influxdb_parameters(
         *, before: str | None = None, namespace: str | None = None
     ) -> dict[str, DatabaseValueType]:
         with InfluxDBv1Session() as influxdbv1:
@@ -126,7 +126,7 @@ class ParametersRepository:
             )
 
     @staticmethod
-    def get_influxdbv1_parameter_by_id(parameter_id: str) -> DatabaseValueType | None:
+    def get_influxdb_parameter_by_id(parameter_id: str) -> DatabaseValueType | None:
         with InfluxDBv1Session() as influxdb:
             result_dict = influxdb.query(
                 measurement=get_config().databases.influxdbv1.measurement,
@@ -142,7 +142,7 @@ class ParametersRepository:
             return result_dict[parameter_id]
 
     @staticmethod
-    def update_influxdbv1_parameters(
+    def _update_influxdb_parameters(
         parameter_mapping: dict[str, DatabaseValueType],
     ) -> None:
         records: list[dict[str, Any]] = []
@@ -158,9 +158,3 @@ class ParametersRepository:
 
         with InfluxDBv1Session() as influxdb:
             influxdb.write_points(points=records)
-
-    @staticmethod
-    def update_influxdbv1_parameter_by_id(parameter_id: str, new_value: Any) -> None:
-        return ParametersRepository.update_influxdbv1_parameters(
-            parameter_mapping={parameter_id: new_value}
-        )

@@ -323,10 +323,10 @@ class PreProcessingWorker(multiprocessing.Process):
             locals_before = self._pre_processing_task.local_parameters_timestamp
             globals_before = None
 
-        global_values = ParametersRepository.get_influxdbv1_parameters(
+        global_values = ParametersRepository.get_influxdb_parameters(
             before=globals_before,
         )
-        local_values = ParametersRepository.get_influxdbv1_parameters(
+        local_values = ParametersRepository.get_influxdb_parameters(
             before=locals_before,
             namespace=namespace,
         )

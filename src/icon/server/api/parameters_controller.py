@@ -122,7 +122,7 @@ class ParametersController(pydase.DataService):
         `ParametersRepository`.
         """
 
-        influxdb_param_keys = ParametersRepository.get_influxdbv1_parameter_keys()
+        influxdb_param_keys = ParametersRepository.get_influxdb_parameter_keys()
         for parameter_id, metadata in self._all_parameter_metadata.items():
             if parameter_id not in influxdb_param_keys:
                 logger.info(
@@ -139,7 +139,7 @@ class ParametersController(pydase.DataService):
         """
 
         icon.server.shared_resource_manager.parameters_dict.update(
-            ParametersRepository.get_influxdbv1_parameters()
+            ParametersRepository.get_influxdb_parameters()
         )
         ParametersRepository.initialize(
             shared_parameters=icon.server.shared_resource_manager.parameters_dict
