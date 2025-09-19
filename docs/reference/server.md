@@ -8,6 +8,9 @@
 ::: icon.server.data_access.models.sqlite
     options:
       show_submodules: false
+      summary: false
+      show_if_no_docstring: false
+      inherited_members: false
 ::: icon.server.data_access.repositories
 ::: icon.server.hardware_processing
 ::: icon.server.post_processing
