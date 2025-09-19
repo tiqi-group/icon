@@ -1,6 +1,9 @@
 # Server
 
 ::: icon.server.api
+    options:
+      show_if_no_docstring: false
+      summary: false
 ::: icon.server.data_access.models.enums
 ::: icon.server.data_access.models.sqlite
     options:

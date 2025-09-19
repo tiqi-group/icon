@@ -16,7 +16,7 @@ nav:
        - Devices page: getting-started/frontend/devices.md
        - Settings page: getting-started/frontend/settings.md
   - Reference:
-    - Icon Server: reference/server.md
+    - ICON Server: reference/server.md
   - About:
     - License: about/license.md
 
@@ -57,6 +57,7 @@ plugins:
           - https://docs.pydantic.dev/latest/objects.inv
           - https://confz.readthedocs.io/en/latest/objects.inv
           - https://python-socketio.readthedocs.io/en/stable/objects.inv
+          - https://pydase.readthedocs.io/en/latest/objects.inv
         options:
           # General
           show_source: true

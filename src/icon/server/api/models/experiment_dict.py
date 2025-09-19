@@ -1,14 +1,17 @@
 from typing import Any, TypedDict
 
-from icon.server.api.models.parameter_metadata import (
-    ParameterMetadata,
-)
+from icon.server.api.models.parameter_metadata import ParameterMetadata
 
 
 class ExperimentMetadata(TypedDict):
+    """Metadata for a single experiment."""
+
     class_name: str
+    """Name of the experiment class."""
     constructor_kwargs: dict[str, Any]
+    """Constructor keyword arguments used to instantiate the experiment."""
     parameters: dict[str, dict[str, ParameterMetadata]]
+    """Mapping of display groups to parameter metadata."""
 
 
 ExperimentDict = dict[str, ExperimentMetadata]

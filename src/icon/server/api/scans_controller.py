@@ -14,11 +14,11 @@ logger = logging.getLogger(__name__)
 
 
 class ScansController(pydase.DataService):
-    """ScansController is responsible for triggering update events for jobs across
-    multiple worker processes.
+    """Controller for triggering update events for jobs across multiple worker
+    processes.
 
-    Each worker process has its own update queue (multiprocessing.Queue), which this
-    controller writes to when an update event is triggered.
+    Each worker process has its own update queue (`[multiprocessing.Queue][]`), which
+    this controller writes to when an update event is triggered.
     """
 
     def __init__(
