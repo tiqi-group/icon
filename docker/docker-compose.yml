@@ -25,6 +25,42 @@ services:
       - INFLUXDB_URL=http://localhost:8087
       - INFLUXDB_USERNAME=tester
       - INFLUXDB_PASSWORD=passw0rd
+#   influxdb3-core:
+#     container_name: influxdb3-core
+#     image: influxdb:3-core
+#     networks:
+#       - influxdb3
+#     ports: 
+#       - 8181:8181
+#     command:
+#       - influxdb3
+#       - serve
+#       - --node-id=node0
+#       - --object-store=file
+#       - --data-dir=/var/lib/influxdb3/data
+#       - --plugin-dir=/var/lib/influxdb3/plugins
+#       - --admin-token-file=/tmp/admin-token.json
+#     security_opt:
+#       - label=disable
+#     volumes:
+#       - influxdb3-storage:/var/lib/influxdb3
+#       - ./influxdb3/:/tmp/:U
+#   influxdb3-explorer:
+#     image: influxdata/influxdb3-ui
+#     command:
+#       - --mode=admin
+#     networks:
+#       - influxdb3
+#     ports:
+#       - 8888:80
+#       - 8889:8888
+#     security_opt:
+#       - label=disable
+#     volumes:
+#       - ./influxdb3-ui/:/app-root/config:ro
+# networks:
+#   influxdb3:
 volumes:
   influxdb-storage:
   chronograf-storage:
+  # influxdb3-storage:
