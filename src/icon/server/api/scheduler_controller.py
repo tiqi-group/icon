@@ -5,7 +5,12 @@ import pydase
 
 import icon.server.data_access.models.sqlite.scan_parameter as sqlite_scan_parameter
 from icon.server.api.devices_controller import DevicesController
-from icon.server.api.models.scan_parameter import ScanParameter
+from icon.server.api.models.scan_parameter import (
+    DatabaseParameter,
+    RealtimeParameter,
+    ScanParameter,
+    scan_parameter_from_dict,
+)
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
 from icon.server.data_access.models.sqlite.job import Job, timezone
@@ -43,7 +48,7 @@ class SchedulerController(pydase.DataService):
         self,
         *,
         experiment_id: str,
-        scan_parameters: list[ScanParameter],
+        scan_parameters: list[dict[str, Any]],
         priority: int = 20,
         local_parameters_timestamp: datetime | None = None,
         repetitions: int = 1,
@@ -84,25 +89,35 @@ class SchedulerController(pydase.DataService):
         )
         sqlite_scan_parameters = []
 
-        for param in scan_parameters:
-            scan_values = await self._cast_scan_values_to_param_type(
-                scan_parameter=param
-            )
-
-            if len(scan_values) == 0:
-                raise RuntimeError(f"Scan value of {param['id']} are empty")
-
-            sqlite_scan_parameters.append(
-                sqlite_scan_parameter.ScanParameter(
-                    variable_id=param["id"],
-                    scan_values=scan_values,
-                    device_id=DeviceRepository.get_device_by_name(
-                        name=param["device_name"]
-                    ).id
-                    if "device_name" in param
-                    else None,
+        def to_sqlite_model(
+            param: ScanParameter,
+        ) -> sqlite_scan_parameter.ScanParameter:
+            if isinstance(param, RealtimeParameter):
+                return sqlite_scan_parameter.ScanParameter(
+                    variable_id="Real Time",
+                    scan_values=[1] * param.n_scan_points,
                 )
+            if isinstance(param, DatabaseParameter):
+                return sqlite_scan_parameter.ScanParameter(
+                    variable_id=param.id,
+                    scan_values=param.values,
+                )
+            return sqlite_scan_parameter.ScanParameter(
+                variable_id=param.id,
+                scan_values=param.values,
+                device_id=DeviceRepository.get_device_by_name(
+                    name=param.device_name
+                ).id,
             )
+
+        for param in scan_parameters:
+            scan_values = await self._cast_scan_values_to_param_type(**param)
+
+            concretized_param = scan_parameter_from_dict(
+                {**param, "values": scan_values}
+            )
+
+            sqlite_scan_parameters.append(to_sqlite_model(concretized_param))
         job = Job(
             experiment_source=experiment_source,
             priority=priority,
@@ -197,7 +212,10 @@ class SchedulerController(pydase.DataService):
 
     async def _cast_scan_values_to_param_type(
         self,
-        scan_parameter: ScanParameter,
+        values: list[str | int | bool | float] | None = None,
+        id: str | None = None,
+        device_name: str | None = None,
+        **_kwargs: Any,
     ) -> list[Any]:
         """Cast scan values to the current parameter's runtime type.
 
@@ -205,21 +223,16 @@ class SchedulerController(pydase.DataService):
         via `DevicesController`. Otherwise, the shared parameter value is read
         from `ParametersRepository`. If no current value is found, the original
         values are returned unchanged.
-
-        Args:
-            scan_parameter: Scan parameter spec with `id`, `values`, and optional
-                `device_name`.
-
-        Returns:
-            Values cast to `type(current_value)` when available, otherwise the original
-                values.
         """
-        scan_values = scan_parameter["values"]
-        parameter_id = scan_parameter["id"]
+        parameter_id = id
+        if values is None:
+            values = []
 
-        if "device_name" in scan_parameter:
+        if parameter_id is None:
+            return values
+        if device_name is not None:
             current_value = await self._devices_controller.get_parameter_value(
-                name=scan_parameter["device_name"],
+                name=device_name,
                 parameter_id=parameter_id,
             )
 
@@ -228,7 +241,7 @@ class SchedulerController(pydase.DataService):
                 parameter_id=parameter_id
             )
             if current_value is None:
-                return scan_values
+                return values
 
         current_type = type(current_value)
-        return [current_type(value) for value in scan_values]
+        return [current_type(value) for value in values]
