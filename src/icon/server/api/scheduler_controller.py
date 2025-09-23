@@ -96,6 +96,7 @@ class SchedulerController(pydase.DataService):
                 return sqlite_scan_parameter.ScanParameter(
                     variable_id="Real Time",
                     scan_values=[1] * param.n_scan_points,
+                    realtime=True,
                 )
             if isinstance(param, DatabaseParameter):
                 return sqlite_scan_parameter.ScanParameter(
