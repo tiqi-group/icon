@@ -36,7 +36,7 @@ export const ParameterCard = ({
   index: number;
 }) => {
   const [continuousRealtime, setContinuousRealtime] = useState(true);
-  const { dispatchScanInfoStateUpdate } = useScanContext();
+  const { scanInfoState, dispatchScanInfoStateUpdate } = useScanContext();
 
   const { parameterDisplayGroups, parameterNamespaceToDisplayGroups } = useContext(
     ParameterDisplayGroupsContext,
@@ -130,13 +130,15 @@ export const ParameterCard = ({
             ))}
           </Select>
         </FormControl>
-        <IconButton
-          onClick={() =>
-            dispatchScanInfoStateUpdate({ type: "REMOVE_PARAMETER", index })
-          }
-        >
-          <DeleteIcon />
-        </IconButton>
+        {scanInfoState.parameters.length > 1 && (
+          <IconButton
+            onClick={() =>
+              dispatchScanInfoStateUpdate({ type: "REMOVE_PARAMETER", index })
+            }
+          >
+            <DeleteIcon />
+          </IconButton>
+        )}
       </div>
       {param.namespace !== "Real Time" ? (
         <>
