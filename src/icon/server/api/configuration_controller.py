@@ -14,7 +14,7 @@ logger = logging.getLogger(__file__)
 
 
 class ConfigurationController(pydase.DataService):
-    """A controller for managing and updating the application's configuration.
+    """Controller for managing and updating the application's configuration.
 
     This class provides an API to get and update the configuration, validate it, and
     save the updated configuration back to the source file.

@@ -85,7 +85,7 @@ def start_server() -> None:
     post_processing_worker.start()
 
     icon.server.web_server.icon_server.IconServer(
-        APIService(pre_processing_update_queues=pre_processing_update_queues),
+        APIService(pre_processing_event_queues=pre_processing_update_queues),
         host=get_config().server.host,
         web_port=get_config().server.port,
         frontend_src=Path(__file__).parent / "frontend",

@@ -12,8 +12,12 @@ if TYPE_CHECKING:
     from icon.server.data_access.models.sqlite.job import Job
 
 
-class JSONEncodedList(sqlalchemy.TypeDecorator):
-    """Custom SQLAlchemy type for storing lists as JSON-encoded strings."""
+class JSONEncodedList(sqlalchemy.TypeDecorator[Any]):
+    """Custom SQLAlchemy type for storing lists as JSON-encoded strings.
+
+    Stores Python lists as JSON-encoded text in the database and transparently decodes
+    them back into lists on retrieval.
+    """
 
     impl = sqlalchemy.TEXT
 
@@ -35,33 +39,58 @@ class JSONEncodedList(sqlalchemy.TypeDecorator):
 
 
 class ScanParameter(Base):
+    """SQLAlchemy model for scan parameters.
+
+    Represents a parameter scanned during a job execution. Each parameter is linked to a
+    job and optionally to a device.
+    """
+
     __tablename__ = "scan_parameters"
 
     id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
         primary_key=True, autoincrement=True
     )
+    """Primary key identifier for the scan parameter."""
 
     job_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
         sqlalchemy.ForeignKey("job_submissions.id")
     )
+    """Foreign key referencing the job this parameter belongs to."""
+
     job: sqlalchemy.orm.Mapped["Job"] = sqlalchemy.orm.relationship(
         back_populates="scan_parameters"
     )
+    """Relationship to the job."""
+
     variable_id: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column()
+    """Identifier of the parameter being scanned."""
+
     scan_values: sqlalchemy.orm.Mapped[list[DatabaseValueType]] = (
         sqlalchemy.orm.mapped_column(JSONEncodedList, nullable=False)
     )
+    """List of values scanned for this parameter (stored as JSON)."""
+
     device_id: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column(
         sqlalchemy.ForeignKey("devices.id"), nullable=True
     )
+    """Foreign key referencing the associated device, if any."""
+
     device: sqlalchemy.orm.Mapped["Device | None"] = sqlalchemy.orm.relationship(
         back_populates="scan_parameters", lazy="joined"
     )
+    """Relationship to the device associated with this parameter."""
 
     def __repr__(self) -> str:
         return f"<Parameter '{self.unique_id()}'>"
 
     def unique_id(self) -> str:
+        """Return a unique identifier for the parameter.
+
+        Returns:
+            `"Device(<device_name>) <variable_id>"` if a device is associated, otherwise
+                just `<variable_id>`.
+        """
+
         return (
             f"Device({self.device.name}) {self.variable_id}"
             if self.device is not None

@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def check_experiment_library_directory() -> bool:
+def _check_experiment_library_directory() -> bool:
     exp_lib_dir = get_config().experiment_library.dir
     if exp_lib_dir is None:
         logger.warning("Experiment library is not configured yet")
@@ -46,31 +46,59 @@ def check_experiment_library_directory() -> bool:
 
 
 class APIService(pydase.DataService):
+    """Aggregates ICON's API controllers and manages background tasks.
+
+    The `APIService` groups multiple controllers, each of which is a
+    `pydase.DataService` exposing related API methods. It also defines
+    background tasks for keeping experiment and parameter metadata
+    in sync with the experiment library and InfluxDB.
+
+    Note:
+         Controllers are `pydase.DataService` instances exposed as attributes to group
+         related API methods. Background tasks are implemented with
+         [`pydase` tasks](https://pydase.readthedocs.io/en/latest/user-guide/Tasks/).
+    """
+
     def __init__(
-        self, pre_processing_update_queues: list[multiprocessing.Queue[UpdateQueue]]
+        self, pre_processing_event_queues: list[multiprocessing.Queue[UpdateQueue]]
     ) -> None:
+        """
+        Args:
+            pre_processing_event_queues: Queues used by `ScansController` to notify
+                pre-processing workers.
+        """
+
         super().__init__()
 
         self.devices = DevicesController()
+        """Controller for managing external pydase-based devices."""
         self.scheduler = SchedulerController(devices_controller=self.devices)
+        """Controller to submit, inspect, and cancel scheduled jobs."""
         self.experiments = ExperimentsController()
+        """Controller for experiment metadata."""
         self.parameters = ParametersController()
+        """Controller for parameter metadata and shared parameter values."""
         self.config = ConfigurationController()
+        """Controller for managing and updating the application's configuration."""
         self.data = ExperimentDataController()
+        """Controller for accessing stored experiment data."""
         self.scans = ScansController(
-            pre_processing_update_queues=pre_processing_update_queues
+            pre_processing_update_queues=pre_processing_event_queues
         )
+        """Controller for triggering update events for jobs across multiple worker
+        processes."""
         self.status = StatusController()
+        """Controller for system status monitoring."""
 
     @task(autostart=True)
     async def _update_experiment_and_parameter_metadata_task(self) -> None:
         while True:
-            await self.update_experiment_and_parameter_metadata()
+            await self._update_experiment_and_parameter_metadata()
 
             await asyncio.sleep(get_config().experiment_library.update_interval)
 
-    async def update_experiment_and_parameter_metadata(self) -> None:
-        if not check_experiment_library_directory():
+    async def _update_experiment_and_parameter_metadata(self) -> None:
+        if not _check_experiment_library_directory():
             return
 
         pycrystal_library_metadata = (

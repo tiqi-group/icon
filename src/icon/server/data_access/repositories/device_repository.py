@@ -16,13 +16,26 @@ logger = logging.getLogger(__name__)
 
 
 class NoDeviceFoundError(Exception):
-    pass
+    """Raised when a device could not be found by the given identifier."""
 
 
 class DeviceRepository:
+    """Repository for `Device` entities.
+
+    Provides methods to create, update, and query devices in the SQLite database.
+    All methods open their own SQLAlchemy session and return detached ORM objects.
+    """
+
     @staticmethod
     def add_device(*, device: Device) -> Device:
-        """Create a new device instance in the database and returns this instance."""
+        """Insert a new device into the database.
+
+        Args:
+            device: Device instance to persist.
+
+        Returns:
+            The persisted device with database-generated fields (e.g., `id`) populated.
+        """
 
         with sqlalchemy.orm.session.Session(engine) as session:
             session.add(device)
@@ -50,7 +63,23 @@ class DeviceRepository:
         retry_attempts: int | None = None,
         retry_delay_seconds: float | None = None,
     ) -> Device:
-        """Updates a device instance in the database and returns this instance."""
+        """Update an existing device by name.
+
+        Args:
+            name: Unique device name.
+            url: New device URL (cannot change if the device is enabled).
+            status: New device status (enabled/disabled).
+            retry_attempts: Updated retry attempt count.
+            retry_delay_seconds: Updated retry delay in seconds.
+
+        Returns:
+            The updated device.
+
+        Raises:
+            RuntimeError: If attempting to change the URL of an enabled device.
+            NoDeviceFoundError: If no device with the given name exists.
+        """
+
         updated_properties = {
             name: new_value
             for name, new_value in {
@@ -105,7 +134,14 @@ class DeviceRepository:
         *,
         status: DeviceStatus | None = None,
     ) -> Sequence[Device]:
-        """Gets all the Device instances filtered by status."""
+        """Return devices filtered by status.
+
+        Args:
+            status: Optional device status to filter on.
+
+        Returns:
+            All devices matching the filter (or all devices if no filter is given).
+        """
 
         with sqlalchemy.orm.Session(engine) as session:
             stmt = sqlalchemy.select(Device)
@@ -116,37 +152,54 @@ class DeviceRepository:
             return session.execute(stmt).scalars().all()
 
     @staticmethod
-    def get_device_by_id(
-        *,
-        id: int,
-    ) -> Device:
-        """Gets the Device instances with given id."""
+    def get_device_by_id(*, id: int) -> Device:
+        """Return a device by database ID.
+
+        Args:
+            id: Primary key identifier of the device.
+
+        Returns:
+            The matching device.
+
+        Raises:
+            NoResultFound: If no device exists with the given ID.
+        """
 
         with sqlalchemy.orm.Session(engine) as session:
             stmt = sqlalchemy.select(Device).where(Device.id == id)
-
             return session.execute(stmt).scalar_one()
 
     @staticmethod
-    def get_device_by_name(
-        *,
-        name: str,
-    ) -> Device:
-        """Gets the Device instances with given name."""
+    def get_device_by_name(*, name: str) -> Device:
+        """Return a device by unique name.
+
+        Args:
+            name: Device name.
+
+        Returns:
+            The matching device.
+
+        Raises:
+            NoDeviceFoundError: If no device exists with the given name.
+        """
 
         try:
             with sqlalchemy.orm.Session(engine) as session:
                 stmt = sqlalchemy.select(Device).where(Device.name == name)
-
                 return session.execute(stmt).scalar_one()
         except sqlalchemy.exc.NoResultFound:
             raise NoDeviceFoundError(
-                f"Device with name {name!r} does not exit.",
+                f"Device with name {name!r} does not exist.",
             )
 
     @staticmethod
     def get_all_device_names() -> Sequence[str]:
-        """Return a list of all device names."""
+        """Return the names of all devices.
+
+        Returns:
+            List of device names.
+        """
+
         with sqlalchemy.orm.Session(engine) as session:
             stmt = sqlalchemy.select(Device.name)
             return session.execute(stmt).scalars().all()

@@ -1,4 +1,3 @@
-import logging
 from datetime import datetime
 from typing import Any
 
@@ -21,13 +20,24 @@ from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
 )
 
-logger = logging.getLogger(__name__)
-
 
 class SchedulerController(pydase.DataService):
+    """Controller to submit, inspect, and cancel scheduled jobs.
+
+    Provides methods to submit new jobs, cancel pending or running jobs, and query jobs
+    or runs by ID or status. Ensures scan parameters are cast to the correct runtime
+    type before persisting them.
+    """
+
     def __init__(self, devices_controller: DevicesController) -> None:
+        """
+        Args:
+            devices_controller: Reference to the devices controller. Used to read
+                current values of device parameters when casting scan values.
+        """
+
         super().__init__()
-        self.__devices_controller = devices_controller
+        self._devices_controller = devices_controller
 
     async def submit_job(  # noqa: PLR0913
         self,
@@ -41,6 +51,29 @@ class SchedulerController(pydase.DataService):
         git_commit_hash: str | None = None,
         auto_calibration: bool = False,
     ) -> int:
+        """Create and submit a job with typed scan parameters.
+
+        Each scan parameter's values are cast to the current type of the target
+        parameter (device parameter via `DevicesController` or shared parameter via
+        `ParametersRepository`).
+
+        Args:
+            experiment_id: Experiment identifier (from experiment library).
+            scan_parameters: List of scan parameter specs (id, values, optional
+                device_name).
+            priority: Higher values run sooner.
+            local_parameters_timestamp: ISO timestamp to snapshot local parameters;
+                defaults to `datetime.now(tz=timezone)`.
+            repetitions: Number of experiment repetitions.
+            number_of_shots: Shots per data point.
+            git_commit_hash: Git commit to associate with the job; if `None`, job is
+                marked `debug_mode=True`.
+            auto_calibration: Whether to run auto-calibration for the job.
+
+        Returns:
+            The persisted job ID.
+        """
+
         if local_parameters_timestamp is None:
             local_parameters_timestamp = datetime.now(tz=timezone)
 
@@ -52,7 +85,7 @@ class SchedulerController(pydase.DataService):
         sqlite_scan_parameters = []
 
         for param in scan_parameters:
-            scan_values = await self.__cast_scan_values_to_param_type(
+            scan_values = await self._cast_scan_values_to_param_type(
                 scan_parameter=param
             )
 
@@ -86,6 +119,17 @@ class SchedulerController(pydase.DataService):
         return job.id
 
     def cancel_job(self, *, job_id: int) -> None:
+        """Cancel a queued or running job.
+
+        The following status updates are performed:
+
+        - Job: PROCESSING/SUBMITTED → PROCESSED
+        - JobRun: PENDING/PROCESSING → CANCELLED
+
+        Args:
+            job_id: ID of the job to cancel.
+        """
+
         job = JobRepository.get_job_by_id(job_id=job_id)
         if job.status in (JobStatus.PROCESSING, JobStatus.SUBMITTED):
             JobRepository.update_job_status(job=job, status=JobStatus.PROCESSED)
@@ -104,6 +148,17 @@ class SchedulerController(pydase.DataService):
         start: str | None = None,
         stop: str | None = None,
     ) -> dict[int, Job]:
+        """List jobs filtered by status and optional ISO timeframe.
+
+        Args:
+            status: Optional job status filter.
+            start: Optional ISO8601 start timestamp (inclusive).
+            stop: Optional ISO8601 stop timestamp (exclusive).
+
+        Returns:
+            Mapping from job ID to job record.
+        """
+
         start_date = datetime.fromisoformat(start) if start is not None else None
         stop_date = datetime.fromisoformat(stop) if stop is not None else None
 
@@ -115,22 +170,55 @@ class SchedulerController(pydase.DataService):
         }
 
     def get_job_by_id(self, *, job_id: int) -> Job:
+        """Fetch a job with its experiment source and scan parameters.
+
+        Args:
+            job_id: Job identifier.
+
+        Returns:
+            The job record.
+        """
+
         return JobRepository.get_job_by_id(
             job_id=job_id, load_experiment_source=True, load_scan_parameters=True
         )
 
     def get_job_run_by_id(self, *, job_id: int) -> JobRun:
+        """Fetch the run record for a given job.
+
+        Args:
+            job_id: Job identifier.
+
+        Returns:
+            The associated run record.
+        """
+
         return JobRunRepository.get_run_by_job_id(job_id=job_id)
 
-    async def __cast_scan_values_to_param_type(
+    async def _cast_scan_values_to_param_type(
         self,
         scan_parameter: ScanParameter,
     ) -> list[Any]:
+        """Cast scan values to the current parameter's runtime type.
+
+        If `device_name` is present, the current value is read from the device
+        via `DevicesController`. Otherwise, the shared parameter value is read
+        from `ParametersRepository`. If no current value is found, the original
+        values are returned unchanged.
+
+        Args:
+            scan_parameter: Scan parameter spec with `id`, `values`, and optional
+                `device_name`.
+
+        Returns:
+            Values cast to `type(current_value)` when available, otherwise the original
+                values.
+        """
         scan_values = scan_parameter["values"]
         parameter_id = scan_parameter["id"]
 
         if "device_name" in scan_parameter:
-            current_value = await self.__devices_controller.get_parameter_value(
+            current_value = await self._devices_controller.get_parameter_value(
                 name=scan_parameter["device_name"],
                 parameter_id=parameter_id,
             )

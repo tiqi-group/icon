@@ -1,0 +1,95 @@
+site_name: Icon Documentation
+repo_url: https://github.com/tiqi-group/icon
+edit_uri: blob/main/docs/
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Running ICON: getting-started/running-icon.md
+    - Configuration File: getting-started/configuration-file.md
+    - Experiment Library: getting-started/experiment-library.md
+    - Architecture: getting-started/architecture.md
+    - Frontend:
+       - Start page: getting-started/frontend/start.md
+       - Parameters page: getting-started/frontend/parameters.md
+       - Experiments page: getting-started/frontend/experiments.md
+       - Data page: getting-started/frontend/data.md
+       - Devices page: getting-started/frontend/devices.md
+       - Settings page: getting-started/frontend/settings.md
+  - Reference:
+    - ICON Server: reference/server.md
+  - About:
+    - License: about/license.md
+
+theme: 
+  logo: images/logo.png
+  name: material
+  features:
+    - content.code.copy
+
+markdown_extensions:
+  - smarty
+  - toc: 
+      permalink: true
+  - pymdownx.highlight:
+      use_pygments: true
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - admonition
+
+
+plugins:
+- include-markdown
+- search
+- mkdocstrings:
+    default_handler: python
+    handlers:
+      python:
+        paths: [src]  # search packages in the src folder
+        inventories:
+          - https://docs.python.org/3/objects.inv
+          - https://docs.pydantic.dev/latest/objects.inv
+          - https://confz.readthedocs.io/en/latest/objects.inv
+          - https://python-socketio.readthedocs.io/en/stable/objects.inv
+          - https://pydase.readthedocs.io/en/latest/objects.inv
+          - https://docs.sqlalchemy.org/en/20/objects.inv
+        options:
+          # General
+          show_source: true
+
+          # Headings
+          heading_level: 2
+          parameter_headings: false
+          show_root_heading: true
+          show_root_full_path: true
+          show_symbol_type_heading: true
+          show_symbol_type_toc: true
+
+          # Members
+          show_submodules: true
+          inherited_members: true
+          summary: true
+
+          # Docstrings
+          merge_init_into_class: true
+          docstring_options:
+            ignore_init_summary: false
+          # docstring_section_style: list
+          show_if_no_docstring: true
+
+          # Signatures
+          show_signature_annotations: true
+          signature_crossrefs: true
+          separate_signature: true
+          unwrap_annotated: true
+# - swagger-ui-tag
+
+watch:
+  - src/icon
+  - README.md
