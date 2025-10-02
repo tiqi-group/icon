@@ -3,11 +3,15 @@ from __future__ import annotations
 
 import logging
 import pathlib
+from typing import TYPE_CHECKING
 
 import click
 
 from icon.config.config_path import set_config_path
 from icon.logging import setup_logging
+
+if TYPE_CHECKING:
+    from icon.server.post_processing.task import PostProcessingTask
 
 
 def patch_serialization_methods() -> None:
@@ -72,15 +76,19 @@ def start_server() -> None:
             manager=icon.server.shared_resource_manager.manager,
         ).start()
 
+    post_processing_queue: multiprocessing.Queue[PostProcessingTask] = (
+        multiprocessing.Queue()
+    )
+
     hardware_processing_worker = HardwareProcessingWorker(
         hardware_processing_queue=icon.server.shared_resource_manager.hardware_processing_queue,
-        post_processing_queue=icon.server.shared_resource_manager.post_processing_queue,
+        post_processing_queue=post_processing_queue,
         manager=icon.server.shared_resource_manager.manager,
     )
     hardware_processing_worker.start()
 
     post_processing_worker = PostProcessingWorker(
-        post_processing_queue=icon.server.shared_resource_manager.post_processing_queue,
+        post_processing_queue=post_processing_queue
     )
     post_processing_worker.start()
 
