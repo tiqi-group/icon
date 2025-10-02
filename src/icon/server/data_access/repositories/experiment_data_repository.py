@@ -450,10 +450,8 @@ class ExperimentDataRepository:
         )
         with FileLock(lock_path), h5py.File(file, "a") as h5file:
             try:
-                number_of_shots = cast("int", h5file.attrs["number_of_shots"])
-                number_of_data_points = cast(
-                    "int", h5file.attrs["number_of_data_points"]
-                )
+                number_of_shots: int = h5file.attrs["number_of_shots"]
+                number_of_data_points: int = h5file.attrs["number_of_data_points"]
             except KeyError:
                 raise Exception(
                     "Metadata does not contain relevant information. Please use "
@@ -539,7 +537,7 @@ class ExperimentDataRepository:
                 dtype = [("timestamp", "S26"), ("value", get_hdf5_dtype(value))]
 
                 if param_id in parameters_group:
-                    ds = cast("h5py.Dataset", parameters_group[param_id])
+                    ds: h5py.Dataset = parameters_group[param_id]
                     if ds.shape[0] > 0:
                         last_entry = ds[-1]
                         last_value = last_entry["value"]
