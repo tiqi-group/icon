@@ -6,4 +6,5 @@ export interface ScanParameter {
   scan_values: number[];
   variable_id: string;
   job?: Job;
+  realtime: boolean;
 }
