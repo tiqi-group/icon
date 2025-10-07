@@ -24,6 +24,37 @@ const formatAxisLabel = (value: string): string => {
   return isNaN(num) ? value : num.toFixed(3);
 };
 
+function hasDayBreak(data: string[]) {
+  const first = new Date(data[0]);
+  const last = new Date(data.at(-1) || data[0]);
+  return !isNaN(first.getDay()) && first.getDay() != last.getDay();
+}
+
+function formatTime(timestamp: string) {
+  const date = new Date(timestamp);
+  const h = date.getHours();
+  const m = date.getMinutes();
+  const s = date.getSeconds();
+  return `${h}:${m}:${s}`;
+}
+
+function formatDateTime(timestamp: string) {
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const day = date.getDate();
+  const time = formatTime(timestamp);
+  return `${year}-${month}-${day} ${time}`;
+}
+
+function timeAxisProps(data: string[]) {
+  return {
+    axisLabel: {
+      formatter: hasDayBreak(data) ? formatDateTime : formatTime,
+    },
+  };
+}
+
 function updateVisualMap(chart: ECharts, selectedChannelName: string | undefined) {
   const opt = chart.getOption();
 
@@ -59,7 +90,7 @@ function updateVisualMap(chart: ECharts, selectedChannelName: string | undefined
 const ResultChannelPlot = ({
   experimentData,
   loading,
-  title,
+  title: titleText,
   subtitle,
   channelNames,
   repetitions = 1,
@@ -114,12 +145,23 @@ const ResultChannelPlot = ({
       scale: true,
       boundaryGap: ["1%", "1%"],
     };
+    const title = {
+      text: titleText,
+      left: "center",
+      subtext: subtitle,
+      subtextStyle: {
+        lineHeight: 0,
+      },
+      top: "-1%",
+    };
     let chartSeries: EChartsOption["series"] = [];
+    const nOrdinaryParameters =
+      scanParameters.length -
+      scanParameters.reduce((total, param) => (param.realtime ? total + 1 : total), 0);
 
-    if (scanParameters.length === 0 && timestampEntry) {
-      xAxis.type = "time";
-      xAxis.name = "Time";
+    if (nOrdinaryParameters === 0 && timestampEntry) {
       xAxisData = timestampEntry.scanValues as string[];
+      Object.assign(xAxis, { type: "time", name: "Time", ...timeAxisProps(xAxisData) });
 
       const fullDataSet = xAxisData.map((xVal, index) => [
         xVal,
@@ -150,17 +192,43 @@ const ResultChannelPlot = ({
       );
     } else if (scanParameters.length === 2) {
       const [xScan, yScan] = scanParameters;
+      const xScanValues =
+        xScan.realtime && timestampEntry
+          ? timestampEntry.scanValues
+          : xScan.scan_values;
+      const yScanValues =
+        yScan.realtime && timestampEntry
+          ? timestampEntry.scanValues
+          : yScan.scan_values;
       const series = [];
 
       for (const resultChannel of resultChannels) {
         const data: [number | string, number | string, number][] = [];
-        for (let i = 0; i < xScan.scan_values.length; i++) {
-          for (let j = 0; j < yScan.scan_values.length; j++) {
+        if (xScan.realtime) {
+          for (let i = 0; i < xScanValues.length; i++) {
             data.push([
-              xScan.scan_values[i],
-              yScan.scan_values[j],
-              resultChannel.data[i * yScan.scan_values.length + j],
+              xScanValues[Math.floor(i / yScanValues.length)],
+              yScanValues[i % yScanValues.length],
+              resultChannel.data[i],
             ]);
+          }
+        } else if (yScan.realtime) {
+          for (let i = 0; i < yScanValues.length; i++) {
+            data.push([
+              xScanValues[i % xScanValues.length],
+              yScanValues[Math.floor(i / xScanValues.length)],
+              resultChannel.data[i],
+            ]);
+          }
+        } else {
+          for (let i = 0; i < xScanValues.length; i++) {
+            for (let j = 0; j < yScanValues.length; j++) {
+              data.push([
+                xScanValues[i],
+                yScanValues[j],
+                resultChannel.data[i * yScanValues.length + j],
+              ]);
+            }
           }
         }
 
@@ -173,16 +241,12 @@ const ResultChannelPlot = ({
         });
       }
 
+      const categoryAxisProps = {
+        axisLabel: { formatter: formatAxisLabel },
+      };
+
       return {
-        title: {
-          text: title,
-          left: "center",
-          subtext: subtitle,
-          subtextStyle: {
-            lineHeight: 0,
-          },
-          top: "-1%",
-        },
+        title,
         legend: {
           selectedMode: "single",
           left: "right",
@@ -197,18 +261,22 @@ const ResultChannelPlot = ({
         },
         tooltip: {},
         xAxis: {
-          type: "category",
-          axisLabel: { formatter: formatAxisLabel },
           name: xScan.variable_id,
+          type: "category",
           nameLocation: "middle",
           nameGap: 25,
+          ...(xScan.realtime
+            ? timeAxisProps(xScanValues as string[])
+            : categoryAxisProps),
         },
         yAxis: {
-          type: "category",
-          axisLabel: { formatter: formatAxisLabel },
           name: yScan.variable_id,
+          type: "category",
           nameLocation: "middle",
           nameGap: 45,
+          ...(yScan.realtime
+            ? timeAxisProps(yScanValues as string[])
+            : categoryAxisProps),
         },
         series,
         visualMap: {
@@ -220,15 +288,7 @@ const ResultChannelPlot = ({
     }
 
     return {
-      title: {
-        text: title,
-        left: "center",
-        subtext: subtitle,
-        subtextStyle: {
-          lineHeight: 0,
-        },
-        top: "-1%",
-      },
+      title,
       textStyle: { fontFamily: "sans-serif", fontSize: 12 },
       tooltip: { trigger: "axis" },
       toolbox: {
@@ -259,7 +319,14 @@ const ResultChannelPlot = ({
       yAxis,
       series: chartSeries,
     };
-  }, [experimentData, title, subtitle, scanParameters, repetitions, showRepetitions]);
+  }, [
+    experimentData,
+    titleText,
+    subtitle,
+    scanParameters,
+    repetitions,
+    showRepetitions,
+  ]);
 
   const updateChart = useCallback(
     (chart: ECharts) => {
