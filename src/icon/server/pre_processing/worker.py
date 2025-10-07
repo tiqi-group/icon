@@ -102,17 +102,17 @@ def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
     """
 
     # Extract variable IDs and their scan values from the job's scan parameters
-    parameter_values: dict[str, Any] = {}
-    for scan_param in job.scan_parameters:
-        if not scan_param.realtime:
-            parameter_values[scan_param.unique_id()] = scan_param.scan_values
+    parameter_values = {
+        scan_param.unique_id(): scan_param.scan_values
+        for scan_param in job.scan_parameters
+        if not scan_param.realtime
+    }
+
+    if not parameter_values:
+        return []
 
     # Generate combinations using itertools.product
-    keys = list(parameter_values.keys())
-    values = [parameter_values[key] for key in keys]
-
-    if values == []:
-        return []
+    keys, values = zip(*parameter_values.items())
 
     combinations = itertools.product(*values)
 
