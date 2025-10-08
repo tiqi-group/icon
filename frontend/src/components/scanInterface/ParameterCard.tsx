@@ -31,9 +31,11 @@ const generateScanValues = (
 export const ParameterCard = ({
   param,
   index,
+  showRealtime,
 }: {
   param: ScanParameterInfo;
   index: number;
+  showRealtime: boolean;
 }) => {
   const [continuousRealtime, setContinuousRealtime] = useState(true);
   const { scanInfoState, dispatchScanInfoStateUpdate } = useScanContext();
@@ -42,11 +44,16 @@ export const ParameterCard = ({
     ParameterDisplayGroupsContext,
   );
   const deviceInfo = useContext(DeviceInfoContext);
-  const parameterSources: Record<string, string[]> = {
+  const ordinaryParameterSources: Record<string, string[]> = {
     ...parameterNamespaceToDisplayGroups,
     Devices: Object.keys(deviceInfo),
-    "Real Time": ["Real Time"],
   };
+  const parameterSources: Record<string, string[]> = showRealtime
+    ? {
+        ...ordinaryParameterSources,
+        "Real Time": ["Real Time"],
+      }
+    : ordinaryParameterSources;
 
   const parameterOptions = useMemo(() => {
     if (!param.namespace || !param.deviceNameOrDisplayGroup) return {};
