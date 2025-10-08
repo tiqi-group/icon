@@ -87,7 +87,6 @@ class SchedulerController(pydase.DataService):
         experiment_source = ExperimentSourceRepository.get_or_create_experiment(
             experiment_source=experiment_source
         )
-        sqlite_scan_parameters = []
 
         def to_sqlite_model(
             param: ScanParameter,
@@ -111,14 +110,31 @@ class SchedulerController(pydase.DataService):
                 ).id,
             )
 
-        for param in scan_parameters:
-            scan_values = await self._cast_scan_values_to_param_type(**param)
-
-            concretized_param = scan_parameter_from_dict(
-                {**param, "values": scan_values}
+        concretized_params = [
+            scan_parameter_from_dict(
+                {**param, "values": await self._cast_scan_values_to_param_type(**param)}
             )
+            for param in scan_parameters
+        ]
+        realtime_params = [
+            param
+            for param in concretized_params
+            if isinstance(param, RealtimeParameter)
+        ]
+        if len(realtime_params) > 1:
+            raise ValueError("Only 0 or 1 realtime parameter is allowed")
+        if (
+            realtime_params
+            and realtime_params[0].n_scan_points == 0
+            and repetitions > 1
+        ):
+            raise ValueError(
+                "Only 1 repetition possible if continuous realtime is present"
+            )
+        sqlite_scan_parameters = [
+            to_sqlite_model(param) for param in concretized_params
+        ]
 
-            sqlite_scan_parameters.append(to_sqlite_model(concretized_param))
         job = Job(
             experiment_source=experiment_source,
             priority=priority,
