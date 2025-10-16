@@ -42,11 +42,9 @@ allow-direct-references = true
 [dependency-groups]
 dev = [
     "mypy>=1.13.0",
-    "podman-compose>=1.2.0",
     "pyright>=1.1.391",
     "pytest>=8.3.4",
     "pytest-asyncio>=0.25.0",
-    "pytest-docker>=3.1.1",
     "pyyaml>=6.0.2",
     "requests>=2.32.3",
     "ruff>=0.8.4",

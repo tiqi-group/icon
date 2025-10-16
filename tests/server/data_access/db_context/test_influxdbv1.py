@@ -1,7 +1,11 @@
 import logging
+import os
+import socket
+import time
+from collections.abc import Iterable
+from pathlib import Path
 
 import pytest
-import pytest_docker.plugin
 import requests
 
 from icon.config.config import get_config
@@ -26,21 +30,28 @@ def is_responsive(host: str, port: int) -> bool:
 
 
 @pytest.fixture(scope="session")
-def influxdbv1_service(
-    docker_ip: str, docker_services: pytest_docker.plugin.Services
-) -> tuple[str, int]:
+def influxdbv1_service() -> Iterable[None]:
     """Ensure that influxdbv1 service is up and responsive."""
 
+    def check_port(port: int) -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            # Attempting to connect to localhost on the specified port
+            return sock.connect_ex(("127.0.0.1", port)) == 0
+
     port = 8087
-    logger.debug("http://%s:%s", docker_ip, port)
-    docker_services.wait_until_responsive(
-        timeout=10.0, pause=0.1, check=lambda: is_responsive(docker_ip, port)
-    )
+    logger.debug("http://localhost:%s", port)
+    if not check_port(port):
+        yml = Path(__file__).parent.parent.parent.parent.parent / "k8s" / "dev.yml"
+        os.system(f"podman kube play {yml}")
+        while not check_port(port):
+            time.sleep(0.5)
+        yield
+        os.system(f"podman kube play --down {yml}")
+    else:
+        yield
 
-    return docker_ip, port
 
-
-def test_InfluxDBv1Session(influxdbv1_service: tuple[str, int]) -> None:  # noqa: N802
+def test_InfluxDBv1Session(influxdbv1_service: None) -> None:  # noqa: N802
     test_value = 1337
 
     with InfluxDBv1Session() as session:
