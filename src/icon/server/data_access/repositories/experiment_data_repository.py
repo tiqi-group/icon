@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal, TypedDict, cast
 
@@ -96,7 +97,8 @@ class PlotWindowsDict(TypedDict):
     """Plot window metadata for vector channels."""
 
 
-class ExperimentData(TypedDict):
+@dataclass
+class ExperimentData:
     """Container for all experiment data returned to the API."""
 
     plot_windows: PlotWindowsDict
@@ -580,19 +582,19 @@ class ExperimentDataRepository:
             Experiment data payload suitable for the API.
         """
 
-        data: ExperimentData = {
-            "plot_windows": {
+        data = ExperimentData(
+            plot_windows={
                 "result_channels": [],
                 "shot_channels": [],
                 "vector_channels": [],
             },
-            "shot_channels": {},
-            "result_channels": {},
-            "vector_channels": {},
-            "scan_parameters": {},
-            "json_sequences": [],
-            "realtime_scan": False,
-        }
+            shot_channels={},
+            result_channels={},
+            vector_channels={},
+            scan_parameters={},
+            json_sequences=[],
+            realtime_scan=False,
+        )
 
         filename = get_filename_by_job_id(job_id)
         file = f"{get_config().data.results_dir}/{filename}"
@@ -606,11 +608,11 @@ class ExperimentDataRepository:
             f"{ExperimentDataRepository.LOCK_EXTENSION}"
         )
         with FileLock(lock_path), h5py.File(file, "r") as h5file:
-            data["realtime_scan"] = bool(h5file.attrs["realtime_scan"])
+            data.realtime_scan = bool(h5file.attrs["realtime_scan"])
             # Parse JSON strings in relevant columns back into Python objects
 
             scan_parameters: npt.NDArray = h5file["scan_parameters"][:]  # type: ignore
-            data["scan_parameters"] = {
+            data.scan_parameters = {
                 param: {
                     index: value[0].item().decode()
                     if isinstance(value[0], np.bytes_)
@@ -621,11 +623,11 @@ class ExperimentDataRepository:
             }
 
             result_channel_dataset = cast("h5py.Dataset", h5file["result_channels"])
-            data["plot_windows"]["result_channels"] = json.loads(
+            data.plot_windows["result_channels"] = json.loads(
                 cast("str", result_channel_dataset.attrs["Plot window metadata"])
             )
             result_channels = cast("npt.NDArray", result_channel_dataset[:])  # type: ignore
-            data["result_channels"] = {
+            data.result_channels = {
                 channel_name: dict(
                     enumerate(
                         cast("list[float]", result_channels[channel_name].tolist())
@@ -636,10 +638,10 @@ class ExperimentDataRepository:
 
             # Convert shot channels into dicts with index as key
             shot_channels_group = cast("h5py.Group", h5file["shot_channels"])
-            data["plot_windows"]["shot_channels"] = json.loads(
+            data.plot_windows["shot_channels"] = json.loads(
                 cast("str", shot_channels_group.attrs["Plot window metadata"])
             )
-            data["shot_channels"] = {
+            data.shot_channels = {
                 key: dict(enumerate(value[:].tolist()))  # type: ignore
                 for key, value in cast(
                     "Sequence[tuple[str, h5py.Dataset]]", shot_channels_group.items()
@@ -647,10 +649,10 @@ class ExperimentDataRepository:
             }
 
             vector_channels_group = cast("h5py.Group", h5file["vector_channels"])
-            data["plot_windows"]["vector_channels"] = json.loads(
+            data.plot_windows["vector_channels"] = json.loads(
                 cast("str", vector_channels_group.attrs["Plot window metadata"])
             )
-            data["vector_channels"] = {
+            data.vector_channels = {
                 channel_name: {
                     int(data_point): vector_dataset[:].tolist()
                     for data_point, vector_dataset in cast(
@@ -663,7 +665,7 @@ class ExperimentDataRepository:
             }
 
             sequence_json_dataset = cast("h5py.Dataset", h5file["sequence_json"])
-            data["json_sequences"] = [
+            data.json_sequences = [
                 [cast("np.int32", entry["index"]).item(), entry["Sequence"].decode()]
                 for entry in sequence_json_dataset
             ]
