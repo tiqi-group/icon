@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal, TypedDict, cast
 
@@ -98,6 +98,12 @@ class PlotWindowsDict(TypedDict):
 
 
 @dataclass
+class ParameterValue:
+    timestamp: str
+    value: DatabaseValueType
+
+
+@dataclass
 class ExperimentData:
     """Container for all experiment data returned to the API."""
 
@@ -115,6 +121,8 @@ class ExperimentData:
     """List of [index, sequence_json] pairs (list for pydase JSON compatibility)."""
     realtime_scan: bool
     """True if the experiment has a realtime scan parameter."""
+    parameters: dict[str, ParameterValue]
+    """Mapping of parameter id to time series (tuple of timestamp str and value)."""
 
 
 def get_filename_by_job_id(job_id: int) -> str:
@@ -531,7 +539,7 @@ class ExperimentDataRepository:
             f"{get_config().data.results_dir}/.{filename}"
             f"{ExperimentDataRepository.LOCK_EXTENSION}"
         )
-
+        parameter_updates = {}
         with FileLock(lock_path), h5py.File(file, "a") as h5file:
             parameters_group = h5file.require_group("parameters")
 
@@ -561,12 +569,21 @@ class ExperimentDataRepository:
                     index = 0
 
                 ds[index] = (timestamp.encode(), value)
+                parameter_updates[param_id] = ParameterValue(timestamp, value)
 
             logger.debug(
                 "Wrote parameter update for job %d at %s",
                 job_id,
                 timestamp,
             )
+        emit_queue.put(
+            {
+                "event": f"experiment_params_{job_id}",
+                "data": {
+                    param_id: asdict(val) for param_id, val in parameter_updates.items()
+                },
+            }
+        )
 
     @staticmethod
     def get_experiment_data_by_job_id(
@@ -594,6 +611,7 @@ class ExperimentDataRepository:
             scan_parameters={},
             json_sequences=[],
             realtime_scan=False,
+            parameters={},
         )
 
         filename = get_filename_by_job_id(job_id)
@@ -669,4 +687,15 @@ class ExperimentDataRepository:
                 [cast("np.int32", entry["index"]).item(), entry["Sequence"].decode()]
                 for entry in sequence_json_dataset
             ]
-            return data
+            data.parameters = extract_parameter_values(h5file)
+        return data
+
+
+def extract_parameter_values(
+    h5file: h5py.File,
+) -> dict[str, ParameterValue]:
+    def last_value(d: h5py.Dataset) -> ParameterValue:
+        ts, val = d[-1].tolist()
+        return ParameterValue(timestamp=ts.decode(), value=val)
+
+    return {key: last_value(dataset) for key, dataset in h5file["parameters"].items()}
