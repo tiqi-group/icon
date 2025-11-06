@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import logging
 import multiprocessing
-import queue
+from typing import TYPE_CHECKING
 
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataRepository,
@@ -8,7 +10,9 @@ from icon.server.data_access.repositories.experiment_data_repository import (
 from icon.server.data_access.repositories.job_run_repository import (
     job_run_cancelled_or_failed,
 )
-from icon.server.post_processing.task import PostProcessingTask
+
+if TYPE_CHECKING:
+    from icon.server.post_processing.task import PostProcessingTask
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +20,7 @@ logger = logging.getLogger(__name__)
 class PostProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
-        post_processing_queue: queue.PriorityQueue[PostProcessingTask],
+        post_processing_queue: multiprocessing.Queue[PostProcessingTask],
     ) -> None:
         super().__init__()
         self._post_processing_queue = post_processing_queue

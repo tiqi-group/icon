@@ -11,7 +11,10 @@ from filelock import FileLock
 
 from icon.config.config import get_config
 from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
-from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
+from icon.server.data_access.models.sqlite.scan_parameter import (
+    ScanParameter,
+    contains_realtime_parameter,
+)
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
 from icon.server.utils.h5py import get_hdf5_dtype, get_result_channels_dataset
@@ -108,6 +111,8 @@ class ExperimentData(TypedDict):
     """Scan parameters as param_id -> {index -> value/timestamp}."""
     json_sequences: list[list[int | str]]
     """List of [index, sequence_json] pairs (list for pydase JSON compatibility)."""
+    realtime_scan: bool
+    """True if the experiment has a realtime scan parameter."""
 
 
 def get_filename_by_job_id(job_id: int) -> str:
@@ -362,12 +367,18 @@ class ExperimentDataRepository:
             h5file.attrs["experiment_id"] = job.experiment_source.experiment_id
             h5file.attrs["job_id"] = job_id
             h5file.attrs["repetitions"] = repetitions
+            h5file.attrs["realtime_scan"] = contains_realtime_parameter(parameters)
+
             if local_parameter_timestamp is not None:
                 h5file.attrs["local_parameter_timestamp"] = local_parameter_timestamp
 
             scan_parameter_dtype = [
                 ("timestamp", "S26"),
-                *[(param.variable_id, np.float64) for param in parameters],
+                *[
+                    (param.variable_id, np.float64)
+                    for param in parameters
+                    if not param.realtime
+                ],
             ]
             h5file.create_dataset(
                 "scan_parameters",
@@ -439,10 +450,8 @@ class ExperimentDataRepository:
         )
         with FileLock(lock_path), h5py.File(file, "a") as h5file:
             try:
-                number_of_shots = cast("int", h5file.attrs["number_of_shots"])
-                number_of_data_points = cast(
-                    "int", h5file.attrs["number_of_data_points"]
-                )
+                number_of_shots: int = h5file.attrs["number_of_shots"]
+                number_of_data_points: int = h5file.attrs["number_of_data_points"]
             except KeyError:
                 raise Exception(
                     "Metadata does not contain relevant information. Please use "
@@ -528,7 +537,7 @@ class ExperimentDataRepository:
                 dtype = [("timestamp", "S26"), ("value", get_hdf5_dtype(value))]
 
                 if param_id in parameters_group:
-                    ds = cast("h5py.Dataset", parameters_group[param_id])
+                    ds: h5py.Dataset = parameters_group[param_id]
                     if ds.shape[0] > 0:
                         last_entry = ds[-1]
                         last_value = last_entry["value"]
@@ -582,6 +591,7 @@ class ExperimentDataRepository:
             "vector_channels": {},
             "scan_parameters": {},
             "json_sequences": [],
+            "realtime_scan": False,
         }
 
         filename = get_filename_by_job_id(job_id)
@@ -596,6 +606,9 @@ class ExperimentDataRepository:
             f"{ExperimentDataRepository.LOCK_EXTENSION}"
         )
         with FileLock(lock_path), h5py.File(file, "r") as h5file:
+            data["realtime_scan"] = bool(h5file.attrs["realtime_scan"])
+            # Parse JSON strings in relevant columns back into Python objects
+
             scan_parameters: npt.NDArray = h5file["scan_parameters"][:]  # type: ignore
             data["scan_parameters"] = {
                 param: {
