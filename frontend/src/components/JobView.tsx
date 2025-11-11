@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   Button,
   Card,
@@ -8,21 +9,20 @@ import {
   Switch,
   Tooltip,
 } from "@mui/material";
-import { useExperimentData } from "../hooks/useExperimentData";
-import ResultChannelPlot from "../components/ResultChannelPlot";
-import { useEffect, useState } from "react";
-import { ExperimentMetadata } from "../types/ExperimentMetadata";
-import { runMethod } from "../socket";
-import { deserialize } from "../utils/deserializer";
-import { SerializedObject } from "../types/SerializedObject";
-import { JobStatusIndicator } from "../components/JobStatusIndicator";
-import { useJobInfo } from "../hooks/useJobInfo";
-import { useJobRunInfo } from "../hooks/useJobRunInfo";
-import { cancelJob } from "../utils/cancelJob";
-import { JobStatus } from "../types/enums";
-import { updateJobParams } from "../utils/updateJobParams";
-import HistogramPlot from "./jobView/HistogramPlot";
 import { ExpandLess, ExpandMore } from "@mui/icons-material";
+import ResultChannelPlot from "../components/ResultChannelPlot";
+import { JobStatusIndicator } from "../components/JobStatusIndicator";
+import { useExperimentData } from "../hooks/useExperimentData";
+import { useJobRunInfo } from "../hooks/useJobRunInfo";
+import { useJobInfo } from "../hooks/useJobInfo";
+import { runMethod } from "../socket";
+import { ExperimentMetadata } from "../types/ExperimentMetadata";
+import { SerializedObject } from "../types/SerializedObject";
+import { JobStatus } from "../types/enums";
+import { deserialize } from "../utils/deserializer";
+import { updateJobParams } from "../utils/updateJobParams";
+import { cancelJob } from "../utils/cancelJob";
+import HistogramPlot from "./jobView/HistogramPlot";
 
 function getPlotTitle(scheduledTime?: string, experimentName?: string): string {
   if (!scheduledTime) return experimentName || "";
