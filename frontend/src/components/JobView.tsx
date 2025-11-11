@@ -104,13 +104,16 @@ export const JobView = ({
 
   useEffect(() => {
     if (jobInfo?.experiment_source.experiment_id)
-      runMethod("experiments.get_experiments", [], {}, (ack) => {
-        setExperimentMetadata(
-          deserialize(ack as SerializedObject)[
-            jobInfo?.experiment_source.experiment_id
-          ] as ExperimentMetadata,
-        );
-      });
+      runMethod(
+        "experiments.get_metadata",
+        [jobInfo?.experiment_source.experiment_id],
+        {},
+        (ack) => {
+          setExperimentMetadata(
+            deserialize(ack as SerializedObject) as ExperimentMetadata,
+          );
+        },
+      );
   }, [jobInfo]);
 
   useEffect(() => {
