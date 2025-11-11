@@ -1,14 +1,14 @@
-import { useContext, useMemo } from "react";
-import { ExperimentsContext } from "../contexts/ExperimentsContext";
-import { ParameterDisplayGroupsContext } from "../contexts/ParameterDisplayGroupsContext";
+import { useMemo } from "react";
 import { ButtonComponent } from "./parameterComponents/Button";
 import { ParameterNumberComponent } from "./parameterComponents/ParameterNumberComponent";
 import { Combobox } from "./parameterComponents/Combobox";
 import { useScanContext } from "../hooks/useScanContext";
 import { getScanIndex } from "../utils/getScanIndex";
 import { useResponsiveGridColumns } from "../hooks/useResponsiveGridColumns";
+import { ParameterMetadata } from "../types/ExperimentMetadata";
 
 interface ParameterGroupDisplayProps {
+  parameters: Record<string, ParameterMetadata>;
   experimentKey?: string;
   experimentGroup?: string;
   namespace?: string;
@@ -25,32 +25,10 @@ export const ParameterGroupDisplay = ({
   experimentGroup,
   namespace,
   displayGroup,
+  parameters,
 }: ParameterGroupDisplayProps) => {
   const { scannedParamKeys, handleRightClick } = useScanContext();
   const gridTemplateColumns = useResponsiveGridColumns();
-
-  const experiments = useContext(ExperimentsContext);
-  const { parameterDisplayGroups } = useContext(ParameterDisplayGroupsContext);
-
-  // Determine parameters based on props
-  const parameters = useMemo(() => {
-    if (experimentKey && experimentGroup) {
-      // Fetch parameters from ExperimentsContext
-      return experiments[experimentKey]?.parameters?.[experimentGroup] || {};
-    }
-    if (namespace && displayGroup) {
-      // Fetch parameters from ParameterDisplayGroupsContext
-      return parameterDisplayGroups[`${namespace} (${displayGroup})`] || {};
-    }
-    return {};
-  }, [
-    experimentKey,
-    experimentGroup,
-    namespace,
-    displayGroup,
-    experiments,
-    parameterDisplayGroups,
-  ]);
 
   // Memoize sorting
   const sortedParameters = useMemo(() => {

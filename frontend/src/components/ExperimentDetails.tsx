@@ -42,6 +42,7 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
             <ParameterGroupDisplay
               experimentKey={experimentKey}
               experimentGroup={group}
+              parameters={experiments[experimentKey]?.parameters?.[group] || {}}
             />
           </AccordionDetails>
         </Accordion>
