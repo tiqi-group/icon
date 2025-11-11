@@ -17,8 +17,9 @@ const getDisplayNameFromNamespace = (namespace: string): string => {
 };
 
 const ParameterPage = () => {
-  const { parameterNamespaceToDisplayGroups: parameterNamespaceToDisplayGroups } =
-    useContext(ParameterDisplayGroupsContext);
+  const { parameterNamespaceToDisplayGroups, parameterDisplayGroups } = useContext(
+    ParameterDisplayGroupsContext,
+  );
 
   return (
     <>
@@ -44,6 +45,9 @@ const ParameterPage = () => {
                   <ParameterGroupDisplay
                     namespace={namespace}
                     displayGroup={displayGroup}
+                    parameters={
+                      parameterDisplayGroups[`${namespace} (${displayGroup})`] || {}
+                    }
                   />
                   {index < displayGroupList.length - 1 && <Divider sx={{ pt: 2 }} />}
                 </div>
