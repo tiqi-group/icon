@@ -8,10 +8,12 @@ import {
   IconButton,
   Switch,
   Tooltip,
+  Divider,
 } from "@mui/material";
 import { ExpandLess, ExpandMore } from "@mui/icons-material";
 import ResultChannelPlot from "../components/ResultChannelPlot";
 import { JobStatusIndicator } from "../components/JobStatusIndicator";
+import { ParameterGroupDisplay } from "../components/ParameterGroupDisplay";
 import { useExperimentData } from "../hooks/useExperimentData";
 import { useJobRunInfo } from "../hooks/useJobRunInfo";
 import { useJobInfo } from "../hooks/useJobInfo";
@@ -271,8 +273,24 @@ export const JobView = ({
         <Grid size={{ xs: 12 }}>
           <Card>
             <CardContent>
-              <div style={{ display: "flex" }}>
+              <div style={{ display: "flex", flexDirection: "column" }}>
                 <Typography variant="h6">Parameter Values</Typography>
+                {Object.entries(experimentMetadata?.parameters || {}).map(
+                  ([displayGroup, parameters], index) => (
+                    <div key={displayGroup}>
+                      <Typography variant="h6">{displayGroup}</Typography>
+                      <ParameterGroupDisplay
+                        displayGroup={displayGroup}
+                        parameters={parameters}
+                        values={experimentData.parameters}
+                        readOnly={true}
+                      />
+                      {index <
+                        Object.keys(experimentMetadata?.parameters || {}).length -
+                          1 && <Divider sx={{ pt: 2 }} />}
+                    </div>
+                  ),
+                )}
                 <div style={{ flexGrow: 1, alignContent: "center" }} />
                 <Button
                   variant="outlined"
