@@ -9,6 +9,7 @@ interface Props {
   namespace: string;
   displayGroup: string;
   scanIndex: number | null;
+  value?: string;
   defaultValue: string;
   displayName: string;
   min?: number | null;
@@ -34,13 +35,15 @@ export const ParameterNumberComponent = React.memo(
     max,
     unit,
     onContextMenu,
+    value: localValue,
   }: Props) => {
     const [value, setValue] = useParameter(id);
     const [error, setError] = useState(false);
 
-    const displayValue = String(value ?? defaultValue);
+    const displayValue = localValue ?? String(value ?? defaultValue);
     const minValue = min ?? Number.NEGATIVE_INFINITY;
     const maxValue = max ?? Number.POSITIVE_INFINITY;
+    const isUpToDate = localValue == null || value == null || localValue == value;
 
     const handleChange = (val: string) => setValue(val);
 
@@ -57,6 +60,14 @@ export const ParameterNumberComponent = React.memo(
       },
       [setError, id],
     );
+    const backgroundColor =
+      scanIndex !== null ? "#186fc67e" : !isUpToDate ? "#f851497e" : undefined;
+    const title =
+      scanIndex !== null
+        ? `Scan parameter ${scanIndex + 1}`
+        : !isUpToDate
+          ? `Value: ${value}`
+          : undefined;
 
     return (
       <Input
@@ -72,8 +83,8 @@ export const ParameterNumberComponent = React.memo(
         onBlur={handleBlur}
         onContextMenu={(event) => onContextMenu?.(event, id, displayGroup, namespace)}
         description={id}
-        inputBackgroundColor={scanIndex !== null ? "#186fc67e" : undefined}
-        title={scanIndex !== null ? `Scan parameter ${scanIndex + 1}` : undefined}
+        inputBackgroundColor={backgroundColor}
+        title={title}
       />
     );
   },

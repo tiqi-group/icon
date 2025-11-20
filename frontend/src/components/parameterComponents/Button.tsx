@@ -10,6 +10,7 @@ interface ButtonComponentProps {
   scanIndex: number | null;
   displayName: string;
   defaultValue: boolean;
+  value?: boolean;
   onContextMenu?: (
     event: React.MouseEvent<HTMLDivElement | HTMLButtonElement>,
     paramId: string,
@@ -27,9 +28,10 @@ export const ButtonComponent = React.memo(
     displayName,
     defaultValue,
     onContextMenu,
+    value: localValue,
   }: ButtonComponentProps) => {
     const [value, setValue] = useParameter(id);
-    const displayValue = Boolean(value ?? defaultValue);
+    const displayValue = Boolean(localValue ?? value ?? defaultValue);
     const onClick = useCallback(
       (newValue: boolean) => {
         updateParameterValue(id, newValue);
@@ -37,6 +39,9 @@ export const ButtonComponent = React.memo(
       },
       [id, setValue],
     );
+    const isUpToDate = localValue == null || value == null || localValue == value;
+    const backgroundColor =
+      scanIndex !== null ? "#186fc67e" : !isUpToDate ? "#f851497e" : undefined;
 
     return (
       <BaseButton
@@ -44,7 +49,7 @@ export const ButtonComponent = React.memo(
         color={displayValue === true ? "success" : "inherit"}
         onClick={() => onClick(!displayValue)}
         onContextMenu={(e) => onContextMenu?.(e, id, displayGroup, namespace)}
-        backgroundColor={scanIndex !== null ? "#186fc67e" : undefined}
+        backgroundColor={backgroundColor}
         description={id}
         title={scanIndex !== null ? `Scan parameter ${scanIndex + 1}` : undefined}
       >

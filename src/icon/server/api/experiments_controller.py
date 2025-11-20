@@ -4,6 +4,7 @@ import pydase
 
 from icon.server.api.models.experiment_dict import (
     ExperimentDict,
+    ExperimentMetadata,
 )
 from icon.server.api.parameters_controller import get_added_removed_and_updated_keys
 from icon.server.web_server.socketio_emit_queue import emit_queue
@@ -31,6 +32,10 @@ class ExperimentsController(pydase.DataService):
         """
 
         return self._experiments
+
+    def get_metadata(self, experiment_id: str) -> ExperimentMetadata:
+        """Serve experiment metadata for experiment id `experiment_id`."""
+        return self._experiments[experiment_id]
 
     def _update_experiment_metadata(self, new_experiments: ExperimentDict) -> None:
         """Replace experiment metadata and emit an update event if changed.
