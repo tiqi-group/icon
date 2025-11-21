@@ -321,6 +321,10 @@ class PreProcessingWorker(multiprocessing.Process):
 
         self._global_parameter_timestamp = datetime.now(timezone)
 
+        JobRunRepository.set_parameter_update_timestamp(
+            run_id=pre_processing_task.job_run.id,
+            timestamp=self._global_parameter_timestamp,
+        )
         if mode == ParamUpdateMode.ONLY_NEW_PARAMETERS:
             if new_parameters:
                 self._parameter_dict.update(new_parameters)
