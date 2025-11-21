@@ -59,18 +59,18 @@ def start_server() -> None:
     scheduler.start()
 
     number_of_pre_processing_workers = get_config().server.pre_processing.workers
-    pre_processing_update_queues: list[multiprocessing.Queue[UpdateQueue]] = []
+    pre_processing_update_queues: list[multiprocessing.Queue[UpdateQueue]] = [
+        multiprocessing.Queue() for _ in range(number_of_pre_processing_workers)
+    ]
 
-    for i in range(number_of_pre_processing_workers):
-        pre_processing_update_queues.append(multiprocessing.Queue())
-        pre_processing_worker = PreProcessingWorker(
+    for i, queue in enumerate(pre_processing_update_queues):
+        PreProcessingWorker(
             worker_number=i,
             hardware_processing_queue=icon.server.shared_resource_manager.hardware_processing_queue,
             pre_processing_queue=icon.server.shared_resource_manager.pre_processing_queue,
-            update_queue=pre_processing_update_queues[i],
+            update_queue=queue,
             manager=icon.server.shared_resource_manager.manager,
-        )
-        pre_processing_worker.start()
+        ).start()
 
     hardware_processing_worker = HardwareProcessingWorker(
         hardware_processing_queue=icon.server.shared_resource_manager.hardware_processing_queue,
