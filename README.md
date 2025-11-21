@@ -88,13 +88,12 @@ Set up the development environment:
 
 ```bash
 uv sync --all-extras --dev
-````
+```
 
 Start a development InfluxDB instance:
 
-```bash
-cd docker
-uv run podman compose up
+```sh
+podman kube play k8s/dev.yml
 ```
 
 In a separate terminal, run the ICON server:
