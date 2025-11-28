@@ -40,10 +40,6 @@ class HardwareController:
         if self._zedboard is not None:
             self._zedboard.sequence_JSON_parser.Sequence_JSON = sequence  # type: ignore
 
-    def _update_number_of_shots(self, *, number_of_shots: int) -> None:
-        if self._zedboard is not None:
-            self._zedboard.sequence_JSON_parser.Shots = number_of_shots  # type: ignore
-
     def run(self, *, sequence: str, number_of_shots: int) -> ResultDict:
         if not self.connected:
             self.connect()
@@ -52,7 +48,6 @@ class HardwareController:
             raise RuntimeError("Could not connect to the Zedboard")
 
         self._update_zedboard_sequence(sequence=sequence)
-        self._update_number_of_shots(number_of_shots=number_of_shots)
         self._zedboard.sequence_JSON_parser.Parse_JSON_Header()  # type: ignore
         results: tiqi_zedboard.zedboard.Result = self._zedboard.sequence_JSON_parser()  # type: ignore
 

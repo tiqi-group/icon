@@ -367,12 +367,15 @@ class PreProcessingWorker(multiprocessing.Process):
             except queue.Empty:
                 done = True
 
-    def _get_sequence_json(self, parameter_dict: dict[str, DatabaseValueType]) -> str:
+    def _get_sequence_json(
+        self, n_shots: int, parameter_dict: dict[str, DatabaseValueType]
+    ) -> str:
         return asyncio.run(
             PycrystalLibraryRepository.generate_json_sequence(
                 parameter_dict=parameter_dict,
                 exp_module_name=self._exp_module_name,
                 exp_instance_name=self._exp_instance_name,
+                n_shots=n_shots,
             )
         )
 
@@ -426,7 +429,8 @@ class PreProcessingWorker(multiprocessing.Process):
                 break
 
             sequence_json = self._get_sequence_json(
-                parameter_dict={**self._parameter_dict, **data_point}
+                n_shots=self._pre_processing_task.job.number_of_shots,
+                parameter_dict={**self._parameter_dict, **data_point},
             )
 
             self._submit_data_point_to_hw_worker(
@@ -434,7 +438,10 @@ class PreProcessingWorker(multiprocessing.Process):
             )
 
     def _handle_continuous_scan(self) -> None:
-        sequence_json = self._get_sequence_json(parameter_dict=self._parameter_dict)
+        sequence_json = self._get_sequence_json(
+            n_shots=self._pre_processing_task.job.number_of_shots,
+            parameter_dict=self._parameter_dict,
+        )
 
         continuous_scan_index = 0
 
@@ -460,7 +467,8 @@ class PreProcessingWorker(multiprocessing.Process):
 
             if hw_task.global_parameter_timestamp < self._global_parameter_timestamp:
                 sequence_json = self._get_sequence_json(
-                    parameter_dict=self._parameter_dict
+                    n_shots=self._pre_processing_task.job.number_of_shots,
+                    parameter_dict=self._parameter_dict,
                 )
             else:
                 sequence_json = hw_task.sequence_json

@@ -1,6 +1,7 @@
 import logging
 
 import pycrystal.database.local_cache
+import pycrystal.experiment
 import pycrystal.parameters
 from pycrystal.utils.helpers import get_config_from_module_name
 
@@ -9,6 +10,7 @@ logging.basicConfig(level=log_level)
 logging.getLogger("pycrystal").setLevel(log_level)
 logging.getLogger("ionpulse_sequence_generator").setLevel(log_level)
 KEY_VAL_DICT = {key_val_dict}
+N_SHOTS = {n_shots}
 
 pycrystal.parameters.Parameter.db = pycrystal.database.local_cache.LocalCache(
     key_val_dict=KEY_VAL_DICT,
@@ -32,6 +34,7 @@ import experiment_library.hardware_description.hardware
 
 experiment_library.hardware_description.hardware.hardware.init()
 exp_instance._init()
+pycrystal.experiment.Experiment.shots = N_SHOTS
 exp_instance._initialize_scan(debug_level=log_level)
 sequence = exp_instance.pulse_sequence()
 sequence_json = sequence.get_json_string(exp_instance._sequence_header)
