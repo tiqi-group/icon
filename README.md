@@ -9,7 +9,7 @@ https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fr
 )](https://github.com/tiqi-group/icon)
 [![Documentation Status](https://github.com/tiqi-group/icon/actions/workflows/gh-pages.yml/badge.svg)](https://tiqi-group.github.io/icon/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![DOI](http://img.shields.io/badge/DOI-10.5905/ethz-blue.svg)](http://doi.org/10.5905/ethz-1007-906)
+[![DOI](http://img.shields.io/badge/DOI-10.5905/ethz-blue.svg)](http://doi.org/10.5905/ethz-1007-907)
 
 The **Ion Control Software (ICON)** is a control and data-acquisition framework developed in the Trapped Ion Quantum Computing research group at ETH Zurich. It is designed for laboratories that run experiments written in Python (with the [`pycrystal`](https://gitlab.phys.ethz.ch/tiqi-projects/pycrystal) framework) on M-Action/Quench hardware.
 
