@@ -11,7 +11,10 @@ from filelock import FileLock
 
 from icon.config.config import get_config
 from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
-from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
+from icon.server.data_access.models.sqlite.scan_parameter import (
+    ScanParameter,
+    contains_realtime_parameter,
+)
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
 from icon.server.utils.h5py import get_hdf5_dtype, get_result_channels_dataset
@@ -362,6 +365,8 @@ class ExperimentDataRepository:
             h5file.attrs["experiment_id"] = job.experiment_source.experiment_id
             h5file.attrs["job_id"] = job_id
             h5file.attrs["repetitions"] = repetitions
+            h5file.attrs["realtime_scan"] = contains_realtime_parameter(parameters)
+
             if local_parameter_timestamp is not None:
                 h5file.attrs["local_parameter_timestamp"] = local_parameter_timestamp
 
@@ -582,6 +587,7 @@ class ExperimentDataRepository:
             "vector_channels": {},
             "scan_parameters": {},
             "json_sequences": [],
+            "realtime_scan": False,
         }
 
         filename = get_filename_by_job_id(job_id)
@@ -596,6 +602,9 @@ class ExperimentDataRepository:
             f"{ExperimentDataRepository.LOCK_EXTENSION}"
         )
         with FileLock(lock_path), h5py.File(file, "r") as h5file:
+            data["realtime_scan"] = h5file.attrs["realtime_scan"]
+            # Parse JSON strings in relevant columns back into Python objects
+
             scan_parameters: npt.NDArray = h5file["scan_parameters"][:]  # type: ignore
             data["scan_parameters"] = {
                 param: {

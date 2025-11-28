@@ -20,6 +20,9 @@ import pytz
 import icon.server.utils.git_helpers
 from icon.config.config import get_config
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
+from icon.server.data_access.models.sqlite.scan_parameter import (
+    contains_realtime_parameter,
+)
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataRepository,
 )
@@ -99,7 +102,8 @@ def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
     # Extract variable IDs and their scan values from the job's scan parameters
     parameter_values: dict[str, Any] = {}
     for scan_param in job.scan_parameters:
-        parameter_values[scan_param.unique_id()] = scan_param.scan_values
+        if not scan_param.realtime:
+            parameter_values[scan_param.unique_id()] = scan_param.scan_values
 
     # Generate combinations using itertools.product
     keys = list(parameter_values.keys())
@@ -283,8 +287,8 @@ class PreProcessingWorker(multiprocessing.Process):
             readout_metadata=readout_metadata,
         )
 
-        if pre_processing_task.job.repetitions > 0:
-            self._handle_continuous_scan(
+        if contains_realtime_parameter(job.scan_parameters):
+            self._handle_realtime_scan(
                 pre_processing_task, src_dir=src_dir, namespace=namespace
             )
         else:
@@ -444,7 +448,7 @@ class PreProcessingWorker(multiprocessing.Process):
                 src_dir=src_dir,
             )
 
-    def _handle_continuous_scan(
+    def _handle_realtime_scan(
         self,
         pre_processing_task: PreProcessingTask,
         namespace: ExperimentIdentifier,

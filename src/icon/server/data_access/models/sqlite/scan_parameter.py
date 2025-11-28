@@ -2,6 +2,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 import sqlalchemy
+import sqlalchemy.event
 import sqlalchemy.orm
 
 from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
@@ -79,6 +80,9 @@ class ScanParameter(Base):
         back_populates="scan_parameters", lazy="joined"
     )
     """Relationship to the device associated with this parameter."""
+    realtime: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(
+        default=False, nullable=False
+    )
 
     def __repr__(self) -> str:
         return f"<Parameter '{self.unique_id()}'>"
@@ -96,3 +100,20 @@ class ScanParameter(Base):
             if self.device is not None
             else self.variable_id
         )
+
+
+@sqlalchemy.event.listens_for(ScanParameter, "before_insert")
+def receive_before_insert(
+    mapper: sqlalchemy.orm.Mapper[ScanParameter],
+    connection: sqlalchemy.engine.Connection,
+    target: ScanParameter,
+) -> None:
+    if target.realtime and target.variable_id != "Real Time":
+        raise ValueError(
+            f"Cannot set 'continuous' on {ScanParameter} with id {target.variable_id!r}"
+            " != 'Real Time'"
+        )
+
+
+def contains_realtime_parameter(params: list[ScanParameter]) -> bool:
+    return any(sp.realtime for sp in params)
