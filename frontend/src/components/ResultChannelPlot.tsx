@@ -59,7 +59,7 @@ function updateVisualMap(chart: ECharts, selectedChannelName: string | undefined
 const ResultChannelPlot = ({
   experimentData,
   loading,
-  title,
+  title: titleText,
   subtitle,
   channelNames,
   repetitions = 1,
@@ -114,9 +114,21 @@ const ResultChannelPlot = ({
       scale: true,
       boundaryGap: ["1%", "1%"],
     };
+    const title = {
+      text: titleText,
+      left: "center",
+      subtext: subtitle,
+      subtextStyle: {
+        lineHeight: 0,
+      },
+      top: "-1%",
+    };
     let chartSeries: EChartsOption["series"] = [];
+    const nOrdinaryParameters =
+      scanParameters.length -
+      scanParameters.reduce((total, param) => (param.realtime ? total + 1 : total), 0);
 
-    if (scanParameters.length === 0 && timestampEntry) {
+    if (nOrdinaryParameters === 0 && timestampEntry) {
       xAxis.type = "time";
       xAxis.name = "Time";
       xAxisData = timestampEntry.scanValues as string[];
@@ -150,16 +162,24 @@ const ResultChannelPlot = ({
       );
     } else if (scanParameters.length === 2) {
       const [xScan, yScan] = scanParameters;
+      const xScanValues =
+        xScan.realtime && timestampEntry
+          ? timestampEntry.scanValues
+          : xScan.scan_values;
+      const yScanValues =
+        yScan.realtime && timestampEntry
+          ? timestampEntry.scanValues
+          : yScan.scan_values;
       const series = [];
 
       for (const resultChannel of resultChannels) {
         const data: [number | string, number | string, number][] = [];
-        for (let i = 0; i < xScan.scan_values.length; i++) {
-          for (let j = 0; j < yScan.scan_values.length; j++) {
+        for (let i = 0; i < xScanValues.length; i++) {
+          for (let j = 0; j < yScanValues.length; j++) {
             data.push([
-              xScan.scan_values[i],
-              yScan.scan_values[j],
-              resultChannel.data[i * yScan.scan_values.length + j],
+              xScanValues[i],
+              yScanValues[j],
+              resultChannel.data[i * yScanValues.length + j],
             ]);
           }
         }
@@ -174,15 +194,7 @@ const ResultChannelPlot = ({
       }
 
       return {
-        title: {
-          text: title,
-          left: "center",
-          subtext: subtitle,
-          subtextStyle: {
-            lineHeight: 0,
-          },
-          top: "-1%",
-        },
+        title,
         legend: {
           selectedMode: "single",
           left: "right",
@@ -220,15 +232,7 @@ const ResultChannelPlot = ({
     }
 
     return {
-      title: {
-        text: title,
-        left: "center",
-        subtext: subtitle,
-        subtextStyle: {
-          lineHeight: 0,
-        },
-        top: "-1%",
-      },
+      title,
       textStyle: { fontFamily: "sans-serif", fontSize: 12 },
       tooltip: { trigger: "axis" },
       toolbox: {
@@ -259,7 +263,14 @@ const ResultChannelPlot = ({
       yAxis,
       series: chartSeries,
     };
-  }, [experimentData, title, subtitle, scanParameters, repetitions, showRepetitions]);
+  }, [
+    experimentData,
+    titleText,
+    subtitle,
+    scanParameters,
+    repetitions,
+    showRepetitions,
+  ]);
 
   const updateChart = useCallback(
     (chart: ECharts) => {

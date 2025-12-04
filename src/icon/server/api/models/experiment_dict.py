@@ -1,9 +1,11 @@
-from typing import Any, TypedDict
+from dataclasses import dataclass
+from typing import Any
 
 from icon.server.api.models.parameter_metadata import ParameterMetadata
 
 
-class ExperimentMetadata(TypedDict):
+@dataclass
+class ExperimentMetadata:
     """Metadata for a single experiment."""
 
     class_name: str
@@ -20,12 +22,12 @@ ExperimentDict = dict[str, ExperimentMetadata]
 Example:
     ```python
     experiment_dict: ExperimentDict = {
-        "experiment_library.experiments.my_experiment.MyExperiment (Cool Det)": {
-            "class_name": "MyExperiment",
-            "constructor_kwargs": {
+        "experiment_library.experiments.my_experiment.MyExperiment (Cool Det)": ExperimentMetadata(
+            class_name="MyExperiment",
+            constructor_kwargs={
                 "name": "Cool Det",
             },
-            "parameters": {
+            parameters={
                 "Local Parameters": {
                     "namespace='experiment_library.experiments.my_experiment.MyExperiment.Cool Det' parameter_group='default' param_type='ParameterTypes.AMPLITUDE'": {
                         "allowed_values": None,
@@ -47,7 +49,7 @@ Example:
                     },
                 },
             },
-        },
+        ),
     }
     ```
 """  # noqa: E501

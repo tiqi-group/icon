@@ -14,13 +14,20 @@ interface ComboboxProps {
   id: string;
   defaultValue: string;
   displayName: string;
+  value?: string;
   allowedValues: string[];
 }
 
 export const Combobox = React.memo(
-  ({ id, defaultValue, displayName, allowedValues }: ComboboxProps) => {
+  ({
+    id,
+    defaultValue,
+    displayName,
+    allowedValues,
+    value: localValue,
+  }: ComboboxProps) => {
     const [value, setValue] = useParameter(id);
-    const displayValue = value ?? defaultValue;
+    const displayValue = localValue ?? value ?? defaultValue;
 
     const handleChange = useCallback(
       (event: SelectChangeEvent<string | number | boolean>) => {
@@ -31,6 +38,10 @@ export const Combobox = React.memo(
       [id, setValue],
     );
 
+    const isUpToDate = localValue == null || value == null || localValue == value;
+    const style = isUpToDate ? {} : { backgroundColor: "#f851497e" };
+    const title = isUpToDate ? undefined : `Value: ${value}`;
+
     return (
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -38,7 +49,7 @@ export const Combobox = React.memo(
           {id && <HelpButton docString={id} />}
         </div>
         <FormControl size="small">
-          <Select value={displayValue} onChange={handleChange}>
+          <Select value={displayValue} onChange={handleChange} sx={style} title={title}>
             {allowedValues.map((value) => (
               <MenuItem key={value} value={value}>
                 {value}

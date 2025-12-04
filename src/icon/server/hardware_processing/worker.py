@@ -68,7 +68,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
         hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask],
-        post_processing_queue: queue.PriorityQueue[PostProcessingTask],
+        post_processing_queue: multiprocessing.Queue[PostProcessingTask],
         manager: SharedResourceManager,
     ) -> None:
         super().__init__()

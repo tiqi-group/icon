@@ -1,7 +1,9 @@
+from dataclasses import asdict
+from typing import Any
+
 import pydase
 
 from icon.server.data_access.repositories.experiment_data_repository import (
-    ExperimentData,
     ExperimentDataRepository,
 )
 
@@ -14,7 +16,7 @@ class ExperimentDataController(pydase.DataService):
     Provides API methods to fetch experiment data associated with jobs.
     """
 
-    async def get_experiment_data_by_job_id(self, job_id: int) -> ExperimentData:
+    async def get_experiment_data_by_job_id(self, job_id: int) -> dict[str, Any]:
         """Return experiment data for a given job.
 
         Args:
@@ -24,4 +26,6 @@ class ExperimentDataController(pydase.DataService):
             The experiment data linked to the job.
         """
 
-        return ExperimentDataRepository.get_experiment_data_by_job_id(job_id=job_id)
+        return asdict(
+            ExperimentDataRepository.get_experiment_data_by_job_id(job_id=job_id)
+        )
