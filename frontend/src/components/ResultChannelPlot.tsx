@@ -132,6 +132,13 @@ const ResultChannelPlot = ({
       xAxis.type = "time";
       xAxis.name = "Time";
       xAxisData = timestampEntry.scanValues as string[];
+      const first = new Date(xAxisData[0]);
+      const last = new Date(xAxisData.at(-1) || xAxisData[0]);
+      if (!isNaN(first.getDay()) && first.getDay() != last.getDay()) {
+        xAxis.axisLabel = { formatter: "{yyyy}-{MM}-{dd} {HH}:{mm}:{ss}" };
+      } else {
+        xAxis.axisLabel = { formatter: "{HH}:{mm}:{ss}" };
+      }
 
       const fullDataSet = xAxisData.map((xVal, index) => [
         xVal,
