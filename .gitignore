@@ -1,4 +1,5 @@
 emulator/
+output/
 poetry.lock
 .python-version
 

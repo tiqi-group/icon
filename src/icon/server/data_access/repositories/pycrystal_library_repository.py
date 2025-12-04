@@ -124,6 +124,7 @@ class PycrystalLibraryRepository:
         exp_module_name: str,
         exp_instance_name: str,
         parameter_dict: dict[str, DatabaseValueType],
+        n_shots: int,
     ) -> str:
         """Generate a JSON sequence for an experiment.
 
@@ -140,6 +141,7 @@ class PycrystalLibraryRepository:
             "key_val_dict": parameter_dict,
             "module_name": exp_module_name,
             "exp_instance_name": exp_instance_name,
+            "n_shots": n_shots,
         }
 
         code = PycrystalLibraryRepository._get_code(
