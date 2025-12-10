@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: influxdb
-          image: influxdb:1.11
+          image: docker.io/library/influxdb:1.12
           ports:
             - containerPort: 8087
               hostPort: 8087
@@ -60,7 +60,7 @@ spec:
     spec:
       containers:
         - name: chronograf
-          image: chronograf:latest
+          image: docker.io/library/chronograf:latest
           ports:
             - containerPort: 8888
               hostPort: 8888
