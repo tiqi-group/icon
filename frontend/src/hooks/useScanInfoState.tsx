@@ -18,7 +18,7 @@ export type ScanInfoAction =
 const defaultParameter: ScanParameterInfo = {
   id: "",
   values: [0, 1],
-  generation: { start: 0, stop: 1, points: 2, scatter: false },
+  generation: { start: 0, stop: 1, points: 2, pattern: "linear" },
   namespace: "",
   deviceNameOrDisplayGroup: "",
 };
