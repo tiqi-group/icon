@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - fix/docs
 
 permissions:
   contents: write
@@ -15,20 +16,18 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
       - name: Install uv
-        run: |
-          curl -fsSL https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        uses: astral-sh/setup-uv@v7
 
       - name: Sync build dependencies
         run: uv sync --no-dev --group docs
 
-      - name: Deploy documentation
-        run: uv run mkdocs gh-deploy --force
+      # - name: Deploy documentation
+      #   run: uv run mkdocs gh-deploy --force
