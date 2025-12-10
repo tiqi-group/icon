@@ -1,7 +1,12 @@
 import asyncio
 import logging
 from io import StringIO
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any
+import sys
+if sys.version_info < (3, 12):
+    from typing_extensions import TypedDict
+else:
+    from typing import TypedDict
 
 import pandas as pd
 import pydase

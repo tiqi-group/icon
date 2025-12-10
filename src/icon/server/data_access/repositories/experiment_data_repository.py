@@ -2,7 +2,12 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import TYPE_CHECKING, Literal, TypedDict, cast
+from typing import TYPE_CHECKING, Literal, cast
+import sys
+if sys.version_info < (3, 12):
+    from typing_extensions import TypedDict
+else:
+    from typing import TypedDict
 
 import h5py  # type: ignore
 import numpy as np
