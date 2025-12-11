@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - fix/docs
 
 permissions:
   contents: write
@@ -41,5 +40,5 @@ jobs:
       - name: Sync build dependencies
         run: uv sync --no-dev --group docs
 
-      # - name: Deploy documentation
-      #   run: uv run mkdocs gh-deploy --force
+      - name: Deploy documentation
+        run: uv run mkdocs gh-deploy --force
