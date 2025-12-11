@@ -26,6 +26,18 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
 
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.GITLAB_TIQI_ZEDBOARD_SSH_KEY }}
+
+      - name: Configure SSH for GitLab
+        env:
+          SSH_KEY: ${{ secrets.GITLAB_TIQI_ZEDBOARD_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          ssh-keyscan gitlab.phys.ethz.ch >> ~/.ssh/known_hosts
+
       - name: Sync build dependencies
         run: uv sync --no-dev --group docs
 
