@@ -56,7 +56,7 @@ If you prefer to run ICON from source, clone the repository and use [`uv`](https
 ```bash
 git clone https://github.com/tiqi-group/icon.git
 cd icon
-uv sync --extras server
+uv sync --extra server --extra zedboard
 uv run python -m icon.server
 ```
 <!--getting-started-end-->
@@ -87,7 +87,7 @@ The web frontend is served automatically by the ICON backend. By default it is a
 Set up the development environment:
 
 ```bash
-uv sync --all-extras --dev
+uv sync --all-extras --group dev
 ```
 
 Start a development InfluxDB instance:
