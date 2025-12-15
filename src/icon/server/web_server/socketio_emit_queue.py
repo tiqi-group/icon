@@ -1,18 +1,7 @@
 from __future__ import annotations
 
 import multiprocessing
-from typing import Any
-
-import sys
-if sys.version_info < (3, 11):
-    from typing_extensions import NotRequired
-else:
-    from typing import NotRequired
-
-if sys.version_info < (3, 12):
-    from typing_extensions import TypedDict
-else:
-    from typing import TypedDict
+from typing import Any, NotRequired, TypedDict
 
 
 class EmitEvent(TypedDict):
