@@ -111,6 +111,8 @@ class ExperimentData(TypedDict):
     """Scan parameters as param_id -> {index -> value/timestamp}."""
     json_sequences: list[list[int | str]]
     """List of [index, sequence_json] pairs (list for pydase JSON compatibility)."""
+    realtime_scan: bool
+    """Whether the scan is realtime scan."""
 
 
 def get_filename_by_job_id(job_id: int) -> str:
@@ -602,7 +604,7 @@ class ExperimentDataRepository:
             f"{ExperimentDataRepository.LOCK_EXTENSION}"
         )
         with FileLock(lock_path), h5py.File(file, "r") as h5file:
-            data["realtime_scan"] = h5file.attrs["realtime_scan"]
+            data["realtime_scan"] = bool(h5file.attrs["realtime_scan"])
             # Parse JSON strings in relevant columns back into Python objects
 
             scan_parameters: npt.NDArray = h5file["scan_parameters"][:]  # type: ignore
