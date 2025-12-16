@@ -1,7 +1,7 @@
-import { authority, forwardedProto } from "../socket";
+import { forwardedPrefix } from "../socket";
 
 export function openJobWindow(jobId: string | number, experimentId: string) {
-  const baseUrl = `${forwardedProto}://${authority}`;
+  const baseUrl = `${window.location.origin}${forwardedPrefix}`;
   const url = `${baseUrl}/data/${jobId}`;
   const storageKey = `jobWindow:${experimentId}`;
 
