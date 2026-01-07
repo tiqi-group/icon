@@ -9,13 +9,16 @@ import {
   Typography,
   TableHead,
 } from "@mui/material";
+import { useMemo } from "react";
 import AddIcon from "@mui/icons-material/Add";
 import { useScanContext } from "../../hooks/useScanContext";
 import { ParameterCard } from "./ParameterCard";
 
 export const ScanParameterTable = () => {
   const { scanInfoState, dispatchScanInfoStateUpdate } = useScanContext();
-
+  const realtimeInUse = useMemo(() => {
+    return scanInfoState.parameters.some((param) => param.namespace === "Real Time");
+  }, [scanInfoState]);
   return (
     <div
       style={{
@@ -41,7 +44,11 @@ export const ScanParameterTable = () => {
                   {index + 1}
                 </TableCell>
                 <TableCell>
-                  <ParameterCard param={param} index={index} />
+                  <ParameterCard
+                    param={param}
+                    index={index}
+                    showRealtime={!realtimeInUse}
+                  />
                 </TableCell>
               </TableRow>
             ))}
