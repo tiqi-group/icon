@@ -23,6 +23,11 @@ interface PlotWindows {
   vector_channels: PlotWindowMetadata[];
 }
 
+export interface ParameterValue {
+  timestamp: string;
+  value: string | number | boolean;
+}
+
 export interface ExperimentData {
   plot_windows: PlotWindows;
   shot_channels: Record<string, Record<string, number[]>>;
@@ -30,4 +35,5 @@ export interface ExperimentData {
   vector_channels: Record<string, Record<string, number[]>>;
   scan_parameters: Record<string, Record<string, number | boolean | string>>;
   json_sequences: [number, string][];
+  parameters: Record<string, ParameterValue>;
 }
