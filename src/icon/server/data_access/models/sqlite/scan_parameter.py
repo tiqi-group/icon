@@ -110,7 +110,7 @@ def receive_before_insert(
 ) -> None:
     if target.realtime and target.variable_id != "Real Time":
         raise ValueError(
-            f"Cannot set 'continuous' on {ScanParameter} with id {target.variable_id!r}"
+            f"Cannot set 'realtime' on {ScanParameter} with id {target.variable_id!r}"
             " != 'Real Time'"
         )
 

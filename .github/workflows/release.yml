@@ -41,9 +41,7 @@ jobs:
             openssh-client git ca-certificates curl binutils gh
 
       - name: Install uv
-        run: |
-          curl -fsSL https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        uses: astral-sh/setup-uv@v7
 
       - uses: webfactory/ssh-agent@v0.9.0
         with:

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   Button,
   Card,
@@ -7,22 +8,23 @@ import {
   IconButton,
   Switch,
   Tooltip,
+  Divider,
 } from "@mui/material";
-import { useExperimentData } from "../hooks/useExperimentData";
-import ResultChannelPlot from "../components/ResultChannelPlot";
-import { useEffect, useState } from "react";
-import { ExperimentMetadata } from "../types/ExperimentMetadata";
-import { runMethod } from "../socket";
-import { deserialize } from "../utils/deserializer";
-import { SerializedObject } from "../types/SerializedObject";
-import { JobStatusIndicator } from "../components/JobStatusIndicator";
-import { useJobInfo } from "../hooks/useJobInfo";
-import { useJobRunInfo } from "../hooks/useJobRunInfo";
-import { cancelJob } from "../utils/cancelJob";
-import { JobStatus } from "../types/enums";
-import { updateJobParams } from "../utils/updateJobParams";
-import HistogramPlot from "./jobView/HistogramPlot";
 import { ExpandLess, ExpandMore } from "@mui/icons-material";
+import ResultChannelPlot from "../components/ResultChannelPlot";
+import { JobStatusIndicator } from "../components/JobStatusIndicator";
+import { ParameterGroupDisplay } from "../components/ParameterGroupDisplay";
+import { useExperimentData } from "../hooks/useExperimentData";
+import { useJobRunInfo } from "../hooks/useJobRunInfo";
+import { useJobInfo } from "../hooks/useJobInfo";
+import { runMethod } from "../socket";
+import { ExperimentMetadata } from "../types/ExperimentMetadata";
+import { SerializedObject } from "../types/SerializedObject";
+import { JobStatus } from "../types/enums";
+import { deserialize } from "../utils/deserializer";
+import { updateJobParams } from "../utils/updateJobParams";
+import { cancelJob } from "../utils/cancelJob";
+import HistogramPlot from "./jobView/HistogramPlot";
 
 function getPlotTitle(scheduledTime?: string, experimentName?: string): string {
   if (!scheduledTime) return experimentName || "";
@@ -104,13 +106,16 @@ export const JobView = ({
 
   useEffect(() => {
     if (jobInfo?.experiment_source.experiment_id)
-      runMethod("experiments.get_experiments", [], {}, (ack) => {
-        setExperimentMetadata(
-          deserialize(ack as SerializedObject)[
-            jobInfo?.experiment_source.experiment_id
-          ] as ExperimentMetadata,
-        );
-      });
+      runMethod(
+        "experiments.get_metadata",
+        [jobInfo?.experiment_source.experiment_id],
+        {},
+        (ack) => {
+          setExperimentMetadata(
+            deserialize(ack as SerializedObject) as ExperimentMetadata,
+          );
+        },
+      );
   }, [jobInfo]);
 
   useEffect(() => {
@@ -268,8 +273,24 @@ export const JobView = ({
         <Grid size={{ xs: 12 }}>
           <Card>
             <CardContent>
-              <div style={{ display: "flex" }}>
+              <div style={{ display: "flex", flexDirection: "column" }}>
                 <Typography variant="h6">Parameter Values</Typography>
+                {Object.entries(experimentMetadata?.parameters || {}).map(
+                  ([displayGroup, parameters], index) => (
+                    <div key={displayGroup}>
+                      <Typography variant="h6">{displayGroup}</Typography>
+                      <ParameterGroupDisplay
+                        displayGroup={displayGroup}
+                        parameters={parameters}
+                        values={experimentData.parameters}
+                        readOnly={true}
+                      />
+                      {index <
+                        Object.keys(experimentMetadata?.parameters || {}).length -
+                          1 && <Divider sx={{ pt: 2 }} />}
+                    </div>
+                  ),
+                )}
                 <div style={{ flexGrow: 1, alignContent: "center" }} />
                 <Button
                   variant="outlined"

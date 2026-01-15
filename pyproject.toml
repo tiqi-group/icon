@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Mose Müller", email = "mosemueller@gmail.com" }
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "pydase>=0.10.21",
     "pytz>=2024.2",

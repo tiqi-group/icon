@@ -15,17 +15,27 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
       - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.GITLAB_TIQI_ZEDBOARD_SSH_KEY }}
+
+      - name: Configure SSH for GitLab
+        env:
+          SSH_KEY: ${{ secrets.GITLAB_TIQI_ZEDBOARD_SSH_KEY }}
         run: |
-          curl -fsSL https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          ssh-keyscan gitlab.phys.ethz.ch >> ~/.ssh/known_hosts
 
       - name: Sync build dependencies
         run: uv sync --no-dev --group docs

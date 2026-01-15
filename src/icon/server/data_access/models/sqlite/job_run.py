@@ -65,6 +65,11 @@ class JobRun(Base):
     log: sqlalchemy.orm.Mapped[str | None] = sqlalchemy.orm.mapped_column(default=None)
     """Optional log message for this run (e.g., cancellation reason)."""
 
+    parameter_update_timestamp: sqlalchemy.orm.Mapped[datetime.datetime | None] = (
+        sqlalchemy.orm.mapped_column(default=None)
+    )
+    """Timestamp of the last parameter update."""
+
     def __repr__(self) -> str:
         return (
             f"<JobRun id={self.id} "

@@ -5,9 +5,10 @@ import { deserialize } from "./deserializer";
 import { openJobWindow } from "./windowUtils";
 
 interface ScanParameterArgument {
-  id: string;
-  values: number[];
+  id?: string;
+  values?: number[];
   device_name?: string;
+  n_scan_points?: number;
 }
 
 export const submitJob = (experimentId: string, scanInfoState: ScanInfoState) => {
@@ -15,8 +16,13 @@ export const submitJob = (experimentId: string, scanInfoState: ScanInfoState) =>
     /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
     ({ namespace, generation, deviceNameOrDisplayGroup, ...rest }) => {
       const param: ScanParameterArgument = { ...rest };
-      if (namespace == "Devices") {
-        param.device_name = deviceNameOrDisplayGroup;
+      if (namespace == "Real Time") {
+        delete param.id;
+      } else {
+        delete param.n_scan_points;
+        if (namespace == "Devices") {
+          param.device_name = deviceNameOrDisplayGroup;
+        }
       }
       return param;
     },

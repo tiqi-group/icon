@@ -1,6 +1,10 @@
 import logging
 
-import tiqi_zedboard.zedboard  # type: ignore
+try:
+    import tiqi_zedboard.zedboard  # type: ignore
+    HAS_TIQI_ZEDBOARD = True
+except ImportError:
+    HAS_TIQI_ZEDBOARD = False
 
 from icon.config.config import get_config
 from icon.server.data_access.repositories.experiment_data_repository import ResultDict
@@ -21,11 +25,12 @@ class HardwareController:
         logger.info("Connecting to the Zedboard")
         self._host = get_config().hardware.host
         self._port = get_config().hardware.port
-        self._zedboard = tiqi_zedboard.zedboard.Zedboard(
-            hostname=self._host, port=self._port
-        )
-        if not self.connected:
-            logger.warning("Failed to connect to the Zedboard")
+        if HAS_TIQI_ZEDBOARD:
+            self._zedboard = tiqi_zedboard.zedboard.Zedboard(
+                hostname=self._host, port=self._port
+            )
+            if not self.connected:
+                logger.warning("Failed to connect to the Zedboard")
 
     @property
     def connected(self) -> bool:
@@ -45,7 +50,11 @@ class HardwareController:
             self.connect()
 
         if not self.connected:
-            raise RuntimeError("Could not connect to the Zedboard")
+            if HAS_TIQI_ZEDBOARD:
+                raise RuntimeError("Could not connect to the Zedboard")
+            else:
+                raise RuntimeError("Tiqi zedboard package is not available. "
+                                   "Please use 'uv sync --all-extras' to install all dependencies")
 
         self._update_zedboard_sequence(sequence=sequence)
         self._zedboard.sequence_JSON_parser.Parse_JSON_Header()  # type: ignore
