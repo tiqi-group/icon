@@ -1,0 +1,45 @@
+@startuml
+start
+repeat :Get 'PostProcessingTask' from 'post_processing_queue';
+  if (Job was cancelled?) then (yes)
+    :Mark data point
+    as cancelled;
+  else (no)
+    if (Task type) then (Data Point)
+        :Experiment.analysis();
+        :Save to Database;
+    else (Fit)
+        :Experiment.fit();
+        if (Automatic Calibration?) then (yes)
+            :Update value
+            in databases
+            (Redis & InfluxDB);
+            :Update globals_timestamp
+            shared variable;
+        endif
+    endif
+    if (Task succeeded) then (yes)
+        :Push websocket notification;
+        :Mark task complete;
+        note left
+          Tells pre-processing
+          worker that data point
+          has been processed or
+          data has been fitted.
+        end note
+    else (no)
+        :Log warning;
+        :Increase retry counter;
+        if (Number of retries exceeded?) then (yes)
+            :Log error;
+        else (no)
+            :Requeue task;
+            note right
+                Can be more specific,
+                e.g. to hardware or
+                pre-processing queue
+            end note
+        endif
+    endif
+  endif
+@enduml
