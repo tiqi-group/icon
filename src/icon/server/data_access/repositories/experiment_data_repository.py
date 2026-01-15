@@ -124,7 +124,6 @@ class ExperimentData:
     parameters: dict[str, ParameterValue]
     """Mapping of parameter id to time series (tuple of timestamp str and value)."""
 
-
 def get_filename_by_job_id(job_id: int) -> str:
     """Return the HDF5 filename for a job.
 
