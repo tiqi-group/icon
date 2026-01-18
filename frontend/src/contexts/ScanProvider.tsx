@@ -82,6 +82,7 @@ export const ScanProvider = ({
         handleRightClick,
         handleCloseMenu,
         scannedParamKeys,
+        experimentId,
       }}
     >
       {children}
