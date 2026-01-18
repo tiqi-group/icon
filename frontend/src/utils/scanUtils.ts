@@ -15,3 +15,21 @@ export const getScanIndex = (
   const index = scannedParams.indexOf(paramId);
   return index !== -1 ? index : null;
 };
+
+/**
+ * Determines if a parameter type can be scanned with numeric ranges.
+ *
+ * @param paramId - The parameter ID string containing type information.
+ * @returns True if the parameter can be scanned (numeric types), false otherwise.
+ */
+export function isScannableParameterType(paramId: string): boolean {
+  if (paramId.includes("param_type='ParameterTypes.BOOLEAN'")) {
+    return false;
+  }
+
+  if (paramId.includes("param_type='ParameterTypes.ENUM'")) {
+    return false;
+  }
+
+  return true;
+}

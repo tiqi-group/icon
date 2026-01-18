@@ -18,6 +18,7 @@ import {
   ScanPattern,
   scanPatterns,
 } from "../../types/ScanParameterInfo";
+import { isScannableParameterType } from "../../utils/scanUtils";
 
 const generateScanValues = (
   start: number,
@@ -119,15 +120,18 @@ export const ParameterCard = ({
 
     const key = `${param.namespace} (${groupKey})`;
     const group = parameterDisplayGroups[key] || {};
+
     return Object.fromEntries(
-      Object.entries(group).map(([paramId, meta]) => [
-        paramId,
-        {
-          displayName: meta.display_name,
-          min: meta.min_value,
-          max: meta.max_value,
-        },
-      ]),
+      Object.entries(group)
+        .filter(([paramId]) => isScannableParameterType(paramId))
+        .map(([paramId, meta]) => [
+          paramId,
+          {
+            displayName: meta.display_name,
+            min: meta.min_value,
+            max: meta.max_value,
+          },
+        ]),
     );
   }, [param, parameterDisplayGroups, deviceInfo]);
 
@@ -237,6 +241,9 @@ export const ParameterCard = ({
                 });
               }}
               renderValue={(value) => {
+                if (Object.keys(parameterOptions).length === 0) {
+                  return "No scannable parameters";
+                }
                 const selectedDisplayName = parameterOptions[value]?.displayName;
                 if (selectedDisplayName === undefined) return value;
                 return selectedDisplayName.length > 30
@@ -244,11 +251,15 @@ export const ParameterCard = ({
                   : selectedDisplayName;
               }}
             >
-              {Object.entries(parameterOptions).map(([paramId, metadata]) => (
-                <MenuItem key={paramId} value={paramId} title={paramId}>
-                  {metadata.displayName}
-                </MenuItem>
-              ))}
+              {Object.keys(parameterOptions).length === 0 ? (
+                <MenuItem disabled>No scannable parameters</MenuItem>
+              ) : (
+                Object.entries(parameterOptions).map(([paramId, metadata]) => (
+                  <MenuItem key={paramId} value={paramId} title={paramId}>
+                    {metadata.displayName}
+                  </MenuItem>
+                ))
+              )}
             </Select>
           </FormControl>
 
