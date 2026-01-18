@@ -71,7 +71,6 @@ export const ParameterGroupDisplay = ({
         if (paramId.includes("param_type='ParameterTypes.BOOLEAN'")) {
           return (
             <ButtonComponent
-              onContextMenu={handleRightClick}
               scanIndex={scanIndex}
               key={paramId}
               id={paramId}
