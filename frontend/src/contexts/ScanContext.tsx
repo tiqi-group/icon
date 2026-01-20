@@ -13,6 +13,7 @@ interface ScanContextValue {
   ) => void;
   handleCloseMenu: () => void;
   scannedParamKeys: string[];
+  experimentId: string;
 }
 
 export const ScanContext = createContext<ScanContextValue | undefined>(undefined);
