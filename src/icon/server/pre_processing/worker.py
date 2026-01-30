@@ -26,6 +26,7 @@ from icon.server.data_access.models.sqlite.scan_parameter import (
 )
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataRepository,
+    ReadoutMetadata,
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import (
@@ -281,6 +282,8 @@ class PreProcessingWorker(multiprocessing.Process):
             )
         )
 
+        validate_readout_metadata(readout_metadata)
+
         ExperimentDataRepository.update_metadata_by_job_id(
             job_id=job.id,
             number_of_shots=job.number_of_shots,
@@ -530,6 +533,19 @@ def source_dir(*, debug_mode: bool, tmp_dir: str) -> str:
         raise RuntimeError("Config: experiment_library.dir is not defined")
 
     return experiment_library_dir if debug_mode else tmp_dir
+
+
+def validate_readout_metadata(readout_metadata: ReadoutMetadata) -> None:
+    has_channels = (
+        readout_metadata["readout_channel_names"]
+        or readout_metadata["shot_channel_names"]
+        or readout_metadata["vector_channel_names"]
+    )
+    if not has_channels:
+        raise ValueError(
+            "Experiment has an empty pulse sequence: "
+            "no detection events or output traces are defined."
+        )
 
 
 def generate_sequence_json(
