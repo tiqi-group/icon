@@ -154,7 +154,9 @@ export const ParameterCard = ({
 
     return Object.fromEntries(
       Object.entries(group)
-        .filter(([paramId]) => isScannableParameterType(paramId))
+        .filter(
+          ([paramId, meta]) => isScannableParameterType(paramId) && !meta.read_only,
+        )
         .map(([paramId, meta]) => [
           paramId,
           {

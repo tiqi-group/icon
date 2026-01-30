@@ -55,7 +55,7 @@ export const ParameterGroupDisplay = ({
         const scanIndex = getScanIndex(paramId, scannedParamKeys);
         const value = values?.[paramId]?.value;
 
-        if (readOnly) {
+        if (readOnly || paramMetadata.read_only) {
           return (
             <Output
               id={paramId}
@@ -63,7 +63,7 @@ export const ParameterGroupDisplay = ({
               value={value}
               defaultValue={paramMetadata.default_value}
               scanIndex={scanIndex}
-              description={paramId}
+              description={paramMetadata.read_only ? `Read-only\n${paramId}` : paramId}
             />
           );
         }
