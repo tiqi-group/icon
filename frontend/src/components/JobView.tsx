@@ -7,10 +7,11 @@ import {
   Typography,
   IconButton,
   Switch,
+  TextField,
   Tooltip,
   Divider,
 } from "@mui/material";
-import { ExpandLess, ExpandMore } from "@mui/icons-material";
+import { ExpandLess, ExpandMore, RestartAlt } from "@mui/icons-material";
 import ResultChannelPlot from "../components/ResultChannelPlot";
 import { JobStatusIndicator } from "../components/JobStatusIndicator";
 import { ParameterGroupDisplay } from "../components/ParameterGroupDisplay";
@@ -46,6 +47,11 @@ export const JobView = ({
   const jobRunInfo = useJobRunInfo(jobId);
   const { experimentData, experimentDataError, loading } = useExperimentData(jobId);
   const is1D = jobInfo?.scan_parameters.length === 1;
+  const is2D = (jobInfo?.scan_parameters.length ?? 0) >= 2;
+
+  const [windowSize, setWindowSize] = useState<number | null>(null);
+  const [yMin, setYMin] = useState<number | null>(null);
+  const [yMax, setYMax] = useState<number | null>(null);
 
   const [showRepetitions, setShowRepetitions] = useState<boolean>(() => {
     const v = localStorage.getItem("showRepetitions");
@@ -101,6 +107,17 @@ export const JobView = ({
       if (storedResultChannelsState) {
         setExpandedResultChannels(JSON.parse(storedResultChannelsState));
       }
+
+      const storedWindowSize = localStorage.getItem(
+        `windowSize_${jobInfo.experiment_source_id}`,
+      );
+      setWindowSize(storedWindowSize !== null ? Number(storedWindowSize) : null);
+
+      const storedYMin = localStorage.getItem(`yMin_${jobInfo.experiment_source_id}`);
+      setYMin(storedYMin !== null ? Number(storedYMin) : null);
+
+      const storedYMax = localStorage.getItem(`yMax_${jobInfo.experiment_source_id}`);
+      setYMax(storedYMax !== null ? Number(storedYMax) : null);
     }
   }, [jobInfo]);
 
@@ -121,6 +138,20 @@ export const JobView = ({
   useEffect(() => {
     localStorage.setItem("showRepetitions", JSON.stringify(showRepetitions));
   }, [showRepetitions]);
+
+  useEffect(() => {
+    if (!jobInfo) return;
+    const id = jobInfo.experiment_source_id;
+
+    const persist = (key: string, value: number | null) => {
+      if (value === null) localStorage.removeItem(`${key}_${id}`);
+      else localStorage.setItem(`${key}_${id}`, String(value));
+    };
+
+    persist("windowSize", windowSize);
+    persist("yMin", yMin);
+    persist("yMax", yMax);
+  }, [windowSize, yMin, yMax, jobInfo]);
 
   useEffect(() => {
     if (!loading && !experimentDataError && onLoaded) {
@@ -183,6 +214,91 @@ export const JobView = ({
                       onChange={(_, v) => setShowRepetitions(v)}
                       disabled={!is1D}
                     />
+                  </span>
+                </Tooltip>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                <Typography variant="body2">Window size</Typography>
+                <TextField
+                  size="small"
+                  type="number"
+                  disabled={is2D}
+                  value={windowSize ?? ""}
+                  placeholder="All"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "") {
+                      setWindowSize(null);
+                    } else {
+                      const num = Number(val);
+                      if (num >= 1) setWindowSize(num);
+                    }
+                  }}
+                  slotProps={{
+                    input: {
+                      inputProps: { min: 1, style: { width: 80 } },
+                    },
+                  }}
+                  sx={{ width: 120 }}
+                />
+                <Typography variant="body2" sx={{ ml: 1 }}>
+                  Y min
+                </Typography>
+                <TextField
+                  size="small"
+                  type="number"
+                  disabled={is2D}
+                  value={yMin ?? ""}
+                  placeholder="Auto"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setYMin(val === "" ? null : Number(val));
+                  }}
+                  slotProps={{
+                    input: {
+                      inputProps: { style: { width: 60 } },
+                    },
+                  }}
+                  sx={{ width: 100 }}
+                />
+                <Typography variant="body2">Y max</Typography>
+                <TextField
+                  size="small"
+                  type="number"
+                  disabled={is2D}
+                  value={yMax ?? ""}
+                  placeholder="Auto"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setYMax(val === "" ? null : Number(val));
+                  }}
+                  slotProps={{
+                    input: {
+                      inputProps: { style: { width: 60 } },
+                    },
+                  }}
+                  sx={{ width: 100 }}
+                />
+                <Tooltip title="Reset window and y-range">
+                  <span>
+                    <IconButton
+                      size="small"
+                      disabled={windowSize === null && yMin === null && yMax === null}
+                      onClick={() => {
+                        setWindowSize(null);
+                        setYMin(null);
+                        setYMax(null);
+                      }}
+                    >
+                      <RestartAlt />
+                    </IconButton>
                   </span>
                 </Tooltip>
               </div>
@@ -264,6 +380,8 @@ export const JobView = ({
                     repetitions={jobInfo?.repetitions}
                     showRepetitions={showRepetitions}
                     scanParameters={jobInfo?.scan_parameters}
+                    windowSize={windowSize}
+                    yRange={{ min: yMin, max: yMax }}
                   />
                 )}
               </CardContent>
