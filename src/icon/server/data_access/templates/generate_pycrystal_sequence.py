@@ -35,7 +35,7 @@ import experiment_library.hardware_description.hardware
 experiment_library.hardware_description.hardware.hardware.init()
 exp_instance._init()
 pycrystal.experiment.Experiment.shots = N_SHOTS
-exp_instance._initialize_scan(debug_level=log_level)
+exp_instance._initialize_scan(n_shots=N_SHOTS, debug_level=log_level)
 sequence = exp_instance.pulse_sequence()
 sequence_json = sequence.get_json_string(exp_instance._sequence_header)
 print(sequence_json)

@@ -11,13 +11,19 @@ import {
 } from "@mui/material";
 import { useContext, useMemo, useState } from "react";
 import { DeviceInfoContext } from "../../contexts/DeviceInfoContext";
+import { ExperimentsContext } from "../../contexts/ExperimentsContext";
 import { ParameterDisplayGroupsContext } from "../../contexts/ParameterDisplayGroupsContext";
 import { useScanContext } from "../../hooks/useScanContext";
+import {
+  getExperimentNameFromExperimentId,
+  experimentIdToNamespace,
+} from "../../utils/experimentUtils";
 import {
   ScanParameterInfo,
   ScanPattern,
   scanPatterns,
 } from "../../types/ScanParameterInfo";
+import { isScannableParameterType } from "../../utils/scanUtils";
 
 const generateScanValues = (
   start: number,
@@ -63,6 +69,12 @@ const renderPatternLabel = (pattern: ScanPattern): string => {
   }
 };
 
+const getDisplayNameFromNamespace = (namespace: string): string => {
+  if (namespace.endsWith(".globals.global_parameters")) return "Global Parameters";
+  const parts = namespace.split(".");
+  return parts[parts.length - 1];
+};
+
 export const ParameterCard = ({
   param,
   index,
@@ -73,14 +85,34 @@ export const ParameterCard = ({
   showRealtime: boolean;
 }) => {
   const [continuousRealtime, setContinuousRealtime] = useState(true);
-  const { scanInfoState, dispatchScanInfoStateUpdate } = useScanContext();
+  const { scanInfoState, dispatchScanInfoStateUpdate, experimentId } = useScanContext();
 
   const { parameterDisplayGroups, parameterNamespaceToDisplayGroups } = useContext(
     ParameterDisplayGroupsContext,
   );
   const deviceInfo = useContext(DeviceInfoContext);
+  const experiments = useContext(ExperimentsContext);
+
+  // Create a mapping from namespace to experiment display name
+  const namespaceToDisplayName: Record<string, string> = Object.fromEntries(
+    Object.keys(experiments).map(expId => [
+      experimentIdToNamespace(expId),
+      getExperimentNameFromExperimentId(expId)
+    ])
+  );
+
+  // Filter namespaces to include only relevant ones
+  const filteredNamespaces = useMemo(() => {
+    return Object.fromEntries(
+      Object.entries(parameterNamespaceToDisplayGroups).filter(([namespace]) =>
+        namespace.endsWith(".globals.global_parameters") ||
+        (experimentId && namespace === experimentIdToNamespace(experimentId))
+      )
+    );
+  }, [parameterNamespaceToDisplayGroups, experimentId]);
+
   const ordinaryParameterSources: Record<string, string[]> = {
-    ...parameterNamespaceToDisplayGroups,
+    ...filteredNamespaces,
     Devices: Object.keys(deviceInfo),
   };
   const parameterSources: Record<string, string[]> = showRealtime
@@ -119,15 +151,20 @@ export const ParameterCard = ({
 
     const key = `${param.namespace} (${groupKey})`;
     const group = parameterDisplayGroups[key] || {};
+
     return Object.fromEntries(
-      Object.entries(group).map(([paramId, meta]) => [
-        paramId,
-        {
-          displayName: meta.display_name,
-          min: meta.min_value,
-          max: meta.max_value,
-        },
-      ]),
+      Object.entries(group)
+        .filter(
+          ([paramId, meta]) => isScannableParameterType(paramId) && !meta.read_only,
+        )
+        .map(([paramId, meta]) => [
+          paramId,
+          {
+            displayName: meta.display_name,
+            min: meta.min_value,
+            max: meta.max_value,
+          },
+        ]),
     );
   }, [param, parameterDisplayGroups, deviceInfo]);
 
@@ -162,16 +199,24 @@ export const ParameterCard = ({
               });
             }}
             renderValue={(selected) => {
+              const displayName = selected === "Devices" || selected === "Real Time"
+                ? selected
+                : (namespaceToDisplayName[selected] || getDisplayNameFromNamespace(selected));
               const truncated =
-                selected.length > 30 ? selected.slice(0, 30) + "..." : selected;
+                displayName.length > 30 ? displayName.slice(0, 30) + "..." : displayName;
               return truncated;
             }}
           >
-            {Object.keys(parameterSources).map((namespace) => (
-              <MenuItem key={namespace} value={namespace}>
-                {namespace}
-              </MenuItem>
-            ))}
+            {Object.keys(parameterSources).map((namespace) => {
+              const displayName = namespace === "Devices" || namespace === "Real Time"
+                ? namespace
+                : (namespaceToDisplayName[namespace] || getDisplayNameFromNamespace(namespace));
+              return (
+                <MenuItem key={namespace} value={namespace}>
+                  {displayName}
+                </MenuItem>
+              );
+            })}
           </Select>
         </FormControl>
         {scanInfoState.parameters.length > 1 && (
@@ -237,6 +282,9 @@ export const ParameterCard = ({
                 });
               }}
               renderValue={(value) => {
+                if (Object.keys(parameterOptions).length === 0) {
+                  return "No scannable parameters";
+                }
                 const selectedDisplayName = parameterOptions[value]?.displayName;
                 if (selectedDisplayName === undefined) return value;
                 return selectedDisplayName.length > 30
@@ -244,11 +292,15 @@ export const ParameterCard = ({
                   : selectedDisplayName;
               }}
             >
-              {Object.entries(parameterOptions).map(([paramId, metadata]) => (
-                <MenuItem key={paramId} value={paramId} title={paramId}>
-                  {metadata.displayName}
-                </MenuItem>
-              ))}
+              {Object.keys(parameterOptions).length === 0 ? (
+                <MenuItem disabled>No scannable parameters</MenuItem>
+              ) : (
+                Object.entries(parameterOptions).map(([paramId, metadata]) => (
+                  <MenuItem key={paramId} value={paramId} title={paramId}>
+                    {metadata.displayName}
+                  </MenuItem>
+                ))
+              )}
             </Select>
           </FormControl>
 
