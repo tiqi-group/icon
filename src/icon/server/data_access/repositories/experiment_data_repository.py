@@ -247,6 +247,9 @@ def write_results_to_dataset(
         number_of_data_points: Current total number of stored data points.
     """
 
+    if not result_channels:
+        return
+
     sorted_keys = sorted(result_channels)
 
     result_dataset = get_result_channels_dataset(
@@ -406,21 +409,25 @@ class ExperimentDataRepository:
                         f"description={parameter.device.description}"
                     )
 
-            result_dataset = get_result_channels_dataset(
-                h5file=h5file, result_channels=readout_metadata["readout_channel_names"]
-            )
+            if readout_metadata["readout_channel_names"]:
+                result_dataset = get_result_channels_dataset(
+                    h5file=h5file, result_channels=readout_metadata["readout_channel_names"]
+                )
+                result_dataset.attrs["Plot window metadata"] = json.dumps(
+                    readout_metadata["readout_channel_windows"]
+                )
 
-            result_dataset.attrs["Plot window metadata"] = json.dumps(
-                readout_metadata["readout_channel_windows"]
-            )
-            shot_group = h5file.require_group("shot_channels")
-            shot_group.attrs["Plot window metadata"] = json.dumps(
-                readout_metadata["shot_channel_windows"]
-            )
-            vector_group = h5file.require_group("vector_channels")
-            vector_group.attrs["Plot window metadata"] = json.dumps(
-                readout_metadata["vector_channel_windows"]
-            )
+            if readout_metadata["shot_channel_names"]:
+                shot_group = h5file.require_group("shot_channels")
+                shot_group.attrs["Plot window metadata"] = json.dumps(
+                    readout_metadata["shot_channel_windows"]
+                )
+
+            if readout_metadata["vector_channel_names"]:
+                vector_group = h5file.require_group("vector_channels")
+                vector_group.attrs["Plot window metadata"] = json.dumps(
+                    readout_metadata["vector_channel_windows"]
+                )
 
         emit_queue.put(
             {
@@ -639,47 +646,50 @@ class ExperimentDataRepository:
                 for param in cast("tuple[str, ...]", scan_parameters.dtype.names)
             }
 
-            result_channel_dataset = cast("h5py.Dataset", h5file["result_channels"])
-            data.plot_windows["result_channels"] = json.loads(
-                cast("str", result_channel_dataset.attrs["Plot window metadata"])
-            )
-            result_channels = cast("npt.NDArray", result_channel_dataset[:])  # type: ignore
-            data.result_channels = {
-                channel_name: dict(
-                    enumerate(
-                        cast("list[float]", result_channels[channel_name].tolist())
-                    )
+            if "result_channels" in h5file:
+                result_channel_dataset = cast("h5py.Dataset", h5file["result_channels"])
+                data.plot_windows["result_channels"] = json.loads(
+                    cast("str", result_channel_dataset.attrs["Plot window metadata"])
                 )
-                for channel_name in cast("tuple[str, ...]", result_channels.dtype.names)
-            }
+                result_channels = cast("npt.NDArray", result_channel_dataset[:])  # type: ignore
+                data.result_channels = {
+                    channel_name: dict(
+                        enumerate(
+                            cast("list[float]", result_channels[channel_name].tolist())
+                        )
+                    )
+                    for channel_name in cast("tuple[str, ...]", result_channels.dtype.names)
+                }
 
             # Convert shot channels into dicts with index as key
-            shot_channels_group = cast("h5py.Group", h5file["shot_channels"])
-            data.plot_windows["shot_channels"] = json.loads(
-                cast("str", shot_channels_group.attrs["Plot window metadata"])
-            )
-            data.shot_channels = {
-                key: dict(enumerate(value[:].tolist()))  # type: ignore
-                for key, value in cast(
-                    "Sequence[tuple[str, h5py.Dataset]]", shot_channels_group.items()
+            if "shot_channels" in h5file:
+                shot_channels_group = cast("h5py.Group", h5file["shot_channels"])
+                data.plot_windows["shot_channels"] = json.loads(
+                    cast("str", shot_channels_group.attrs["Plot window metadata"])
                 )
-            }
-
-            vector_channels_group = cast("h5py.Group", h5file["vector_channels"])
-            data.plot_windows["vector_channels"] = json.loads(
-                cast("str", vector_channels_group.attrs["Plot window metadata"])
-            )
-            data.vector_channels = {
-                channel_name: {
-                    int(data_point): vector_dataset[:].tolist()
-                    for data_point, vector_dataset in cast(
-                        "Sequence[tuple[str, h5py.Dataset]]", vector_group.items()
+                data.shot_channels = {
+                    key: dict(enumerate(value[:].tolist()))  # type: ignore
+                    for key, value in cast(
+                        "Sequence[tuple[str, h5py.Dataset]]", shot_channels_group.items()
                     )
                 }
-                for channel_name, vector_group in cast(
-                    "Sequence[tuple[str, h5py.Group]]", vector_channels_group.items()
+
+            if "vector_channels" in h5file:
+                vector_channels_group = cast("h5py.Group", h5file["vector_channels"])
+                data.plot_windows["vector_channels"] = json.loads(
+                    cast("str", vector_channels_group.attrs["Plot window metadata"])
                 )
-            }
+                data.vector_channels = {
+                    channel_name: {
+                        int(data_point): vector_dataset[:].tolist()
+                        for data_point, vector_dataset in cast(
+                            "Sequence[tuple[str, h5py.Dataset]]", vector_group.items()
+                        )
+                    }
+                    for channel_name, vector_group in cast(
+                        "Sequence[tuple[str, h5py.Group]]", vector_channels_group.items()
+                    )
+                }
 
             sequence_json_dataset = cast("h5py.Dataset", h5file["sequence_json"])
             data.json_sequences = [
