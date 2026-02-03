@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { runMethod, socket } from "../socket";
-import { ExperimentData, ExperimentDataPoint } from "../types/ExperimentData";
+import {
+  ExperimentData,
+  ExperimentDataPoint,
+  ParameterValue,
+} from "../types/ExperimentData";
 import { SerializedObject } from "../types/SerializedObject";
 import { deserialize } from "../utils/deserializer";
 
@@ -15,6 +19,7 @@ const emptyExperimentData: ExperimentData = {
   vector_channels: {},
   scan_parameters: {},
   json_sequences: [],
+  parameters: {},
 };
 
 /**
@@ -95,8 +100,16 @@ export function useExperimentData(jobId: string | undefined) {
       });
     };
 
+    const parameterValueEvent = `experiment_params_${jobId}`;
+    const handleValueEvent = (valueUpdates: Record<string, ParameterValue>) => {
+      setExperimentData((prev) => {
+        return { ...prev, parameters: { ...prev.parameters, ...valueUpdates } };
+      });
+    };
+
     socket.on(dataPointEvent, handleNewDataPoint);
     socket.on(metadataEvent, handleMetadata);
+    socket.on(parameterValueEvent, handleValueEvent);
 
     runMethod("data.get_experiment_data_by_job_id", [], { job_id: jobId }, (ack) => {
       const deserialized = deserialize(ack as SerializedObject) as
@@ -114,6 +127,8 @@ export function useExperimentData(jobId: string | undefined) {
 
     return () => {
       socket.off(dataPointEvent, handleNewDataPoint);
+      socket.off(metadataEvent, handleMetadata);
+      socket.off(parameterValueEvent, handleValueEvent);
     };
   }, [jobId]);
 

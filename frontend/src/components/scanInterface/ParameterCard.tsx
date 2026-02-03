@@ -13,19 +13,54 @@ import { useContext, useMemo, useState } from "react";
 import { DeviceInfoContext } from "../../contexts/DeviceInfoContext";
 import { ParameterDisplayGroupsContext } from "../../contexts/ParameterDisplayGroupsContext";
 import { useScanContext } from "../../hooks/useScanContext";
-import { ScanParameterInfo } from "../../types/ScanParameterInfo";
+import {
+  ScanParameterInfo,
+  ScanPattern,
+  scanPatterns,
+} from "../../types/ScanParameterInfo";
 
 const generateScanValues = (
   start: number,
   stop: number,
   points: number,
-  scatter: boolean,
+  pattern: ScanPattern,
 ) => {
-  const values = Array.from(
-    { length: points },
-    (_, i) => start + (i * (stop - start)) / (points - 1),
-  );
-  return scatter ? values.sort(() => Math.random() - 0.5) : values;
+  const linspace = (n: number) =>
+    Array.from({ length: n }, (_, i) => start + (i * (stop - start)) / (n - 1));
+
+  switch (pattern) {
+    case "linear":
+      return linspace(points);
+    case "scatter":
+      return linspace(points).sort(() => Math.random() - 0.5);
+    case "centred": {
+      const base = linspace(points);
+      const mid = Math.floor((points - 1) / 2);
+      const order = [mid];
+      for (let k = 1; order.length < points; k++) {
+        if (mid - k >= 0) order.push(mid - k);
+        if (mid + k < points) order.push(mid + k);
+      }
+      return order.map((i) => base[i]);
+    }
+    case "forwardReverse": {
+      const base = linspace(points);
+      return [...base, ...base.reverse()];
+    }
+  }
+};
+
+const renderPatternLabel = (pattern: ScanPattern): string => {
+  switch (pattern) {
+    case "linear":
+      return "Linear";
+    case "scatter":
+      return "Scatter";
+    case "centred":
+      return "Centred";
+    case "forwardReverse":
+      return "Forward and reverse";
+  }
 };
 
 export const ParameterCard = ({
@@ -95,6 +130,8 @@ export const ParameterCard = ({
       ]),
     );
   }, [param, parameterDisplayGroups, deviceInfo]);
+
+  const pattern = param.generation.pattern ?? "linear";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -196,9 +233,7 @@ export const ParameterCard = ({
                 dispatchScanInfoStateUpdate({
                   type: "UPDATE_PARAMETER",
                   index,
-                  payload: {
-                    id: e.target.value,
-                  },
+                  payload: { id: e.target.value },
                 });
               }}
               renderValue={(value) => {
@@ -238,7 +273,7 @@ export const ParameterCard = ({
                       Number(e.target.value),
                       param.generation.stop,
                       param.generation.points,
-                      param.generation.scatter,
+                      pattern,
                     ),
                   },
                 })
@@ -273,7 +308,7 @@ export const ParameterCard = ({
                       param.generation.start,
                       Number(e.target.value),
                       param.generation.points,
-                      param.generation.scatter,
+                      pattern,
                     ),
                   },
                 })
@@ -309,7 +344,7 @@ export const ParameterCard = ({
                       param.generation.start,
                       param.generation.stop,
                       Number(e.target.value),
-                      param.generation.scatter,
+                      pattern,
                     ),
                   },
                 })
@@ -324,26 +359,32 @@ export const ParameterCard = ({
               }}
             />
           </div>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={param.generation.scatter ?? false}
-                onChange={(e) => {
-                  dispatchScanInfoStateUpdate({
-                    type: "UPDATE_PARAMETER",
-                    index: index!,
-                    payload: {
-                      generation: {
-                        ...param.generation,
-                        scatter: e.target.checked,
-                      },
+          <FormControl fullWidth size="small">
+            <InputLabel>Scan pattern</InputLabel>
+            <Select
+              label="Scan pattern"
+              value={pattern}
+              onChange={(e) => {
+                dispatchScanInfoStateUpdate({
+                  type: "UPDATE_PARAMETER",
+                  index: index!,
+                  payload: {
+                    generation: {
+                      ...param.generation,
+                      pattern: e.target.value as ScanPattern,
                     },
-                  });
-                }}
-              />
-            }
-            label="Scatter"
-          />
+                  },
+                });
+              }}
+              renderValue={(selected) => renderPatternLabel(selected as ScanPattern)}
+            >
+              {scanPatterns.map((pattern) => (
+                <MenuItem key={pattern} value={pattern}>
+                  {renderPatternLabel(pattern)}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </>
       ) : (
         <>

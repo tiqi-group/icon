@@ -42,7 +42,7 @@ from icon.server.data_access.repositories.pycrystal_library_repository import (
 from icon.server.hardware_processing.task import HardwareProcessingTask
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterable, Iterator
 
     from icon.server.data_access.models.sqlite.job import Job
     from icon.server.pre_processing.task import PreProcessingTask
@@ -193,6 +193,9 @@ class PreProcessingWorker(multiprocessing.Process):
         ]
         self._processed_data_points: queue.Queue[HardwareProcessingTask]
         self._parameter_dict: dict[str, DatabaseValueType] = {}
+        self._outdated_tasks: queue.PriorityQueue[HardwareProcessingTask] = (
+            manager.PriorityQueue()
+        )
 
     def run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -292,14 +295,17 @@ class PreProcessingWorker(multiprocessing.Process):
             readout_metadata=readout_metadata,
         )
 
-        if contains_realtime_parameter(job.scan_parameters):
+        jobs = (
             self._handle_realtime_scan(
                 pre_processing_task, src_dir=src_dir, namespace=namespace
             )
-        else:
-            self._handle_regular_scan(
+            if contains_realtime_parameter(job.scan_parameters)
+            else self._handle_regular_scan(
                 pre_processing_task, src_dir=src_dir, namespace=namespace
             )
+        )
+        for _ in jobs:
+            self._regenerate_outdated_jobs(namespace)
 
     def _update_parameter_dict(
         self,
@@ -324,6 +330,10 @@ class PreProcessingWorker(multiprocessing.Process):
 
         self._global_parameter_timestamp = datetime.now(timezone)
 
+        JobRunRepository.set_parameter_update_timestamp(
+            run_id=pre_processing_task.job_run.id,
+            timestamp=self._global_parameter_timestamp,
+        )
         if mode == ParamUpdateMode.ONLY_NEW_PARAMETERS:
             if new_parameters:
                 self._parameter_dict.update(new_parameters)
@@ -399,7 +409,7 @@ class PreProcessingWorker(multiprocessing.Process):
         pre_processing_task: PreProcessingTask,
         namespace: ExperimentIdentifier,
         src_dir: str,
-    ) -> None:
+    ) -> Iterable[None]:
         scan_parameter_value_combinations = get_scan_combinations(
             pre_processing_task.job
         )
@@ -424,6 +434,7 @@ class PreProcessingWorker(multiprocessing.Process):
             ):
                 break
 
+            yield
             self._submit_task_to_hw_worker(
                 task=self._create_hardware_task(
                     pre_processing_task=pre_processing_task,
@@ -457,15 +468,25 @@ class PreProcessingWorker(multiprocessing.Process):
             sequence_json=sequence_json,
             processed_data_points=self._processed_data_points,
             data_points_to_process=self._data_points_to_process,
+            outdated_tasks=self._outdated_tasks,
             created=datetime.now(timezone),
         )
+
+    def _regenerate_outdated_jobs(self, namespace: ExperimentIdentifier) -> None:
+        for task in consume_queue(self._outdated_tasks):
+            task.sequence_json = generate_sequence_json(
+                n_shots=task.pre_processing_task.job.number_of_shots,
+                parameter_dict={**self._parameter_dict, **task.scanned_params},
+                namespace=namespace,
+            )
+            self._submit_task_to_hw_worker(task=task)
 
     def _handle_realtime_scan(
         self,
         pre_processing_task: PreProcessingTask,
         namespace: ExperimentIdentifier,
         src_dir: str,
-    ) -> None:
+    ) -> Iterable[None]:
         params = pre_processing_task.job.scan_parameters
         realtime_param = next(p for p in params if p.realtime)
         n_scan_values = len(realtime_param.scan_values)
@@ -510,6 +531,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     hardware_tasks[frozen_data_point] = hardware_task
                 hardware_task.created = datetime.now(timezone)
                 hardware_task.data_point_index = index
+                yield
                 self._submit_task_to_hw_worker(task=hardware_task)
 
 

@@ -5,11 +5,12 @@ from collections import Counter
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, TypedDict
 
+from icon.server.api.models.experiment_dict import ExperimentMetadata
+
 if TYPE_CHECKING:
     from icon.client.client import Client
     from icon.server.api.models.experiment_dict import (
         ExperimentDict,
-        ExperimentMetadata,
     )
     from icon.server.api.models.parameter_metadata import (
         ParameterMetadata,
@@ -177,11 +178,11 @@ class ExperimentProxy:
 
     def __repr__(self) -> str:
         repr = (
-            f"<{self._experiment_metadata['constructor_kwargs']['name']}> (Experiment: "
-            f"{self._experiment_metadata['class_name']})\n"
+            f"<{self._experiment_metadata.constructor_kwargs['name']}> (Experiment: "
+            f"{self._experiment_metadata.class_name})\n"
             f"  Display Groups:"
         )
-        for display_group in self._experiment_metadata["parameters"]:
+        for display_group in self._experiment_metadata.parameters:
             repr += f"\n    - {display_group}"
 
         return repr
@@ -190,7 +191,7 @@ class ExperimentProxy:
         return DisplayGroupProxy(
             self._client,
             display_group_name,
-            self._experiment_metadata["parameters"][display_group_name],
+            self._experiment_metadata.parameters[display_group_name],
         )
 
     def schedule(
@@ -263,12 +264,12 @@ class ExperimentProxy:
 class ExperimentsController:
     def __init__(self, client: Client) -> None:
         self._client = client
-        self.__update_experiments()
-
-    def __update_experiments(self) -> None:
-        self._experiments: ExperimentDict = self._client.trigger_method(
-            "experiments.get_experiments"
-        )
+        self._experiments: ExperimentDict = {
+            key: ExperimentMetadata(**val)
+            for key, val in self._client.trigger_method(
+                "experiments.get_experiments"
+            ).items()
+        }
         self._experiments_id_mapping = get_experiment_identifier_dict(
             list(self._experiments.keys())
         )

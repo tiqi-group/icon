@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 
 import sqlalchemy.orm
 from sqlalchemy import select, update
@@ -185,3 +185,43 @@ class JobRunRepository:
             scheduled_time = session.execute(stmt).scalar_one()
             logger.debug("Got scheduled time for job_id %s", job_id)
         return scheduled_time
+
+    @staticmethod
+    def set_parameter_update_timestamp(*, run_id: int, timestamp: datetime) -> None:
+        """Set the paramter update timestamp.
+
+        Args:
+            job_id: ID of the job.
+            timestamp: New parameter update timestamp.
+        """
+
+        with sqlalchemy.orm.Session(engine) as session:
+            stmt = (
+                update(JobRun)
+                .where(JobRun.id == run_id)
+                .values(parameter_update_timestamp=timestamp.astimezone(UTC))
+                .returning(JobRun)
+            )
+
+            run = session.execute(stmt).scalar_one()
+            session.commit()
+
+            logger.debug("Updated parameter update timestam for run %s", run)
+
+    @staticmethod
+    def get_parameter_update_timestamp(*, run_id: int) -> datetime:
+        """Get the paramter update timestamp.
+
+        Args:
+            job_id: ID of the job.
+        Returns:
+            The parameter update timestamp.
+        """
+
+        with sqlalchemy.orm.Session(engine) as session:
+            stmt = select(JobRun.parameter_update_timestamp).where(JobRun.id == run_id)
+
+            timestamp = session.execute(stmt).scalar_one()
+            logger.debug("Got parameter update timestamp for run %s", run_id)
+
+        return timestamp.replace(tzinfo=UTC)

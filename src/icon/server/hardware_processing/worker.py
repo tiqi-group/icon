@@ -160,6 +160,14 @@ class HardwareProcessingWorker(multiprocessing.Process):
             ):
                 continue
 
+            parameter_update_timestamp = (
+                JobRunRepository.get_parameter_update_timestamp(
+                    run_id=task.pre_processing_task.job_run.id,
+                )
+            )
+            if task.created < parameter_update_timestamp:
+                task.outdated_tasks.put(task)
+                continue
             try:
                 self._set_pydase_service_values(scanned_params=task.scanned_params)
 
