@@ -9,6 +9,7 @@ const defaultScanContext = {
   handleRightClick: () => {},
   handleCloseMenu: () => {},
   scannedParamKeys: [],
+  experimentId: "",
 };
 
 export const useScanContext = () => {

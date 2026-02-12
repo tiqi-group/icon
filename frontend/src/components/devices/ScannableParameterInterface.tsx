@@ -3,7 +3,7 @@ import { DeviceStateContext } from "../../contexts/DeviceStateContext";
 import { DeviceInfoContext } from "../../contexts/DeviceInfoContext";
 import { DeviceStatus } from "../../types/enums";
 import { DeviceNumberComponent } from "../parameterComponents/DeviceNumberComponent";
-import { getScanIndex } from "../../utils/getScanIndex";
+import { getScanIndex } from "../../utils/scanUtils";
 import { useScanContext } from "../../hooks/useScanContext";
 
 interface ScannableParameterInterfaceProps {
