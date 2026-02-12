@@ -588,11 +588,16 @@ class ExperimentDataRepository:
     def get_experiment_data_by_job_id(
         *,
         job_id: int,
+        max_data_points: int = 10_000,
     ) -> ExperimentData:
-        """Load all stored data for a job from its HDF5 file.
+        """Load stored data for a job from its HDF5 file.
+
+        When the file contains more than *max_data_points*, only the last
+        *max_data_points* are returned.
 
         Args:
             job_id: Job identifier.
+            max_data_points: Maximum number of data points to load.
 
         Returns:
             Experiment data payload suitable for the API.
@@ -626,15 +631,17 @@ class ExperimentDataRepository:
         )
         with FileLock(lock_path), h5py.File(file, "r") as h5file:
             data.realtime_scan = bool(h5file.attrs["realtime_scan"])
-            # Parse JSON strings in relevant columns back into Python objects
 
-            scan_parameters: npt.NDArray = h5file["scan_parameters"][:]  # type: ignore
+            total: int = h5file.attrs["number_of_data_points"]
+            start_index = max(0, total - max_data_points)
+
+            scan_parameters: npt.NDArray = h5file["scan_parameters"][start_index:]  # type: ignore
             data.scan_parameters = {
                 param: {
-                    index: value[0].item().decode()
+                    start_index + i: value[0].item().decode()
                     if isinstance(value[0], np.bytes_)
                     else value[0].item()
-                    for index, value in enumerate(scan_parameters[param])
+                    for i, value in enumerate(scan_parameters[param])
                 }
                 for param in cast("tuple[str, ...]", scan_parameters.dtype.names)
             }
@@ -643,11 +650,12 @@ class ExperimentDataRepository:
             data.plot_windows["result_channels"] = json.loads(
                 cast("str", result_channel_dataset.attrs["Plot window metadata"])
             )
-            result_channels = cast("npt.NDArray", result_channel_dataset[:])  # type: ignore
+            result_channels = cast("npt.NDArray", result_channel_dataset[start_index:])  # type: ignore
             data.result_channels = {
                 channel_name: dict(
                     enumerate(
-                        cast("list[float]", result_channels[channel_name].tolist())
+                        cast("list[float]", result_channels[channel_name].tolist()),
+                        start=start_index,
                     )
                 )
                 for channel_name in cast("tuple[str, ...]", result_channels.dtype.names)
@@ -659,7 +667,7 @@ class ExperimentDataRepository:
                 cast("str", shot_channels_group.attrs["Plot window metadata"])
             )
             data.shot_channels = {
-                key: dict(enumerate(value[:].tolist()))  # type: ignore
+                key: dict(enumerate(value[start_index:].tolist(), start=start_index))  # type: ignore
                 for key, value in cast(
                     "Sequence[tuple[str, h5py.Dataset]]", shot_channels_group.items()
                 )
@@ -675,6 +683,7 @@ class ExperimentDataRepository:
                     for data_point, vector_dataset in cast(
                         "Sequence[tuple[str, h5py.Dataset]]", vector_group.items()
                     )
+                    if int(data_point) >= start_index
                 }
                 for channel_name, vector_group in cast(
                     "Sequence[tuple[str, h5py.Group]]", vector_channels_group.items()
