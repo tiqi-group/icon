@@ -20,6 +20,7 @@ const emptyExperimentData: ExperimentData = {
   scan_parameters: {},
   json_sequences: [],
   parameters: {},
+  total_data_points: 0,
 };
 
 /**
@@ -84,6 +85,7 @@ export function useExperimentData(jobId: string | undefined) {
           vector_channels,
           scan_parameters,
           json_sequences,
+          total_data_points: prev.total_data_points + 1,
         };
       });
     };

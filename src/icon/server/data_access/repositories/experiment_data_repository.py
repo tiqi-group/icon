@@ -123,6 +123,9 @@ class ExperimentData:
     """True if the experiment has a realtime scan parameter."""
     parameters: dict[str, ParameterValue]
     """Mapping of parameter id to time series (tuple of timestamp str and value)."""
+    total_data_points: int
+    """Total number of data points in the HDF5 file (before truncation)."""
+
 
 def get_filename_by_job_id(job_id: int) -> str:
     """Return the HDF5 filename for a job.
@@ -616,6 +619,7 @@ class ExperimentDataRepository:
             json_sequences=[],
             realtime_scan=False,
             parameters={},
+            total_data_points=0,
         )
 
         filename = get_filename_by_job_id(job_id)
@@ -633,6 +637,7 @@ class ExperimentDataRepository:
             data.realtime_scan = bool(h5file.attrs["realtime_scan"])
 
             total: int = h5file.attrs["number_of_data_points"]
+            data.total_data_points = total
             start_index = max(0, total - max_data_points)
 
             scan_parameters: npt.NDArray = h5file["scan_parameters"][start_index:]  # type: ignore

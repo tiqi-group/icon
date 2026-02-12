@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  Alert,
   Button,
   Card,
   CardContent,
@@ -46,6 +47,13 @@ export const JobView = ({
   const jobRunInfo = useJobRunInfo(jobId);
   const { experimentData, experimentDataError, loading } = useExperimentData(jobId);
   const is1D = jobInfo?.scan_parameters.length === 1;
+
+  const loadedDataPoints = Object.keys(
+    Object.values(experimentData.result_channels)[0] ?? {},
+  ).length;
+  const isTruncated =
+    experimentData.total_data_points > 0 &&
+    loadedDataPoints < experimentData.total_data_points;
 
   const [showRepetitions, setShowRepetitions] = useState<boolean>(() => {
     const v = localStorage.getItem("showRepetitions");
@@ -189,6 +197,15 @@ export const JobView = ({
             </CardContent>
           </Card>
         </Grid>
+
+        {isTruncated && (
+          <Grid size={{ xs: 12 }}>
+            <Alert severity="info">
+              Showing last {loadedDataPoints.toLocaleString()} of{" "}
+              {experimentData.total_data_points.toLocaleString()} data points.
+            </Alert>
+          </Grid>
+        )}
 
         {experimentData?.plot_windows?.shot_channels?.map((win) => (
           <Grid size={{ xs: 12, sm: 12, lg: 4 }} key={`shot-${win.index}`}>
