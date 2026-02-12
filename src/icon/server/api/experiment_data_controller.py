@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import asdict
 from typing import Any
 
@@ -28,6 +29,7 @@ class ExperimentDataController(pydase.DataService):
              [ExperimentData][icon.server.data_access.repositories.experiment_data_repository.ExperimentData] instance.
         """
 
-        return asdict(
-            ExperimentDataRepository.get_experiment_data_by_job_id(job_id=job_id)
+        result = await asyncio.to_thread(
+            ExperimentDataRepository.get_experiment_data_by_job_id, job_id=job_id
         )
+        return asdict(result)
