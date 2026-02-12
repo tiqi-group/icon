@@ -1,0 +1,70 @@
+@startuml
+skinparam linetype ortho
+
+entity "ExperimentSource" as experiment {
+    *experiment_source_id: number <<generated>>
+    ---
+    *experiment_id: text
+}
+
+entity "Job" as job {
+    *job_id: number <<generated>>
+    *created: timestamp
+    ---
+    ' *user_id: number <<FK>>
+    *experiment_source_id: number <<FK>>
+    *status: Enum (submitted / processing / done)
+    *git_commit_hash: text
+    *priority: number between 0 and 20
+    *repetitions: number
+    *number_of_shots: number
+    *local_parameters_timestamp: timestamp
+    *auto_calibration: bool
+    *debug_mode: bool
+    parent_job_id: number <<FK>>
+}
+
+entity "JobRun" as job_run {
+    *job_run_id: number <<generated>>
+    *scheduled_time: timestamp
+    ---
+    *job_id: number <<FK>>
+    *status: Enum (pending / processing / failed / cancelled / done)
+    log: text (job information)
+}
+
+' entity "User" as user {
+'     *user_id: number <<generated>>
+'     --
+'     *name: text
+'     *created: timestamp
+'     priority?
+' }
+
+entity "Scan Parameter" as scan_param {
+    *scan_parameter_id: number <<generated>>
+    --
+    *job_id: number <<FK>>
+    *variable_id: text
+    *scan_values: list of numbers
+    *device_id: number <<FK>> | null
+}
+
+entity "Devices" as devices {
+    *device_id: number <<generated>>
+    *name: text  <<unique>>
+    --
+    *hostname: text
+    *port: number
+    *active: bool
+    description: text
+}
+
+
+' job }o..|| user
+job ||..o{ scan_param
+experiment ||.o{ job
+job ||..o{ job_run
+devices ||..o{ scan_param
+
+@enduml

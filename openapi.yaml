@@ -1,0 +1,66 @@
+openapi: 3.1.0
+info:
+  version: 1.0.0
+  title: ICON API
+tags:
+  - name: Scheduler
+    description: Interacting with the Job Table
+paths:
+  /scheduler/submit_job:
+    get:
+      tags:
+        - Scheduler
+      summary: Submit a new Job.
+      description: Submit a new Job, writing it to the Job table.
+      operationId: submit_job
+      parameters:
+        - in: query
+          name: experiment
+          schema:
+            $ref: '#/components/schemas/Experiment'
+          required: true
+          description: Experiment source.
+        - in: query
+          name: local_parameters_timestamp
+          schema:
+            type: string
+            format: date-time
+            example: "2017-07-21T17:32:28Z"
+            default: now
+          required: false
+          description: Timestamp of the latest experiment-specific parameter values.
+        - in: query
+          name: priority
+          schema:
+            type: string
+            default: 20
+          required: false
+          description: Priority of the experiment job.
+        - in: query
+          name: repetitions
+          schema:
+            type: integer
+            default: 1
+          required: false
+          description: Number of repetitions for averaging the data.
+components:
+  schemas:
+    Experiment:
+      required:
+        - git_commit_hash
+        - file_path
+        - name
+      type: object
+      properties:
+        git_commit_hash:
+          type: string
+          description: Git commit hash of the source repository.
+          example: "754a95e"
+        file_path:
+          type: string
+          description: Path to the experiment source file relative to the repository root.
+          example: path/to/experiment.py
+        name:
+          type: string
+          description: Name of the experiment class within the source file.
+          example: RamseyExperiment
