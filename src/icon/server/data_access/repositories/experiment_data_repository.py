@@ -636,7 +636,7 @@ class ExperimentDataRepository:
         with FileLock(lock_path), h5py.File(file, "r") as h5file:
             data.realtime_scan = bool(h5file.attrs["realtime_scan"])
 
-            total: int = h5file.attrs["number_of_data_points"]
+            total = int(h5file.attrs["number_of_data_points"])
             data.total_data_points = total
             start_index = max(0, total - max_data_points)
 
@@ -695,11 +695,17 @@ class ExperimentDataRepository:
                 )
             }
 
-            sequence_json_dataset = cast("h5py.Dataset", h5file["sequence_json"])
-            data.json_sequences = [
-                [cast("np.int32", entry["index"]).item(), entry["Sequence"].decode()]
-                for entry in sequence_json_dataset
-            ]
+            if "sequence_json" in h5file:
+                sequence_json_dataset = cast(
+                    "h5py.Dataset", h5file["sequence_json"]
+                )
+                data.json_sequences = [
+                    [
+                        cast("np.int32", entry["index"]).item(),
+                        entry["Sequence"].decode(),
+                    ]
+                    for entry in sequence_json_dataset
+                ]
             data.parameters = extract_parameter_values(h5file)
         return data
 
