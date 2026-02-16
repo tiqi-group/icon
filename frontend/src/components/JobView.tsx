@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Button,
   Card,
@@ -52,6 +52,35 @@ export const JobView = ({
   const [windowSize, setWindowSize] = useState<number | null>(null);
   const [yMin, setYMin] = useState<number | null>(null);
   const [yMax, setYMax] = useState<number | null>(null);
+
+  const autoYBounds = useMemo(() => {
+    if (!experimentData?.result_channels) return { min: 0, max: 0 };
+
+    let min = Infinity;
+    let max = -Infinity;
+
+    for (const channelData of Object.values(experimentData.result_channels)) {
+      let values = Object.values(channelData) as number[];
+      if (windowSize != null && values.length > windowSize) {
+        values = values.slice(-windowSize);
+      }
+      for (const v of values) {
+        if (Number.isFinite(v)) {
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+      }
+    }
+
+    if (!Number.isFinite(min)) return { min: 0, max: 0 };
+    return { min, max };
+  }, [experimentData, windowSize]);
+
+  const dataLength = useMemo(() => {
+    if (!experimentData?.result_channels) return 0;
+    const firstChannel = Object.values(experimentData.result_channels)[0];
+    return firstChannel ? Object.values(firstChannel).length : 0;
+  }, [experimentData]);
 
   const [showRepetitions, setShowRepetitions] = useState<boolean>(() => {
     const v = localStorage.getItem("showRepetitions");
@@ -236,6 +265,8 @@ export const JobView = ({
                     const val = e.target.value;
                     if (val === "") {
                       setWindowSize(null);
+                    } else if (windowSize === null) {
+                      setWindowSize(dataLength > 0 ? dataLength : 1);
                     } else {
                       const num = Number(val);
                       if (num >= 1) setWindowSize(num);
@@ -259,7 +290,13 @@ export const JobView = ({
                   placeholder="Auto"
                   onChange={(e) => {
                     const val = e.target.value;
-                    setYMin(val === "" ? null : Number(val));
+                    if (val === "") {
+                      setYMin(null);
+                    } else if (yMin === null) {
+                      setYMin(Math.floor(autoYBounds.min));
+                    } else {
+                      setYMin(Number(val));
+                    }
                   }}
                   slotProps={{
                     input: {
@@ -277,7 +314,13 @@ export const JobView = ({
                   placeholder="Auto"
                   onChange={(e) => {
                     const val = e.target.value;
-                    setYMax(val === "" ? null : Number(val));
+                    if (val === "") {
+                      setYMax(null);
+                    } else if (yMax === null) {
+                      setYMax(Math.ceil(autoYBounds.max));
+                    } else {
+                      setYMax(Number(val));
+                    }
                   }}
                   slotProps={{
                     input: {
