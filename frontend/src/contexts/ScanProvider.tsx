@@ -3,7 +3,6 @@ import { Menu, MenuItem } from "@mui/material";
 import { useScanInfoState } from "../hooks/useScanInfoState";
 import { ScanContext } from "./ScanContext";
 
-
 /**
  * Constructs a unique key for identifying a scanned parameter.
  *

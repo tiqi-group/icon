@@ -21,7 +21,7 @@ export const Output = React.memo(
     description,
     value: localValue,
   }: ButtonComponentProps<string | boolean | number>) => {
-    const [value, _setValue] = useParameter(id);
+    const [value] = useParameter(id);
     const displayValue = localValue ?? value ?? defaultValue;
     const isUpToDate = localValue == null || value == null || localValue == value;
     const backgroundColor =
