@@ -591,16 +591,19 @@ class ExperimentDataRepository:
     def get_experiment_data_by_job_id(
         *,
         job_id: int,
-        max_data_points: int = 10_000,
+        max_transfer_bytes: int = 50_000_000,
     ) -> ExperimentData:
         """Load stored data for a job from its HDF5 file.
 
-        When the file contains more than *max_data_points*, only the last
-        *max_data_points* are returned.
+        When loading all data would exceed *max_transfer_bytes*, only the
+        last N data points that fit within the budget are returned.  The
+        budget is estimated from HDF5 metadata (channel count, shots per
+        channel) without reading actual data.
 
         Args:
             job_id: Job identifier.
-            max_data_points: Maximum number of data points to load.
+            max_transfer_bytes: Approximate cap on the serialised payload
+                size in bytes.  Defaults to 50 MB.
 
         Returns:
             Experiment data payload suitable for the API.
@@ -638,7 +641,40 @@ class ExperimentDataRepository:
 
             total = int(h5file.attrs["number_of_data_points"])
             data.total_data_points = total
+
+            # Estimate bytes per data point from HDF5 metadata
+            bytes_per_point = 0
+            shot_group = cast("h5py.Group", h5file["shot_channels"])
+            for ds in shot_group.values():
+                bytes_per_point += ds.shape[1] * ds.dtype.itemsize
+            bytes_per_point += cast(
+                "h5py.Dataset", h5file["result_channels"]
+            ).dtype.itemsize
+            bytes_per_point += cast(
+                "h5py.Dataset", h5file["scan_parameters"]
+            ).dtype.itemsize
+            # Add vector channel size (average across all data points)
+            vector_group = cast("h5py.Group", h5file["vector_channels"])
+            total_vector_bytes = 0
+            for channel_group in vector_group.values():
+                for dataset in cast("h5py.Group", channel_group).values():
+                    total_vector_bytes += dataset.shape[0] * dataset.dtype.itemsize
+            if total > 0:
+                bytes_per_point += total_vector_bytes // total
+            # JSON serialisation roughly doubles the raw size
+            bytes_per_point = max(bytes_per_point * 2, 1)
+
+            max_data_points = max_transfer_bytes // bytes_per_point
             start_index = max(0, total - max_data_points)
+            if start_index > 0:
+                logger.info(
+                    "Loading last %d of %d data points "
+                    "(~%d bytes/point, %d MB budget)",
+                    total - start_index,
+                    total,
+                    bytes_per_point,
+                    max_transfer_bytes // 1_000_000,
+                )
 
             scan_parameters: npt.NDArray = h5file["scan_parameters"][start_index:]  # type: ignore
             data.scan_parameters = {
