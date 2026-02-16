@@ -4,7 +4,7 @@ import { Output } from "./parameterComponents/Output";
 import { ParameterNumberComponent } from "./parameterComponents/ParameterNumberComponent";
 import { Combobox } from "./parameterComponents/Combobox";
 import { useScanContext } from "../hooks/useScanContext";
-import { getScanIndex } from "../utils/getScanIndex";
+import { getScanIndex } from "../utils/scanUtils";
 import { useResponsiveGridColumns } from "../hooks/useResponsiveGridColumns";
 import { ParameterMetadata } from "../types/ExperimentMetadata";
 import { ParameterValue } from "../types/ExperimentData";
@@ -55,7 +55,7 @@ export const ParameterGroupDisplay = ({
         const scanIndex = getScanIndex(paramId, scannedParamKeys);
         const value = values?.[paramId]?.value;
 
-        if (readOnly) {
+        if (readOnly || paramMetadata.read_only) {
           return (
             <Output
               id={paramId}
@@ -63,7 +63,7 @@ export const ParameterGroupDisplay = ({
               value={value}
               defaultValue={paramMetadata.default_value}
               scanIndex={scanIndex}
-              description={paramId}
+              description={paramMetadata.read_only ? `Read-only\n${paramId}` : paramId}
             />
           );
         }
@@ -71,7 +71,6 @@ export const ParameterGroupDisplay = ({
         if (paramId.includes("param_type='ParameterTypes.BOOLEAN'")) {
           return (
             <ButtonComponent
-              onContextMenu={handleRightClick}
               scanIndex={scanIndex}
               key={paramId}
               id={paramId}
