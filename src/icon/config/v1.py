@@ -3,6 +3,8 @@ from pathlib import Path
 from confz import BaseConfig
 from pydantic import BaseModel
 
+__version__ = 1
+
 
 class HealthCheckConfig(BaseModel):
     interval_seconds: float = 10.0
@@ -59,7 +61,7 @@ class HardwareConfig(BaseModel):
 
 
 class ServiceConfigV1(BaseConfig):  # type: ignore[misc]
-    version: int = 1
+    version: int = __version__
     experiment_library: ExperimentLibraryConfigV1 = ExperimentLibraryConfigV1()
     databases: DatabaseConfig = DatabaseConfig()
     date: DateConfig = DateConfig()
