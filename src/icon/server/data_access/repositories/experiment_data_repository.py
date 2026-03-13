@@ -644,7 +644,7 @@ class ExperimentDataRepository:
             f"{ExperimentDataRepository.LOCK_EXTENSION}"
         )
         with FileLock(lock_path), h5py.File(file, "r") as h5file:
-            data.realtime_scan = bool(h5file.attrs["realtime_scan"])
+            data.realtime_scan = bool(h5file.attrs.get("realtime_scan", False))
 
             total = int(h5file.attrs["number_of_data_points"])
             data.total_data_points = total
