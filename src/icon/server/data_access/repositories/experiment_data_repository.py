@@ -123,6 +123,9 @@ class ExperimentData:
     """True if the experiment has a realtime scan parameter."""
     parameters: dict[str, ParameterValue]
     """Mapping of parameter id to time series (tuple of timestamp str and value)."""
+    total_data_points: int
+    """Total number of data points in the HDF5 file (before truncation)."""
+
 
 def get_filename_by_job_id(job_id: int) -> str:
     """Return the HDF5 filename for a job.
@@ -588,11 +591,19 @@ class ExperimentDataRepository:
     def get_experiment_data_by_job_id(
         *,
         job_id: int,
+        max_transfer_bytes: int = 50_000_000,
     ) -> ExperimentData:
-        """Load all stored data for a job from its HDF5 file.
+        """Load stored data for a job from its HDF5 file.
+
+        When loading all data would exceed *max_transfer_bytes*, only the
+        last N data points that fit within the budget are returned.  The
+        budget is estimated from HDF5 metadata (channel count, shots per
+        channel) without reading actual data.
 
         Args:
             job_id: Job identifier.
+            max_transfer_bytes: Approximate cap on the serialised payload
+                size in bytes.  Defaults to 50 MB.
 
         Returns:
             Experiment data payload suitable for the API.
@@ -611,6 +622,7 @@ class ExperimentDataRepository:
             json_sequences=[],
             realtime_scan=False,
             parameters={},
+            total_data_points=0,
         )
 
         filename = get_filename_by_job_id(job_id)
@@ -626,15 +638,51 @@ class ExperimentDataRepository:
         )
         with FileLock(lock_path), h5py.File(file, "r") as h5file:
             data.realtime_scan = bool(h5file.attrs["realtime_scan"])
-            # Parse JSON strings in relevant columns back into Python objects
 
-            scan_parameters: npt.NDArray = h5file["scan_parameters"][:]  # type: ignore
+            total = int(h5file.attrs["number_of_data_points"])
+            data.total_data_points = total
+
+            # Estimate bytes per data point from HDF5 metadata
+            bytes_per_point = 0
+            shot_group = cast("h5py.Group", h5file["shot_channels"])
+            for ds in shot_group.values():
+                bytes_per_point += ds.shape[1] * ds.dtype.itemsize
+            bytes_per_point += cast(
+                "h5py.Dataset", h5file["result_channels"]
+            ).dtype.itemsize
+            bytes_per_point += cast(
+                "h5py.Dataset", h5file["scan_parameters"]
+            ).dtype.itemsize
+            # Add vector channel size (average across all data points)
+            vector_group = cast("h5py.Group", h5file["vector_channels"])
+            total_vector_bytes = 0
+            for channel_group in vector_group.values():
+                for dataset in cast("h5py.Group", channel_group).values():
+                    total_vector_bytes += dataset.shape[0] * dataset.dtype.itemsize
+            if total > 0:
+                bytes_per_point += total_vector_bytes // total
+            # JSON serialisation roughly doubles the raw size
+            bytes_per_point = max(bytes_per_point * 2, 1)
+
+            max_data_points = max_transfer_bytes // bytes_per_point
+            start_index = max(0, total - max_data_points)
+            if start_index > 0:
+                logger.info(
+                    "Loading last %d of %d data points "
+                    "(~%d bytes/point, %d MB budget)",
+                    total - start_index,
+                    total,
+                    bytes_per_point,
+                    max_transfer_bytes // 1_000_000,
+                )
+
+            scan_parameters: npt.NDArray = h5file["scan_parameters"][start_index:]  # type: ignore
             data.scan_parameters = {
                 param: {
-                    index: value[0].item().decode()
+                    start_index + i: value[0].item().decode()
                     if isinstance(value[0], np.bytes_)
                     else value[0].item()
-                    for index, value in enumerate(scan_parameters[param])
+                    for i, value in enumerate(scan_parameters[param])
                 }
                 for param in cast("tuple[str, ...]", scan_parameters.dtype.names)
             }
@@ -643,11 +691,12 @@ class ExperimentDataRepository:
             data.plot_windows["result_channels"] = json.loads(
                 cast("str", result_channel_dataset.attrs["Plot window metadata"])
             )
-            result_channels = cast("npt.NDArray", result_channel_dataset[:])  # type: ignore
+            result_channels = cast("npt.NDArray", result_channel_dataset[start_index:])  # type: ignore
             data.result_channels = {
                 channel_name: dict(
                     enumerate(
-                        cast("list[float]", result_channels[channel_name].tolist())
+                        cast("list[float]", result_channels[channel_name].tolist()),
+                        start=start_index,
                     )
                 )
                 for channel_name in cast("tuple[str, ...]", result_channels.dtype.names)
@@ -659,7 +708,7 @@ class ExperimentDataRepository:
                 cast("str", shot_channels_group.attrs["Plot window metadata"])
             )
             data.shot_channels = {
-                key: dict(enumerate(value[:].tolist()))  # type: ignore
+                key: dict(enumerate(value[start_index:].tolist(), start=start_index))  # type: ignore
                 for key, value in cast(
                     "Sequence[tuple[str, h5py.Dataset]]", shot_channels_group.items()
                 )
@@ -675,17 +724,24 @@ class ExperimentDataRepository:
                     for data_point, vector_dataset in cast(
                         "Sequence[tuple[str, h5py.Dataset]]", vector_group.items()
                     )
+                    if int(data_point) >= start_index
                 }
                 for channel_name, vector_group in cast(
                     "Sequence[tuple[str, h5py.Group]]", vector_channels_group.items()
                 )
             }
 
-            sequence_json_dataset = cast("h5py.Dataset", h5file["sequence_json"])
-            data.json_sequences = [
-                [cast("np.int32", entry["index"]).item(), entry["Sequence"].decode()]
-                for entry in sequence_json_dataset
-            ]
+            if "sequence_json" in h5file:
+                sequence_json_dataset = cast(
+                    "h5py.Dataset", h5file["sequence_json"]
+                )
+                data.json_sequences = [
+                    [
+                        cast("np.int32", entry["index"]).item(),
+                        entry["Sequence"].decode(),
+                    ]
+                    for entry in sequence_json_dataset
+                ]
             data.parameters = extract_parameter_values(h5file)
         return data
 
