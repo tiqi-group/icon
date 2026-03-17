@@ -1,15 +1,13 @@
 import DeleteIcon from "@mui/icons-material/Delete";
 import {
-  Checkbox,
   FormControl,
-  FormControlLabel,
   IconButton,
   InputLabel,
   MenuItem,
   Select,
   TextField,
 } from "@mui/material";
-import { useContext, useMemo, useState } from "react";
+import { useContext, useMemo } from "react";
 import { DeviceInfoContext } from "../../contexts/DeviceInfoContext";
 import { ExperimentsContext } from "../../contexts/ExperimentsContext";
 import { ParameterDisplayGroupsContext } from "../../contexts/ParameterDisplayGroupsContext";
@@ -84,7 +82,6 @@ export const ParameterCard = ({
   index: number;
   showRealtime: boolean;
 }) => {
-  const [continuousRealtime, setContinuousRealtime] = useState(true);
   const { scanInfoState, dispatchScanInfoStateUpdate, experimentId } = useScanContext();
 
   const { parameterDisplayGroups, parameterNamespaceToDisplayGroups } = useContext(
@@ -439,54 +436,26 @@ export const ParameterCard = ({
           </FormControl>
         </>
       ) : (
-        <>
-          <TextField
-            required
-            label="Number of Scan Points"
-            size="small"
-            type="number"
-            disabled={continuousRealtime}
-            fullWidth
-            error={(param.n_scan_points ?? 1) < 1 && !continuousRealtime}
-            value={param.n_scan_points ?? 0}
-            onChange={(e) =>
-              dispatchScanInfoStateUpdate({
-                type: "UPDATE_PARAMETER",
-                index,
-                payload: {
-                  n_scan_points: Number(e.target.value),
-                  values: [],
-                },
-              })
-            }
-            variant="outlined"
-            slotProps={{
-              input: {
-                inputProps: {
-                  min: 1,
-                },
+        <TextField
+          label="Number of Scan Points"
+          size="small"
+          fullWidth
+          placeholder="Continuous"
+          inputMode="numeric"
+          value={param.n_scan_points ? param.n_scan_points : ""}
+          onChange={(e) => {
+            const parsed = parseInt(e.target.value, 10);
+            dispatchScanInfoStateUpdate({
+              type: "UPDATE_PARAMETER",
+              index,
+              payload: {
+                n_scan_points: isNaN(parsed) ? 0 : parsed,
+                values: [],
               },
-            }}
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={continuousRealtime}
-                onChange={() => {
-                  setContinuousRealtime(!continuousRealtime);
-                  dispatchScanInfoStateUpdate({
-                    type: "UPDATE_PARAMETER",
-                    index,
-                    payload: {
-                      n_scan_points: continuousRealtime ? 1 : 0,
-                    },
-                  });
-                }}
-              />
-            }
-            label="Continuous"
-          />
-        </>
+            });
+          }}
+          variant="outlined"
+        />
       )}
     </div>
   );
