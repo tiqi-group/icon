@@ -17,6 +17,8 @@ interface ResultChannelPlotProps {
   repetitions: number | undefined;
   showRepetitions: boolean;
   scanParameters: ScanParameter[] | undefined;
+  windowSize?: number | null;
+  yRange?: { min: number | null; max: number | null };
 }
 
 const formatAxisLabel = (value: string): string => {
@@ -96,6 +98,8 @@ const ResultChannelPlot = ({
   repetitions = 1,
   showRepetitions = false,
   scanParameters = [],
+  windowSize = null,
+  yRange,
 }: ResultChannelPlotProps) => {
   const [chart, setChart] = useState<ECharts | null>(null);
   const notifications = useNotifications();
@@ -144,6 +148,12 @@ const ResultChannelPlot = ({
       minorSplitLine: { show: true },
       scale: true,
       boundaryGap: ["1%", "1%"],
+      ...(yRange?.min != null && !(yRange?.max != null && yRange.max <= yRange.min)
+        ? { min: yRange.min }
+        : {}),
+      ...(yRange?.max != null && !(yRange?.min != null && yRange.max <= yRange.min)
+        ? { max: yRange.max }
+        : {}),
     };
     const title = {
       text: titleText,
@@ -160,15 +170,26 @@ const ResultChannelPlot = ({
       scanParameters.reduce((total, param) => (param.realtime ? total + 1 : total), 0);
 
     if (nOrdinaryParameters === 0 && timestampEntry) {
-      xAxisData = timestampEntry.scanValues as string[];
+      let tsValues = timestampEntry.scanValues as string[];
+      let channels = resultChannels;
+
+      if (windowSize != null && tsValues.length > windowSize) {
+        tsValues = tsValues.slice(-windowSize);
+        channels = resultChannels.map((ch) => ({
+          name: ch.name,
+          data: ch.data.slice(-windowSize),
+        }));
+      }
+
+      xAxisData = tsValues;
       Object.assign(xAxis, { type: "time", name: "Time", ...timeAxisProps(xAxisData) });
 
       const fullDataSet = xAxisData.map((xVal, index) => [
         xVal,
-        ...resultChannels.map((ch) => ch.data[index]),
+        ...channels.map((ch) => ch.data[index]),
       ]);
 
-      chartSeries = resultChannels.map((channel, index) => ({
+      chartSeries = channels.map((channel, index) => ({
         name: channel.name,
         type: "line",
         clip: true,
@@ -182,14 +203,46 @@ const ResultChannelPlot = ({
       xAxis.name = scanParameters[0].variable_id;
       xAxis.axisLabel = { formatter: formatAxisLabel };
 
-      xAxisData = scanParameters[0].scan_values;
+      const ordinaryScanEntry = scanInfo.find((param) => param.name !== "timestamp");
 
-      chartSeries = buildResultChannelChartSeries(
-        xAxisData,
-        resultChannels,
-        repetitions,
-        showRepetitions,
-      );
+      if (
+        windowSize != null &&
+        ordinaryScanEntry &&
+        resultChannels[0]?.data.length > windowSize
+      ) {
+        const observedX = (ordinaryScanEntry.scanValues as number[]).slice(-windowSize);
+        const channels = resultChannels.map((ch) => ({
+          name: ch.name,
+          data: ch.data.slice(-windowSize),
+        }));
+
+        xAxisData = observedX;
+
+        const fullDataSet = observedX.map((xVal, index) => [
+          xVal,
+          ...channels.map((ch) => ch.data[index]),
+        ]);
+
+        chartSeries = channels.map((channel, index) => ({
+          name: channel.name,
+          type: "line",
+          clip: true,
+          sampling: "lttb",
+          encode: { x: 0, y: index + 1 },
+          data: fullDataSet,
+          showSymbol: true,
+          lineStyle: { width: 2 },
+        }));
+      } else {
+        xAxisData = scanParameters[0].scan_values;
+
+        chartSeries = buildResultChannelChartSeries(
+          xAxisData,
+          resultChannels,
+          repetitions,
+          showRepetitions,
+        );
+      }
     } else if (scanParameters.length === 2) {
       const [xScan, yScan] = scanParameters;
       const xScanValues =
@@ -326,6 +379,8 @@ const ResultChannelPlot = ({
     scanParameters,
     repetitions,
     showRepetitions,
+    windowSize,
+    yRange,
   ]);
 
   const updateChart = useCallback(
