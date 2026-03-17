@@ -200,7 +200,7 @@ const ResultChannelPlot = ({
       }));
     } else if (scanParameters.length === 1) {
       xAxis.type = "value";
-      xAxis.name = scanParameters[0].variable_id;
+      xAxis.name = scanParameters[0].name;
       xAxis.axisLabel = { formatter: formatAxisLabel };
 
       const ordinaryScanEntry = scanInfo.find((param) => param.name !== "timestamp");
@@ -314,7 +314,7 @@ const ResultChannelPlot = ({
         },
         tooltip: {},
         xAxis: {
-          name: xScan.variable_id,
+          name: xScan.name,
           type: "category",
           nameLocation: "middle",
           nameGap: 25,
@@ -323,7 +323,7 @@ const ResultChannelPlot = ({
             : categoryAxisProps),
         },
         yAxis: {
-          name: yScan.variable_id,
+          name: yScan.name,
           type: "category",
           nameLocation: "middle",
           nameGap: 45,
