@@ -19,6 +19,7 @@ from icon.server.data_access.repositories.job_run_repository import (
     job_run_cancelled_or_failed,
 )
 from icon.server.hardware_processing.hardware_controller import HardwareController
+from icon.server.hardware_processing.utils import extract_hardware_error_message
 from icon.server.post_processing.task import PostProcessingTask
 
 if TYPE_CHECKING:
@@ -201,7 +202,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 JobRunRepository.update_run_by_id(
                     run_id=task.pre_processing_task.job_run.id,
                     status=JobRunStatus.FAILED,
-                    log=str(e),
+                    log=extract_hardware_error_message(e),
                 )
             finally:
                 task.processed_data_points.put(task)
