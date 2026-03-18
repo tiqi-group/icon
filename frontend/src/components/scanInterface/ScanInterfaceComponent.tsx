@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Select,
   MenuItem,
@@ -7,6 +7,7 @@ import {
   TextField,
   Button,
   FormHelperText,
+  Tooltip,
 } from "@mui/material";
 import { useScanContext } from "../../hooks/useScanContext";
 import { submitJob } from "../../utils/submitJob";
@@ -17,6 +18,16 @@ interface ScanInterfaceProps {
 }
 const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
   const { scanInfoState, dispatchScanInfoStateUpdate } = useScanContext();
+
+  const isContinuousScan = scanInfoState.parameters.every(
+    (p) => p.namespace === "Real Time" && p.n_scan_points === 0,
+  );
+
+  useEffect(() => {
+    if (isContinuousScan && scanInfoState.repetitions !== 1) {
+      dispatchScanInfoStateUpdate({ type: "SET_REPETITIONS", payload: 1 });
+    }
+  }, [isContinuousScan, scanInfoState.repetitions, dispatchScanInfoStateUpdate]);
 
   const [errors, setErrors] = useState<{
     priority?: string;
@@ -44,6 +55,10 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
     // Validate scan repetitions
     if (scanInfoState.repetitions < 1) {
       newErrors.repetitions = "Scan repetitions must be at least 1";
+      valid = false;
+    }
+    if (isContinuousScan && scanInfoState.repetitions !== 1) {
+      newErrors.repetitions = "Repetitions must be 1 for continuous scans";
       valid = false;
     }
 
@@ -127,26 +142,33 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
           }}
         />
 
-        <TextField
-          label="Scan Repetitions"
-          type="number"
-          size="small"
-          value={scanInfoState.repetitions}
-          onChange={(e) =>
-            dispatchScanInfoStateUpdate({
-              type: "SET_REPETITIONS",
-              payload: Number(e.target.value),
-            })
+        <Tooltip
+          title={
+            isContinuousScan ? "Repetitions are disabled for continuous scans." : ""
           }
-          error={scanInfoState.repetitions < 1}
-          slotProps={{
-            input: {
-              inputProps: {
-                min: 1,
+        >
+          <TextField
+            label="Scan Repetitions"
+            type="number"
+            size="small"
+            value={scanInfoState.repetitions}
+            onChange={(e) =>
+              dispatchScanInfoStateUpdate({
+                type: "SET_REPETITIONS",
+                payload: Number(e.target.value),
+              })
+            }
+            disabled={isContinuousScan}
+            error={scanInfoState.repetitions < 1}
+            slotProps={{
+              input: {
+                inputProps: {
+                  min: 1,
+                },
               },
-            },
-          }}
-        />
+            }}
+          />
+        </Tooltip>
 
         {errors.parameters && (
           <div style={{ color: "var(--mui-palette-error-main)", fontSize: "0.875rem" }}>

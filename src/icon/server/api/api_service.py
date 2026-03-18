@@ -72,12 +72,15 @@ class APIService(pydase.DataService):
 
         self.devices = DevicesController()
         """Controller for managing external pydase-based devices."""
-        self.scheduler = SchedulerController(devices_controller=self.devices)
+        self.parameters = ParametersController()
+        """Controller for parameter metadata and shared parameter values."""
+        self.scheduler = SchedulerController(
+            devices_controller=self.devices,
+            parameters_controller=self.parameters,
+        )
         """Controller to submit, inspect, and cancel scheduled jobs."""
         self.experiments = ExperimentsController()
         """Controller for experiment metadata."""
-        self.parameters = ParametersController()
-        """Controller for parameter metadata and shared parameter values."""
         self.config = ConfigurationController()
         """Controller for managing and updating the application's configuration."""
         self.data = ExperimentDataController()

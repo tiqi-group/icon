@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Button,
   Card,
   CardContent,
@@ -81,6 +82,13 @@ export const JobView = ({
     const firstChannel = Object.values(experimentData.result_channels)[0];
     return firstChannel ? Object.values(firstChannel).length : 0;
   }, [experimentData]);
+
+  const loadedDataPoints = Object.keys(
+    Object.values(experimentData.result_channels)[0] ?? {},
+  ).length;
+  const isTruncated =
+    experimentData.total_data_points > 0 &&
+    loadedDataPoints < experimentData.total_data_points;
 
   const [showRepetitions, setShowRepetitions] = useState<boolean>(() => {
     const v = localStorage.getItem("showRepetitions");
@@ -348,6 +356,15 @@ export const JobView = ({
             </CardContent>
           </Card>
         </Grid>
+
+        {isTruncated && (
+          <Grid size={{ xs: 12 }}>
+            <Alert severity="info">
+              Showing last {loadedDataPoints.toLocaleString()} of{" "}
+              {experimentData.total_data_points.toLocaleString()} data points.
+            </Alert>
+          </Grid>
+        )}
 
         {experimentData?.plot_windows?.shot_channels?.map((win) => (
           <Grid size={{ xs: 12, sm: 12, lg: 4 }} key={`shot-${win.index}`}>

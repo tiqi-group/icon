@@ -36,4 +36,5 @@ export interface ExperimentData {
   scan_parameters: Record<string, Record<string, number | boolean | string>>;
   json_sequences: [number, string][];
   parameters: Record<string, ParameterValue>;
+  total_data_points: number;
 }

@@ -11,6 +11,7 @@ from icon.server.api.models.scan_parameter import (
     ScanParameter,
     scan_parameter_from_dict,
 )
+from icon.server.api.parameters_controller import ParametersController
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
 from icon.server.data_access.models.sqlite.job import Job, timezone
@@ -34,15 +35,30 @@ class SchedulerController(pydase.DataService):
     type before persisting them.
     """
 
-    def __init__(self, devices_controller: DevicesController) -> None:
+    def __init__(
+        self,
+        devices_controller: DevicesController,
+        parameters_controller: ParametersController,
+    ) -> None:
         """
         Args:
             devices_controller: Reference to the devices controller. Used to read
                 current values of device parameters when casting scan values.
+            parameters_controller: Reference to the parameters controller. Used to
+                resolve display names for scan parameters at submission time.
         """
 
         super().__init__()
         self._devices_controller = devices_controller
+        self._parameters_controller = parameters_controller
+
+    def _resolve_display_name(self, parameter_id: str) -> str:
+        metadata = self._parameters_controller._all_parameter_metadata.get(
+            parameter_id
+        )
+        if metadata is not None:
+            return metadata["display_name"]
+        return parameter_id
 
     async def submit_job(  # noqa: PLR0913
         self,
@@ -93,16 +109,19 @@ class SchedulerController(pydase.DataService):
         ) -> sqlite_scan_parameter.ScanParameter:
             if isinstance(param, RealtimeParameter):
                 return sqlite_scan_parameter.ScanParameter(
+                    name="Real Time",
                     variable_id="Real Time",
                     scan_values=[1] * param.n_scan_points,
                     realtime=True,
                 )
             if isinstance(param, DatabaseParameter):
                 return sqlite_scan_parameter.ScanParameter(
+                    name=self._resolve_display_name(param.id),
                     variable_id=param.id,
                     scan_values=param.values,
                 )
             return sqlite_scan_parameter.ScanParameter(
+                name=self._resolve_display_name(param.id),
                 variable_id=param.id,
                 scan_values=param.values,
                 device_id=DeviceRepository.get_device_by_name(
