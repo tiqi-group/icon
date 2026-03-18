@@ -63,6 +63,9 @@ class ScanParameter(Base):
     )
     """Relationship to the job."""
 
+    name: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(nullable=False)
+    """Human-friendly display name persisted at submission time."""
+
     variable_id: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column()
     """Identifier of the parameter being scanned."""
 
