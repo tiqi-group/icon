@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
@@ -27,6 +27,7 @@ import { deserialize } from "../utils/deserializer";
 import { updateJobParams } from "../utils/updateJobParams";
 import { cancelJob } from "../utils/cancelJob";
 import HistogramPlot from "./jobView/HistogramPlot";
+import FitPanel from "./jobView/FitPanel";
 
 function getPlotTitle(scheduledTime?: string, experimentName?: string): string {
   if (!scheduledTime) return experimentName || "";
@@ -89,6 +90,9 @@ export const JobView = ({
   const isTruncated =
     experimentData.total_data_points > 0 &&
     loadedDataPoints < experimentData.total_data_points;
+
+  const [clickedX, setClickedX] = useState<number | null>(null);
+  const handleChartClick = useCallback((x: number) => setClickedX(x), []);
 
   const [showRepetitions, setShowRepetitions] = useState<boolean>(() => {
     const v = localStorage.getItem("showRepetitions");
@@ -206,10 +210,10 @@ export const JobView = ({
                 <JobStatusIndicator status={jobRunInfo?.status} log={jobRunInfo?.log} />
                 <Typography variant="h6">
                   {jobId}
-                  {experimentMetadata?.constructor_kwargs.name && (
+                  {experimentMetadata?.constructor_kwargs?.name && (
                     <>
                       {" "}
-                      - {experimentMetadata?.constructor_kwargs.name} (
+                      - {experimentMetadata?.constructor_kwargs?.name} (
                       {experimentMetadata?.class_name})
                     </>
                   )}
@@ -396,7 +400,7 @@ export const JobView = ({
                     title={win.name}
                     subtitle={getPlotTitle(
                       jobRunInfo?.scheduled_time,
-                      experimentMetadata?.constructor_kwargs.name,
+                      experimentMetadata?.constructor_kwargs?.name,
                     )}
                   />
                 )}
@@ -435,19 +439,31 @@ export const JobView = ({
                     title={win.name}
                     subtitle={getPlotTitle(
                       jobRunInfo?.scheduled_time,
-                      experimentMetadata?.constructor_kwargs.name,
+                      experimentMetadata?.constructor_kwargs?.name,
                     )}
                     repetitions={jobInfo?.repetitions}
                     showRepetitions={showRepetitions}
                     scanParameters={jobInfo?.scan_parameters}
                     windowSize={windowSize}
                     yRange={{ min: yMin, max: yMax }}
+                    fits={is1D ? experimentData.fits : undefined}
+                    onChartClick={is1D ? handleChartClick : undefined}
                   />
                 )}
               </CardContent>
             </Card>
           </Grid>
         ))}
+        {is1D && jobId && (
+          <Grid size={{ xs: 12 }}>
+            <FitPanel
+              jobId={jobId}
+              experimentData={experimentData}
+              clickedX={clickedX}
+            />
+          </Grid>
+        )}
+
         <Grid size={{ xs: 12 }}>
           <Card>
             <CardContent>

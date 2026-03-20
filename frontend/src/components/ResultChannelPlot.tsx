@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ExperimentData } from "../types/ExperimentData";
+import { ExperimentData, FitResult } from "../types/ExperimentData";
 import { ReactECharts, ReactEChartsProps } from "./ReactEcharts";
 import { EChartsOption } from "echarts";
 import type { ECharts } from "echarts/core";
@@ -7,6 +7,7 @@ import { useNotifications } from "@toolpad/core";
 import { copyEChartsToClipboard } from "../utils/copyEChartsToClipboard";
 import { ScanParameter } from "../types/ScanParameter";
 import { buildResultChannelChartSeries } from "../utils/buildResultChannelChartSeries";
+import { evaluateFit } from "../utils/fitFunctions";
 
 interface ResultChannelPlotProps {
   experimentData: ExperimentData;
@@ -19,6 +20,8 @@ interface ResultChannelPlotProps {
   scanParameters: ScanParameter[] | undefined;
   windowSize?: number | null;
   yRange?: { min: number | null; max: number | null };
+  fits?: Record<string, FitResult>;
+  onChartClick?: (xValue: number) => void;
 }
 
 const formatAxisLabel = (value: string): string => {
@@ -100,6 +103,8 @@ const ResultChannelPlot = ({
   scanParameters = [],
   windowSize = null,
   yRange,
+  fits = {},
+  onChartClick,
 }: ResultChannelPlotProps) => {
   const [chart, setChart] = useState<ECharts | null>(null);
   const notifications = useNotifications();
@@ -340,6 +345,33 @@ const ResultChannelPlot = ({
       };
     }
 
+    // Add fit curve overlays for 1D scans
+    if (scanParameters.length === 1 && fits) {
+      const ordinaryEntry = scanInfo.find((p) => p.name !== "timestamp");
+      const fitXArr = (ordinaryEntry?.scanValues ?? []) as number[];
+
+      for (const [channelName, fitResult] of Object.entries(fits)) {
+        if (!fitResult.success || !channelNames.includes(channelName)) continue;
+
+        const xMinVal = fitResult.x_range ? fitResult.x_range[0] : Math.min(...fitXArr);
+        const xMaxVal = fitResult.x_range ? fitResult.x_range[1] : Math.max(...fitXArr);
+        const nPoints = 200;
+        const step = (xMaxVal - xMinVal) / (nPoints - 1);
+        const fitX = Array.from({ length: nPoints }, (_, i) => xMinVal + i * step);
+        const fitY = evaluateFit(fitResult.func_type, fitResult.result, fitX);
+        const fitData = fitX.map((x, i) => [x, fitY[i]]);
+
+        (chartSeries as unknown[]).push({
+          name: `${channelName} fit`,
+          type: "line",
+          data: fitData,
+          showSymbol: false,
+          lineStyle: { type: "dashed", width: 2 },
+          tooltip: { show: false },
+        });
+      }
+    }
+
     return {
       title,
       textStyle: { fontFamily: "sans-serif", fontSize: 12 },
@@ -381,6 +413,8 @@ const ResultChannelPlot = ({
     showRepetitions,
     windowSize,
     yRange,
+    fits,
+    channelNames,
   ]);
 
   const updateChart = useCallback(
@@ -389,6 +423,19 @@ const ResultChannelPlot = ({
     },
     [setChart],
   );
+
+  useEffect(() => {
+    if (!chart || !onChartClick) return;
+    const handler = (params: { data?: unknown[] | unknown }) => {
+      if (Array.isArray(params.data) && typeof params.data[0] === "number") {
+        onChartClick(params.data[0]);
+      }
+    };
+    chart.on("click", handler);
+    return () => {
+      chart.off("click", handler);
+    };
+  }, [chart, onChartClick]);
 
   useEffect(() => {
     if (!is2D || !chart) return;

@@ -28,6 +28,17 @@ export interface ParameterValue {
   value: string | number | boolean;
 }
 
+export interface FitResult {
+  result_channel: string;
+  func_type: string;
+  x_range: [number, number] | null;
+  init: Record<string, number>;
+  result: Record<string, number>;
+  goodness: Record<string, number>;
+  success: boolean;
+  message: string;
+}
+
 export interface ExperimentData {
   plot_windows: PlotWindows;
   shot_channels: Record<string, Record<string, number[]>>;
@@ -37,4 +48,5 @@ export interface ExperimentData {
   json_sequences: [number, string][];
   parameters: Record<string, ParameterValue>;
   total_data_points: number;
+  fits: Record<string, FitResult>;
 }
