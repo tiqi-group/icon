@@ -655,9 +655,12 @@ class ExperimentDataRepository:
 
             # Estimate bytes per data point from HDF5 metadata
             bytes_per_point = 0
-            shot_group = cast("h5py.Group", h5file["shot_channels"])
-            for ds in shot_group.values():
-                bytes_per_point += ds.shape[1] * ds.dtype.itemsize
+            if "shot_channels" in h5file:
+                shot_group = cast(
+                    "h5py.Group", h5file["shot_channels"]
+                )
+                for ds in shot_group.values():
+                    bytes_per_point += ds.shape[1] * ds.dtype.itemsize
             bytes_per_point += cast(
                 "h5py.Dataset", h5file["result_channels"]
             ).dtype.itemsize
@@ -665,13 +668,14 @@ class ExperimentDataRepository:
                 "h5py.Dataset", h5file["scan_parameters"]
             ).dtype.itemsize
             # Add vector channel size (average across all data points)
-            vector_group = cast("h5py.Group", h5file["vector_channels"])
-            total_vector_bytes = 0
-            for channel_group in vector_group.values():
-                for dataset in cast("h5py.Group", channel_group).values():
-                    total_vector_bytes += dataset.shape[0] * dataset.dtype.itemsize
-            if total > 0:
-                bytes_per_point += total_vector_bytes // total
+            if "vector_channels" in h5file:
+                vector_group = cast("h5py.Group", h5file["vector_channels"])
+                total_vector_bytes = 0
+                for channel_group in vector_group.values():
+                    for dataset in cast("h5py.Group", channel_group).values():
+                        total_vector_bytes += dataset.shape[0] * dataset.dtype.itemsize
+                if total > 0:
+                    bytes_per_point += total_vector_bytes // total
             # JSON serialisation roughly doubles the raw size
             bytes_per_point = max(bytes_per_point * 2, 1)
 
@@ -716,31 +720,50 @@ class ExperimentDataRepository:
 
             # Convert shot channels into dicts with index as key
             if "shot_channels" in h5file:
-                shot_channels_group = cast("h5py.Group", h5file["shot_channels"])
-                data.plot_windows["shot_channels"] = json.loads(
-                    cast("str", shot_channels_group.attrs["Plot window metadata"])
+                shot_channels_group = cast(
+                    "h5py.Group", h5file["shot_channels"]
                 )
+                if "Plot window metadata" in shot_channels_group.attrs:
+                    data.plot_windows["shot_channels"] = json.loads(
+                        cast(
+                            "str",
+                            shot_channels_group.attrs[
+                                "Plot window metadata"
+                            ],
+                        )
+                    )
                 data.shot_channels = {
                     key: dict(enumerate(value[start_index:].tolist(), start=start_index))  # type: ignore
                     for key, value in cast(
-                        "Sequence[tuple[str, h5py.Dataset]]", shot_channels_group.items()
+                        "Sequence[tuple[str, h5py.Dataset]]",
+                        shot_channels_group.items(),
                     )
                 }
 
             if "vector_channels" in h5file:
-                vector_channels_group = cast("h5py.Group", h5file["vector_channels"])
-                data.plot_windows["vector_channels"] = json.loads(
-                    cast("str", vector_channels_group.attrs["Plot window metadata"])
+                vector_channels_group = cast(
+                    "h5py.Group", h5file["vector_channels"]
                 )
+                if "Plot window metadata" in vector_channels_group.attrs:
+                    data.plot_windows["vector_channels"] = json.loads(
+                        cast(
+                            "str",
+                            vector_channels_group.attrs[
+                                "Plot window metadata"
+                            ],
+                        )
+                    )
                 data.vector_channels = {
                     channel_name: {
                         int(data_point): vector_dataset[:].tolist()
                         for data_point, vector_dataset in cast(
-                            "Sequence[tuple[str, h5py.Dataset]]", vector_group.items()
+                            "Sequence[tuple[str, h5py.Dataset]]",
+                            vector_group.items(),
                         )
                     }
                     for channel_name, vector_group in cast(
-                        "Sequence[tuple[str, h5py.Group]]", vector_channels_group.items()
+                        "Sequence[tuple[str, h5py.Group]]",
+                        vector_channels_group.items(),
                     )
                 }
 

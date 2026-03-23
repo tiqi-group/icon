@@ -426,14 +426,19 @@ const ResultChannelPlot = ({
 
   useEffect(() => {
     if (!chart || !onChartClick) return;
-    const handler = (params: { data?: unknown[] | unknown }) => {
-      if (Array.isArray(params.data) && typeof params.data[0] === "number") {
-        onChartClick(params.data[0]);
+    const zr = chart.getZr();
+    const handler = (params: { offsetX: number; offsetY: number }) => {
+      const point = [params.offsetX, params.offsetY];
+      if (chart.containPixel("grid", point)) {
+        const dataPoint = chart.convertFromPixel("grid", point);
+        if (dataPoint && typeof dataPoint[0] === "number" && isFinite(dataPoint[0])) {
+          onChartClick(dataPoint[0]);
+        }
       }
     };
-    chart.on("click", handler);
+    zr.on("click", handler);
     return () => {
-      chart.off("click", handler);
+      zr.off("click", handler);
     };
   }, [chart, onChartClick]);
 

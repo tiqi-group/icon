@@ -135,6 +135,9 @@ def run_curve_fit(  # noqa: PLR0913, C901
     if func_type == "poly2" and result_dict.get("a", 0) != 0:
         result_dict["vertex"] = -result_dict["b"] / (2.0 * result_dict["a"])
 
+    if func_type in ("harmonic", "damped_harmonic") and "omega" in result_dict:
+        result_dict["f"] = result_dict["omega"] / (2.0 * np.pi)
+
     y_fit = model.func(x, *popt)
     goodness = _compute_goodness(y, y_fit, len(model.param_names))
 

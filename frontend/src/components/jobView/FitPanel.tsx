@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Button,
   Card,
@@ -21,17 +21,30 @@ import {
   Alert,
 } from "@mui/material";
 import { ExpandMore } from "@mui/icons-material";
+import { useNotifications } from "@toolpad/core";
 import { ExperimentData, FitResult } from "../../types/ExperimentData";
+import { ScanParameter } from "../../types/ScanParameter";
 import { runMethod } from "../../socket";
-import { FIT_PARAM_NAMES, FIT_TYPES } from "../../utils/fitFunctions";
+import {
+  FIT_DEFAULT_UPDATE_PARAM,
+  FIT_PARAM_NAMES,
+  FIT_TYPES,
+} from "../../utils/fitFunctions";
 
 interface FitPanelProps {
   jobId: string;
   experimentData: ExperimentData;
   clickedX: number | null;
+  scanParameters?: ScanParameter[];
 }
 
-export default function FitPanel({ jobId, experimentData, clickedX }: FitPanelProps) {
+export default function FitPanel({
+  jobId,
+  experimentData,
+  clickedX,
+  scanParameters = [],
+}: FitPanelProps) {
+  const notifications = useNotifications();
   const channelNames = Object.keys(experimentData.result_channels);
   const [selectedChannel, setSelectedChannel] = useState<string>(channelNames[0] ?? "");
   const [funcType, setFuncType] = useState<string>("lorentzian");
@@ -43,12 +56,53 @@ export default function FitPanel({ jobId, experimentData, clickedX }: FitPanelPr
   const [updateParamId, setUpdateParamId] = useState<string>("");
   const [updateValue, setUpdateValue] = useState<string>("");
 
+  const channelKey = channelNames.join(",");
+  useEffect(() => {
+    if (
+      channelNames.length > 0 &&
+      (!selectedChannel || !channelNames.includes(selectedChannel))
+    ) {
+      setSelectedChannel(channelNames[0]);
+    }
+  }, [channelKey]);
+
+  // Reset form state when switching jobs
+  useEffect(() => {
+    setInitOverrides({});
+    setXMin("");
+    setXMax("");
+    setUpdateParamId("");
+    setUpdateValue("");
+  }, [jobId]);
+
   const fit: FitResult | undefined = experimentData.fits[selectedChannel];
   const paramNames = FIT_PARAM_NAMES[funcType] ?? [];
 
-  // Pre-fill x0 from click
+  // Non-realtime scan parameters (the ones relevant for fitting)
+  const ordinaryScanParams = scanParameters.filter((sp) => !sp.realtime);
+
+  // Pre-fill update parameter and value when a new fit arrives
+  const defaultParam = fit?.success
+    ? FIT_DEFAULT_UPDATE_PARAM[fit.func_type]
+    : undefined;
+  const defaultValue =
+    defaultParam && fit?.result && defaultParam in fit.result
+      ? fit.result[defaultParam]
+      : undefined;
+
+  useEffect(() => {
+    if (!fit?.success) return;
+    if (ordinaryScanParams.length > 0 && !updateParamId) {
+      setUpdateParamId(ordinaryScanParams[0].variable_id);
+    }
+    if (defaultValue !== undefined) {
+      setUpdateValue(String(defaultValue));
+    }
+  }, [fit?.success, defaultValue]);
+
+  // Pre-fill x0 from click (only if user hasn't touched x0 at all)
   const effectiveInit = { ...initOverrides };
-  if (clickedX !== null && paramNames.includes("x0") && !effectiveInit["x0"]) {
+  if (clickedX !== null && paramNames.includes("x0") && !("x0" in initOverrides)) {
     effectiveInit["x0"] = String(clickedX);
   }
 
@@ -85,17 +139,20 @@ export default function FitPanel({ jobId, experimentData, clickedX }: FitPanelPr
 
   const handleUpdateParameter = () => {
     if (!updateParamId || updateValue === "") return;
-    runMethod("parameters.update_parameter_by_id", [
-      updateParamId,
-      parseFloat(updateValue),
-    ]);
+    const displayName =
+      ordinaryScanParams.find((sp) => sp.variable_id === updateParamId)?.name ??
+      updateParamId;
+    runMethod(
+      "parameters.update_parameter_by_id",
+      [updateParamId, parseFloat(updateValue)],
+      {},
+      () =>
+        notifications.show(`Updated ${displayName} to ${updateValue}`, {
+          autoHideDuration: 3000,
+          severity: "success",
+        }),
+    );
   };
-
-  // Get scan parameter names for "update parameter" dropdown
-  const scanParamKeys = Object.keys(experimentData.scan_parameters).filter(
-    (k) => k !== "timestamp",
-  );
-  const allParamIds = Object.keys(experimentData.parameters);
 
   return (
     <Card>
@@ -188,7 +245,7 @@ export default function FitPanel({ jobId, experimentData, clickedX }: FitPanelPr
                 </Grid>
               ))}
             </Grid>
-            {clickedX !== null && (
+            {clickedX !== null && paramNames.includes("x0") && (
               <Typography variant="caption" sx={{ mt: 1, display: "block" }}>
                 Clicked x = {clickedX.toFixed(4)} (used as x0 hint if not overridden)
               </Typography>
@@ -264,23 +321,13 @@ export default function FitPanel({ jobId, experimentData, clickedX }: FitPanelPr
                       <Select
                         value={updateParamId}
                         label="Parameter"
-                        onChange={(e) => {
-                          setUpdateParamId(e.target.value);
-                        }}
+                        onChange={(e) => setUpdateParamId(e.target.value)}
                       >
-                        {/* Show scan parameters first, then all parameters */}
-                        {scanParamKeys.map((id) => (
-                          <MenuItem key={id} value={id}>
-                            {id} (scan)
+                        {ordinaryScanParams.map((sp) => (
+                          <MenuItem key={sp.variable_id} value={sp.variable_id}>
+                            {sp.name}
                           </MenuItem>
                         ))}
-                        {allParamIds
-                          .filter((id) => !scanParamKeys.includes(id))
-                          .map((id) => (
-                            <MenuItem key={id} value={id}>
-                              {id}
-                            </MenuItem>
-                          ))}
                       </Select>
                     </FormControl>
                   </Grid>

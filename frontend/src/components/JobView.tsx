@@ -38,9 +38,11 @@ function getPlotTitle(scheduledTime?: string, experimentName?: string): string {
 export const JobView = ({
   jobId,
   onLoaded,
+  showFitPanel = false,
 }: {
   jobId: string | undefined;
   onLoaded?: () => void;
+  showFitPanel?: boolean;
 }) => {
   const [experimentMetadata, setExperimentMetadata] =
     useState<ExperimentMetadata | null>(null);
@@ -93,6 +95,9 @@ export const JobView = ({
 
   const [clickedX, setClickedX] = useState<number | null>(null);
   const handleChartClick = useCallback((x: number) => setClickedX(x), []);
+
+  // Reset clicked position when switching jobs
+  useEffect(() => setClickedX(null), [jobId]);
 
   const [showRepetitions, setShowRepetitions] = useState<boolean>(() => {
     const v = localStorage.getItem("showRepetitions");
@@ -446,20 +451,21 @@ export const JobView = ({
                     scanParameters={jobInfo?.scan_parameters}
                     windowSize={windowSize}
                     yRange={{ min: yMin, max: yMax }}
-                    fits={is1D ? experimentData.fits : undefined}
-                    onChartClick={is1D ? handleChartClick : undefined}
+                    fits={showFitPanel && is1D ? experimentData.fits : undefined}
+                    onChartClick={showFitPanel && is1D ? handleChartClick : undefined}
                   />
                 )}
               </CardContent>
             </Card>
           </Grid>
         ))}
-        {is1D && jobId && (
+        {showFitPanel && is1D && jobId && jobInfo?.status === JobStatus.PROCESSED && (
           <Grid size={{ xs: 12 }}>
             <FitPanel
               jobId={jobId}
               experimentData={experimentData}
               clickedX={clickedX}
+              scanParameters={jobInfo?.scan_parameters}
             />
           </Grid>
         )}
