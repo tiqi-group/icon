@@ -75,13 +75,12 @@ def git_clone(repository: str, dir: str) -> None:
     try:
         subprocess.run(
             ["git", "clone", repository, dir],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            capture_output=True,
             check=True,
         )
         logger.info("Repository '%s' successfully cloned to '%s'.", repository, dir)
     except subprocess.CalledProcessError as e:
-        raise RepositoryError(f"Failed to clone repository {e}", e)
+        raise RepositoryError(f"Failed to clone repository: {e}: {e.stderr.decode()}")
 
 
 def git_checkout(git_hash: str, cwd: str) -> None:
