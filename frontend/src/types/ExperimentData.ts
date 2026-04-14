@@ -37,6 +37,7 @@ export interface FitResult {
   goodness: Record<string, number>;
   success: boolean;
   message: string;
+  fit_curve?: { x: number[]; y: number[] };
 }
 
 export interface ExperimentData {

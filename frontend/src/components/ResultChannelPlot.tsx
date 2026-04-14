@@ -7,7 +7,6 @@ import { useNotifications } from "@toolpad/core";
 import { copyEChartsToClipboard } from "../utils/copyEChartsToClipboard";
 import { ScanParameter } from "../types/ScanParameter";
 import { buildResultChannelChartSeries } from "../utils/buildResultChannelChartSeries";
-import { evaluateFit } from "../utils/fitFunctions";
 
 interface ResultChannelPlotProps {
   experimentData: ExperimentData;
@@ -347,19 +346,14 @@ const ResultChannelPlot = ({
 
     // Add fit curve overlays for 1D scans
     if (scanParameters.length === 1 && fits) {
-      const ordinaryEntry = scanInfo.find((p) => p.name !== "timestamp");
-      const fitXArr = (ordinaryEntry?.scanValues ?? []) as number[];
-
       for (const [channelName, fitResult] of Object.entries(fits)) {
-        if (!fitResult.success || !channelNames.includes(channelName)) continue;
+        if (!fitResult.success || !fitResult.fit_curve) continue;
+        if (!channelNames.includes(channelName)) continue;
 
-        const xMinVal = fitResult.x_range ? fitResult.x_range[0] : Math.min(...fitXArr);
-        const xMaxVal = fitResult.x_range ? fitResult.x_range[1] : Math.max(...fitXArr);
-        const nPoints = 200;
-        const step = (xMaxVal - xMinVal) / (nPoints - 1);
-        const fitX = Array.from({ length: nPoints }, (_, i) => xMinVal + i * step);
-        const fitY = evaluateFit(fitResult.func_type, fitResult.result, fitX);
-        const fitData = fitX.map((x, i) => [x, fitY[i]]);
+        const fitData = fitResult.fit_curve.x.map((x, i) => [
+          x,
+          fitResult.fit_curve!.y[i],
+        ]);
 
         (chartSeries as unknown[]).push({
           name: `${channelName} fit`,

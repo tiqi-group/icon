@@ -28,6 +28,9 @@ class FitModel:
     param_names: list[str]
     default_update_param: str
     guess: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64]], list[float]]
+    derived_params: (
+        Callable[[dict[str, float]], dict[str, float]] | None
+    ) = None
 
 
 def _lorentzian(
@@ -169,6 +172,32 @@ def _damped_harmonic_guess(
     return [hg[0], hg[1], 0.0, hg[2], hg[3]]
 
 
+def _poly2_derived(result: dict[str, float]) -> dict[str, float]:
+    a = result.get("a", 0)
+    if a != 0:
+        return {"vertex": -result["b"] / (2.0 * a)}
+    return {}
+
+
+def _harmonic_derived(result: dict[str, float]) -> dict[str, float]:
+    if "omega" in result:
+        return {"f": result["omega"] / (2.0 * np.pi)}
+    return {}
+
+
+# Adding a new fit model
+# ----------------------
+# 1. Define _my_model(x, p1, p2, ...) -> NDArray  (the model function).
+# 2. Define _my_model_guess(x, y) -> list[float]  (initial parameter estimator).
+# 3. (Optional) Define _my_model_derived(result) -> dict  if the model has
+#    useful derived quantities (e.g. vertex from quadratic coefficients).
+# 4. Add an entry to FIT_MODELS below. The param_names order must match the
+#    function signature. default_update_param is the fitted value pre-filled
+#    in the "Update Parameter" UI (can be a derived param name).
+# 5. Add the model name to FIT_TYPES, FIT_PARAM_NAMES, and
+#    FIT_DEFAULT_UPDATE_PARAM in frontend/src/utils/fitFunctions.ts.
+# 6. Add tests in tests/server/fitting/.
+
 FIT_MODELS: dict[str, FitModel] = {
     "lorentzian": FitModel(
         func=_lorentzian,
@@ -187,17 +216,20 @@ FIT_MODELS: dict[str, FitModel] = {
         param_names=["a", "b", "c"],
         default_update_param="vertex",
         guess=_poly2_guess,
+        derived_params=_poly2_derived,
     ),
     "harmonic": FitModel(
         func=_harmonic,
         param_names=["y0", "a", "omega", "phi"],
-        default_update_param="omega",
+        default_update_param="f",
         guess=_harmonic_guess,
+        derived_params=_harmonic_derived,
     ),
     "damped_harmonic": FitModel(
         func=_damped_harmonic,
         param_names=["y0", "a", "k", "omega", "phi"],
-        default_update_param="omega",
+        default_update_param="f",
         guess=_damped_harmonic_guess,
+        derived_params=_harmonic_derived,
     ),
 }

@@ -15,6 +15,9 @@ _EXPECTED_RANGE_LEN = 2
 _MAX_FIT_EVALS = 10000
 
 
+_FIT_CURVE_POINTS = 200
+
+
 @dataclass
 class FitResult:
     """Result of a curve fit operation."""
@@ -27,6 +30,7 @@ class FitResult:
     goodness: dict[str, float]
     success: bool
     message: str
+    fit_curve: dict[str, list[float]] | None = None
 
 
 def _filter_valid(
@@ -132,14 +136,18 @@ def run_curve_fit(  # noqa: PLR0913, C901
 
     result_dict = dict(zip(model.param_names, (float(v) for v in popt)))
 
-    if func_type == "poly2" and result_dict.get("a", 0) != 0:
-        result_dict["vertex"] = -result_dict["b"] / (2.0 * result_dict["a"])
-
-    if func_type in ("harmonic", "damped_harmonic") and "omega" in result_dict:
-        result_dict["f"] = result_dict["omega"] / (2.0 * np.pi)
+    if model.derived_params:
+        result_dict.update(model.derived_params(result_dict))
 
     y_fit = model.func(x, *popt)
     goodness = _compute_goodness(y, y_fit, len(model.param_names))
+
+    # Generate smooth fit curve for plotting
+    x_min, x_max = float(x.min()), float(x.max())
+    step = (x_max - x_min) / (_FIT_CURVE_POINTS - 1)
+    curve_x = [x_min + i * step for i in range(_FIT_CURVE_POINTS)]
+    curve_y = model.func(np.array(curve_x), *popt).tolist()
+    fit_curve = {"x": curve_x, "y": curve_y}
 
     return FitResult(
         result_channel=result_channel,
@@ -150,4 +158,5 @@ def run_curve_fit(  # noqa: PLR0913, C901
         goodness=goodness,
         success=True,
         message="Fit converged",
+        fit_curve=fit_curve,
     )
