@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ExperimentData } from "../types/ExperimentData";
+import { ExperimentData, FitResult } from "../types/ExperimentData";
 import { ReactECharts, ReactEChartsProps } from "./ReactEcharts";
 import { EChartsOption } from "echarts";
 import type { ECharts } from "echarts/core";
@@ -19,6 +19,8 @@ interface ResultChannelPlotProps {
   scanParameters: ScanParameter[] | undefined;
   windowSize?: number | null;
   yRange?: { min: number | null; max: number | null };
+  fits?: Record<string, FitResult>;
+  onChartClick?: (xValue: number) => void;
 }
 
 const formatAxisLabel = (value: string): string => {
@@ -100,6 +102,8 @@ const ResultChannelPlot = ({
   scanParameters = [],
   windowSize = null,
   yRange,
+  fits = {},
+  onChartClick,
 }: ResultChannelPlotProps) => {
   const [chart, setChart] = useState<ECharts | null>(null);
   const notifications = useNotifications();
@@ -340,6 +344,28 @@ const ResultChannelPlot = ({
       };
     }
 
+    // Add fit curve overlays for 1D scans
+    if (scanParameters.length === 1 && fits) {
+      for (const [channelName, fitResult] of Object.entries(fits)) {
+        if (!fitResult.success || !fitResult.fit_curve) continue;
+        if (!channelNames.includes(channelName)) continue;
+
+        const fitData = fitResult.fit_curve.x.map((x, i) => [
+          x,
+          fitResult.fit_curve!.y[i],
+        ]);
+
+        (chartSeries as unknown[]).push({
+          name: `${channelName} fit`,
+          type: "line",
+          data: fitData,
+          showSymbol: false,
+          lineStyle: { type: "dashed", width: 2 },
+          tooltip: { show: false },
+        });
+      }
+    }
+
     return {
       title,
       textStyle: { fontFamily: "sans-serif", fontSize: 12 },
@@ -381,6 +407,8 @@ const ResultChannelPlot = ({
     showRepetitions,
     windowSize,
     yRange,
+    fits,
+    channelNames,
   ]);
 
   const updateChart = useCallback(
@@ -389,6 +417,24 @@ const ResultChannelPlot = ({
     },
     [setChart],
   );
+
+  useEffect(() => {
+    if (!chart || !onChartClick) return;
+    const zr = chart.getZr();
+    const handler = (params: { offsetX: number; offsetY: number }) => {
+      const point = [params.offsetX, params.offsetY];
+      if (chart.containPixel("grid", point)) {
+        const dataPoint = chart.convertFromPixel("grid", point);
+        if (dataPoint && typeof dataPoint[0] === "number" && isFinite(dataPoint[0])) {
+          onChartClick(dataPoint[0]);
+        }
+      }
+    };
+    zr.on("click", handler);
+    return () => {
+      zr.off("click", handler);
+    };
+  }, [chart, onChartClick]);
 
   useEffect(() => {
     if (!is2D || !chart) return;

@@ -18,6 +18,7 @@ from icon.server.data_access.models.sqlite.scan_parameter import (
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
+from icon.server.fitting.fit_runner import FitResult
 from icon.server.utils.h5py import get_hdf5_dtype, get_result_channels_dataset
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
@@ -125,6 +126,8 @@ class ExperimentData:
     """Mapping of parameter id to time series (tuple of timestamp str and value)."""
     total_data_points: int
     """Total number of data points in the HDF5 file (before truncation)."""
+    fits: dict[str, dict[str, object]]
+    """Fit results keyed by result channel name."""
 
 
 def get_filename_by_job_id(job_id: int) -> str:
@@ -630,6 +633,7 @@ class ExperimentDataRepository:
             realtime_scan=False,
             parameters={},
             total_data_points=0,
+            fits={},
         )
 
         filename = get_filename_by_job_id(job_id)
@@ -651,9 +655,12 @@ class ExperimentDataRepository:
 
             # Estimate bytes per data point from HDF5 metadata
             bytes_per_point = 0
-            shot_group = cast("h5py.Group", h5file["shot_channels"])
-            for ds in shot_group.values():
-                bytes_per_point += ds.shape[1] * ds.dtype.itemsize
+            if "shot_channels" in h5file:
+                shot_group = cast(
+                    "h5py.Group", h5file["shot_channels"]
+                )
+                for ds in shot_group.values():
+                    bytes_per_point += ds.shape[1] * ds.dtype.itemsize
             bytes_per_point += cast(
                 "h5py.Dataset", h5file["result_channels"]
             ).dtype.itemsize
@@ -661,13 +668,14 @@ class ExperimentDataRepository:
                 "h5py.Dataset", h5file["scan_parameters"]
             ).dtype.itemsize
             # Add vector channel size (average across all data points)
-            vector_group = cast("h5py.Group", h5file["vector_channels"])
-            total_vector_bytes = 0
-            for channel_group in vector_group.values():
-                for dataset in cast("h5py.Group", channel_group).values():
-                    total_vector_bytes += dataset.shape[0] * dataset.dtype.itemsize
-            if total > 0:
-                bytes_per_point += total_vector_bytes // total
+            if "vector_channels" in h5file:
+                vector_group = cast("h5py.Group", h5file["vector_channels"])
+                total_vector_bytes = 0
+                for channel_group in vector_group.values():
+                    for dataset in cast("h5py.Group", channel_group).values():
+                        total_vector_bytes += dataset.shape[0] * dataset.dtype.itemsize
+                if total > 0:
+                    bytes_per_point += total_vector_bytes // total
             # JSON serialisation roughly doubles the raw size
             bytes_per_point = max(bytes_per_point * 2, 1)
 
@@ -712,31 +720,50 @@ class ExperimentDataRepository:
 
             # Convert shot channels into dicts with index as key
             if "shot_channels" in h5file:
-                shot_channels_group = cast("h5py.Group", h5file["shot_channels"])
-                data.plot_windows["shot_channels"] = json.loads(
-                    cast("str", shot_channels_group.attrs["Plot window metadata"])
+                shot_channels_group = cast(
+                    "h5py.Group", h5file["shot_channels"]
                 )
+                if "Plot window metadata" in shot_channels_group.attrs:
+                    data.plot_windows["shot_channels"] = json.loads(
+                        cast(
+                            "str",
+                            shot_channels_group.attrs[
+                                "Plot window metadata"
+                            ],
+                        )
+                    )
                 data.shot_channels = {
                     key: dict(enumerate(value[start_index:].tolist(), start=start_index))  # type: ignore
                     for key, value in cast(
-                        "Sequence[tuple[str, h5py.Dataset]]", shot_channels_group.items()
+                        "Sequence[tuple[str, h5py.Dataset]]",
+                        shot_channels_group.items(),
                     )
                 }
 
             if "vector_channels" in h5file:
-                vector_channels_group = cast("h5py.Group", h5file["vector_channels"])
-                data.plot_windows["vector_channels"] = json.loads(
-                    cast("str", vector_channels_group.attrs["Plot window metadata"])
+                vector_channels_group = cast(
+                    "h5py.Group", h5file["vector_channels"]
                 )
+                if "Plot window metadata" in vector_channels_group.attrs:
+                    data.plot_windows["vector_channels"] = json.loads(
+                        cast(
+                            "str",
+                            vector_channels_group.attrs[
+                                "Plot window metadata"
+                            ],
+                        )
+                    )
                 data.vector_channels = {
                     channel_name: {
                         int(data_point): vector_dataset[:].tolist()
                         for data_point, vector_dataset in cast(
-                            "Sequence[tuple[str, h5py.Dataset]]", vector_group.items()
+                            "Sequence[tuple[str, h5py.Dataset]]",
+                            vector_group.items(),
                         )
                     }
                     for channel_name, vector_group in cast(
-                        "Sequence[tuple[str, h5py.Group]]", vector_channels_group.items()
+                        "Sequence[tuple[str, h5py.Group]]",
+                        vector_channels_group.items(),
                     )
                 }
 
@@ -752,6 +779,7 @@ class ExperimentDataRepository:
                     for entry in sequence_json_dataset
                 ]
             data.parameters = extract_parameter_values(h5file)
+            data.fits = _read_fits_from_hdf5(h5file)
         return data
 
 
@@ -763,3 +791,87 @@ def extract_parameter_values(
         return ParameterValue(timestamp=ts.decode(), value=val)
 
     return {key: last_value(dataset) for key, dataset in h5file["parameters"].items()}
+
+
+def _read_fits_from_hdf5(
+    h5file: h5py.File,
+) -> dict[str, dict[str, object]]:
+    """Read all fit results from an HDF5 file."""
+    if "fits" not in h5file:
+        return {}
+
+    fits: dict[str, dict[str, object]] = {}
+    fits_group = cast("h5py.Group", h5file["fits"])
+    for channel_name in fits_group:
+        channel_group = cast("h5py.Group", fits_group[channel_name])
+        fit_data = json.loads(cast("str", channel_group.attrs["fit_result"]))
+        fits[channel_name] = fit_data
+    return fits
+
+
+def write_fit_result_by_job_id(
+    *,
+    job_id: int,
+    fit_result: FitResult,
+) -> None:
+    """Write a fit result into the HDF5 file for a job.
+
+    Creates or overwrites the ``fits/<result_channel>`` group.
+
+    Args:
+        job_id: Job identifier.
+        fit_result: The fit result to persist.
+    """
+    filename = get_filename_by_job_id(job_id)
+    file = f"{get_config().data.results_dir}/{filename}"
+    lock_path = (
+        f"{get_config().data.results_dir}/.{filename}"
+        f"{ExperimentDataRepository.LOCK_EXTENSION}"
+    )
+    with FileLock(lock_path), h5py.File(file, "a") as h5file:
+        fits_group = h5file.require_group("fits")
+        channel = fit_result.result_channel
+        if channel in fits_group:
+            del fits_group[channel]
+        grp = fits_group.create_group(channel)
+        grp.attrs["fit_result"] = json.dumps(asdict(fit_result))
+
+
+def get_fit_results_by_job_id(*, job_id: int) -> dict[str, dict[str, object]]:
+    """Read all fit results for a job from its HDF5 file.
+
+    Args:
+        job_id: Job identifier.
+
+    Returns:
+        Dict mapping result channel names to their fit result dicts.
+    """
+    filename = get_filename_by_job_id(job_id)
+    file = f"{get_config().data.results_dir}/{filename}"
+    if not os.path.exists(file):
+        return {}
+
+    lock_path = (
+        f"{get_config().data.results_dir}/.{filename}"
+        f"{ExperimentDataRepository.LOCK_EXTENSION}"
+    )
+    with FileLock(lock_path), h5py.File(file, "r") as h5file:
+        return _read_fits_from_hdf5(h5file)
+
+
+def delete_fit_result_by_job_id(*, job_id: int, result_channel: str) -> None:
+    """Delete a fit result for a specific channel from the HDF5 file.
+
+    Args:
+        job_id: Job identifier.
+        result_channel: Name of the result channel whose fit to delete.
+    """
+    filename = get_filename_by_job_id(job_id)
+    file = f"{get_config().data.results_dir}/{filename}"
+    lock_path = (
+        f"{get_config().data.results_dir}/.{filename}"
+        f"{ExperimentDataRepository.LOCK_EXTENSION}"
+    )
+    with FileLock(lock_path), h5py.File(file, "a") as h5file:
+        if "fits" in h5file and result_channel in h5file["fits"]:
+            del h5file["fits"][result_channel]

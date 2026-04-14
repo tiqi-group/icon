@@ -107,7 +107,7 @@ export function DataPage() {
         {selectedJobId ? (
           <div style={{ width: "100%" }}>
             {layoutReady ? (
-              <JobView jobId={selectedJobId} />
+              <JobView jobId={selectedJobId} showFitPanel />
             ) : (
               <div style={{ padding: 16 }}>Loading...</div>
             )}
