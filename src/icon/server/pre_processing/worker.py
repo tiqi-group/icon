@@ -214,12 +214,9 @@ class PreProcessingWorker(multiprocessing.Process):
                         pre_processing_task.job_run.id,
                     )
 
-                    if (
-                        JobRunRepository.get_run_by_job_id(
-                            job_id=pre_processing_task.job.id
-                        ).status
-                        == JobRunStatus.PROCESSING
-                    ):
+                    if JobRunRepository.get_run_by_job_id(
+                        job_id=pre_processing_task.job.id
+                    ).status in (JobRunStatus.PROCESSING, JobRunStatus.PAUSED):
                         JobRunRepository.update_run_by_id(
                             run_id=pre_processing_task.job_run.id,
                             status=JobRunStatus.DONE,
@@ -231,12 +228,9 @@ class PreProcessingWorker(multiprocessing.Process):
                         e,
                     )
 
-                    if (
-                        JobRunRepository.get_run_by_job_id(
-                            job_id=pre_processing_task.job.id
-                        ).status
-                        == JobRunStatus.PROCESSING
-                    ):
+                    if JobRunRepository.get_run_by_job_id(
+                        job_id=pre_processing_task.job.id
+                    ).status in (JobRunStatus.PROCESSING, JobRunStatus.PAUSED):
                         JobRunRepository.update_run_by_id(
                             run_id=pre_processing_task.job_run.id,
                             status=JobRunStatus.FAILED,

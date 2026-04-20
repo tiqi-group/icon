@@ -185,12 +185,58 @@ class SchedulerController(pydase.DataService):
         if job.status in (JobStatus.PROCESSING, JobStatus.SUBMITTED):
             JobRepository.update_job_status(job=job, status=JobStatus.PROCESSED)
             job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
-            if job_run.status in (JobRunStatus.PENDING, JobRunStatus.PROCESSING):
+            if job_run.status in (
+                JobRunStatus.PENDING,
+                JobRunStatus.PROCESSING,
+                JobRunStatus.PAUSED,
+            ):
                 JobRunRepository.update_run_by_id(
                     run_id=job_run.id,
                     status=JobRunStatus.CANCELLED,
                     log="Cancelled through user interaction.",
                 )
+
+    def pause_job(self, *, job_id: int) -> None:
+        """Pause a running job.
+
+        The pre-processing worker holding the job will finish any in-flight work and
+        then block in a polling loop, keeping the remaining scan state in memory.
+        Tasks already queued for the hardware worker are diverted back to the
+        pre-processing worker via the existing ``outdated_tasks`` rewind mechanism.
+
+        No-op if the job run is not in ``PROCESSING`` state.
+
+        Args:
+            job_id: ID of the job to pause.
+        """
+
+        job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
+        if job_run.status == JobRunStatus.PROCESSING:
+            JobRunRepository.update_run_by_id(
+                run_id=job_run.id,
+                status=JobRunStatus.PAUSED,
+                log="Paused through user interaction.",
+            )
+
+    def resume_job(self, *, job_id: int) -> None:
+        """Resume a paused job.
+
+        The pre-processing worker observes the status change, regenerates any tasks
+        the hardware worker diverted while paused (picking up fresh parameter values
+        in the process), and continues producing data points from where it left off.
+
+        No-op if the job run is not in ``PAUSED`` state.
+
+        Args:
+            job_id: ID of the job to resume.
+        """
+
+        job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
+        if job_run.status == JobRunStatus.PAUSED:
+            JobRunRepository.update_run_by_id(
+                run_id=job_run.id,
+                status=JobRunStatus.PROCESSING,
+            )
 
     def get_scheduled_jobs(
         self,
