@@ -15,4 +15,5 @@ export enum JobRunStatus {
   FAILED = "failed",
   CANCELLED = "cancelled",
   DONE = "done",
+  PAUSED = "paused",
 }

@@ -22,10 +22,12 @@ import { useJobInfo } from "../hooks/useJobInfo";
 import { runMethod } from "../socket";
 import { ExperimentMetadata } from "../types/ExperimentMetadata";
 import { SerializedObject } from "../types/SerializedObject";
-import { JobStatus } from "../types/enums";
+import { JobRunStatus, JobStatus } from "../types/enums";
 import { deserialize } from "../utils/deserializer";
 import { updateJobParams } from "../utils/updateJobParams";
 import { cancelJob } from "../utils/cancelJob";
+import { pauseJob } from "../utils/pauseJob";
+import { resumeJob } from "../utils/resumeJob";
 import HistogramPlot from "./jobView/HistogramPlot";
 
 function getPlotTitle(scheduledTime?: string, experimentName?: string): string {
@@ -219,9 +221,33 @@ export const JobView = ({
                     <div style={{ flexGrow: 1 }} />
                     <Button
                       variant="contained"
+                      color="primary"
+                      disabled={jobRunInfo?.status !== JobRunStatus.PAUSED}
+                      size="small"
+                      onClick={() => {
+                        if (jobId) resumeJob(Number(jobId));
+                      }}
+                    >
+                      Resume
+                    </Button>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      disabled={jobRunInfo?.status !== JobRunStatus.PROCESSING}
+                      size="small"
+                      sx={{ ml: 1 }}
+                      onClick={() => {
+                        if (jobId) pauseJob(Number(jobId));
+                      }}
+                    >
+                      Pause
+                    </Button>
+                    <Button
+                      variant="contained"
                       color="error"
                       disabled={jobInfo === null}
                       size="small"
+                      sx={{ ml: 1 }}
                       onClick={() => {
                         if (jobId) cancelJob(Number(jobId));
                       }}
