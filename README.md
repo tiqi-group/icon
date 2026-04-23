@@ -56,7 +56,7 @@ If you prefer to run ICON from source, clone the repository and use [`uv`](https
 ```bash
 git clone https://github.com/tiqi-group/icon.git
 cd icon
-uv sync --extra server --extra zedboard
+uv sync --extra server --extra zedboard # optional: --extra pycrystal
 uv run python -m icon.server
 ```
 <!--getting-started-end-->
