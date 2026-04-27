@@ -408,17 +408,15 @@ class ExperimentDataRepository:
                     readout_metadata["readout_channel_windows"]
                 )
 
-            if readout_metadata["shot_channel_names"]:
-                shot_group = h5file.require_group("shot_channels")
-                shot_group.attrs["Plot window metadata"] = json.dumps(
-                    readout_metadata["shot_channel_windows"]
-                )
+            shot_group = h5file.require_group("shot_channels")
+            shot_group.attrs["Plot window metadata"] = json.dumps(
+                readout_metadata["shot_channel_windows"]
+            )
 
-            if readout_metadata["vector_channel_names"]:
-                vector_group = h5file.require_group("vector_channels")
-                vector_group.attrs["Plot window metadata"] = json.dumps(
-                    readout_metadata["vector_channel_windows"]
-                )
+            vector_group = h5file.require_group("vector_channels")
+            vector_group.attrs["Plot window metadata"] = json.dumps(
+                readout_metadata["vector_channel_windows"]
+            )
 
         emit_queue.put(
             {
@@ -712,11 +710,12 @@ class ExperimentDataRepository:
                 }
 
             if vector_channels_group is not None:
-                plot_metadata = vector_channels_group.attrs.get("Plot window metadata")
-                if plot_metadata:
-                    data.plot_windows["vector_channels"] = json.loads(
-                        cast("str", plot_metadata)
-                    )
+                plot_metadata = vector_channels_group.attrs.get(
+                    "Plot window metadata", "[]"
+                )
+                data.plot_windows["vector_channels"] = json.loads(
+                    cast("str", plot_metadata)
+                )
                 data.vector_channels = {
                     channel_name: {
                         int(data_point): vector_dataset[:].tolist()
