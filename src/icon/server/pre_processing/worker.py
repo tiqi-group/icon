@@ -394,6 +394,12 @@ class PreProcessingWorker(multiprocessing.Process):
         parameter edits the user makes during the pause take effect on resume.
         The loop also exits if the status transitions to a non-``PAUSED`` value
         (e.g. ``CANCELLED`` or back to ``PROCESSING``).
+
+        On exit, any tasks the hardware worker diverted to ``_outdated_tasks`` while
+        paused are regenerated and re-submitted. This is required because the scan
+        loop may have already drained ``_data_points_to_process`` before the pause,
+        in which case it would otherwise spin on an empty queue without yielding to
+        the outer ``_regenerate_outdated_jobs`` call.
         """
 
         while (
@@ -404,6 +410,7 @@ class PreProcessingWorker(multiprocessing.Process):
         ):
             self._handle_parameter_updates(pre_processing_task, namespace=namespace)
             time.sleep(0.2)
+        self._regenerate_outdated_jobs(namespace)
 
     def _submit_task_to_hw_worker(
         self,
@@ -493,6 +500,7 @@ class PreProcessingWorker(multiprocessing.Process):
                 parameter_dict={**self._parameter_dict, **task.scanned_params},
                 namespace=namespace,
             )
+            task.created = datetime.now(timezone)
             self._submit_task_to_hw_worker(task=task)
 
     def _handle_realtime_scan(
