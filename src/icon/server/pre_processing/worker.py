@@ -214,12 +214,9 @@ class PreProcessingWorker(multiprocessing.Process):
                         pre_processing_task.job_run.id,
                     )
 
-                    if (
-                        JobRunRepository.get_run_by_job_id(
-                            job_id=pre_processing_task.job.id
-                        ).status
-                        == JobRunStatus.PROCESSING
-                    ):
+                    if JobRunRepository.get_run_by_job_id(
+                        job_id=pre_processing_task.job.id
+                    ).status in (JobRunStatus.PROCESSING, JobRunStatus.PAUSED):
                         JobRunRepository.update_run_by_id(
                             run_id=pre_processing_task.job_run.id,
                             status=JobRunStatus.DONE,
@@ -231,12 +228,9 @@ class PreProcessingWorker(multiprocessing.Process):
                         e,
                     )
 
-                    if (
-                        JobRunRepository.get_run_by_job_id(
-                            job_id=pre_processing_task.job.id
-                        ).status
-                        == JobRunStatus.PROCESSING
-                    ):
+                    if JobRunRepository.get_run_by_job_id(
+                        job_id=pre_processing_task.job.id
+                    ).status in (JobRunStatus.PROCESSING, JobRunStatus.PAUSED):
                         JobRunRepository.update_run_by_id(
                             run_id=pre_processing_task.job_run.id,
                             status=JobRunStatus.FAILED,
@@ -389,6 +383,35 @@ class PreProcessingWorker(multiprocessing.Process):
                     mode=ParamUpdateMode.ONLY_NEW_PARAMETERS,
                 )
 
+    def _wait_while_paused(
+        self,
+        pre_processing_task: PreProcessingTask,
+        namespace: ExperimentIdentifier,
+    ) -> None:
+        """Block until the job run's status is no longer ``PAUSED``.
+
+        Parameter-update events are still drained while paused, so calibrations or
+        parameter edits the user makes during the pause take effect on resume.
+        The loop also exits if the status transitions to a non-``PAUSED`` value
+        (e.g. ``CANCELLED`` or back to ``PROCESSING``).
+
+        On exit, any tasks the hardware worker diverted to ``_outdated_tasks`` while
+        paused are regenerated and re-submitted. This is required because the scan
+        loop may have already drained ``_data_points_to_process`` before the pause,
+        in which case it would otherwise spin on an empty queue without yielding to
+        the outer ``_regenerate_outdated_jobs`` call.
+        """
+
+        while (
+            JobRunRepository.get_run_by_job_id(
+                job_id=pre_processing_task.job.id
+            ).status
+            == JobRunStatus.PAUSED
+        ):
+            self._handle_parameter_updates(pre_processing_task, namespace=namespace)
+            time.sleep(0.2)
+        self._regenerate_outdated_jobs(namespace)
+
     def _submit_task_to_hw_worker(
         self,
         *,
@@ -417,6 +440,7 @@ class PreProcessingWorker(multiprocessing.Process):
             scan_parameter_value_combinations
         ):
             self._handle_parameter_updates(pre_processing_task, namespace)
+            self._wait_while_paused(pre_processing_task, namespace=namespace)
 
             # TODO: this should probably be done with multiple workers to
             # speed up the preparation of JSONs
@@ -476,6 +500,7 @@ class PreProcessingWorker(multiprocessing.Process):
                 parameter_dict={**self._parameter_dict, **task.scanned_params},
                 namespace=namespace,
             )
+            task.created = datetime.now(timezone)
             self._submit_task_to_hw_worker(task=task)
 
     def _handle_realtime_scan(
@@ -507,6 +532,7 @@ class PreProcessingWorker(multiprocessing.Process):
                 ):
                     return
                 self._handle_parameter_updates(pre_processing_task, namespace=namespace)
+                self._wait_while_paused(pre_processing_task, namespace=namespace)
                 frozen_data_point = freeze_dict(data_point)
                 hardware_task = hardware_tasks.get(frozen_data_point)
                 if (
