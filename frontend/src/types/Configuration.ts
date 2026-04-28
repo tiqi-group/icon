@@ -19,8 +19,8 @@ export interface Configuration {
     };
   };
   experiment_library: {
-    dir: string | null;
-    git_repository: string;
+    client_class: string | null;
+    client_args: Record<string, string>;
     update_interval: number;
   };
   hardware: {

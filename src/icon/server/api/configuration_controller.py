@@ -7,7 +7,7 @@ from confz import DataSource
 
 from icon.config.config import get_config
 from icon.config.config_path import get_config_path
-from icon.config.v1 import ServiceConfigV1
+from icon.config.v2 import ServiceConfig
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 logger = logging.getLogger(__file__)
@@ -56,7 +56,7 @@ class ConfigurationController(pydase.DataService):
             current[fields[-1]] = value
 
             # Validate the updated configuration
-            updated_config = ServiceConfigV1(config_sources=DataSource(current_config))
+            updated_config = ServiceConfig(config_sources=DataSource(current_config))
 
             # Save the updated configuration back to the file
             self._save_configuration(updated_config)
@@ -68,7 +68,7 @@ class ConfigurationController(pydase.DataService):
             logger.exception("Failed to update configuration: %s", e)
             return False
 
-    def _save_configuration(self, new_config: ServiceConfigV1) -> None:
+    def _save_configuration(self, new_config: ServiceConfig) -> None:
         """Save the updated configuration to the source YAML file.
 
         Serializes the updated configuration and writes it back to the file.

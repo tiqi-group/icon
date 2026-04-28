@@ -15,7 +15,7 @@ class PostProcessingTask(pydantic.BaseModel):
     priority: int
     pre_processing_task: PreProcessingTask
     data_point: ExperimentDataPoint
-    src_dir: str
+    src_dir: str | None
     created: datetime
 
     def __lt__(self, other: PostProcessingTask) -> bool:

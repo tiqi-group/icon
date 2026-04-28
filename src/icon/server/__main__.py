@@ -9,6 +9,9 @@ import click
 
 from icon.config.config_path import set_config_path
 from icon.logging import setup_logging
+from icon.server.data_access.reconfigurable_experiment_library_client import (
+    ReconfigurableExperimentLibraryClient,
+)
 
 if TYPE_CHECKING:
     from icon.server.post_processing.task import PostProcessingTask
@@ -61,14 +64,17 @@ def start_server() -> None:
         pre_processing_queue=icon.server.shared_resource_manager.pre_processing_queue
     )
     scheduler.start()
+    config = get_config()
 
-    number_of_pre_processing_workers = get_config().server.pre_processing.workers
+    number_of_pre_processing_workers = config.server.pre_processing.workers
     pre_processing_update_queues: list[multiprocessing.Queue[UpdateQueue]] = [
         multiprocessing.Queue() for _ in range(number_of_pre_processing_workers)
     ]
+    exp_lib_client = ReconfigurableExperimentLibraryClient()
 
     for i, queue in enumerate(pre_processing_update_queues):
         PreProcessingWorker(
+            experiment_library_client=exp_lib_client,
             worker_number=i,
             hardware_processing_queue=icon.server.shared_resource_manager.hardware_processing_queue,
             pre_processing_queue=icon.server.shared_resource_manager.pre_processing_queue,
@@ -93,7 +99,10 @@ def start_server() -> None:
     post_processing_worker.start()
 
     icon.server.web_server.icon_server.IconServer(
-        APIService(pre_processing_event_queues=pre_processing_update_queues),
+        APIService(
+            experiment_library_client=exp_lib_client,
+            pre_processing_event_queues=pre_processing_update_queues,
+        ),
         host=get_config().server.host,
         web_port=get_config().server.port,
         frontend_src=Path(__file__).parent / "frontend",
