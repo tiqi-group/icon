@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from icon.server.api.models.parameter_metadata import ParameterMetadata
@@ -14,6 +14,8 @@ class ExperimentMetadata:
     """Constructor keyword arguments used to instantiate the experiment."""
     parameters: dict[str, dict[str, ParameterMetadata]]
     """Mapping of display groups to parameter metadata."""
+    device_parameter_groups: list[Any] = field(default_factory=list)
+    """Device parameter groups associated with this experiment."""
 
 
 ExperimentDict = dict[str, ExperimentMetadata]
