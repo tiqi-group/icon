@@ -90,7 +90,7 @@ def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
     }
 
     if not parameter_values:
-        return []
+        return [{}] * job.repetitions
 
     # Generate combinations using itertools.product
     keys, values = zip(*parameter_values.items())

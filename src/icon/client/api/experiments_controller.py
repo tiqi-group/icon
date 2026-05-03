@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from collections import Counter
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, TypedDict
 
+import matplotlib.pyplot as plt
+import pandas as pd
+
+from icon.client.api.helpers.notebook import in_notebook
 from icon.server.api.models.experiment_dict import ExperimentMetadata
 
 if TYPE_CHECKING:
@@ -163,6 +170,165 @@ class ExperimentJobProxy:
         self._client = client
         self._job_id = job_id
         self._getting_data = False
+        self._client._sio.on(
+            f"experiment_{self._job_id}", self._handle_live_data_point
+        )
+
+    @property
+    def job_id(self) -> int:
+        return self._job_id
+
+    @property
+    def status(self) -> str:
+        """High-level job status: 'submitted', 'processing', or 'processed'."""
+        job_dict: dict[str, Any] = self._client.trigger_method(
+            "scheduler.get_job_by_id",
+            kwargs={"job_id": self._job_id},
+        )
+        return str(job_dict["status"])
+
+    @property
+    def run_status(self) -> str | None:
+        """Run-level status: 'pending', 'processing', 'done', 'failed', or 'cancelled'.
+
+        Returns None if no run record exists yet (job still queued).
+        """
+        try:
+            run_dict: dict[str, Any] = self._client.trigger_method(
+                "scheduler.get_job_run_by_id",
+                kwargs={"job_id": self._job_id},
+            )
+            return str(run_dict["status"])
+        except Exception:
+            return None
+
+    @property
+    def run_log(self) -> str | None:
+        """Failure or cancellation message from the run, or None if no message."""
+        try:
+            run_dict: dict[str, Any] = self._client.trigger_method(
+                "scheduler.get_job_run_by_id",
+                kwargs={"job_id": self._job_id},
+            )
+            return run_dict.get("log") or None
+        except Exception:
+            return None
+
+    @property
+    def data(self) -> pd.DataFrame | None:
+        """Accumulated experiment data received so far, or None if no data yet."""
+        return self._client._experiment_job_data.get(self._job_id)
+
+    def wait(self, poll_interval: float = 2.0) -> None:
+        """Block until the job is done, then raise if it failed or was cancelled.
+
+        Args:
+            poll_interval: Seconds between status polls.
+
+        Raises:
+            RuntimeError: If the run finished with status 'failed' or 'cancelled'.
+        """
+        while self.status != "processed":
+            time.sleep(poll_interval)
+        terminal_run_status = self.run_status
+        if terminal_run_status in ("failed", "cancelled"):
+            log = self.run_log or "(no log)"
+            raise RuntimeError(
+                f"Job {self._job_id} {terminal_run_status}:\n{log}"
+            )
+
+    def cancel(self) -> None:
+        """Cancel this job. No-op if already processed."""
+        self._client.trigger_method(
+            "scheduler.cancel_job",
+            kwargs={"job_id": self._job_id},
+        )
+
+    def toggle_plot(self) -> None:
+        """Start live plotting if idle, stop it if already running."""
+        if not self._getting_data:
+            self._start_plot()
+        else:
+            self._stop_plot()
+
+    def _start_plot(self) -> None:
+        self._getting_data = True
+        asyncio.run_coroutine_threadsafe(
+            self._subscribe_to_experiment_data_stream(),
+            self._client._loop,
+        ).result()
+
+    def _stop_plot(self) -> None:
+        self._getting_data = False
+        asyncio.run_coroutine_threadsafe(
+            self._unsubscribe_from_experiment_data_stream(),
+            self._client._loop,
+        ).result()
+
+    async def _subscribe_to_experiment_data_stream(self) -> None:
+        self._client._sio.on(
+            f"experiment_{self._job_id}", self._handle_live_data_point
+        )
+        self._client._loop.create_task(self._run_plot())
+
+    async def _unsubscribe_from_experiment_data_stream(self) -> None:
+        self._client._sio.handlers.get("/", {}).pop(
+            f"experiment_{self._job_id}", None
+        )
+
+    async def _handle_live_data_point(self, data_point: dict[str, Any]) -> None:
+        row = {**data_point.get("scan_params", {}), **data_point.get("result_channels", {})}
+        df_new = pd.DataFrame([row], index=[data_point["index"]])
+        existing = self._client._experiment_job_data.get(self._job_id)
+        if existing is None:
+            self._client._experiment_job_data[self._job_id] = df_new
+        else:
+            self._client._experiment_job_data[self._job_id] = pd.concat(
+                [existing, df_new]
+            )
+
+    async def _run_plot(self) -> None:
+        self._fig, self._ax = plt.subplots()
+        (self._line,) = self._ax.plot([], [], "r-")
+        self._ax.grid()
+        plt.ion()
+        plt.show()
+
+        async for data_frame in self._get_frame():
+            self._update_plot(data_frame)
+            if in_notebook():
+                self._fig.canvas.draw_idle()
+            else:
+                self._fig.canvas.flush_events()
+            await asyncio.sleep(0.01)
+
+        self._getting_data = False
+        await self._unsubscribe_from_experiment_data_stream()
+
+    async def _get_frame(self) -> AsyncGenerator[pd.DataFrame | None, None]:
+        previous_length = 0
+        while self._getting_data:
+            current_data = self._client._experiment_job_data.get(self._job_id)
+            current_length = len(current_data.index) if current_data is not None else 0
+            if current_length > previous_length:
+                previous_length = current_length
+                yield current_data
+            else:
+                await asyncio.sleep(0.1)
+
+    def _update_plot(self, data_frame: pd.DataFrame | None) -> None:
+        if data_frame is not None:
+            self._line.set_data(data_frame.iloc[:, 0], data_frame.iloc[:, 1])
+            if not self._ax.get_xlabel():
+                self._ax.set_xlabel(data_frame.columns[0])
+                self._ax.set_ylabel(data_frame.columns[1])
+            self._ax.relim()
+            self._ax.autoscale_view()
+
+    def __repr__(self) -> str:
+        return f"<ExperimentJobProxy job_id={self._job_id}>"
+
+
 
 
 class ExperimentProxy:
@@ -186,6 +352,14 @@ class ExperimentProxy:
             repr += f"\n    - {display_group}"
 
         return repr
+    
+    def __iter__(self):
+        for name in self._experiment_metadata.parameters:
+            yield DisplayGroupProxy(
+                self._client,
+                name,
+                self._experiment_metadata.parameters[name],
+            )
 
     def __getitem__(self, display_group_name: str) -> Any:
         return DisplayGroupProxy(
@@ -196,10 +370,11 @@ class ExperimentProxy:
 
     def schedule(
         self,
-        scan_parameters: list[ScanParameter],
+        scan_parameters: list[ScanParameter] = [],
         priority: int = 20,
         repetitions: int = 1,
-        local_parameters_timestamp: datetime = datetime.now(),
+        number_of_shots: int = 50,
+        local_parameters_timestamp: datetime | None = None,
         git_commit_hash: str | None = None,
         auto_calibration: bool = False,
     ) -> ExperimentJobProxy:
@@ -219,6 +394,8 @@ class ExperimentProxy:
                 Priority level of the experiment (default: 20).
             repetitions:
                 Number of repetitions for the experiment to average over (default: 1).
+            number_of_shots:
+                Number of hardware shots per scan point (default: 50).
             local_parameters_timestamp:
                 Timestamp of the local parameters to be used. Defaults to the current
                 time.
@@ -227,11 +404,13 @@ class ExperimentProxy:
                 take the latest commit on the main/master branch. Defaults to None.
             auto_calibration:
                 Defines whether the parameter fits defined by the experiment should be
-                applied automatically .
+                applied automatically.
 
         Returns:
             ExperimentJobProxy: Proxy object for the scheduled experiment job.
         """
+        if local_parameters_timestamp is None:
+            local_parameters_timestamp = datetime.now()
 
         job_id: int = self._client.trigger_method(
             "scheduler.submit_job",
@@ -245,7 +424,7 @@ class ExperimentProxy:
                         "values": parameter["values"],
                         **(
                             {"device_name": parameter["device_name"]}
-                            if "device_name" in parameter
+                            if parameter.get("device_name") is not None
                             else {}
                         ),
                     }
@@ -254,6 +433,7 @@ class ExperimentProxy:
                 "priority": priority,
                 "local_parameters_timestamp": local_parameters_timestamp,
                 "repetitions": repetitions,
+                "number_of_shots": number_of_shots,
                 "git_commit_hash": git_commit_hash,
                 "auto_calibration": auto_calibration,
             },
