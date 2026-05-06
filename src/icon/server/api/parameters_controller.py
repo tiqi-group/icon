@@ -59,6 +59,19 @@ class ParametersController(pydase.DataService):
         self._all_parameter_metadata: dict[str, ParameterMetadata] = {}
         self._display_group_metadata: dict[str, dict[str, ParameterMetadata]] = {}
 
+    def get_parameter_by_id(self, parameter_id: str) -> DatabaseValueType:
+        """Return the current value of a single parameter.
+
+        Args:
+            parameter_id: The unique identifier of the parameter.
+
+        Returns:
+            The current value stored in the shared parameters dict.
+        """
+
+        return ParametersRepository.get_shared_parameters()[parameter_id]
+
+
     def update_parameter_by_id(self, parameter_id: str, value: Any) -> None:
         """Update a single parameter value in InfluxDB.
 
