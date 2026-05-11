@@ -14,7 +14,6 @@ from icon.serialization.serializer import dump
 if TYPE_CHECKING:
     from icon.serialization.types import SerializedIconObject
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 

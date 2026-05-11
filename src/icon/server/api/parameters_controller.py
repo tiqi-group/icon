@@ -6,11 +6,11 @@ import pydase
 import icon.server.shared_resource_manager
 from icon.server.api.models.parameter_metadata import ParameterMetadata
 from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+from icon.server.data_access.experiment_library_client import (
+    ParameterMetadataDict,
+)
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
-)
-from icon.server.data_access.repositories.pycrystal_library_repository import (
-    ParameterMetadataDict,
 )
 from icon.server.web_server.socketio_emit_queue import emit_queue
 

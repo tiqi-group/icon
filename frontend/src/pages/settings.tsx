@@ -1,4 +1,4 @@
-import { Tabs, Tab, Typography } from "@mui/material";
+import { Tabs, Tab, Typography, Paper } from "@mui/material";
 import { useConfiguration } from "../hooks/useConfiguration";
 import { EditableSettingField } from "../components/settings/EditableSettingsField";
 import { useNotifications } from "@toolpad/core";
@@ -175,23 +175,24 @@ export const SettingsPage = () => {
       <TabPanel value={tab} index={3}>
         <Typography variant="h6">Experiment Library</Typography>
         <EditableSettingField
-          configKey="experiment_library.dir"
-          label="Directory"
-          value={config.experiment_library.dir}
-          description="Root directory containing experiment source files."
-        />
-        <EditableSettingField
-          configKey="experiment_library.git_repository"
-          label="Git Repository"
-          value={config.experiment_library.git_repository}
-          description="Remote Git repository URL for pulling experiment definitions."
-        />
-        <EditableSettingField
           configKey="experiment_library.update_interval"
           label="Update Interval"
           value={config.experiment_library.update_interval}
           description="Interval (in seconds) to check for experiment library updates."
         />
+        <EditableSettingField
+          configKey="experiment_library.client_class"
+          label="Experiment Library Client Class (e.g. AsyncPyCrystalClient)"
+          value={config.experiment_library.client_class}
+          description="The experiment library client abstracts the interaction with an experiment library."
+        />
+        <Paper elevation={1}>
+          <EditableDictField
+            configKey="experiment_library.client_args"
+            label="Experiment Library Configuration (client specific)"
+            value={config.experiment_library.client_args}
+          />
+        </Paper>
       </TabPanel>
       <TabPanel value={tab} index={4}>
         <Typography variant="h6">Hardware</Typography>

@@ -7,7 +7,6 @@ import multiprocessing
 import os
 import queue
 import re
-import tempfile
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -17,7 +16,6 @@ from typing import TYPE_CHECKING, Self, TypeVar
 import psutil
 import pytz
 
-import icon.server.utils.git_helpers
 from icon.config.config import get_config
 from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
@@ -35,14 +33,14 @@ from icon.server.data_access.repositories.job_run_repository import (
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
 )
-from icon.server.data_access.repositories.pycrystal_library_repository import (
-    PycrystalLibraryRepository,
-)
 from icon.server.hardware_processing.task import HardwareProcessingTask
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
+    from icon.server.data_access.experiment_library_client import (
+        ExperimentLibraryClient,
+    )
     from icon.server.data_access.models.sqlite.job import Job
     from icon.server.pre_processing.task import PreProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
@@ -59,23 +57,6 @@ class ParamUpdateMode(str, Enum):
     ALL_FROM_TIMESTAMP = "all_from_timestamp"
     LOCALS_FROM_TS_GLOBALS_LATEST = "locals_ts_globals_now"
     ONLY_NEW_PARAMETERS = "only_new_parameters"
-
-
-def prepare_experiment_library_folder(
-    src_dir: str, pre_processing_task: PreProcessingTask
-) -> None:
-    if not icon.server.utils.git_helpers.local_repo_exists(
-        repository_dir=src_dir,
-        repository=get_config().experiment_library.git_repository,
-    ):
-        icon.server.utils.git_helpers.git_clone(
-            repository=get_config().experiment_library.git_repository,
-            dir=src_dir,
-        )
-
-    icon.server.utils.git_helpers.checkout_commit(
-        git_hash=pre_processing_task.git_commit_hash, cwd=src_dir
-    )
 
 
 def change_process_priority(priority: int) -> None:
@@ -172,13 +153,14 @@ class ExperimentIdentifier:
 
 
 class PreProcessingWorker(multiprocessing.Process):
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         worker_number: int,
         pre_processing_queue: queue.PriorityQueue[PreProcessingTask],
         update_queue: multiprocessing.Queue[UpdateQueue],
         hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask],
         manager: SharedResourceManager,
+        experiment_library_client: ExperimentLibraryClient,
     ) -> None:
         super().__init__()
         self._queue = pre_processing_queue
@@ -195,10 +177,14 @@ class PreProcessingWorker(multiprocessing.Process):
         self._outdated_tasks: queue.PriorityQueue[HardwareProcessingTask] = (
             manager.PriorityQueue()
         )
+        self._experiment_library_client = experiment_library_client
 
     def run(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            logger.debug("Created temporary directory %s", tmp_dir)
+        with self._experiment_library_client.isolated() as isolated_lib_client:
+            logger.debug(
+                "Created isolated experiment library client: %s",
+                isolated_lib_client.checkout_revision(None),
+            )
 
             while True:
                 pre_processing_task = self._queue.get()
@@ -207,11 +193,12 @@ class PreProcessingWorker(multiprocessing.Process):
                 self._processed_data_points = self._manager.Queue()
 
                 try:
-                    self._process_task(pre_processing_task, tmp_dir=tmp_dir)
+                    self._process_task(
+                        pre_processing_task, isolated_lib_client=isolated_lib_client
+                    )
 
                     logger.info(
-                        "JobRun with id '%s' finished",
-                        pre_processing_task.job_run.id,
+                        "JobRun with id '%s' finished", pre_processing_task.job_run.id
                     )
 
                     if JobRunRepository.get_run_by_job_id(
@@ -242,7 +229,9 @@ class PreProcessingWorker(multiprocessing.Process):
                     )
 
     def _process_task(
-        self, pre_processing_task: PreProcessingTask, tmp_dir: str
+        self,
+        pre_processing_task: PreProcessingTask,
+        isolated_lib_client: ExperimentLibraryClient,
     ) -> None:
         job = pre_processing_task.job
         JobRunRepository.update_run_by_id(
@@ -261,17 +250,18 @@ class PreProcessingWorker(multiprocessing.Process):
 
         change_process_priority(pre_processing_task.priority)
 
-        src_dir = source_dir(debug_mode=pre_processing_task.debug_mode, tmp_dir=tmp_dir)
-
-        prepare_experiment_library_folder(
-            src_dir=src_dir,
-            pre_processing_task=pre_processing_task,
+        client = (
+            self._experiment_library_client
+            if pre_processing_task.debug_mode
+            else isolated_lib_client
         )
+
+        src_dir = client.checkout_revision(pre_processing_task.git_commit_hash)
 
         self._update_parameter_dict(pre_processing_task, namespace)
 
         readout_metadata = asyncio.run(
-            PycrystalLibraryRepository.get_experiment_readout_metadata(
+            client.get_experiment_readout_metadata(
                 exp_module_name=namespace.module_name,
                 exp_instance_name=namespace.instance_name,
                 parameter_dict=self._parameter_dict,
@@ -288,15 +278,15 @@ class PreProcessingWorker(multiprocessing.Process):
 
         jobs = (
             self._handle_realtime_scan(
-                pre_processing_task, src_dir=src_dir, namespace=namespace
+                pre_processing_task, client=client, src_dir=src_dir, namespace=namespace
             )
             if contains_realtime_parameter(job.scan_parameters)
             else self._handle_regular_scan(
-                pre_processing_task, src_dir=src_dir, namespace=namespace
+                pre_processing_task, client=client, src_dir=src_dir, namespace=namespace
             )
         )
         for _ in jobs:
-            self._regenerate_outdated_jobs(pre_processing_task, namespace)
+            self._regenerate_outdated_jobs(client, pre_processing_task, namespace)
 
     def _update_parameter_dict(
         self,
@@ -385,6 +375,7 @@ class PreProcessingWorker(multiprocessing.Process):
 
     def _wait_while_paused(
         self,
+        client: ExperimentLibraryClient,
         pre_processing_task: PreProcessingTask,
         namespace: ExperimentIdentifier,
     ) -> None:
@@ -410,7 +401,7 @@ class PreProcessingWorker(multiprocessing.Process):
         ):
             self._handle_parameter_updates(pre_processing_task, namespace=namespace)
             time.sleep(0.2)
-        self._regenerate_outdated_jobs(pre_processing_task, namespace)
+        self._regenerate_outdated_jobs(client, pre_processing_task, namespace)
 
     def _submit_task_to_hw_worker(
         self,
@@ -428,7 +419,8 @@ class PreProcessingWorker(multiprocessing.Process):
         self,
         pre_processing_task: PreProcessingTask,
         namespace: ExperimentIdentifier,
-        src_dir: str,
+        client: ExperimentLibraryClient,
+        src_dir: str | None,
     ) -> Iterable[None]:
         scan_parameter_value_combinations = get_scan_combinations(
             pre_processing_task.job
@@ -440,7 +432,7 @@ class PreProcessingWorker(multiprocessing.Process):
             scan_parameter_value_combinations
         ):
             self._handle_parameter_updates(pre_processing_task, namespace)
-            self._wait_while_paused(pre_processing_task, namespace=namespace)
+            self._wait_while_paused(client, pre_processing_task, namespace=namespace)
 
             # TODO: this should probably be done with multiple workers to
             # speed up the preparation of JSONs
@@ -462,6 +454,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     index=index,
                     data_point=data_point,
                     sequence_json=generate_sequence_json(
+                        client,
                         n_shots=pre_processing_task.job.number_of_shots,
                         parameter_dict={**self._parameter_dict, **data_point},
                         namespace=namespace,
@@ -477,7 +470,7 @@ class PreProcessingWorker(multiprocessing.Process):
         index: int,
         data_point: dict[str, DatabaseValueType],
         sequence_json: str,
-        src_dir: str,
+        src_dir: str | None,
     ) -> HardwareProcessingTask:
         return HardwareProcessingTask(
             data_point_index=index,
@@ -495,6 +488,7 @@ class PreProcessingWorker(multiprocessing.Process):
 
     def _regenerate_outdated_jobs(
         self,
+        client: ExperimentLibraryClient,
         pre_processing_task: PreProcessingTask,
         namespace: ExperimentIdentifier,
     ) -> None:
@@ -503,6 +497,7 @@ class PreProcessingWorker(multiprocessing.Process):
         )
         for task in consume_queue(self._outdated_tasks):
             task.sequence_json = generate_sequence_json(
+                client,
                 n_shots=task.pre_processing_task.job.number_of_shots,
                 parameter_dict={**self._parameter_dict, **task.scanned_params},
                 namespace=namespace,
@@ -515,7 +510,8 @@ class PreProcessingWorker(multiprocessing.Process):
         self,
         pre_processing_task: PreProcessingTask,
         namespace: ExperimentIdentifier,
-        src_dir: str,
+        client: ExperimentLibraryClient,
+        src_dir: str | None,
     ) -> Iterable[None]:
         params = pre_processing_task.job.scan_parameters
         realtime_param = next(p for p in params if p.realtime)
@@ -540,7 +536,9 @@ class PreProcessingWorker(multiprocessing.Process):
                 ):
                     return
                 self._handle_parameter_updates(pre_processing_task, namespace=namespace)
-                self._wait_while_paused(pre_processing_task, namespace=namespace)
+                self._wait_while_paused(
+                    client, pre_processing_task, namespace=namespace
+                )
                 frozen_data_point = freeze_dict(data_point)
                 hardware_task = hardware_tasks.get(frozen_data_point)
                 if (
@@ -553,6 +551,7 @@ class PreProcessingWorker(multiprocessing.Process):
                         index=index,
                         data_point=data_point,
                         sequence_json=generate_sequence_json(
+                            client,
                             n_shots=pre_processing_task.job.number_of_shots,
                             parameter_dict={**self._parameter_dict, **data_point},
                             namespace=namespace,
@@ -581,20 +580,14 @@ def freeze_dict(combination: dict[str, DatabaseValueType]) -> ScanCombination:
     return frozenset(combination.items())
 
 
-def source_dir(*, debug_mode: bool, tmp_dir: str) -> str:
-    if (experiment_library_dir := get_config().experiment_library.dir) is None:
-        raise RuntimeError("Config: experiment_library.dir is not defined")
-
-    return experiment_library_dir if debug_mode else tmp_dir
-
-
 def generate_sequence_json(
+    client: ExperimentLibraryClient,
     n_shots: int,
     parameter_dict: dict[str, DatabaseValueType],
     namespace: ExperimentIdentifier,
 ) -> str:
     return asyncio.run(
-        PycrystalLibraryRepository.generate_json_sequence(
+        client.generate_json_sequence(
             n_shots=n_shots,
             parameter_dict=parameter_dict,
             exp_module_name=namespace.module_name,
