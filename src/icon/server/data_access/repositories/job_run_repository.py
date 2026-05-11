@@ -159,7 +159,12 @@ class JobRunRepository:
         """
 
         with sqlalchemy.orm.Session(engine) as session:
-            stmt = select(JobRun).where(JobRun.job_id == job_id)
+            stmt = (
+                select(JobRun)
+                .where(JobRun.job_id == job_id)
+                .order_by(JobRun.scheduled_time.desc())
+                .limit(1)
+            )
 
             if load_job:
                 stmt = stmt.options(sqlalchemy.orm.joinedload(JobRun.job))
@@ -180,7 +185,12 @@ class JobRunRepository:
         """
 
         with sqlalchemy.orm.Session(engine) as session:
-            stmt = select(JobRun.scheduled_time).where(JobRun.job_id == job_id)
+            stmt = (
+                select(JobRun.scheduled_time)
+                .where(JobRun.job_id == job_id)
+                .order_by(JobRun.scheduled_time.desc())
+                .limit(1)
+            )
 
             scheduled_time = session.execute(stmt).scalar_one()
             logger.debug("Got scheduled time for job_id %s", job_id)
