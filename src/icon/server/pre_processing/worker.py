@@ -296,7 +296,7 @@ class PreProcessingWorker(multiprocessing.Process):
             )
         )
         for _ in jobs:
-            self._regenerate_outdated_jobs(namespace)
+            self._regenerate_outdated_jobs(pre_processing_task, namespace)
 
     def _update_parameter_dict(
         self,
@@ -410,7 +410,7 @@ class PreProcessingWorker(multiprocessing.Process):
         ):
             self._handle_parameter_updates(pre_processing_task, namespace=namespace)
             time.sleep(0.2)
-        self._regenerate_outdated_jobs(namespace)
+        self._regenerate_outdated_jobs(pre_processing_task, namespace)
 
     def _submit_task_to_hw_worker(
         self,
@@ -493,14 +493,22 @@ class PreProcessingWorker(multiprocessing.Process):
             created=datetime.now(timezone),
         )
 
-    def _regenerate_outdated_jobs(self, namespace: ExperimentIdentifier) -> None:
+    def _regenerate_outdated_jobs(
+        self,
+        pre_processing_task: PreProcessingTask,
+        namespace: ExperimentIdentifier,
+    ) -> None:
+        parameter_update_timestamp = JobRunRepository.get_parameter_update_timestamp(
+            run_id=pre_processing_task.job_run.id,
+        )
         for task in consume_queue(self._outdated_tasks):
             task.sequence_json = generate_sequence_json(
                 n_shots=task.pre_processing_task.job.number_of_shots,
                 parameter_dict={**self._parameter_dict, **task.scanned_params},
                 namespace=namespace,
             )
-            task.created = datetime.now(timezone)
+            if task.created < parameter_update_timestamp:
+                task.created = datetime.now(timezone)
             self._submit_task_to_hw_worker(task=task)
 
     def _handle_realtime_scan(
