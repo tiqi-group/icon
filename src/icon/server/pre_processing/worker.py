@@ -423,10 +423,12 @@ class PreProcessingWorker(multiprocessing.Process):
             except queue.Empty:
                 time.sleep(0.001)
                 continue
+            finally:
+                should_exit = job_run_cancelled_or_failed(
+                    job_id=pre_processing_task.job.id
+                )
 
-            if job_run_cancelled_or_failed(
-                job_id=pre_processing_task.job.id,
-            ):
+            if should_exit:
                 break
 
             yield
