@@ -759,6 +759,8 @@ def extract_parameter_values(
 ) -> dict[str, ParameterValue]:
     def last_value(d: h5py.Dataset) -> ParameterValue:
         ts, val = d[-1].tolist()
+        if isinstance(val, bytes):
+            val = val.decode()
         return ParameterValue(timestamp=ts.decode(), value=val)
 
     parameters_group = h5file.get("parameters")
