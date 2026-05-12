@@ -99,7 +99,8 @@ class ParametersController(pydase.DataService):
 
         added_params, removed_params, updated_params = (
             get_added_removed_and_updated_keys(
-                self._all_parameter_metadata, parameter_metadata["all parameters"]
+                new_dict=parameter_metadata["all parameters"],
+                cached_dict=self._all_parameter_metadata,
             )
         )
         self._all_parameter_metadata = parameter_metadata["all parameters"]
