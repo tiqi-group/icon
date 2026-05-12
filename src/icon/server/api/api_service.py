@@ -87,8 +87,10 @@ class APIService(pydase.DataService):
     @task(autostart=True)
     async def _update_experiment_and_parameter_metadata_task(self) -> None:
         while True:
-            await self._update_experiment_and_parameter_metadata()
-
+            try:
+                await self._update_experiment_and_parameter_metadata()
+            except Exception as e:
+                logger.exception(f"Failed to update experiment and parameter metadata: exception {e}")
             await asyncio.sleep(get_config().experiment_library.update_interval)
 
     async def _update_experiment_and_parameter_metadata(self) -> None:

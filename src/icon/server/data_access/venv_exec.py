@@ -53,7 +53,14 @@ class VirtualEnvironment:
                 env={"PYTHONPATH": python_path} if python_path else {},
             )
 
-            stdout, stderr = await proc.communicate(payload)
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    proc.communicate(payload), timeout=60.0
+                )
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.communicate()
+                raise RuntimeError("Venv subprocess timed out after 60 s")
 
             if logger is not None:
                 logger.warning(stdout.decode())

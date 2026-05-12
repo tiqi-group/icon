@@ -1,4 +1,7 @@
+import dataclasses
+import json
 import logging
+import math
 from typing import Any
 
 import pydase
@@ -41,9 +44,38 @@ def get_added_removed_and_updated_keys(
     removed_keys = keys1 - keys2
 
     intersect_keys = keys1 & keys2
-    updated_keys = {key for key in intersect_keys if new_dict[key] != cached_dict[key]}
-
+    updated_keys = {                                                                                                                                       
+        key                                                                                                                                         
+        for key in intersect_keys                                                                                                                   
+        if not _values_equal(new_dict[key], cached_dict[key])                                                                                       
+    }
+    
     return list(added_keys), list(removed_keys), list(updated_keys)
+
+def _values_equal(a: Any, b: Any) -> bool:
+    """NaN-safe deep equality for parameter/experiment metadata values.
+
+    Plain ``==`` returns False for NaN even when both sides are NaN, causing
+    spurious "updated" detections every reload cycle. Dataclasses are converted
+    with ``dataclasses.asdict`` before comparison so their nested float fields
+    are also covered.
+    """
+    if dataclasses.is_dataclass(a) and not isinstance(a, type):
+        a = dataclasses.asdict(a)
+    if dataclasses.is_dataclass(b) and not isinstance(b, type):
+        b = dataclasses.asdict(b)
+    try:
+        return json.dumps(a, default=_nan_safe) == json.dumps(b, default=_nan_safe)
+    except (TypeError, ValueError):
+        return a == b
+
+
+def _nan_safe(obj: Any) -> Any:
+    if isinstance(obj, float) and math.isnan(obj):
+        return None
+    raise TypeError(type(obj))                                                                                                                      
+                                                                                                                                                    
+               
 
 
 class ParametersController(pydase.DataService):
@@ -117,7 +149,8 @@ class ParametersController(pydase.DataService):
 
         added_params, removed_params, updated_params = (
             get_added_removed_and_updated_keys(
-                self._all_parameter_metadata, parameter_metadata["all parameters"]
+                new_dict=parameter_metadata["all parameters"],
+                cached_dict=self._all_parameter_metadata,
             )
         )
         self._all_parameter_metadata = parameter_metadata["all parameters"]
