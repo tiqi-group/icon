@@ -414,6 +414,8 @@ class PreProcessingWorker(multiprocessing.Process):
             try:
                 index, data_point = self._data_points_to_process.get(block=False)
             except queue.Empty:
+                if job_run_cancelled_or_failed(job_id=pre_processing_task.job.id):
+                    break
                 time.sleep(0.001)
                 continue
 
