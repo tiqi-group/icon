@@ -159,6 +159,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
             if job_run_cancelled_or_failed(
                 job_id=task.pre_processing_task.job.id,
             ):
+                task.processed_data_points.put(task)
                 continue
 
             parameter_update_timestamp = (
