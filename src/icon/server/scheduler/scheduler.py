@@ -1,3 +1,4 @@
+import logging
 import multiprocessing
 import queue
 import time
@@ -14,6 +15,8 @@ from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
 )
 from icon.server.pre_processing.task import PreProcessingTask
+
+logger = logging.getLogger(__name__)
 
 
 def initialise_job_tables() -> None:
@@ -51,29 +54,48 @@ class Scheduler(multiprocessing.Process):
     def run(self) -> None:
         initialise_job_tables()
         while not should_exit():
-            jobs = JobRepository.get_jobs_by_status_and_timeframe(
-                status=JobStatus.SUBMITTED
-            )
-            for job_ in jobs:
-                job = JobRepository.update_job_status(
-                    job=job_, status=JobStatus.PROCESSING
+            try:
+                jobs = JobRepository.get_jobs_by_status_and_timeframe(
+                    status=JobStatus.SUBMITTED
                 )
-                run = JobRun(job_id=job.id, scheduled_time=datetime.now(tz=timezone))
-                run = JobRunRepository.insert_run(run=run)
+                for job_ in jobs:
+                    try:
+                        job = JobRepository.update_job_status(
+                            job=job_, status=JobStatus.PROCESSING
+                        )
+                        run = JobRun(
+                            job_id=job.id, scheduled_time=datetime.now(tz=timezone)
+                        )
+                        run = JobRunRepository.insert_run(run=run)
 
-                self._pre_processing_queue.put(
-                    PreProcessingTask(
-                        job=job,
-                        job_run=run,
-                        git_commit_hash=job.git_commit_hash,
-                        scan_parameters=job.scan_parameters,
-                        local_parameters_timestamp=job.local_parameters_timestamp.astimezone(
-                            tz=timezone
-                        ).isoformat(),
-                        priority=job.priority,
-                        auto_calibration=job.auto_calibration,
-                        debug_mode=job.debug_mode,
-                        repetitions=job.repetitions,
-                    )
-                )
+                        self._pre_processing_queue.put(
+                            PreProcessingTask(
+                                job=job,
+                                job_run=run,
+                                git_commit_hash=job.git_commit_hash,
+                                scan_parameters=job.scan_parameters,
+                                local_parameters_timestamp=job.local_parameters_timestamp.astimezone(
+                                    tz=timezone
+                                ).isoformat(),
+                                priority=job.priority,
+                                auto_calibration=job.auto_calibration,
+                                debug_mode=job.debug_mode,
+                                repetitions=job.repetitions,
+                            )
+                        )
+                    except Exception:
+                        logger.exception(
+                            "Failed to dispatch job %s, reverting to SUBMITTED",
+                            job_.id,
+                        )
+                        try:
+                            JobRepository.update_job_status(
+                                job=job_, status=JobStatus.SUBMITTED
+                            )
+                        except Exception:
+                            logger.exception(
+                                "Failed to revert job %s back to SUBMITTED", job_.id
+                            )
+            except Exception:
+                logger.exception("Unexpected error in scheduler loop")
             time.sleep(0.1)
