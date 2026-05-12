@@ -51,14 +51,9 @@ class ExperimentsController(pydase.DataService):
         logger.debug("Updating experiment metadata...")
 
         added_exps, removes_exps, updated_exps = get_added_removed_and_updated_keys(
-            self._experiments, new_experiments
+            new_dict=new_experiments, cached_dict=self._experiments
         )
         self._experiments = new_experiments
 
         if added_exps or removes_exps or updated_exps:
-            emit_queue.put(
-                {
-                    "event": "experiments.update",
-                    "data": new_experiments,
-                }
-            )
+            emit_queue.put({"event": "experiments.update", "data": None})
