@@ -77,6 +77,49 @@ def get_experiment_identifier_dict(experiments: list[str]) -> dict[str, str]:
     return identifier_dict
 
 
+def get_display_group_identifier_dict(display_groups: list[str]) -> dict[str, str]:
+    """Map short display-name keys to full display-group keys.
+
+    ``'experiment_library.globals.global_parameters (Doppler Cooling)'``
+    becomes ``'Global Parameters (Doppler Cooling)'``.  When the short class
+    name collides across namespaces, the parent module is prepended to keep
+    keys unique.
+
+    Args:
+        display_groups: Full display-group key strings as returned by the server.
+
+    Returns:
+        Dict mapping short identifiers to full keys.
+    """
+
+    def _parse(key: str) -> tuple[str, str]:
+        namespace, _, instance = key.rpartition(" (")
+        return namespace, instance.rstrip(")")
+
+    def _short(namespace: str, instance: str) -> str:
+        class_part = namespace.split(".")[-1].replace("_", " ").title()
+        return f"{class_part} ({instance})"
+
+    def _longer(namespace: str, instance: str) -> str:
+        parts = namespace.split(".")
+        if len(parts) >= 2:
+            prefix = parts[-2].replace("_", " ").title()
+            class_part = parts[-1].replace("_", " ").title()
+            return f"{prefix} {class_part} ({instance})"
+        return f"{namespace} ({instance})"
+
+    short_names = [_short(*_parse(k)) for k in display_groups]
+    counts = Counter(short_names)
+
+    result: dict[str, str] = {}
+    for key in display_groups:
+        namespace, instance = _parse(key)
+        short = _short(namespace, instance)
+        result[short if counts[short] == 1 else _longer(namespace, instance)] = key
+
+    return result
+
+
 def get_parameter_identifier_mapping(
     display_group_metadata: dict[str, ParameterMetadata],
 ) -> dict[str, str]:
