@@ -55,8 +55,10 @@ class VirtualEnvironment:
             stdout, stderr = await proc.communicate(payload)
 
             if logger is not None:
-                logger.warning(stdout.decode())
-                logger.error(stderr.decode())
+                if stdout:
+                    logger.warning(stdout.decode())
+                if stderr:
+                    logger.error(stderr.decode())
 
             if proc.returncode != 0:
                 raise RuntimeError(
