@@ -751,10 +751,20 @@ def extract_parameter_values(
         ts, val = d[-1].tolist()
         return ParameterValue(timestamp=ts.decode(), value=val)
 
-    return {
-        key: last_value(dataset)
-        for key, dataset in h5file.get("parameters", {}).items()
-    }
+    parameters_group = h5file.get("parameters")
+    if parameters_group is None:
+        return {}
+
+    # param_ids may contain '/' which h5py treats as path separators, creating
+    # nested groups instead of flat datasets — use visititems to collect all leaves
+    result: dict[str, ParameterValue] = {}
+
+    def visitor(name: str, obj: h5py.HLObject) -> None:
+        if isinstance(obj, h5py.Dataset):
+            result[name] = last_value(obj)
+
+    parameters_group.visititems(visitor)
+    return result
 
 
 def get_hdf5_dtype(
