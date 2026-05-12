@@ -8,6 +8,7 @@ import pydase
 import socketio  # type: ignore[import-untyped]
 
 from icon.client.api.experiments_controller import ExperimentsController
+from icon.client.api.parameters_controller import ParametersController                                                                                                 
 from icon.serialization.deserializer import loads
 from icon.serialization.serializer import dump
 
@@ -116,6 +117,7 @@ class Client(pydase.Client):
 
         self._experiment_job_data: dict[int, pd.DataFrame] = {}
         self.experiments = ExperimentsController(self)
+        self.parameters = ParametersController(self)
 
     async def _handle_experiment_data(self, data: ExperimentData) -> None:
         logger.debug("Updating experiment data...")
