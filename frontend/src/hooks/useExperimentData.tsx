@@ -3,6 +3,7 @@ import { runMethod, socket } from "../socket";
 import {
   ExperimentData,
   ExperimentDataPoint,
+  FitResult,
   ParameterValue,
 } from "../types/ExperimentData";
 import { SerializedObject } from "../types/SerializedObject";
@@ -21,6 +22,7 @@ const emptyExperimentData: ExperimentData = {
   json_sequences: [],
   parameters: {},
   total_data_points: 0,
+  fits: {},
 };
 
 /**
@@ -109,9 +111,25 @@ export function useExperimentData(jobId: string | undefined) {
       });
     };
 
+    const fitEvent = `experiment_fit_${jobId}`;
+    const handleFitEvent = (data: FitResult & { deleted?: boolean }) => {
+      setExperimentData((prev) => {
+        if (data.deleted) {
+          const { [data.result_channel]: _removed, ...rest } = prev.fits;
+          void _removed;
+          return { ...prev, fits: rest };
+        }
+        return {
+          ...prev,
+          fits: { ...prev.fits, [data.result_channel]: data },
+        };
+      });
+    };
+
     socket.on(dataPointEvent, handleNewDataPoint);
     socket.on(metadataEvent, handleMetadata);
     socket.on(parameterValueEvent, handleValueEvent);
+    socket.on(fitEvent, handleFitEvent);
 
     runMethod("data.get_experiment_data_by_job_id", [], { job_id: jobId }, (ack) => {
       const deserialized = deserialize(ack as SerializedObject) as
@@ -131,6 +149,7 @@ export function useExperimentData(jobId: string | undefined) {
       socket.off(dataPointEvent, handleNewDataPoint);
       socket.off(metadataEvent, handleMetadata);
       socket.off(parameterValueEvent, handleValueEvent);
+      socket.off(fitEvent, handleFitEvent);
     };
   }, [jobId]);
 

@@ -33,6 +33,10 @@ from icon.server.data_access.repositories.job_run_repository import (
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
 )
+from icon.server.data_access.repositories.pycrystal_library_repository import (
+    PycrystalLibraryRepository,
+)
+from icon.server.fitting.auto_fit import try_auto_fit
 from icon.server.hardware_processing.task import HardwareProcessingTask
 
 if TYPE_CHECKING:
@@ -211,6 +215,11 @@ class PreProcessingWorker(multiprocessing.Process):
                             run_id=pre_processing_task.job_run.id,
                             status=JobRunStatus.DONE,
                         )
+
+                    try_auto_fit(
+                        job_id=pre_processing_task.job.id,
+                        experiment_source_id=pre_processing_task.job.experiment_source_id,
+                    )
                 except Exception as e:
                     logger.exception(
                         "JobRun with id '%s' failed with error: %s",
