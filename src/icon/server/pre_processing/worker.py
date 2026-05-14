@@ -473,6 +473,7 @@ class PreProcessingWorker(multiprocessing.Process):
                 parameter_dict={**self._parameter_dict, **task.scanned_params},
                 namespace=namespace,
             )
+            task.created = datetime.now(timezone)
             self._submit_task_to_hw_worker(task=task)
 
     def _handle_realtime_scan(

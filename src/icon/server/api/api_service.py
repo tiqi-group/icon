@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pydase
 import requests.exceptions
@@ -31,6 +31,41 @@ if TYPE_CHECKING:
     from icon.server.utils.types import UpdateQueue
 
 logger = logging.getLogger(__name__)
+
+
+def _build_canonical_group_order(display_groups: dict[str, Any]) -> dict[str, int]:
+    """Map display group names to their canonical position index.
+
+    Keys in display_groups have the form "namespace (DisplayGroupName)".
+    Assigns indices in first-occurrence order, matching namespace_registry
+    insertion order (i.e., code definition order).
+    """
+    order: dict[str, int] = {}
+    for key in display_groups:
+        _, _, rest = key.rpartition(" (")
+        name = rest.rstrip(")")
+        if name not in order:
+            order[name] = len(order)
+    return order
+
+
+def _reorder_experiment_display_groups(
+    experiment_metadata: Any, canonical_order: dict[str, int]
+) -> None:
+    """Sort each experiment's parameters dict by canonical_order in-place.
+
+    Global display groups appear first in namespace_registry (code) order.
+    Experiment-local groups not present in canonical_order sort to the end,
+    preserving their relative registration order among themselves.
+    """
+    n = len(canonical_order)
+    for exp_meta in experiment_metadata.values():
+        exp_meta["parameters"] = dict(
+            sorted(
+                exp_meta["parameters"].items(),
+                key=lambda kv: canonical_order.get(kv[0], n),
+            )
+        )
 
 
 class APIService(pydase.DataService):
@@ -102,6 +137,10 @@ class APIService(pydase.DataService):
             experiment_metadata,
             parameter_metadata,
         ) = await self._experiment_library_client.load_metadata()
+        canonical_order = _build_canonical_group_order(
+            parameter_metadata["display groups"]
+        )
+        _reorder_experiment_display_groups(experiment_metadata, canonical_order)
         self.experiments._update_experiment_metadata(
             new_experiments=experiment_metadata
         )
