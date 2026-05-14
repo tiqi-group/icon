@@ -22,7 +22,6 @@ from icon.server.data_access.models.sqlite.scan_parameter import (
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
 from icon.server.fitting.fit_runner import FitResult
-from icon.server.utils.h5py import get_hdf5_dtype, get_result_channels_dataset
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 if TYPE_CHECKING:

@@ -33,9 +33,6 @@ from icon.server.data_access.repositories.job_run_repository import (
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
 )
-from icon.server.data_access.repositories.pycrystal_library_repository import (
-    PycrystalLibraryRepository,
-)
 from icon.server.fitting.auto_fit import try_auto_fit
 from icon.server.hardware_processing.task import HardwareProcessingTask
 
