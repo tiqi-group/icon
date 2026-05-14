@@ -34,6 +34,11 @@ def initialise_job_tables() -> None:
     # update jobs table
     jobs = JobRepository.get_jobs_by_status_and_timeframe(status=JobStatus.PROCESSING)
     for job in jobs:
+        logger.warning(
+            "Job '%s' was left in PROCESSING state and is being marked as PROCESSED "
+            "during scheduler initialization (likely abandoned due to a server restart).",
+            job.id,
+        )
         JobRepository.update_job_status(job=job, status=JobStatus.PROCESSED)
 
 
