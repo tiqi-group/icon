@@ -337,7 +337,7 @@ class ExperimentDataRepository:
     LOCK_EXTENSION = ".lock"
 
     @staticmethod
-    def update_metadata_by_job_id(
+    def update_metadata_by_job_id(  # noqa: C901
         *,
         job_id: int,
         number_of_shots: int,
@@ -588,7 +588,7 @@ class ExperimentDataRepository:
         )
 
     @staticmethod
-    def get_experiment_data_by_job_id(
+    def get_experiment_data_by_job_id(  # noqa: C901
         *,
         job_id: int,
         max_transfer_bytes: int = 50_000_000,
