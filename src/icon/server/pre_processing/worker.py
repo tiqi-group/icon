@@ -216,9 +216,7 @@ class PreProcessingWorker(multiprocessing.Process):
                         )
                 except Exception as e:
                     logger.exception(
-                        "JobRun with id '%s' failed with error: %s",
-                        pre_processing_task.job_run.id,
-                        e,
+                        "JobRun with id '%s' failed", pre_processing_task.job_run.id
                     )
 
                     if (

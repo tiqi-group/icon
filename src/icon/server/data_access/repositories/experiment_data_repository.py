@@ -466,7 +466,7 @@ class ExperimentDataRepository:
                 number_of_shots: int = h5file.attrs["number_of_shots"]
                 number_of_data_points: int = h5file.attrs["number_of_data_points"]
             except KeyError:
-                raise Exception(
+                raise KeyError(
                     "Metadata does not contain relevant information. Please use "
                     "ExperimentDataRepository.update_metadata_by_job_id first!"
                 ) from None

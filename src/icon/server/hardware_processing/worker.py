@@ -197,7 +197,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
 
                 self._post_processing_queue.put(post_processing_task)
             except Exception as e:
-                logger.exception(e)
+                logger.exception("pydase error")
                 JobRunRepository.update_run_by_id(
                     run_id=task.pre_processing_task.job_run.id,
                     status=JobRunStatus.FAILED,

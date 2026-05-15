@@ -61,10 +61,10 @@ class ConfigurationController(pydase.DataService):
             emit_queue.put(
                 {"event": "config.update", "data": updated_config.model_dump()}
             )
-            return True
-        except KeyError as e:
-            logger.exception("Failed to update configuration: %s", e)
+        except KeyError:
+            logger.exception("Failed to update configuration")
             return False
+        return True
 
     def _save_configuration(self, new_config: ServiceConfig) -> None:
         """Save the updated configuration to the source YAML file.

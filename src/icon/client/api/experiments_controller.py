@@ -285,4 +285,4 @@ class ExperimentsController:
                 self._client, experiment_id, self._experiments[experiment_id]
             )
 
-        raise Exception(f"There is no experiment with id {key}")
+        raise KeyError(f"There is no experiment with id {key}")

@@ -28,7 +28,7 @@ class JSONEncodedList(sqlalchemy.TypeDecorator[Any]):
         if value is None:
             value = []
         if not isinstance(value, list):
-            raise ValueError("Value must be a list.")
+            raise TypeError("Value must be a list.")
         return json.dumps(value)
 
     def process_result_value(
