@@ -172,10 +172,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 self._set_pydase_service_values(scanned_params=task.scanned_params)
 
                 timestamp = datetime.now(timezone)
-                result = self._hardware_controller.run(
-                    sequence=task.sequence_json,
-                    number_of_shots=task.pre_processing_task.job.number_of_shots,
-                )
+                result = self._hardware_controller.run(sequence=task.sequence_json)
 
                 experiment_data_point: ExperimentDataPoint = {
                     "index": task.data_point_index,

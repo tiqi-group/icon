@@ -46,7 +46,7 @@ class HardwareController:
         if self._zedboard is not None:
             self._zedboard.sequence_JSON_parser.Sequence_JSON = sequence  # type: ignore
 
-    def run(self, *, sequence: str, number_of_shots: int) -> ResultDict:
+    def run(self, *, sequence: str) -> ResultDict:
         if not self.connected:
             self.connect()
 
