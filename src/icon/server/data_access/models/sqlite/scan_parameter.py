@@ -97,7 +97,6 @@ class ScanParameter(Base):
             `"Device(<device_name>) <variable_id>"` if a device is associated, otherwise
                 just `<variable_id>`.
         """
-
         return (
             f"Device({self.device.name}) {self.variable_id}"
             if self.device is not None

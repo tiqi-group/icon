@@ -1,4 +1,4 @@
-"""Adds number_of_shots to Job table
+"""Adds number_of_shots to Job table.
 
 Revision ID: 6ecff2cc7225
 Revises: 5b41d0d6c856

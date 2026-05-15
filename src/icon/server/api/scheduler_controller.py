@@ -40,22 +40,20 @@ class SchedulerController(pydase.DataService):
         devices_controller: DevicesController,
         parameters_controller: ParametersController,
     ) -> None:
-        """
+        """Create a new SchedulerController.
+
         Args:
             devices_controller: Reference to the devices controller. Used to read
                 current values of device parameters when casting scan values.
             parameters_controller: Reference to the parameters controller. Used to
                 resolve display names for scan parameters at submission time.
         """
-
         super().__init__()
         self._devices_controller = devices_controller
         self._parameters_controller = parameters_controller
 
     def _resolve_display_name(self, parameter_id: str) -> str:
-        metadata = self._parameters_controller._all_parameter_metadata.get(
-            parameter_id
-        )
+        metadata = self._parameters_controller._all_parameter_metadata.get(parameter_id)
         if metadata is not None:
             return metadata["display_name"]
         return parameter_id
@@ -94,7 +92,6 @@ class SchedulerController(pydase.DataService):
         Returns:
             The persisted job ID.
         """
-
         if local_parameters_timestamp is None:
             local_parameters_timestamp = datetime.now(tz=timezone)
 
@@ -180,7 +177,6 @@ class SchedulerController(pydase.DataService):
         Args:
             job_id: ID of the job to cancel.
         """
-
         job = JobRepository.get_job_by_id(job_id=job_id)
         if job.status in (JobStatus.PROCESSING, JobStatus.SUBMITTED):
             JobRepository.update_job_status(job=job, status=JobStatus.PROCESSED)
@@ -209,7 +205,6 @@ class SchedulerController(pydase.DataService):
         Returns:
             Mapping from job ID to job record.
         """
-
         start_date = datetime.fromisoformat(start) if start is not None else None
         stop_date = datetime.fromisoformat(stop) if stop is not None else None
 
@@ -229,7 +224,6 @@ class SchedulerController(pydase.DataService):
         Returns:
             The job record.
         """
-
         return JobRepository.get_job_by_id(
             job_id=job_id, load_experiment_source=True, load_scan_parameters=True
         )
@@ -243,7 +237,6 @@ class SchedulerController(pydase.DataService):
         Returns:
             The associated run record.
         """
-
         return JobRunRepository.get_run_by_job_id(job_id=job_id)
 
     async def _cast_scan_values_to_param_type(

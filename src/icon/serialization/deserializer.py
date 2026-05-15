@@ -21,10 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class IconDeserializer(pydase.utils.serialization.deserializer.Deserializer):
-    """
-    This deserializer adds deserialization of pydantic models to the
-    `pydase.utils.serialization.deserializer.Deserializer`.
-    """
+    """Deserialization of pydantic models to the `pydase.utils.serialization.deserializer.Deserializer`."""
 
     @classmethod
     def deserialize(cls, serialized_object: SerializedIconObject) -> Any:

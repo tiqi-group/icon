@@ -33,7 +33,6 @@ def get_added_removed_and_updated_keys(
             - removed keys
             - updated keys (present in both but with changed values)
     """
-
     keys1 = set(cached_dict)
     keys2 = set(new_dict)
 
@@ -66,7 +65,6 @@ class ParametersController(pydase.DataService):
             parameter_id: The unique identifier of the parameter.
             value: The new value to assign.
         """
-
         ParametersRepository.update_parameters(parameter_mapping={parameter_id: value})
 
     def get_all_parameters(self) -> dict[str, DatabaseValueType]:
@@ -75,7 +73,6 @@ class ParametersController(pydase.DataService):
         Returns:
             Mapping of parameter IDs to their values.
         """
-
         return dict(ParametersRepository.get_shared_parameters())
 
     def get_display_groups(self) -> dict[str, dict[str, ParameterMetadata]]:
@@ -84,7 +81,6 @@ class ParametersController(pydase.DataService):
         Returns:
             Mapping from display group names to parameter metadata.
         """
-
         return self._display_group_metadata
 
     async def _update_parameter_metadata_and_display_groups(
@@ -99,7 +95,6 @@ class ParametersController(pydase.DataService):
             parameter_metadata: Dict containing both `"all parameters"` and
                 `"display groups"` metadata.
         """
-
         logger.debug("Updating parameter metadata...")
 
         added_params, removed_params, updated_params = (
@@ -121,7 +116,6 @@ class ParametersController(pydase.DataService):
         InfluxDB. If not, initialize it by writing the default value via the
         `ParametersRepository`.
         """
-
         influxdb_param_keys = ParametersRepository.get_influxdb_parameter_keys()
         for parameter_id, metadata in self._all_parameter_metadata.items():
             if parameter_id not in influxdb_param_keys:
@@ -137,7 +131,6 @@ class ParametersController(pydase.DataService):
         the shared resource manager, and marks the `ParametersRepository` as
         initialized.
         """
-
         icon.server.shared_resource_manager.parameters_dict.update(
             ParametersRepository.get_influxdb_parameters()
         )

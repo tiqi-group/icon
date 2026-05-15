@@ -1,4 +1,4 @@
-"""Renaming job table
+"""Renaming job table.
 
 Revision ID: 000976b1cd64
 Revises: e53ce613a1ed

@@ -36,7 +36,6 @@ class DeviceRepository:
         Returns:
             The persisted device with database-generated fields (e.g., `id`) populated.
         """
-
         with sqlalchemy.orm.session.Session(engine) as session:
             session.add(device)
             session.commit()
@@ -79,7 +78,6 @@ class DeviceRepository:
             RuntimeError: If attempting to change the URL of an enabled device.
             NoDeviceFoundError: If no device with the given name exists.
         """
-
         updated_properties = {
             name: new_value
             for name, new_value in {
@@ -142,7 +140,6 @@ class DeviceRepository:
         Returns:
             All devices matching the filter (or all devices if no filter is given).
         """
-
         with sqlalchemy.orm.Session(engine) as session:
             stmt = sqlalchemy.select(Device)
 
@@ -164,7 +161,6 @@ class DeviceRepository:
         Raises:
             NoResultFound: If no device exists with the given ID.
         """
-
         with sqlalchemy.orm.Session(engine) as session:
             stmt = sqlalchemy.select(Device).where(Device.id == id)
             return session.execute(stmt).scalar_one()
@@ -182,7 +178,6 @@ class DeviceRepository:
         Raises:
             NoDeviceFoundError: If no device exists with the given name.
         """
-
         try:
             with sqlalchemy.orm.Session(engine) as session:
                 stmt = sqlalchemy.select(Device).where(Device.name == name)
@@ -199,7 +194,6 @@ class DeviceRepository:
         Returns:
             List of device names.
         """
-
         with sqlalchemy.orm.Session(engine) as session:
             stmt = sqlalchemy.select(Device.name)
             return session.execute(stmt).scalars().all()

@@ -30,8 +30,7 @@ class ScanParameter(TypedDict):
 
 
 def get_experiment_identifier_dict(experiments: list[str]) -> dict[str, str]:
-    """
-    Processes a list of experiment strings to create a dictionary of unique identifiers.
+    """Processes a list of experiment strings to create a dictionary of unique identifiers.
 
     The keys are unique identifiers:
     - If the instance name (within brackets) is unique, it is used as the key.
@@ -203,8 +202,7 @@ class ExperimentProxy:
         git_commit_hash: str | None = None,
         auto_calibration: bool = False,
     ) -> ExperimentJobProxy:
-        """
-        Schedule an experiment scan.
+        """Schedule an experiment scan.
 
         Args:
             scan_parameters:
@@ -232,7 +230,6 @@ class ExperimentProxy:
         Returns:
             ExperimentJobProxy: Proxy object for the scheduled experiment job.
         """
-
         job_id: int = self._client.trigger_method(
             "scheduler.submit_job",
             kwargs={

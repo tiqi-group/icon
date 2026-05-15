@@ -22,7 +22,6 @@ class ConfigurationController(pydase.DataService):
 
     def get_config(self) -> dict[str, Any]:
         """Get current configuration dictionary."""
-
         return get_config().model_dump()
 
     def update_config_option(self, key: str, value: Any) -> bool:
@@ -41,7 +40,6 @@ class ConfigurationController(pydase.DataService):
         Returns:
             True if the update is successful, False otherwise.
         """
-
         try:
             # Traverse to the nested key
             fields = key.split(".")
@@ -77,6 +75,5 @@ class ConfigurationController(pydase.DataService):
             new_config:
                 The validated configuration instance.
         """
-
         with get_config_path().open("w") as file:
             file.write(yaml.dump(new_config.model_dump()))

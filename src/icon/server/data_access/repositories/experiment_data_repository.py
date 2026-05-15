@@ -127,7 +127,6 @@ class ExperimentData:
     """Total number of data points in the HDF5 file (before truncation)."""
 
 
-
 def get_filename_by_job_id(job_id: int) -> str:
     """Return the HDF5 filename for a job.
 
@@ -137,7 +136,6 @@ def get_filename_by_job_id(job_id: int) -> str:
     Returns:
         Filename derived from the job's scheduled time (e.g., "<iso>.h5").
     """
-
     scheduled_time = JobRunRepository.get_scheduled_time_by_job_id(job_id=job_id)
     return f"{scheduled_time}.h5"
 
@@ -150,7 +148,6 @@ def resize_dataset(dataset: h5py.Dataset, next_index: int, axis: int) -> None:
         next_index: Index that must be writable.
         axis: Axis along which to grow.
     """
-
     dataset.resize(next_index + 1, axis)
 
 
@@ -166,7 +163,6 @@ def write_sequence_json_to_dataset(
         data_point_index: Index of the current data point.
         sequence_json: Serialized sequence JSON to append.
     """
-
     sequence_json_dtype = [
         ("index", np.int32),
         ("Sequence", h5py.string_dtype()),
@@ -211,7 +207,6 @@ def write_scan_parameters_and_timestamp_to_dataset(
         timestamp: Acquisition timestamp (ISO string).
         number_of_data_points: Current total number of stored data points.
     """
-
     scan_parameter_dtype = [
         ("timestamp", "S26"),  # timestamps are strings of length 26
         *[(key, np.float64) for key in scan_params],
@@ -289,7 +284,6 @@ def write_shot_channels_to_datasets(
         number_of_data_points: Current total number of stored data points.
         number_of_shots: Expected number of shots per channel.
     """
-
     shot_group = h5file.require_group("shot_channels")
     for key, value in shot_channels.items():
         shot_dataset = shot_group.require_dataset(
@@ -321,7 +315,6 @@ def write_vector_channels_to_datasets(
         data_point_index: Index of the current data point.
         vector_channels: Mapping of channel to vector of floats.
     """
-
     vector_group = h5file.require_group("vector_channels")
     for channel_name, vector in vector_channels.items():
         channel_group = vector_group.require_group(channel_name)
@@ -366,7 +359,6 @@ class ExperimentDataRepository:
             local_parameter_timestamp: Optional timestamp for local parameters.
             parameters: Scan parameters.
         """
-
         filename = get_filename_by_job_id(job_id)
         file = f"{get_config().data.results_dir}/{filename}"
 
@@ -414,7 +406,8 @@ class ExperimentDataRepository:
 
             if readout_metadata["readout_channel_names"]:
                 result_dataset = get_result_channels_dataset(
-                    h5file=h5file, result_channels=readout_metadata["readout_channel_names"]
+                    h5file=h5file,
+                    result_channels=readout_metadata["readout_channel_names"],
                 )
                 result_dataset.attrs["Plot window metadata"] = json.dumps(
                     readout_metadata["readout_channel_windows"]
@@ -459,7 +452,6 @@ class ExperimentDataRepository:
             job_id: Job identifier.
             data_point: Data point payload to append.
         """
-
         filename = get_filename_by_job_id(job_id)
         file = f"{get_config().data.results_dir}/{filename}"
 
@@ -541,7 +533,6 @@ class ExperimentDataRepository:
             timestamp: ISO timestamp string.
             parameter_values: Mapping of parameter id to value.
         """
-
         filename = get_filename_by_job_id(job_id)
         file = f"{get_config().data.results_dir}/{filename}"
         lock_path = (
@@ -615,7 +606,6 @@ class ExperimentDataRepository:
         Returns:
             Experiment data payload suitable for the API.
         """
-
         data = ExperimentData(
             plot_windows={
                 "result_channels": [],
@@ -675,8 +665,7 @@ class ExperimentDataRepository:
             start_index = max(0, total - max_data_points)
             if start_index > 0:
                 logger.info(
-                    "Loading last %d of %d data points "
-                    "(~%d bytes/point, %d MB budget)",
+                    "Loading last %d of %d data points (~%d bytes/point, %d MB budget)",
                     total - start_index,
                     total,
                     bytes_per_point,
@@ -699,7 +688,9 @@ class ExperimentDataRepository:
                 data.plot_windows["result_channels"] = json.loads(
                     cast("str", result_channel_dataset.attrs["Plot window metadata"])
                 )
-                result_channels = cast("npt.NDArray", result_channel_dataset[start_index:])  # type: ignore
+                result_channels = cast(
+                    "npt.NDArray", result_channel_dataset[start_index:]
+                )  # type: ignore
                 data.result_channels = {
                     channel_name: dict(
                         enumerate(
@@ -707,7 +698,9 @@ class ExperimentDataRepository:
                             start=start_index,
                         )
                     )
-                    for channel_name in cast("tuple[str, ...]", result_channels.dtype.names)
+                    for channel_name in cast(
+                        "tuple[str, ...]", result_channels.dtype.names
+                    )
                 }
 
             # Convert shot channels into dicts with index as key
@@ -717,9 +710,12 @@ class ExperimentDataRepository:
                     cast("str", shot_channels_group.attrs["Plot window metadata"])
                 )
                 data.shot_channels = {
-                    key: dict(enumerate(value[start_index:].tolist(), start=start_index))  # type: ignore
+                    key: dict(
+                        enumerate(value[start_index:].tolist(), start=start_index)
+                    )  # type: ignore
                     for key, value in cast(
-                        "Sequence[tuple[str, h5py.Dataset]]", shot_channels_group.items()
+                        "Sequence[tuple[str, h5py.Dataset]]",
+                        shot_channels_group.items(),
                     )
                 }
 
@@ -736,14 +732,13 @@ class ExperimentDataRepository:
                         )
                     }
                     for channel_name, vector_group in cast(
-                        "Sequence[tuple[str, h5py.Group]]", vector_channels_group.items()
+                        "Sequence[tuple[str, h5py.Group]]",
+                        vector_channels_group.items(),
                     )
                 }
 
             if "sequence_json" in h5file:
-                sequence_json_dataset = cast(
-                    "h5py.Dataset", h5file["sequence_json"]
-                )
+                sequence_json_dataset = cast("h5py.Dataset", h5file["sequence_json"])
                 data.json_sequences = [
                     [
                         cast("np.int32", entry["index"]).item(),

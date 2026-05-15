@@ -1,4 +1,4 @@
-"""Adds device table
+"""Adds device table.
 
 Revision ID: c6c455b61559
 Revises: 6ecff2cc7225

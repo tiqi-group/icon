@@ -58,7 +58,6 @@ def parse_parameter_id(param_id: str) -> tuple[str | None, str]:
         >>> parse_parameter_id("bare_param")
         (None, 'bare_param')
     """
-
     match = re.match(r"^Device\(([^)]+)\) (.*)$", param_id)
     if match:
         return match[1], match[2]

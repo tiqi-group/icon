@@ -9,8 +9,7 @@ class RepositoryError(Exception):
 
 
 def convert_https_git_url_to_ssh(https_url: str) -> str:
-    """
-    Convert a Git repository URL from HTTPS to SSH format.
+    """Convert a Git repository URL from HTTPS to SSH format.
 
     Args:
         https_url (str): The HTTPS URL of the Git repository.
@@ -18,7 +17,6 @@ def convert_https_git_url_to_ssh(https_url: str) -> str:
     Returns:
         str: The SSH URL of the Git repository.
     """
-
     if https_url.startswith("git@"):
         return https_url
 
@@ -35,8 +33,7 @@ def convert_https_git_url_to_ssh(https_url: str) -> str:
 
 
 def convert_ssh_git_url_to_https(ssh_url: str) -> str:
-    """
-    Convert a Git repository URL from SSH to HTTPS format.
+    """Convert a Git repository URL from SSH to HTTPS format.
 
     Args:
         ssh_url (str): The SSH URL of the Git repository.
@@ -44,7 +41,6 @@ def convert_ssh_git_url_to_https(ssh_url: str) -> str:
     Returns:
         str: The HTTPS URL of the Git repository.
     """
-
     if ssh_url.startswith("https://"):
         return ssh_url
 

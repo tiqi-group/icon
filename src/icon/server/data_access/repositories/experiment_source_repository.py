@@ -29,7 +29,6 @@ class ExperimentSourceRepository:
         Returns:
             The existing or newly created experiment source.
         """
-
         with sqlalchemy.orm.Session(engine) as session:
             experiment = (
                 session.query(ExperimentSource)

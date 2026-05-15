@@ -1,4 +1,4 @@
-"""Adds repetitions column to job table
+"""Adds repetitions column to job table.
 
 Revision ID: 4c4713742c14
 Revises: 027f86f1812b

@@ -1,4 +1,4 @@
-"""Adds parent_job_id to job table
+"""Adds parent_job_id to job table.
 
 Revision ID: e53ce613a1ed
 Revises: 8640dcfde6f0

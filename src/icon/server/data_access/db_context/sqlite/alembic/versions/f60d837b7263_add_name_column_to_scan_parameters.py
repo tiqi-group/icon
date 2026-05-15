@@ -1,4 +1,4 @@
-"""add name column to scan_parameters
+"""add name column to scan_parameters.
 
 Revision ID: f60d837b7263
 Revises: b18002636885

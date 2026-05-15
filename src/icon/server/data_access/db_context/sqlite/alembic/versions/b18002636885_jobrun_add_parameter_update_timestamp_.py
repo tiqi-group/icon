@@ -1,4 +1,4 @@
-"""JobRun: add parameter_update_timestamp column
+"""JobRun: add parameter_update_timestamp column.
 
 Revision ID: b18002636885
 Revises: fc9af856df20

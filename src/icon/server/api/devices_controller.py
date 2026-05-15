@@ -68,7 +68,6 @@ class DevicesController(pydase.DataService):
         Returns:
             The `Device` SQLAlchemy model.
         """
-
         device = DeviceRepository.add_device(
             device=Device(
                 name=name,
@@ -115,7 +114,6 @@ class DevicesController(pydase.DataService):
         Returns:
             The updated `Device` model.
         """
-
         device = DeviceRepository.update_device(
             name=name,
             url=url,
@@ -162,7 +160,6 @@ class DevicesController(pydase.DataService):
             new_value: New value (native type or quantity dict).
             type_: Expected type of the value for normalization.
         """
-
         if type_ == "float" and not isinstance(new_value, dict):
             new_value = float(new_value)
         elif type_ == "int" and not isinstance(new_value, dict):
@@ -199,7 +196,6 @@ class DevicesController(pydase.DataService):
             The parameter value as returned by the device, or `None` if the device is
                 unreachable or unknown.
         """
-
         try:
             return await asyncio.to_thread(
                 self._devices[name].get_value, access_path=parameter_id
@@ -230,7 +226,6 @@ class DevicesController(pydase.DataService):
         Returns:
             Mapping from device name to a `DeviceDict` payload suitable for the API.
         """
-
         device_dict: dict[str, DeviceDict] = {
             device.name: SQLAlchemyDictEncoder.encode(device)
             for device in DeviceRepository.get_devices_by_status(status=status)
@@ -257,7 +252,6 @@ class DevicesController(pydase.DataService):
         Fetches ENABLED devices from SQLite and creates non-blocking pydase clients and
         proxies for each of them.
         """
-
         devices = DeviceRepository.get_devices_by_status(status=DeviceStatus.ENABLED)
 
         for device in devices:
