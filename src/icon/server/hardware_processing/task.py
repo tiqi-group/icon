@@ -10,6 +10,9 @@ import pydantic
 from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 from icon.server.pre_processing.task import PreProcessingTask
 
+if TYPE_CHECKING:
+    from icon.server.shared_resource_manager import Counter
+
 
 class HardwareProcessingTask(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
@@ -23,13 +26,13 @@ class HardwareProcessingTask(pydantic.BaseModel):
     src_dir: str | None
     created: datetime
     if TYPE_CHECKING:
-        processed_data_points: Queue[HardwareProcessingTask]
+        processed_data_points_count: Counter
         data_points_to_process: Queue[tuple[int, dict[str, DatabaseValueType]]]
         outdated_tasks: PriorityQueue[HardwareProcessingTask]
     else:
-        # must be Any as the queues are AutoProxy instances, which I didn't figure out
-        # how to type
-        processed_data_points: Any
+        # must be Any as the proxied objects are AutoProxy instances, which I didn't
+        # figure out how to type
+        processed_data_points_count: Any
         data_points_to_process: Any
         outdated_tasks: Any
 

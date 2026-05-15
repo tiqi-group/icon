@@ -159,7 +159,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
             if job_run_cancelled_or_failed(
                 job_id=task.pre_processing_task.job.id,
             ):
-                task.processed_data_points.put(task)
+                task.processed_data_points_count.increment()
                 continue
 
             parameter_update_timestamp = (
@@ -206,4 +206,4 @@ class HardwareProcessingWorker(multiprocessing.Process):
                     log=extract_hardware_error_message(e),
                 )
             finally:
-                task.processed_data_points.put(task)
+                task.processed_data_points_count.increment()

@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Self, TypeVar
+from typing import TYPE_CHECKING, Any, Self, TypeVar
 
 import psutil
 import pytz
@@ -187,7 +187,7 @@ class PreProcessingWorker(multiprocessing.Process):
         self._data_points_to_process: queue.Queue[
             tuple[int, dict[str, DatabaseValueType]]
         ]
-        self._processed_data_points: queue.Queue[HardwareProcessingTask]
+        self._processed_data_points_count: Any  # manager.Counter proxy
         self._parameter_dict: dict[str, DatabaseValueType] = {}
         self._outdated_tasks: queue.PriorityQueue[HardwareProcessingTask] = (
             manager.PriorityQueue()
@@ -205,7 +205,7 @@ class PreProcessingWorker(multiprocessing.Process):
                 pre_processing_task = self._queue.get()
 
                 self._data_points_to_process = self._manager.Queue()
-                self._processed_data_points = self._manager.Queue()
+                self._processed_data_points_count = self._manager.Counter()
 
                 try:
                     self._process_task(
@@ -424,7 +424,7 @@ class PreProcessingWorker(multiprocessing.Process):
         for combination in enumerate(scan_parameter_value_combinations):
             self._data_points_to_process.put(combination)
 
-        while self._processed_data_points.qsize() != len(
+        while self._processed_data_points_count.value() != len(
             scan_parameter_value_combinations
         ):
             self._handle_parameter_updates(pre_processing_task, namespace)
@@ -477,7 +477,7 @@ class PreProcessingWorker(multiprocessing.Process):
             scanned_params=data_point,
             src_dir=src_dir,
             sequence_json=sequence_json,
-            processed_data_points=self._processed_data_points,
+            processed_data_points_count=self._processed_data_points_count,
             data_points_to_process=self._data_points_to_process,
             outdated_tasks=self._outdated_tasks,
             created=datetime.now(timezone),
