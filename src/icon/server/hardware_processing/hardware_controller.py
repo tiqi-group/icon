@@ -53,11 +53,10 @@ class HardwareController:
         if not self.connected:
             if HAS_TIQI_ZEDBOARD:
                 raise RuntimeError("Could not connect to the Zedboard")
-            else:
-                raise RuntimeError(
-                    "Tiqi zedboard package is not available. "
-                    "Please use 'uv sync --all-extras' to install all dependencies"
-                )
+            raise RuntimeError(
+                "Tiqi zedboard package is not available. "
+                "Please use 'uv sync --all-extras' to install all dependencies"
+            )
 
         self._update_zedboard_sequence(sequence=sequence)
         self._zedboard.sequence_JSON_parser.Parse_JSON_Header()  # type: ignore
