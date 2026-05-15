@@ -1,8 +1,8 @@
 import json
 import logging
-import os
 from dataclasses import asdict, dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal, TypedDict, cast
 
 import h5py  # type: ignore
@@ -627,7 +627,7 @@ class ExperimentDataRepository:
         filename = get_filename_by_job_id(job_id)
         file = f"{get_config().data.results_dir}/{filename}"
 
-        if not os.path.exists(file):
+        if not Path(file).exists():
             logger.warning("The file %s does not exist.", file)
             return data
 
