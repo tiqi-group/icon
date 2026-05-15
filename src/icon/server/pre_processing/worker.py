@@ -51,6 +51,21 @@ timezone = pytz.timezone(get_config().date.timezone)
 
 ScanCombination = frozenset[tuple[str, DatabaseValueType]]
 
+# Maximum number of tasks the realtime scan loop will keep queued in
+# `_hw_processing_queue` at any moment. Acts as producer-side backpressure: pre-proc
+# submits at ~100 Hz, but the hardware worker drains at the hardware's pace (often
+# <10 Hz on real hardware). Without a cap the manager-side queue grows linearly with
+# run duration, which pressures the SharedResourceManager process and produces the
+# progressively larger periodic stalls seen on long real-time runs. Four is small
+# enough to bound that memory while still keeping the hardware worker continuously
+# fed.
+MAX_INFLIGHT_HW_TASKS = 4
+
+# How long to sleep between qsize polls while waiting for the hardware queue to
+# drain below `MAX_INFLIGHT_HW_TASKS`. Also bounds worst-case cancellation latency
+# for a realtime job paused on backpressure.
+INFLIGHT_POLL_INTERVAL = 0.05
+
 
 class ParamUpdateMode(str, Enum):
     ALL_UP_TO_DATE = "all_up_to_date"
@@ -534,6 +549,14 @@ class PreProcessingWorker(multiprocessing.Process):
                 hardware_task.created = datetime.now(timezone)
                 hardware_task.data_point_index = index
                 yield
+                while (
+                    self._hw_processing_queue.qsize() >= MAX_INFLIGHT_HW_TASKS
+                ):
+                    if job_run_cancelled_or_failed(
+                        job_id=pre_processing_task.job.id,
+                    ):
+                        return
+                    time.sleep(INFLIGHT_POLL_INTERVAL)
                 self._submit_task_to_hw_worker(task=hardware_task)
 
 
