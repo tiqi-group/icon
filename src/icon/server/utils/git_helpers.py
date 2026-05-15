@@ -64,7 +64,7 @@ def git_fetch_all(cwd: str) -> None:
         )
         logger.info("Fetched updates for '%s'", cwd)
     except subprocess.CalledProcessError:
-        raise RepositoryError(f"Failed to fetch updates for {cwd!r}.")
+        raise RepositoryError(f"Failed to fetch updates for {cwd!r}.") from None
 
 
 def git_clone(repository: str, dir: str) -> None:
@@ -76,7 +76,9 @@ def git_clone(repository: str, dir: str) -> None:
         )
         logger.info("Repository '%s' successfully cloned to '%s'.", repository, dir)
     except subprocess.CalledProcessError as e:
-        raise RepositoryError(f"Failed to clone repository: {e}: {e.stderr.decode()}")
+        raise RepositoryError(
+            f"Failed to clone repository: {e}: {e.stderr.decode()}"
+        ) from None
 
 
 def git_checkout(git_hash: str, cwd: str) -> None:
@@ -90,7 +92,7 @@ def git_checkout(git_hash: str, cwd: str) -> None:
         )
         logger.info("Checked out commit '%s' in '%s'", git_hash, cwd)
     except subprocess.CalledProcessError:
-        raise RepositoryError(f"Failed to check out commit {git_hash!r}.")
+        raise RepositoryError(f"Failed to check out commit {git_hash!r}.") from None
 
 
 def git_get_remote_url(repository_dir: str) -> str:
@@ -105,7 +107,9 @@ def git_get_remote_url(repository_dir: str) -> str:
         )
         return completed_process.stdout.strip()
     except subprocess.CalledProcessError:
-        raise RepositoryError(f"{repository_dir!r} does not contain a git repo.")
+        raise RepositoryError(
+            f"{repository_dir!r} does not contain a git repo."
+        ) from None
 
 
 def checkout_commit(git_hash: str | None, cwd: str) -> None:

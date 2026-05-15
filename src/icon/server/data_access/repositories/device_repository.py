@@ -185,7 +185,7 @@ class DeviceRepository:
         except sqlalchemy.exc.NoResultFound:
             raise NoDeviceFoundError(
                 f"Device with name {name!r} does not exist.",
-            )
+            ) from None
 
     @staticmethod
     def get_all_device_names() -> Sequence[str]:

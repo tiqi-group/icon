@@ -467,7 +467,7 @@ class ExperimentDataRepository:
                 raise Exception(
                     "Metadata does not contain relevant information. Please use "
                     "ExperimentDataRepository.update_metadata_by_job_id first!"
-                )
+                ) from None
 
             write_scan_parameters_and_timestamp_to_dataset(
                 h5file=h5file,

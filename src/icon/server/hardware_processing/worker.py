@@ -85,10 +85,10 @@ class HardwareProcessingWorker(multiprocessing.Process):
         client = self._pydase_clients[device.name]
         try:
             client.update_value(access_path=access_path, new_value=new_value)
-        except socketio.exceptions.BadNamespaceError:
+        except socketio.exceptions.BadNamespaceError as e:
             raise RuntimeError(
                 f"Failed to connect to device {device.name!r} as {device.url!r}."
-            )
+            ) from e
 
         for attempt in range(1, device.retry_attempts + 1):
             value_on_device = client.get_value(access_path=access_path)
