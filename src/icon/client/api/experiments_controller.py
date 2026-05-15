@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from icon.server.api.models.experiment_dict import ExperimentMetadata
+from icon.server.data_access.models.sqlite.job import timezone
 
 if TYPE_CHECKING:
     from icon.client.client import Client
@@ -199,7 +200,7 @@ class ExperimentProxy:
         scan_parameters: list[ScanParameter],
         priority: int = 20,
         repetitions: int = 1,
-        local_parameters_timestamp: datetime = datetime.now(),
+        local_parameters_timestamp: datetime | None = None,
         git_commit_hash: str | None = None,
         auto_calibration: bool = False,
     ) -> ExperimentJobProxy:
@@ -231,6 +232,8 @@ class ExperimentProxy:
         Returns:
             ExperimentJobProxy: Proxy object for the scheduled experiment job.
         """
+        if local_parameters_timestamp is None:
+            local_parameters_timestamp = datetime.now(tz=timezone)
         job_id: int = self._client.trigger_method(
             "scheduler.submit_job",
             kwargs={
