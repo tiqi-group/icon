@@ -156,7 +156,7 @@ class ExperimentIdentifier:
 
 
 class PreProcessingWorker(multiprocessing.Process):
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         worker_number: int,
         pre_processing_queue: queue.PriorityQueue[PreProcessingTask],
