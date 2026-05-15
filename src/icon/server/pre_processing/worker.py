@@ -94,13 +94,13 @@ def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
         return []
 
     # Generate combinations using itertools.product
-    keys, values = zip(*parameter_values.items())
+    keys, values = zip(*parameter_values.items(), strict=True)
 
     combinations = itertools.product(*values)
 
     # Map each combination back to variable IDs
     return [
-        dict(zip(keys, combination)) for combination in combinations
+        dict(zip(keys, combination, strict=True)) for combination in combinations
     ] * job.repetitions
 
 
