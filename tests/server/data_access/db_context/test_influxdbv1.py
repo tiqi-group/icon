@@ -23,6 +23,7 @@ def is_responsive(host: str, port: int) -> bool:
             f"u={get_config().databases.influxdbv1.username}"
             f"&p={get_config().databases.influxdbv1.password}",
             data={"q": "SHOW DATABASES"},
+            timeout=1,
         )
     except Exception:
         return False

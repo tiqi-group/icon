@@ -44,7 +44,7 @@ def is_responsive() -> bool:
     )
 
     try:
-        response = requests.get(url, params=params)
+        response = requests.get(url, params=params, timeout=1)
     except Exception:
         return False
     return (
