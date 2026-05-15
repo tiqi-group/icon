@@ -113,7 +113,6 @@ class Client(pydase.Client):
         del self.proxy
 
         self._experiment_job_data: dict[int, pd.DataFrame] = {}
-        # self.scheduler = SchedulerController(self)
         self.experiments = ExperimentsController(self)
 
     async def _handle_experiment_data(self, data: ExperimentData) -> None:

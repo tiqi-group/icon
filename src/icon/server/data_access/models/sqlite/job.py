@@ -51,10 +51,6 @@ class Job(Base):
         default=lambda: datetime.datetime.now(timezone)
     )
     """Timestamp when the job was created. This cannot be set manually."""
-    # user_id: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column(
-    #     sqlalchemy.ForeignKey("user.id"),
-    #     default=None,
-    # )
     experiment_source_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
         sqlalchemy.ForeignKey("experiment_sources.id")
     )
