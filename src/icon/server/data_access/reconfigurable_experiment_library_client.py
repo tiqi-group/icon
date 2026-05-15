@@ -77,7 +77,6 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
         By default isolation is not implemented and only a reference to
         the original library is returned.
         """
-
         self.reload()
         return self.client.isolated()
 

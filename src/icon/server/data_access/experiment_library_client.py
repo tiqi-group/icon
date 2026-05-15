@@ -43,7 +43,6 @@ class ExperimentLibraryClient:
         By default isolation is not implemented and only a reference to
         the original library is returned.
         """
-
         return nullcontext(self)
 
     async def load_metadata(self) -> "tuple[ExperimentDict, ParameterMetadataDict]":

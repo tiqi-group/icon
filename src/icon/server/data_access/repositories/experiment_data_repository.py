@@ -127,6 +127,7 @@ class ExperimentData:
     """Total number of data points in the HDF5 file (before truncation)."""
 
 
+
 def get_filename_by_job_id(job_id: int) -> str:
     """Return the HDF5 filename for a job.
 
@@ -249,7 +250,6 @@ def write_results_to_dataset(
         result_channels: Mapping of channel name to float value.
         number_of_data_points: Current total number of stored data points.
     """
-
     if not result_channels:
         return
 
