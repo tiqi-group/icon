@@ -60,7 +60,7 @@ class SchedulerController(pydase.DataService):
             return metadata["display_name"]
         return parameter_id
 
-    async def submit_job(  # noqa: PLR0913
+    async def submit_job(
         self,
         *,
         experiment_id: str,

@@ -122,7 +122,7 @@ class InfluxDBv1Session:
             verify_ssl=self._verify_ssl,
         )
 
-    def write_points(  # noqa: PLR0913
+    def write_points(
         self,
         points: list[dict[str, Any]],
         time_precision: Literal["s", "m", "ms", "u"] | None = None,

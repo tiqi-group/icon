@@ -344,7 +344,7 @@ class ExperimentDataRepository:
     LOCK_EXTENSION = ".lock"
 
     @staticmethod
-    def update_metadata_by_job_id(  # noqa: PLR0913
+    def update_metadata_by_job_id(
         *,
         job_id: int,
         number_of_shots: int,

@@ -114,7 +114,8 @@ select = [
     "W",     # pycodestyle warnings
 ]
 ignore = [
-    "RUF006",  # asyncio-dangling-task
+    "PLR0913",  # too-many-arguments
+    "RUF006",   # asyncio-dangling-task
     "PERF203",  # try-except-in-loop
 ]
 

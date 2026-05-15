@@ -42,7 +42,7 @@ class DevicesController(pydase.DataService):
         self.device_proxies: dict[str, ProxyClass] = {}
         """Live pydase proxies keyed by device name."""
 
-    def add_device(  # noqa: PLR0913
+    def add_device(
         self,
         *,
         name: str,
