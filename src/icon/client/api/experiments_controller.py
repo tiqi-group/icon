@@ -195,6 +195,7 @@ class ExperimentProxy:
 
     def schedule(
         self,
+        *,
         scan_parameters: list[ScanParameter],
         priority: int = 20,
         repetitions: int = 1,

@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class HardwareController:
-    def __init__(self, connect: bool = True) -> None:
+    def __init__(self, *, connect: bool = True) -> None:
         self._host = get_config().hardware.host
         self._port = get_config().hardware.port
         self._zedboard: tiqi_zedboard.zedboard.Zedboard | None = None
