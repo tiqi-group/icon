@@ -414,14 +414,21 @@ export const ParameterCard = ({
               label="Scan pattern"
               value={pattern}
               onChange={(e) => {
+                const nextPattern = e.target.value as ScanPattern;
                 dispatchScanInfoStateUpdate({
                   type: "UPDATE_PARAMETER",
                   index: index!,
                   payload: {
                     generation: {
                       ...param.generation,
-                      pattern: e.target.value as ScanPattern,
+                      pattern: nextPattern,
                     },
+                    values: generateScanValues(
+                      param.generation.start,
+                      param.generation.stop,
+                      param.generation.points,
+                      nextPattern,
+                    ),
                   },
                 });
               }}
