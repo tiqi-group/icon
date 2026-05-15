@@ -41,17 +41,8 @@ class ConfigurationController(pydase.DataService):
             True if the update is successful, False otherwise.
         """
         try:
-            # Traverse to the nested key
-            fields = key.split(".")
             current_config = get_config().model_dump()
-            current = current_config
-            for field in fields[:-1]:
-                if field not in current:
-                    raise KeyError(f"Key {key!r} not found in configuration.")
-                current = current[field]
-
-            # Update the value
-            current[fields[-1]] = value
+            set_nested(current_config, key, value)
 
             # Validate the updated configuration
             updated_config = ServiceConfig(config_sources=DataSource(current_config))
@@ -77,3 +68,17 @@ class ConfigurationController(pydase.DataService):
         """
         with get_config_path().open("w") as file:
             file.write(yaml.dump(new_config.model_dump()))
+
+
+def set_nested(config: dict[str, Any], nested_key: str, value: Any) -> None:
+    """Set a value in a nested dict."""
+    current = config
+    *fields, last_field = nested_key.split(".")
+    # Traverse to the nested key
+    for field in fields:
+        if field not in current:
+            raise KeyError(f"Key {nested_key!r} not found in configuration.")
+        current = current[field]
+
+    # Update the value
+    current[last_field] = value
