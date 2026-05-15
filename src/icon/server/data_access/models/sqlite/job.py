@@ -135,8 +135,8 @@ class Job(Base):
 
 @sqlalchemy.event.listens_for(Job, "before_insert")
 def receive_before_insert(
-    mapper: sqlalchemy.orm.Mapper[Job],
-    connection: sqlalchemy.engine.Connection,
+    mapper: sqlalchemy.orm.Mapper[Job],  # noqa: ARG001
+    connection: sqlalchemy.engine.Connection,  # noqa: ARG001
     target: Job,
 ) -> None:
     """Prevent manually setting the 'created' field on insert."""

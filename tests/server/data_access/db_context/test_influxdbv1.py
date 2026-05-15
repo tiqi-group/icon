@@ -51,7 +51,7 @@ def influxdbv1_service() -> Iterable[None]:
         yield
 
 
-def test_InfluxDBv1Session(influxdbv1_service: None) -> None:  # noqa: N802
+def test_InfluxDBv1Session(influxdbv1_service: None) -> None:  # noqa: N802, ARG001
     test_value = 1337
 
     with InfluxDBv1Session() as session:

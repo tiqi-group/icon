@@ -24,7 +24,7 @@ class JSONEncodedList(sqlalchemy.TypeDecorator[Any]):
 
     cache_ok = True  # Cache optimization
 
-    def process_bind_param(self, value: Any, dialect: sqlalchemy.Dialect) -> str:
+    def process_bind_param(self, value: Any, dialect: sqlalchemy.Dialect) -> str:  # noqa: ARG002
         if value is None:
             value = []
         if not isinstance(value, list):
@@ -32,7 +32,9 @@ class JSONEncodedList(sqlalchemy.TypeDecorator[Any]):
         return json.dumps(value)
 
     def process_result_value(
-        self, value: Any, dialect: sqlalchemy.Dialect
+        self,
+        value: Any,
+        dialect: sqlalchemy.Dialect,  # noqa: ARG002
     ) -> list[str]:
         if value is None:
             return []
@@ -106,8 +108,8 @@ class ScanParameter(Base):
 
 @sqlalchemy.event.listens_for(ScanParameter, "before_insert")
 def receive_before_insert(
-    mapper: sqlalchemy.orm.Mapper[ScanParameter],
-    connection: sqlalchemy.engine.Connection,
+    mapper: sqlalchemy.orm.Mapper[ScanParameter],  # noqa: ARG001
+    connection: sqlalchemy.engine.Connection,  # noqa: ARG001
     target: ScanParameter,
 ) -> None:
     if target.realtime and target.variable_id != "Real Time":
