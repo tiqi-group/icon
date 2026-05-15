@@ -18,7 +18,6 @@ from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
     job_run_cancelled_or_failed,
 )
-from icon.server.hardware_processing.hardware_controller import HardwareController
 from icon.server.hardware_processing.utils import extract_hardware_error_message
 from icon.server.post_processing.task import PostProcessingTask
 
@@ -30,6 +29,7 @@ if TYPE_CHECKING:
     from icon.server.data_access.repositories.experiment_data_repository import (
         ExperimentDataPoint,
     )
+    from icon.server.hardware_processing.hardware_controller import HardwareController
     from icon.server.hardware_processing.task import HardwareProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
 
@@ -70,6 +70,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
         hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask],
         post_processing_queue: multiprocessing.Queue[PostProcessingTask],
         manager: SharedResourceManager,
+        hardware_controller: HardwareController,
     ) -> None:
         super().__init__()
         self._queue = hardware_processing_queue
@@ -77,7 +78,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self._manager = manager
         self._pydase_clients: dict[str, pydase.Client] = {}
 
-        self._hardware_controller = HardwareController()
+        self._hardware_controller = hardware_controller
 
     def _update_pydase_service_parameter(
         self, device: Device, access_path: str, new_value: DatabaseValueType
@@ -173,7 +174,9 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 self._set_pydase_service_values(scanned_params=task.scanned_params)
 
                 timestamp = datetime.now(timezone)
-                result = self._hardware_controller.run(sequence=task.sequence_json)
+                self._hardware_controller.send(data=task.sequence_json.encode("utf-8"))
+                self._hardware_controller.run()
+                result = self._hardware_controller.receive()
 
                 experiment_data_point: ExperimentDataPoint = {
                     "index": task.data_point_index,
