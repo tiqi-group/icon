@@ -65,7 +65,8 @@ def test_InfluxDBv1Session(influxdbv1_service: None) -> None:  # noqa: N802, ARG
         )
         result = session.query(measurement="Pytest", field="test")
 
-        assert result is not None and result["test"] == test_value
+        assert result is not None
+        assert result["test"] == test_value
 
         assert session.query_last(measurement="Pytest") == {
             "test": test_value,
