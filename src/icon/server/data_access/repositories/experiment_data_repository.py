@@ -344,7 +344,7 @@ class ExperimentDataRepository:
         repetitions: int,
         readout_metadata: ReadoutMetadata,
         local_parameter_timestamp: datetime | None = None,
-        parameters: list[ScanParameter] = [],
+        parameters: list[ScanParameter] | None = None,
     ) -> None:
         """Create or update HDF5 metadata for a job.
 
@@ -368,6 +368,8 @@ class ExperimentDataRepository:
             f"{get_config().data.results_dir}/.{filename}"
             f"{ExperimentDataRepository.LOCK_EXTENSION}"
         )
+        if parameters is None:
+            parameters = []
         with FileLock(lock_path), h5py.File(file, "a") as h5file:
             h5file.attrs["number_of_data_points"] = 0
             h5file.attrs["number_of_shots"] = number_of_shots
