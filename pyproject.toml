@@ -84,44 +84,54 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = [
-    "ASYNC", # flake8-async
-    "C4",    # flake8-comprehensions
-    "C901",  # mccabe complex-structure
-    "E",     # pycodestyle errors
-    "ERA",   # eradicate
-    "F",     # pyflakes
-    "FLY",   # flynt
-    "G",     # flake8-logging-format
-    "I",     # isort
-    "ICN",   # flake8-import-conventions
-    "INP",   # flake8-no-pep420
-    "ISC",   # flake8-implicit-str-concat
-    "N",     # pep8-naming
-    "NPY",   # NumPy-specific rules
-    "PERF",  # perflint
-    "PIE",   # flake8-pie
-    "PL",    # pylint
-    "PYI",   # flake8-pyi
-    "Q",     # flake8-quotes
-    "RET",   # flake8-return
-    "RUF",   # Ruff-specific rules
-    "SIM",   # flake8-simplify
-    "TID",   # flake8-tidy-imports
-    "TCH",   # flake8-type-checking
-    "UP",    # pyupgrade
-    "YTT",   # flake8-2020
-    "W",     # pycodestyle warnings
-]
+select = ["ALL"]
 ignore = [
+    "ANN",      # flake8-annotations (mypy's job)
+    "BLE001",   # blind-except
+    "COM812",   # missing-trailing-comma (conflicts with formatter)
+    "D105",     # undocumented-magic-method
+    "E501",     # line too long - formatters job
+    "EM101",    # raw-string-in-exception
+    "EM102",    # f-string-in-exception
+    "FIX",      # flake8-fixme (flake8-todos is enough)
+    "ISC001",   # single-line-implicit-string-concatenation (conflicts with formatter)
+    "PGH003",   # blanket-type-ignore
     "PLR0913",  # too-many-arguments
     "RUF006",   # asyncio-dangling-task
     "PERF203",  # try-except-in-loop
+    "PTH",      # pathlib
+    "S104",     # hardcoded-bind-all-interfaces
+    "S301",     # suspicious-pickle-usage
+    "S603",     # subprocess-without-shell-equals-true
+    "S605",     # start-process-with-a-shell
+    "S607",     # start-process-with-partial-pathh
+    "S608",     # hardcoded-sql-expression
+    "TRY003",   # raise-vanilla-args
+    # TODO:
+    "A001",     # builtin-variable-shadowing
+    "A002",     # builtin-argument-shadowing
+    "A003",     # builtin-attribute-shadowing
+    "D100",     # undocumented-public-module
+    "D101",     # undocumented-public-class
+    "D102",     # undocumented-public-method
+    "D103",     # undocumented-public-function
+    "D104",     # undocumented-public-package
+    "D107",     # undocumented-public-init
+    "SLF001",   # private-member-access
+    "TD002",    # missing-todo-author
+    "TD003",    # missing-todo-link
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101",     # assert
 ]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 7
 
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.mypy]
 exclude = ["templates/.*\\.py"]
