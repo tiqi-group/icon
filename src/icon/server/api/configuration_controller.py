@@ -10,7 +10,7 @@ from icon.config.config_path import get_config_path
 from icon.config.v2 import ServiceConfig
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(__name__)
 
 
 class ConfigurationController(pydase.DataService):
