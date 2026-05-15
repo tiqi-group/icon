@@ -14,8 +14,11 @@ databases:
 date:
   timezone: Europe/Zurich
 experiment_library:
-  dir: ../wiqr_experiment_library/
-  git_repository: https://gitlab.phys.ethz.ch/tiqi-projects/waveguides/wiqr_experiment_library.git
+  client_args:
+    checkout_path: ../wiqr_experiment_library/
+    repo: https://gitlab.phys.ethz.ch/tiqi-projects/waveguides/wiqr_experiment_library.git
+  client_class: AsyncPyCrystalClient
+  module: icon.server.data_access.pycrystal_experiment_library_client
   update_interval: 30
 hardware:
   host: localhost
@@ -27,4 +30,4 @@ server:
   port: 8004
   pre_processing:
     workers: 2
-version: 1
+version: 2
