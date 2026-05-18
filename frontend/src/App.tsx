@@ -1,6 +1,7 @@
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import ScienceIcon from "@mui/icons-material/Science";
 import TimelineIcon from "@mui/icons-material/Timeline";
+import ToggleOnIcon from "@mui/icons-material/ToggleOn";
 import { Outlet } from "react-router";
 import { ReactRouterAppProvider } from "@toolpad/core/react-router";
 import type { Navigation } from "@toolpad/core/AppProvider";
@@ -56,6 +57,11 @@ const NAVIGATION: Navigation = [
         <path d="M192.9 22.9c-3.1 3.1-3.9 4.6-3.9 7.55 0 15.35 21.1 19.1 25.05 4.4 3.5-13.1-11.55-21.6-21.15-11.95m12.25 4.75c2.25 2.05 2.4 5.65.3 7.8-2.15 2.1-5.05 1.95-7.45-.45-4.85-4.85 2.05-11.95 7.15-7.35"></path>
       </SvgIcon>
     ),
+  },
+  {
+    segment: "ttl",
+    title: "TTL",
+    icon: <ToggleOnIcon />,
   },
   {
     kind: "divider",

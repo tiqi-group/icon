@@ -34,6 +34,10 @@ class TTLMaskState(Base):
         default=lambda: datetime.datetime.now(timezone),
         onupdate=lambda: datetime.datetime.now(timezone),
     )
+    labels: sqlalchemy.orm.Mapped[str | None] = sqlalchemy.orm.mapped_column(
+        nullable=True, default=None
+    )
+    """JSON-encoded list of per-channel label strings, e.g. '["TTL 00", "397 0th", ...]'."""
 
     def __repr__(self) -> str:
         return (

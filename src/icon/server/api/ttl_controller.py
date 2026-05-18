@@ -128,6 +128,35 @@ class TTLController(pydase.DataService):
             high_mask, low_mask = self._repo.get_masks()
         return {"high_mask": high_mask, "low_mask": low_mask}
 
+    def get_labels(self) -> list[str]:
+        """Return per-channel labels; missing entries default to 'TTL XX'."""
+        return self._repo.get_labels(self._n_channels)
+
+    def set_label(self, channel: int, label: str) -> None:
+        """Persist a custom label for one channel and emit a ``ttl.label_update`` event.
+
+        Args:
+            channel: Channel index (0 to n_ttl_channels - 1).
+            label: New label string.
+
+        Raises:
+            ValueError: If channel is out of range.
+        """
+        if not (0 <= channel < self._n_channels):
+            raise ValueError(
+                f"Channel {channel} out of range [0, {self._n_channels - 1}]"
+            )
+        labels = self._repo.get_labels(self._n_channels)
+        labels[channel] = label
+        self._repo.save_labels(labels)
+        emit_queue.put(
+            {
+                "event": "ttl.label_update",
+                "data": {"channel": channel, "label": label},
+            }
+        )
+        logger.info("TTL channel %d label set to %r", channel, label)
+
     async def restore_masks(self) -> None:
         """Write the last persisted masks back to the hardware.
 
