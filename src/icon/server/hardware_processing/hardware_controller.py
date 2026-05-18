@@ -69,3 +69,29 @@ class HardwareController:
             else {},
             "shot_channels": results.shot_channels,
         }
+
+    def get_ttl_masks(self) -> tuple[int, int]:
+        """Return (high_mask, low_mask) from the hardware via the ttlMasks RPC call."""
+        if not self.connected:
+            self.connect()
+        if not self.connected:
+            if HAS_TIQI_ZEDBOARD:
+                raise RuntimeError("Could not connect to the Zedboard")
+            raise RuntimeError(
+                "Tiqi zedboard package is not available. "
+                "Please use 'uv sync --all-extras' to install all dependencies"
+            )
+        return self._zedboard._invoke("ttlMasks")  # type: ignore[union-attr]
+
+    def set_ttl_masks(self, high_mask: int, low_mask: int) -> None:
+        """Write (high_mask, low_mask) to the hardware via the setTTLMasks RPC call."""
+        if not self.connected:
+            self.connect()
+        if not self.connected:
+            if HAS_TIQI_ZEDBOARD:
+                raise RuntimeError("Could not connect to the Zedboard")
+            raise RuntimeError(
+                "Tiqi zedboard package is not available. "
+                "Please use 'uv sync --all-extras' to install all dependencies"
+            )
+        self._zedboard._invoke("setTTLMasks", high_mask, low_mask)  # type: ignore[union-attr]

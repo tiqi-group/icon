@@ -18,6 +18,7 @@ from icon.server.api.parameters_controller import ParametersController
 from icon.server.api.scans_controller import ScansController
 from icon.server.api.scheduler_controller import SchedulerController
 from icon.server.api.status_controller import StatusController
+from icon.server.api.ttl_controller import TTLController
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
 )
@@ -83,6 +84,8 @@ class APIService(pydase.DataService):
         processes."""
         self.status = StatusController()
         """Controller for system status monitoring."""
+        self.ttl = TTLController()
+        """Controller for hardware TTL channel state."""
         self._experiment_library_client = experiment_library_client
 
     @task(autostart=True)
