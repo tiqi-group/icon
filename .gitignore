@@ -1,5 +1,6 @@
 emulator/
 output/
+tests/config.local.yaml
 poetry.lock
 .python-version
 

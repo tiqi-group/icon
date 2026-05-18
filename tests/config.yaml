@@ -11,6 +11,8 @@ databases:
     ssl: false
     username: tester
     verify_ssl: false
+  sqlite:
+    file: /tmp/icon.db
 date:
   timezone: Europe/Zurich
 experiment_library:
@@ -22,6 +24,7 @@ experiment_library:
   update_interval: 30
 hardware:
   host: localhost
+  n_ttl_channels: 32
   port: 6098
 health_check:
   interval_seconds: 5.0
