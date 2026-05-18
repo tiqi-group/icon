@@ -3,7 +3,6 @@ import pytest
 from icon.config.config_path import set_config_path
 from icon.server.api.configuration_controller import ConfigurationController
 
-
 def pytest_configure(config):
     """Initialize test database before tests are run."""
 

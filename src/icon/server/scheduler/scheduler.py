@@ -42,9 +42,6 @@ def initialise_job_tables() -> None:
         JobRepository.update_job_status(job=job, status=JobStatus.PROCESSED)
 
 
-def should_exit() -> bool:
-    return False
-
 
 class Scheduler(multiprocessing.Process):
     def __init__(
@@ -55,10 +52,14 @@ class Scheduler(multiprocessing.Process):
         super().__init__()
         self.kwargs = kwargs
         self._pre_processing_queue = pre_processing_queue
+        self.exit_now = multiprocessing.Event()
+
+    def stop(self) -> None:
+        self.exit_now.set()
 
     def run(self) -> None:
         initialise_job_tables()
-        while not should_exit():
+        while not self.exit_now.is_set():
             try:
                 jobs = JobRepository.get_jobs_by_status_and_timeframe(
                     status=JobStatus.SUBMITTED
