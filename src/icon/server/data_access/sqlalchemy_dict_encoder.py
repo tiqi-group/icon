@@ -15,7 +15,6 @@ class SQLAlchemyDictEncoder:
     @classmethod
     def encode(cls, obj: Any) -> Any:
         """Encodes SQLAlchemy ORM objects and other types into a dictionary format."""
-
         if isinstance(obj, sqlalchemy.orm.DeclarativeBase):
             # Get the instance dictionary without triggering lazy loads
             data = instance_dict(obj)

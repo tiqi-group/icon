@@ -3,10 +3,9 @@ import numpy as np
 
 
 def get_hdf5_dtype(
-    value: str | float | bool,
+    value: str | float | bool,  # noqa: FBT001
 ) -> type[np.float64 | np.bool | np.int64] | h5py.Datatype:
     """Return the HDF5-compatible dtype."""
-
     if isinstance(value, str):
         return h5py.string_dtype()
     if isinstance(value, bool):

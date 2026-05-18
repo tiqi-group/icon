@@ -30,7 +30,6 @@ class ExperimentsController(pydase.DataService):
         Returns:
             Mapping of experiment IDs to their metadata.
         """
-
         return self._experiments
 
     def get_metadata(self, experiment_id: str) -> ExperimentMetadata:
@@ -47,7 +46,6 @@ class ExperimentsController(pydase.DataService):
         Args:
             new_experiments: Latest experiment metadata.
         """
-
         logger.debug("Updating experiment metadata...")
 
         added_exps, removes_exps, updated_exps = get_added_removed_and_updated_keys(

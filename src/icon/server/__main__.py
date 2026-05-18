@@ -121,9 +121,8 @@ def start_server() -> None:
     show_default=True,
     help="Path to the configuration file.",
 )
-def main(version: bool, verbose: int, quiet: int, config: pathlib.Path) -> None:
-    """Start the ICON server"""
-
+def main(*, version: bool, verbose: int, quiet: int, config: pathlib.Path) -> None:
+    """Start the ICON server."""
     if version:
         from importlib.metadata import distribution
 

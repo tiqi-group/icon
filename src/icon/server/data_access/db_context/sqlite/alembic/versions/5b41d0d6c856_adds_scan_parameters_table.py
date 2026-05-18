@@ -1,4 +1,4 @@
-"""Adds scan_parameters table
+"""Adds scan_parameters table.
 
 Revision ID: 5b41d0d6c856
 Revises: 089abe6a0eed

@@ -77,7 +77,6 @@ def setup_logging(log_level: int) -> None:
         - Each '-v' flag decreases the threshold (e.g., WARNING → INFO → DEBUG).
         - Each '-q' flag increases the threshold (e.g., WARNING → ERROR → CRITICAL).
     """
-
     LOGGING_CONFIG["loggers"]["icon"]["level"] = log_level
     LOGGING_CONFIG["loggers"]["pydase"]["level"] = log_level
     LOGGING_CONFIG["loggers"]["alembic"]["level"] = log_level

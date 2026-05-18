@@ -32,10 +32,7 @@ timezone = pytz.timezone(get_config().date.timezone)
 
 
 class IconSerializer(pydase.utils.serialization.serializer.Serializer):
-    """
-    This serializer adds serialization of pydantic models to the
-    `pydase.utils.serialization.serializer.Serializer`.
-    """
+    """Serialization of pydantic models to the `pydase.utils.serialization.serializer.Serializer`."""
 
     @classmethod
     def serialize_object(cls, obj: Any, access_path: str = "") -> SerializedIconObject:  # type: ignore[override] # noqa: C901

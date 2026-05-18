@@ -77,7 +77,6 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
         By default isolation is not implemented and only a reference to
         the original library is returned.
         """
-
         self.reload()
         return self.client.isolated()
 
@@ -104,6 +103,7 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
+            n_shots: Number of shots.
 
         Returns:
             JSON string containing the generated sequence.

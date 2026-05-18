@@ -1,4 +1,4 @@
-"""Changes ExperimentSource table
+"""Changes ExperimentSource table.
 
 Revision ID: 089abe6a0eed
 Revises: 4c4713742c14
