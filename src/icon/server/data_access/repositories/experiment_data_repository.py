@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypedDict, cast
 
 import h5py  # type: ignore
+from filelock import FileLock
 import numpy as np
 import numpy.typing as npt
 
@@ -345,6 +346,8 @@ class ExperimentDataRepository:
     Manages HDF5 file creation and updates (metadata, results, parameters), with
     hdf5-level locking to support concurrent writers.
     """
+
+    LOCK_EXTENSION = ".lock"
 
     @staticmethod
     def update_metadata_by_job_id(  # noqa: PLR0913
@@ -722,8 +725,6 @@ class ExperimentDataRepository:
                     for key, value in cast(
                         "Sequence[tuple[str, h5py.Dataset]]",
                         shot_channels_group.items(),
-                        "Sequence[tuple[str, h5py.Dataset]]",
-                        shot_channels_group.items(),
                     )
                 }
 
@@ -742,8 +743,6 @@ class ExperimentDataRepository:
                         )
                     }
                     for channel_name, vector_group in cast(
-                        "Sequence[tuple[str, h5py.Group]]",
-                        vector_channels_group.items(),
                         "Sequence[tuple[str, h5py.Group]]",
                         vector_channels_group.items(),
                     )
