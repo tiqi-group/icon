@@ -132,10 +132,10 @@ class ParametersController(pydase.DataService):
         the shared resource manager, and marks the `ParametersRepository` as
         initialized.
         """
-        icon.server.shared_resource_manager.parameters_dict.update(
+        icon.server.shared_resource_manager.SRM.parameters_dict.update(
             ParametersRepository.get_influxdb_parameters()
         )
         ParametersRepository.initialize(
-            shared_parameters=icon.server.shared_resource_manager.parameters_dict
+            shared_parameters=icon.server.shared_resource_manager.SRM.parameters_dict
         )
         logger.info("ParametersRepository successfully initialised.")
