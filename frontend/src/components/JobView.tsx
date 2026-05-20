@@ -49,7 +49,7 @@ export const JobView = ({
 
   const jobInfo = useJobInfo(jobId);
   const jobRunInfo = useJobRunInfo(jobId);
-  const { experimentData, experimentDataError, loading } = useExperimentData(jobId);
+  const { experimentData, experimentDataError, loading, latestShotData, resultBounds } = useExperimentData(jobId);
   const is1D = jobInfo?.scan_parameters.length === 1;
   const is2D = (jobInfo?.scan_parameters.length ?? 0) >= 2;
 
@@ -58,16 +58,15 @@ export const JobView = ({
   const [yMax, setYMax] = useState<number | null>(null);
 
   const autoYBounds = useMemo(() => {
+    if (windowSize === null) {
+      if (!Number.isFinite(resultBounds.min)) return { min: 0, max: 0 };
+      return resultBounds;
+    }
     if (!experimentData?.result_channels) return { min: 0, max: 0 };
-
     let min = Infinity;
     let max = -Infinity;
-
     for (const channelData of Object.values(experimentData.result_channels)) {
-      let values = Object.values(channelData) as number[];
-      if (windowSize != null && values.length > windowSize) {
-        values = values.slice(-windowSize);
-      }
+      const values = (Object.values(channelData) as number[]).slice(-windowSize);
       for (const v of values) {
         if (Number.isFinite(v)) {
           if (v < min) min = v;
@@ -75,16 +74,11 @@ export const JobView = ({
         }
       }
     }
-
     if (!Number.isFinite(min)) return { min: 0, max: 0 };
     return { min, max };
-  }, [experimentData, windowSize]);
+  }, [experimentData.result_channels, windowSize, resultBounds]);
 
-  const dataLength = useMemo(() => {
-    if (!experimentData?.result_channels) return 0;
-    const firstChannel = Object.values(experimentData.result_channels)[0];
-    return firstChannel ? Object.values(firstChannel).length : 0;
-  }, [experimentData]);
+  const dataLength = experimentData.total_data_points;
 
   const loadedDataPoints = Object.keys(
     Object.values(experimentData.result_channels)[0] ?? {},
@@ -399,7 +393,7 @@ export const JobView = ({
                 </div>
                 {expandedShotChannels[win.name] !== false && (
                   <HistogramPlot
-                    experimentData={experimentData}
+                    latestShotData={latestShotData}
                     channelNames={win.channel_names}
                     loading={loading}
                     title={win.name}

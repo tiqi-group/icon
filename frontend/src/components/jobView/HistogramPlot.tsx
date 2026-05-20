@@ -1,13 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
 import type { ECharts } from "echarts/core";
 import { ReactECharts } from "../ReactEcharts";
-import { ExperimentData } from "../../types/ExperimentData";
 import type { EChartsOption } from "echarts/types/dist/shared";
 import { copyEChartsToClipboard } from "../../utils/copyEChartsToClipboard";
 import { useNotifications } from "@toolpad/core";
 
 interface HistogramPlotProps {
-  experimentData: ExperimentData;
+  latestShotData: Record<string, number[]>;
   channelNames: string[];
   title: string;
   subtitle: string;
@@ -15,7 +14,7 @@ interface HistogramPlotProps {
 }
 
 export const HistogramPlot = ({
-  experimentData,
+  latestShotData,
   title,
   subtitle,
   loading,
@@ -25,14 +24,11 @@ export const HistogramPlot = ({
   const notifications = useNotifications();
 
   const option = useMemo<EChartsOption | undefined>(() => {
-    const sc = experimentData?.shot_channels ?? {};
     const latestPerChannel: Record<string, number[]> = {};
 
-    for (const [channelName, groups] of Object.entries(sc)) {
-      if (!groups || !channelNames.includes(channelName)) continue;
-      const keys = Object.keys(groups).map(Number);
-      const latestKey = String(Math.max(...keys));
-      latestPerChannel[channelName] = groups[latestKey];
+    for (const [channelName, arr] of Object.entries(latestShotData)) {
+      if (!arr || !channelNames.includes(channelName)) continue;
+      latestPerChannel[channelName] = arr;
     }
 
     const allArrays = Object.values(latestPerChannel);
@@ -120,7 +116,7 @@ export const HistogramPlot = ({
         large: true,
       })),
     };
-  }, [title, subtitle, experimentData.shot_channels, channelNames]);
+  }, [title, subtitle, latestShotData, channelNames]);
 
   const empty = !option;
 
