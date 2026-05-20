@@ -298,7 +298,7 @@ def write_shot_channels_to_datasets(
         shot_dataset = shot_group.require_dataset(
             key,
             shape=(number_of_data_points, number_of_shots),
-            maxshape=(None, number_of_shots),
+            maxshape=(None, None),
             chunks=True,
             dtype=np.float64,
             compression="gzip",
@@ -307,7 +307,13 @@ def write_shot_channels_to_datasets(
 
         if data_point_index >= number_of_data_points:
             resize_dataset(shot_dataset, next_index=data_point_index, axis=0)
-        shot_dataset[data_point_index] = value
+
+        actual_shots = len(value)
+        if actual_shots > shot_dataset.shape[1]:
+            resize_dataset(shot_dataset, next_index=actual_shots - 1, axis=1)
+        padded = np.full(shot_dataset.shape[1], np.nan)
+        padded[:actual_shots] = value
+        shot_dataset[data_point_index] = padded
 
 
 def write_vector_channels_to_datasets(

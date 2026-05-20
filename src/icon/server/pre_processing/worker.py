@@ -417,7 +417,7 @@ class PreProcessingWorker(multiprocessing.Process):
         for combination in enumerate(scan_parameter_value_combinations):
             self._data_points_to_process.put(combination)
 
-        while self._processed_data_points.qsize() != len(
+        while self._processed_data_points.qsize() < len(
             scan_parameter_value_combinations
         ):
             self._handle_parameter_updates(pre_processing_task, namespace)
@@ -427,9 +427,16 @@ class PreProcessingWorker(multiprocessing.Process):
             try:
                 index, data_point = self._data_points_to_process.get(block=False)
             except queue.Empty:
+                # Waiting phase: all tasks have been submitted but some may still
+                # be processing.  Any task that the hw worker marked as "outdated"
+                # (task.created < parameter_update_timestamp) ends up in
+                # _outdated_tasks instead of _processed_data_points.  We must
+                # regenerate those here; otherwise processed_data_points.qsize()
+                # never reaches N and this loop never exits.
                 time.sleep(1.0)
                 if job_run_cancelled_or_failed(job_id=pre_processing_task.job.id):
                     break
+                self._regenerate_outdated_jobs(client, namespace)
                 continue
             finally:
                 should_exit = job_run_cancelled_or_failed(
