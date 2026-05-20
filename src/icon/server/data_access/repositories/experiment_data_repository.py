@@ -3,17 +3,12 @@ import logging
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
-import os
-import time
-from collections.abc import Iterator
-from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypedDict, cast
 
 import h5py  # type: ignore
-from filelock import FileLock
 import numpy as np
 import numpy.typing as npt
 
@@ -862,13 +857,8 @@ def write_fit_result_by_job_id(
         job_id: Job identifier.
         fit_result: The fit result to persist.
     """
-    filename = get_filename_by_job_id(job_id)
-    file = f"{get_config().data.results_dir}/{filename}"
-    lock_path = (
-        f"{get_config().data.results_dir}/.{filename}"
-        f"{ExperimentDataRepository.LOCK_EXTENSION}"
-    )
-    with FileLock(lock_path), h5py.File(file, "a") as h5file:
+    h5_path = Path(get_config().data.results_dir) / get_filename_by_job_id(job_id)
+    with h5_open(h5_path, "a") as h5file:
         fits_group = h5file.require_group("fits")
         channel = fit_result.result_channel
         if channel in fits_group:
@@ -886,16 +876,11 @@ def get_fit_results_by_job_id(*, job_id: int) -> dict[str, dict[str, object]]:
     Returns:
         Dict mapping result channel names to their fit result dicts.
     """
-    filename = get_filename_by_job_id(job_id)
-    file = f"{get_config().data.results_dir}/{filename}"
-    if not os.path.exists(file):
+    h5_path = Path(get_config().data.results_dir) / get_filename_by_job_id(job_id)
+    if not h5_path.exists():
         return {}
 
-    lock_path = (
-        f"{get_config().data.results_dir}/.{filename}"
-        f"{ExperimentDataRepository.LOCK_EXTENSION}"
-    )
-    with FileLock(lock_path), h5py.File(file, "r") as h5file:
+    with h5_open(h5_path, "r") as h5file:
         return _read_fits_from_hdf5(h5file)
 
 
@@ -906,12 +891,7 @@ def delete_fit_result_by_job_id(*, job_id: int, result_channel: str) -> None:
         job_id: Job identifier.
         result_channel: Name of the result channel whose fit to delete.
     """
-    filename = get_filename_by_job_id(job_id)
-    file = f"{get_config().data.results_dir}/{filename}"
-    lock_path = (
-        f"{get_config().data.results_dir}/.{filename}"
-        f"{ExperimentDataRepository.LOCK_EXTENSION}"
-    )
-    with FileLock(lock_path), h5py.File(file, "a") as h5file:
+    h5_path = Path(get_config().data.results_dir) / get_filename_by_job_id(job_id)
+    with h5_open(h5_path, "a") as h5file:
         if "fits" in h5file and result_channel in h5file["fits"]:
             del h5file["fits"][result_channel]
