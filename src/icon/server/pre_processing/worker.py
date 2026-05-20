@@ -403,6 +403,11 @@ class PreProcessingWorker(multiprocessing.Process):
         scan_parameter_value_combinations = get_scan_combinations(
             pre_processing_task.job
         )
+        if not scan_parameter_value_combinations:
+            raise ValueError(
+                "No scan combinations to process: check that 'repetitions' >= 1 "
+                "and all scan parameters have at least one scan value."
+            )
         for combination in enumerate(scan_parameter_value_combinations):
             self._data_points_to_process.put(combination)
 
@@ -418,10 +423,12 @@ class PreProcessingWorker(multiprocessing.Process):
             except queue.Empty:
                 time.sleep(0.001)
                 continue
+            finally:
+                should_exit = job_run_cancelled_or_failed(
+                    job_id=pre_processing_task.job.id
+                )
 
-            if job_run_cancelled_or_failed(
-                job_id=pre_processing_task.job.id,
-            ):
+            if should_exit:
                 break
 
             yield
