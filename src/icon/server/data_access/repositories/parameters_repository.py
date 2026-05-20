@@ -35,7 +35,6 @@ def get_specifiers_from_parameter_identifier(
     Returns:
         Mapping of specifier keys to values.
     """
-
     pattern = re.compile(r"(\w+)='([^']*)'")
     matches = pattern.findall(parameter_identifier)
 
@@ -62,14 +61,12 @@ class ParametersRepository:
         Args:
             shared_parameters: Proxy dictionary used to store shared state.
         """
-
         cls._shared_parameters = shared_parameters
         cls.initialised = True
 
     @classmethod
     def _check_initialised(cls) -> None:
         """Raise if repository is not initialized."""
-
         if not cls.initialised:
             raise NotInitialisedError("ParametersRepository is not initialised.")
 
@@ -84,7 +81,6 @@ class ParametersRepository:
         Args:
             parameter_mapping: Mapping of parameter IDs to values.
         """
-
         for key, value in parameter_mapping.items():
             if (
                 isinstance(value, int)
@@ -107,7 +103,6 @@ class ParametersRepository:
         Args:
             parameter_mapping: Mapping of parameter IDs to values.
         """
-
         for key, value in parameter_mapping.items():
             cls._update_shared_parameter_by_id(parameter_id=key, new_value=value)
 
@@ -124,7 +119,6 @@ class ParametersRepository:
             parameter_id: ID of the parameter.
             new_value: New value to assign.
         """
-
         cls._check_initialised()
 
         cls._shared_parameters[parameter_id] = new_value
@@ -150,7 +144,6 @@ class ParametersRepository:
         Returns:
             The parameter value, or None if not set.
         """
-
         cls._check_initialised()
 
         return cls._shared_parameters.get(parameter_id, None)
@@ -162,7 +155,6 @@ class ParametersRepository:
         Returns:
             Proxy dictionary of parameters.
         """
-
         cls._check_initialised()
 
         return cls._shared_parameters
@@ -170,7 +162,6 @@ class ParametersRepository:
     @staticmethod
     def get_influxdb_parameter_keys() -> list[str]:
         """Return all parameter field keys from InfluxDB v1."""
-
         with InfluxDBv1Session() as influxdbv1:
             return influxdbv1.get_field_keys(
                 get_config().databases.influxdbv1.measurement
@@ -189,7 +180,6 @@ class ParametersRepository:
         Returns:
             Mapping of parameter IDs to values.
         """
-
         with InfluxDBv1Session() as influxdbv1:
             return influxdbv1.query_last(
                 get_config().databases.influxdbv1.measurement,
@@ -207,7 +197,6 @@ class ParametersRepository:
         Returns:
             The parameter value, or None if not found.
         """
-
         with InfluxDBv1Session() as influxdb:
             result_dict = influxdb.query(
                 measurement=get_config().databases.influxdbv1.measurement,
@@ -231,7 +220,6 @@ class ParametersRepository:
         Args:
             parameter_mapping: Mapping of parameter IDs to values.
         """
-
         records: list[dict[str, Any]] = []
 
         for parameter_id, value in parameter_mapping.items():

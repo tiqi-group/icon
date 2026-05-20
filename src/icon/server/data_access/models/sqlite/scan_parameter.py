@@ -24,15 +24,17 @@ class JSONEncodedList(sqlalchemy.TypeDecorator[Any]):
 
     cache_ok = True  # Cache optimization
 
-    def process_bind_param(self, value: Any, dialect: sqlalchemy.Dialect) -> str:
+    def process_bind_param(self, value: Any, dialect: sqlalchemy.Dialect) -> str:  # noqa: ARG002
         if value is None:
             value = []
         if not isinstance(value, list):
-            raise ValueError("Value must be a list.")
+            raise TypeError("Value must be a list.")
         return json.dumps(value)
 
     def process_result_value(
-        self, value: Any, dialect: sqlalchemy.Dialect
+        self,
+        value: Any,
+        dialect: sqlalchemy.Dialect,  # noqa: ARG002
     ) -> list[str]:
         if value is None:
             return []
@@ -97,7 +99,6 @@ class ScanParameter(Base):
             `"Device(<device_name>) <variable_id>"` if a device is associated, otherwise
                 just `<variable_id>`.
         """
-
         return (
             f"Device({self.device.name}) {self.variable_id}"
             if self.device is not None
@@ -107,8 +108,8 @@ class ScanParameter(Base):
 
 @sqlalchemy.event.listens_for(ScanParameter, "before_insert")
 def receive_before_insert(
-    mapper: sqlalchemy.orm.Mapper[ScanParameter],
-    connection: sqlalchemy.engine.Connection,
+    mapper: sqlalchemy.orm.Mapper[ScanParameter],  # noqa: ARG001
+    connection: sqlalchemy.engine.Connection,  # noqa: ARG001
     target: ScanParameter,
 ) -> None:
     if target.realtime and target.variable_id != "Real Time":

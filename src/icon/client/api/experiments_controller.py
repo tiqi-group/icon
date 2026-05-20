@@ -13,6 +13,7 @@ import pandas as pd
 
 from icon.client.api.helpers.notebook import in_notebook
 from icon.server.api.models.experiment_dict import ExperimentMetadata
+from icon.server.data_access.models.sqlite.job import timezone
 
 if TYPE_CHECKING:
     from icon.client.client import Client
@@ -37,8 +38,7 @@ class ScanParameter(TypedDict):
 
 
 def get_experiment_identifier_dict(experiments: list[str]) -> dict[str, str]:
-    """
-    Processes a list of experiment strings to create a dictionary of unique identifiers.
+    """Processes a list of experiment strings to create a dictionary of unique identifiers.
 
     The keys are unique identifiers:
     - If the instance name (within brackets) is unique, it is used as the key.
@@ -413,6 +413,7 @@ class ExperimentProxy:
 
     def schedule(
         self,
+        *,
         scan_parameters: list[ScanParameter] = [],
         priority: int = 20,
         repetitions: int = 1,
@@ -421,8 +422,7 @@ class ExperimentProxy:
         git_commit_hash: str | None = None,
         auto_calibration: bool = False,
     ) -> ExperimentJobProxy:
-        """
-        Schedule an experiment scan.
+        """Schedule an experiment scan.
 
         Args:
             scan_parameters:
@@ -453,8 +453,7 @@ class ExperimentProxy:
             ExperimentJobProxy: Proxy object for the scheduled experiment job.
         """
         if local_parameters_timestamp is None:
-            local_parameters_timestamp = datetime.now()
-
+            local_parameters_timestamp = datetime.now(tz=timezone)
         job_id: int = self._client.trigger_method(
             "scheduler.submit_job",
             kwargs={
@@ -510,4 +509,4 @@ class ExperimentsController:
                 self._client, experiment_id, self._experiments[experiment_id]
             )
 
-        raise Exception(f"There is no experiment with id {key}")
+        raise KeyError(f"There is no experiment with id {key}")

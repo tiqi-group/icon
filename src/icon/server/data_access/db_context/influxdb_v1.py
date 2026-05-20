@@ -44,7 +44,7 @@ def is_responsive() -> bool:
     )
 
     try:
-        response = requests.get(url, params=params)
+        response = requests.get(url, params=params, timeout=1)
     except Exception:
         return False
     return (
@@ -54,9 +54,9 @@ def is_responsive() -> bool:
 
 
 class InfluxDBv1Session:
-    """
-    The `InfluxDBv1Session` class serves as a context manager for a connection
-    to an InfluxDBv1 server. This connection is established using credentials loaded
+    """The `InfluxDBv1Session` class serves as a context manager for a connection to an InfluxDBv1 server.
+
+    This connection is established using credentials loaded
     through the ICON configuration file.
 
     Example:
@@ -105,13 +105,10 @@ class InfluxDBv1Session:
 
     def disconnect(self) -> None:
         """Close the active connection to the InfluxDB server."""
-
         self._client.close()
 
     def connect(self) -> None:
-        """Establish a new connection to the InfluxDB server using provided
-        credentials."""
-
+        """Establish a new connection to the InfluxDB server using provided credentials."""
         self._client = influxdb.InfluxDBClient(
             host=self._host,
             port=self._port,
@@ -122,7 +119,7 @@ class InfluxDBv1Session:
             verify_ssl=self._verify_ssl,
         )
 
-    def write_points(  # noqa: PLR0913
+    def write_points(
         self,
         points: list[dict[str, Any]],
         time_precision: Literal["s", "m", "ms", "u"] | None = None,
@@ -174,7 +171,6 @@ class InfluxDBv1Session:
             ...     client.write_points(points=points)
             ```
         """
-
         return self._client.write_points(
             points=points,
             time_precision=time_precision,
@@ -198,7 +194,6 @@ class InfluxDBv1Session:
         Returns:
             A dictionary containing the latest field value.
         """
-
         stmt = (
             f'SELECT "{escape_quotes(field)}" FROM '
             f'"{escape_quotes(measurement)!s}" ORDER BY time DESC LIMIT 1'
@@ -219,12 +214,11 @@ class InfluxDBv1Session:
         Args:
             measurement: Name of the measurement to query.
             namespace: Optional tag filter.
-            timestamp: Optional upper bound on the time.
+            before: Optional upper bound on the time.
 
         Returns:
             Dictionary of field names to their latest values.
         """
-
         clauses = []
         if namespace is not None:
             clauses.append(f"\"namespace\" = '{escape_quotes(namespace)}'")
@@ -248,7 +242,6 @@ class InfluxDBv1Session:
 
     def get_field_keys(self, measurement: str) -> list[str]:
         """Return list of field names from a measurement."""
-
         stmt = f'SHOW FIELD KEYS FROM "{escape_quotes(measurement)}"'
         result = list(self._client.query(stmt).get_points())  # type: ignore
         return [row["fieldKey"] for row in result]

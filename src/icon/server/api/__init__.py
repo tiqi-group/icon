@@ -1,5 +1,4 @@
-"""This module defines the API layer of ICON, implemented as a
-[`pydase.DataService`][pydase.DataService].
+"""This module defines the API layer of ICON, implemented as a [`pydase.DataService`][pydase.DataService].
 
 The main entry point is the [`APIService`][icon.server.api.api_service.APIService],
 which is exposed by the [`IconServer`][icon.server.web_server.icon_server.IconServer].

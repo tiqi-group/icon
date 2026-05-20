@@ -84,7 +84,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         }
 
     @parameter_metadata.setter
-    def parameter_metadata(self, value: "ParameterMetadataDict") -> None:
+    def parameter_metadata(self, value: "ParameterMetadataDict") -> None:  # noqa: ARG002
         raise RuntimeError("Read only attribute")
 
     @property
@@ -92,7 +92,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         return collect_experiment_metadata(self.experiment_library_module)
 
     @experiment_metadata.setter
-    def experiment_metadata(self, value: "ExperimentDict") -> None:
+    def experiment_metadata(self, value: "ExperimentDict") -> None:  # noqa: ARG002
         raise RuntimeError("Read only attribute")
 
     @staticmethod
@@ -109,6 +109,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
+            n_shots: Number of shots.
 
         Returns:
             JSON string containing the generated sequence.

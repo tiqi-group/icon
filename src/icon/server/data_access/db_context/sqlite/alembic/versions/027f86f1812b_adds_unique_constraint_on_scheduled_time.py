@@ -1,4 +1,4 @@
-"""Adds unique constraint on scheduled_time
+"""Adds unique constraint on scheduled_time.
 
 Revision ID: 027f86f1812b
 Revises: 35d235813b7a

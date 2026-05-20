@@ -1,6 +1,2 @@
 def in_notebook() -> bool:
-    try:
-        __IPYTHON__
-        return True
-    except NameError:
-        return False
+    return "__IPYTHON__" in globals()

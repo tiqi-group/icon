@@ -61,9 +61,10 @@ class ParamUpdateMode(str, Enum):
 
 
 def change_process_priority(priority: int) -> None:
-    """Changes process priority. Only superusers can decrease the niceness of a
-    process."""
+    """Changes process priority.
 
+    Only superusers can decrease the niceness of a process.
+    """
     if os.getuid() == 0:
         p = psutil.Process(os.getpid())
 
@@ -71,8 +72,9 @@ def change_process_priority(priority: int) -> None:
 
 
 def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
-    """Generates all combinations of scan parameters for a given job. Repeats each
-    combination `job.repetitions` times.
+    """Generates all combinations of scan parameters for a given job.
+
+    Repeats each combination `job.repetitions` times.
 
     Args:
         job:
@@ -82,7 +84,6 @@ def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
         A list of dictionaries, where each dictionary represents a combination of
         parameter values.
     """
-
     # Extract variable IDs and their scan values from the job's scan parameters
     parameter_values = {
         scan_param.unique_id(): scan_param.scan_values
@@ -94,19 +95,20 @@ def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
         return [{}] * job.repetitions
 
     # Generate combinations using itertools.product
-    keys, values = zip(*parameter_values.items())
+    keys, values = zip(*parameter_values.items(), strict=True)
 
     combinations = itertools.product(*values)
 
     # Map each combination back to variable IDs
     return [
-        dict(zip(keys, combination)) for combination in combinations
+        dict(zip(keys, combination, strict=True)) for combination in combinations
     ] * job.repetitions
 
 
 def parse_experiment_identifier(identifier: str) -> tuple[str, str, str]:
-    """
-    Parses an experiment identifier and returns:
+    """Parses an experiment identifier.
+
+    Returns:
     - the module path (e.g. 'experiment_library.experiments.exp_name')
     - the experiment class name (e.g. 'ClassName')
     - the experiment instance name (e.g. 'Instance name')
@@ -115,7 +117,6 @@ def parse_experiment_identifier(identifier: str) -> tuple[str, str, str]:
         "experiment_library.experiments.exp_name.ClassName (Instance name)"
         -> ("experiment_library.experiments.exp_name", "ClassName", "Instance name")
     """
-
     match = re.match(r"^(.*)\.([^. ]+) \(([^)]+)\)$", identifier)
     if match:
         return match.group(1), match.group(2), match.group(3)
@@ -133,7 +134,9 @@ class ExperimentIdentifier:
 
     @classmethod
     def from_str(cls, identifier_str: str) -> Self:
-        """Parses an experiment identifier and returns:
+        """Parses an experiment identifier.
+
+        Returns:
         - the module path (e.g. 'experiment_library.experiments.exp_name')
         - the experiment class name (e.g. 'ClassName')
         - the experiment instance name (e.g. 'Instance name')
@@ -154,7 +157,7 @@ class ExperimentIdentifier:
 
 
 class PreProcessingWorker(multiprocessing.Process):
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         worker_number: int,
         pre_processing_queue: queue.PriorityQueue[PreProcessingTask],
@@ -219,9 +222,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     )
                 except Exception as e:
                     logger.exception(
-                        "JobRun with id '%s' failed with error: %s",
-                        pre_processing_task.job_run.id,
-                        e,
+                        "JobRun with id '%s' failed", pre_processing_task.job_run.id
                     )
 
                     if (
@@ -310,6 +311,8 @@ class PreProcessingWorker(multiprocessing.Process):
         """Update self._parameter_dict according to the requested mode.
 
         Args:
+            pre_processing_task: Preprocessing task
+            namespace: Namespace required to identify the parameter
             new_parameters: Dictionary containing parameter IDs and corresponding
                 values. If set to None, the whole parameter dict will be updated with
                 values from the database. Defaults to None.
@@ -320,7 +323,6 @@ class PreProcessingWorker(multiprocessing.Process):
                     globals latest (default)
                   4) ONLY_NEW_PARAMETERS: only merge `new_parameters`, no DB queries
         """
-
         self._global_parameter_timestamp = datetime.now(timezone)
 
         JobRunRepository.set_parameter_update_timestamp(
@@ -407,6 +409,11 @@ class PreProcessingWorker(multiprocessing.Process):
         scan_parameter_value_combinations = get_scan_combinations(
             pre_processing_task.job
         )
+        if not scan_parameter_value_combinations:
+            raise ValueError(
+                "No scan combinations to process: check that 'repetitions' >= 1 "
+                "and all scan parameters have at least one scan value."
+            )
         for combination in enumerate(scan_parameter_value_combinations):
             self._data_points_to_process.put(combination)
 
@@ -424,10 +431,12 @@ class PreProcessingWorker(multiprocessing.Process):
                 if job_run_cancelled_or_failed(job_id=pre_processing_task.job.id):
                     break
                 continue
+            finally:
+                should_exit = job_run_cancelled_or_failed(
+                    job_id=pre_processing_task.job.id
+                )
 
-            if job_run_cancelled_or_failed(
-                job_id=pre_processing_task.job.id,
-            ):
+            if should_exit:
                 break
 
             yield

@@ -104,8 +104,10 @@ class Client(pydase.Client):
         *,
         url: str,
         block_until_connected: bool = True,
-        sio_client_kwargs: dict[str, Any] = {},
+        sio_client_kwargs: dict[str, Any] | None = None,
     ):
+        if sio_client_kwargs is None:
+            sio_client_kwargs = {}
         super().__init__(
             url=url,
             block_until_connected=block_until_connected,
@@ -114,7 +116,6 @@ class Client(pydase.Client):
         del self.proxy
 
         self._experiment_job_data: dict[int, pd.DataFrame] = {}
-        # self.scheduler = SchedulerController(self)
         self.experiments = ExperimentsController(self)
         self.parameters = ParametersController(self)
 
@@ -168,13 +169,13 @@ class Client(pydase.Client):
         self,
         full_access_path: str,
         *,
-        args: list[Any] = [],
-        kwargs: dict[str, Any] = {},
+        args: list[Any] | None = None,
+        kwargs: dict[str, Any] | None = None,
     ) -> Any:
         return trigger_method(
             sio_client=self._sio,
             loop=self._loop,
             access_path=full_access_path,
-            args=args,
-            kwargs=kwargs,
+            args=args or [],
+            kwargs=kwargs or {},
         )

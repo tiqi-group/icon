@@ -1,3 +1,4 @@
+import importlib
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
@@ -5,7 +6,6 @@ import pydantic
 import pydase
 import pydase.components
 import pydase.utils.serialization.deserializer
-from pydase.utils.serialization.types import SerializedObject
 
 from icon.serialization.types import (
     SerializedIconObject,
@@ -15,14 +15,13 @@ from icon.serialization.types import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from pydase.utils.serialization.types import SerializedObject
+
 logger = logging.getLogger(__name__)
 
 
 class IconDeserializer(pydase.utils.serialization.deserializer.Deserializer):
-    """
-    This deserializer adds deserialization of pydantic models to the
-    `pydase.utils.serialization.deserializer.Deserializer`.
-    """
+    """Deserialization of pydantic models to the `pydase.utils.serialization.deserializer.Deserializer`."""
 
     @classmethod
     def deserialize(cls, serialized_object: SerializedIconObject) -> Any:
@@ -55,7 +54,7 @@ class IconDeserializer(pydase.utils.serialization.deserializer.Deserializer):
         service_base_class = cls.get_service_base_class(serialized_object["type"])
         if service_base_class:
             return cls.deserialize_data_service(
-                cast(SerializedObject, serialized_object), service_base_class
+                cast("SerializedObject", serialized_object), service_base_class
             )
 
         return None
@@ -65,8 +64,6 @@ class IconDeserializer(pydase.utils.serialization.deserializer.Deserializer):
         cls, serialized_object: SerializedPydanticModel
     ) -> pydantic.BaseModel:
         def get_model_from_module(module: str, model_name: str) -> pydantic.BaseModel:
-            import importlib
-
             return getattr(importlib.import_module(module), model_name)
 
         class_module, class_name = serialized_object["name"].rsplit(".", 1)

@@ -73,7 +73,6 @@ class JobRepository:
         Returns:
             The newly created job.
         """
-
         with sqlalchemy.orm.Session(engine) as session:
             job = session.execute(
                 sqlalchemy.select(Job).where(Job.id == job_id)
@@ -120,7 +119,6 @@ class JobRepository:
         Returns:
             The updated job with relationships loaded.
         """
-
         with sqlalchemy.orm.Session(engine) as session:
             session.execute(update(Job).where(Job.id == job.id).values(status=status))
             session.commit()
@@ -170,7 +168,6 @@ class JobRepository:
         Returns:
             Matching jobs ordered by priority then creation time.
         """
-
         with sqlalchemy.orm.Session(engine) as session:
             stmt = (
                 select(Job)
@@ -206,7 +203,6 @@ class JobRepository:
         Returns:
             The requested job.
         """
-
         with sqlalchemy.orm.Session(engine) as session:
             stmt = select(Job).where(Job.id == job_id)
 
@@ -232,7 +228,6 @@ class JobRepository:
         Returns:
             Rows containing `Job` objects, ordered by priority then creation time.
         """
-
         with sqlalchemy.orm.Session(engine) as session:
             stmt = select(Job).where(Job.experiment_source_id == experiment_source_id)
 

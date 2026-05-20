@@ -24,7 +24,7 @@ class InfluxDBv1Config(BaseModel):
     host: str = "localhost"
     port: int = 8087
     username: str = "admin"
-    password: str = "admin"
+    password: str = "admin"  # noqa: S105
     database: str = "testing"
     measurement: str = "Experiment Parameters"
     ssl: bool = False

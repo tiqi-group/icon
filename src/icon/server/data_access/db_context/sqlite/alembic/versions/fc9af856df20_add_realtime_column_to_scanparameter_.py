@@ -1,4 +1,4 @@
-"""Add realtime column to ScanParameter model
+"""Add realtime column to ScanParameter model.
 
 Revision ID: fc9af856df20
 Revises: 2bc7556020cf

@@ -16,10 +16,10 @@ class MockExperimentLibraryClient:
     def generate_json_sequence(
         self,
         *,
-        exp_module_name: str,
-        exp_instance_name: str,
-        parameter_dict: "dict[str, DatabaseValueType]",
-        n_shots: int,
+        exp_module_name: str,  # noqa: ARG002
+        exp_instance_name: str,  # noqa: ARG002
+        parameter_dict: "dict[str, DatabaseValueType]",  # noqa: ARG002
+        n_shots: int,  # noqa: ARG002
     ) -> str:
         """Generate a JSON sequence for an experiment.
 
@@ -27,6 +27,7 @@ class MockExperimentLibraryClient:
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
+            n_shots: Number of shots.
 
         Returns:
             JSON string containing the generated sequence.
@@ -36,9 +37,9 @@ class MockExperimentLibraryClient:
     def get_experiment_readout_metadata(
         self,
         *,
-        exp_module_name: str,
-        exp_instance_name: str,
-        parameter_dict: "dict[str, DatabaseValueType]",
+        exp_module_name: str,  # noqa: ARG002
+        exp_instance_name: str,  # noqa: ARG002
+        parameter_dict: "dict[str, DatabaseValueType]",  # noqa: ARG002
     ) -> "ReadoutMetadata":
         """Fetch readout metadata for an experiment.
 

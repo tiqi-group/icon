@@ -88,12 +88,13 @@ class APIService(pydase.DataService):
         pre_processing_event_queues: list[multiprocessing.Queue[UpdateQueue]],
         experiment_library_client: ExperimentLibraryClient,
     ) -> None:
-        """
-        Args:
-            pre_processing_event_queues: Queues used by `ScansController` to notify
-                pre-processing workers.
-        """
+        """Create a new APIService.
 
+        Args:
+        pre_processing_event_queues: Queues used by `ScansController` to notify
+            pre-processing workers.
+        experiment_library_client: Client for an experiment library
+        """
         super().__init__()
 
         self.devices = DevicesController()
@@ -162,10 +163,7 @@ class APIService(pydase.DataService):
 
     @task(autostart=True)
     async def _initialise_parameters_repository_task(self) -> None:
-        """Periodically attempts to initialise the ParametersRepository until
-        successful.
-        """
-
+        """Periodically attempts to initialise the ParametersRepository until successful."""
         while not ParametersRepository.initialised:
             try:
                 self.parameters.initialise_parameters_repository()

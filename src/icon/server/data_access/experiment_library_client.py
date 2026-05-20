@@ -28,7 +28,7 @@ ParameterMetadataDict = TypedDict(
 class ExperimentLibraryClient:
     """Abstract experiment library client."""
 
-    def checkout_revision(self, revision: str | None) -> str | None:
+    def checkout_revision(self, revision: str | None) -> str | None:  # noqa: ARG002
         """Restore a state of the library defined by `revision`.
 
         Return a string representing the state of the checked out library.
@@ -43,7 +43,6 @@ class ExperimentLibraryClient:
         By default isolation is not implemented and only a reference to
         the original library is returned.
         """
-
         return nullcontext(self)
 
     async def load_metadata(self) -> "tuple[ExperimentDict, ParameterMetadataDict]":
@@ -68,6 +67,7 @@ class ExperimentLibraryClient:
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
+            n_shots: Number of shots
 
         Returns:
             JSON string containing the generated sequence.
@@ -108,10 +108,10 @@ class FallbackExperimentLibraryClient(ExperimentLibraryClient):
     async def generate_json_sequence(
         self,
         *,
-        exp_module_name: str,
-        exp_instance_name: str,
-        parameter_dict: "dict[str, DatabaseValueType]",
-        n_shots: int,
+        exp_module_name: str,  # noqa: ARG002
+        exp_instance_name: str,  # noqa: ARG002
+        parameter_dict: "dict[str, DatabaseValueType]",  # noqa: ARG002
+        n_shots: int,  # noqa: ARG002
     ) -> str:
         """Generate a JSON sequence for an experiment.
 
@@ -119,6 +119,7 @@ class FallbackExperimentLibraryClient(ExperimentLibraryClient):
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
+            n_shots: Number of shots.
 
         Returns:
             JSON string containing the generated sequence.
@@ -128,9 +129,9 @@ class FallbackExperimentLibraryClient(ExperimentLibraryClient):
     async def get_experiment_readout_metadata(
         self,
         *,
-        exp_module_name: str,
-        exp_instance_name: str,
-        parameter_dict: "dict[str, DatabaseValueType]",
+        exp_module_name: str,  # noqa: ARG002
+        exp_instance_name: str,  # noqa: ARG002
+        parameter_dict: "dict[str, DatabaseValueType]",  # noqa: ARG002
     ) -> "ReadoutMetadata":
         """Fetch readout metadata for an experiment.
 

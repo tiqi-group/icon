@@ -1,4 +1,4 @@
-"""Removes priority column from job iteration table
+"""Removes priority column from job iteration table.
 
 Revision ID: 8640dcfde6f0
 Revises: f5fd45fdded6

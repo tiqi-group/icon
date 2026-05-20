@@ -1,5 +1,8 @@
 import json
 import logging
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 import os
 import time
 from collections.abc import Iterator
@@ -142,7 +145,6 @@ def get_filename_by_job_id(job_id: int) -> str:
     Returns:
         Filename derived from the job's scheduled time (e.g., "<iso>.h5").
     """
-
     scheduled_time = JobRunRepository.get_scheduled_time_by_job_id(job_id=job_id)
     return f"{scheduled_time}.h5"
 
@@ -155,7 +157,6 @@ def resize_dataset(dataset: h5py.Dataset, next_index: int, axis: int) -> None:
         next_index: Index that must be writable.
         axis: Axis along which to grow.
     """
-
     dataset.resize(next_index + 1, axis)
 
 
@@ -171,7 +172,6 @@ def write_sequence_json_to_dataset(
         data_point_index: Index of the current data point.
         sequence_json: Serialized sequence JSON to append.
     """
-
     sequence_json_dtype = [
         ("index", np.int32),
         ("Sequence", h5py.string_dtype()),
@@ -216,7 +216,6 @@ def write_scan_parameters_and_timestamp_to_dataset(
         timestamp: Acquisition timestamp (ISO string).
         number_of_data_points: Current total number of stored data points.
     """
-
     scan_parameter_dtype = [
         ("timestamp", "S26"),  # timestamps are strings of length 26
         *[(key, np.float64) for key in scan_params],
@@ -255,7 +254,6 @@ def write_results_to_dataset(
         result_channels: Mapping of channel name to float value.
         number_of_data_points: Current total number of stored data points.
     """
-
     if not result_channels:
         return
 
@@ -295,7 +293,6 @@ def write_shot_channels_to_datasets(
         number_of_data_points: Current total number of stored data points.
         number_of_shots: Expected number of shots per channel.
     """
-
     shot_group = h5file.require_group("shot_channels")
     for key, value in shot_channels.items():
         shot_dataset = shot_group.require_dataset(
@@ -327,7 +324,6 @@ def write_vector_channels_to_datasets(
         data_point_index: Index of the current data point.
         vector_channels: Mapping of channel to vector of floats.
     """
-
     vector_group = h5file.require_group("vector_channels")
     for channel_name, vector in vector_channels.items():
         channel_group = vector_group.require_group(channel_name)
@@ -347,17 +343,15 @@ class ExperimentDataRepository:
     hdf5-level locking to support concurrent writers.
     """
 
-    LOCK_EXTENSION = ".lock"
-
     @staticmethod
-    def update_metadata_by_job_id(  # noqa: PLR0913
+    def update_metadata_by_job_id(
         *,
         job_id: int,
         number_of_shots: int,
         repetitions: int,
         readout_metadata: ReadoutMetadata,
         local_parameter_timestamp: datetime | None = None,
-        parameters: list[ScanParameter] = [],
+        parameters: list[ScanParameter] | None = None,
     ) -> None:
         """Create or update HDF5 metadata for a job.
 
@@ -372,7 +366,6 @@ class ExperimentDataRepository:
             local_parameter_timestamp: Optional timestamp for local parameters.
             parameters: Scan parameters.
         """
-
         filename = get_filename_by_job_id(job_id)
         h5_path = Path(get_config().data.results_dir) / filename
 
@@ -460,7 +453,6 @@ class ExperimentDataRepository:
             job_id: Job identifier.
             data_point: Data point payload to append.
         """
-
         filename = get_filename_by_job_id(job_id)
         h5_path = Path(get_config().data.results_dir) / filename
 
@@ -469,10 +461,10 @@ class ExperimentDataRepository:
                 number_of_shots: int = h5file.attrs["number_of_shots"]
                 number_of_data_points: int = h5file.attrs["number_of_data_points"]
             except KeyError:
-                raise Exception(
+                raise KeyError(
                     "Metadata does not contain relevant information. Please use "
                     "ExperimentDataRepository.update_metadata_by_job_id first!"
-                )
+                ) from None
 
             write_scan_parameters_and_timestamp_to_dataset(
                 h5file=h5file,
@@ -538,7 +530,6 @@ class ExperimentDataRepository:
             timestamp: ISO timestamp string.
             parameter_values: Mapping of parameter id to value.
         """
-
         filename = get_filename_by_job_id(job_id)
         h5_path = Path(get_config().data.results_dir) / filename
         parameter_updates = {}
@@ -588,7 +579,7 @@ class ExperimentDataRepository:
         )
 
     @staticmethod
-    def get_experiment_data_by_job_id(
+    def get_experiment_data_by_job_id(  # noqa: C901
         *,
         job_id: int,
         max_transfer_bytes: int = 50_000_000,
@@ -608,7 +599,6 @@ class ExperimentDataRepository:
         Returns:
             Experiment data payload suitable for the API.
         """
-
         data = ExperimentData(
             plot_windows={
                 "result_channels": [],
@@ -629,7 +619,7 @@ class ExperimentDataRepository:
         filename = get_filename_by_job_id(job_id)
         h5_path = Path(get_config().data.results_dir) / filename
 
-        if not os.path.exists(h5_path):
+        if not Path(h5_path).exists():
             logger.warning("The file %s does not exist.", h5_path)
             return data
 
@@ -729,11 +719,12 @@ class ExperimentDataRepository:
                 }
 
             if vector_channels_group is not None:
-                plot_metadata = vector_channels_group.attrs.get("Plot window metadata","[]")
-                if plot_metadata:
-                    data.plot_windows["vector_channels"] = json.loads(
-                        cast("str", plot_metadata)
-                    )
+                plot_metadata = vector_channels_group.attrs.get(
+                    "Plot window metadata", "[]"
+                )
+                data.plot_windows["vector_channels"] = json.loads(
+                    cast("str", plot_metadata)
+                )
                 data.vector_channels = {
                     channel_name: {
                         int(data_point): vector_dataset[:].tolist()

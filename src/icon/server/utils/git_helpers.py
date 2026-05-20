@@ -9,8 +9,7 @@ class RepositoryError(Exception):
 
 
 def convert_https_git_url_to_ssh(https_url: str) -> str:
-    """
-    Convert a Git repository URL from HTTPS to SSH format.
+    """Convert a Git repository URL from HTTPS to SSH format.
 
     Args:
         https_url (str): The HTTPS URL of the Git repository.
@@ -18,7 +17,6 @@ def convert_https_git_url_to_ssh(https_url: str) -> str:
     Returns:
         str: The SSH URL of the Git repository.
     """
-
     if https_url.startswith("git@"):
         return https_url
 
@@ -35,8 +33,7 @@ def convert_https_git_url_to_ssh(https_url: str) -> str:
 
 
 def convert_ssh_git_url_to_https(ssh_url: str) -> str:
-    """
-    Convert a Git repository URL from SSH to HTTPS format.
+    """Convert a Git repository URL from SSH to HTTPS format.
 
     Args:
         ssh_url (str): The SSH URL of the Git repository.
@@ -44,7 +41,6 @@ def convert_ssh_git_url_to_https(ssh_url: str) -> str:
     Returns:
         str: The HTTPS URL of the Git repository.
     """
-
     if ssh_url.startswith("https://"):
         return ssh_url
 
@@ -68,7 +64,7 @@ def git_fetch_all(cwd: str) -> None:
         )
         logger.info("Fetched updates for '%s'", cwd)
     except subprocess.CalledProcessError:
-        raise RepositoryError(f"Failed to fetch updates for {cwd!r}.")
+        raise RepositoryError(f"Failed to fetch updates for {cwd!r}.") from None
 
 
 def git_clone(repository: str, dir: str) -> None:
@@ -80,7 +76,9 @@ def git_clone(repository: str, dir: str) -> None:
         )
         logger.info("Repository '%s' successfully cloned to '%s'.", repository, dir)
     except subprocess.CalledProcessError as e:
-        raise RepositoryError(f"Failed to clone repository: {e}: {e.stderr.decode()}")
+        raise RepositoryError(
+            f"Failed to clone repository: {e}: {e.stderr.decode()}"
+        ) from None
 
 
 def git_checkout(git_hash: str, cwd: str) -> None:
@@ -94,7 +92,7 @@ def git_checkout(git_hash: str, cwd: str) -> None:
         )
         logger.info("Checked out commit '%s' in '%s'", git_hash, cwd)
     except subprocess.CalledProcessError:
-        raise RepositoryError(f"Failed to check out commit {git_hash!r}.")
+        raise RepositoryError(f"Failed to check out commit {git_hash!r}.") from None
 
 
 def git_get_remote_url(repository_dir: str) -> str:
@@ -109,7 +107,9 @@ def git_get_remote_url(repository_dir: str) -> str:
         )
         return completed_process.stdout.strip()
     except subprocess.CalledProcessError:
-        raise RepositoryError(f"{repository_dir!r} does not contain a git repo.")
+        raise RepositoryError(
+            f"{repository_dir!r} does not contain a git repo."
+        ) from None
 
 
 def checkout_commit(git_hash: str | None, cwd: str) -> None:

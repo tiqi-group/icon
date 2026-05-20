@@ -3,7 +3,6 @@
 import asyncio
 import json
 import logging
-import multiprocessing
 import os
 import pickle
 import sys
@@ -60,11 +59,13 @@ class VirtualEnvironment:
             except asyncio.TimeoutError:
                 proc.kill()
                 await proc.communicate()
-                raise RuntimeError("Venv subprocess timed out after 60 s")
+                raise RuntimeError("Venv subprocess timed out after 60 s") from None
 
             if logger is not None:
-                logger.warning(stdout.decode())
-                logger.error(stderr.decode())
+                if stdout:
+                    logger.warning(stdout.decode())
+                if stderr:
+                    logger.error(stderr.decode())
 
             if proc.returncode != 0:
                 raise RuntimeError(

@@ -15,7 +15,6 @@ from icon.server.web_server.socketio_emit_queue import emit_queue
 
 def is_scannable_parameter(serialized_object: SerializedObject) -> bool:
     """Is this serialized object scannable through icon?"""
-
     return serialized_object["type"] in ("float", "int", "Quantity")
 
 
@@ -23,7 +22,6 @@ def get_scannable_params_list(
     serialized_object: SerializedObject, prefix: str = ""
 ) -> list[str]:
     """Get a list of full access paths of scannable parameters."""
-
     scannable_params: list[str] = []
     for path in get_data_paths_from_serialized_object(serialized_object):
         nested_dict = get_nested_dict_by_path(
@@ -49,7 +47,6 @@ def get_device_name(full_access_path: str) -> str | None:
         My device name
         ```
     """
-
     match = re.match(r'devices\.device_proxies\["([^"]+)"\]', full_access_path)
     if match is None:
         return None

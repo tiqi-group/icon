@@ -58,7 +58,6 @@ def parse_parameter_id(param_id: str) -> tuple[str | None, str]:
         >>> parse_parameter_id("bare_param")
         (None, 'bare_param')
     """
-
     match = re.match(r"^Device\(([^)]+)\) (.*)$", param_id)
     if match:
         return match[1], match[2]
@@ -86,10 +85,10 @@ class HardwareProcessingWorker(multiprocessing.Process):
         client = self._pydase_clients[device.name]
         try:
             client.update_value(access_path=access_path, new_value=new_value)
-        except socketio.exceptions.BadNamespaceError:
+        except socketio.exceptions.BadNamespaceError as e:
             raise RuntimeError(
                 f"Failed to connect to device {device.name!r} as {device.url!r}."
-            )
+            ) from e
 
         for attempt in range(1, device.retry_attempts + 1):
             value_on_device = client.get_value(access_path=access_path)
@@ -174,10 +173,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 self._set_pydase_service_values(scanned_params=task.scanned_params)
 
                 timestamp = datetime.now(timezone)
-                result = self._hardware_controller.run(
-                    sequence=task.sequence_json,
-                    number_of_shots=task.pre_processing_task.job.number_of_shots,
-                )
+                result = self._hardware_controller.run(sequence=task.sequence_json)
 
                 experiment_data_point: ExperimentDataPoint = {
                     "index": task.data_point_index,
@@ -199,7 +195,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
 
                 self._post_processing_queue.put(post_processing_task)
             except Exception as e:
-                logger.exception(e)
+                logger.exception("pydase error")
                 JobRunRepository.update_run_by_id(
                     run_id=task.pre_processing_task.job_run.id,
                     status=JobRunStatus.FAILED,
