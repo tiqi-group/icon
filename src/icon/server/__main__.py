@@ -63,9 +63,7 @@ def start_server() -> None:
 
     SRM.start_srm()
 
-    scheduler = Scheduler(
-        pre_processing_queue=SRM.pre_processing_queue
-    )
+    scheduler = Scheduler(pre_processing_queue=SRM.pre_processing_queue)
     scheduler.start()
     config = get_config()
 

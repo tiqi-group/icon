@@ -35,11 +35,13 @@ class SharedResourceManager(SyncManager):
         self.start(initializer=self.initializer)
 
         self.pre_processing_queue = self.PriorityQueue()
-        self.hardware_processing_queue = self.PriorityQueue(maxsize=HARDWARE_PROCESSING_QUEUE_MAX_SIZE)
+        self.hardware_processing_queue = self.PriorityQueue(
+            maxsize=HARDWARE_PROCESSING_QUEUE_MAX_SIZE
+        )
         self.parameters_dict = self.dict()
-
 
     def initializer(self) -> None:
         logger.info("Shared resource manager started")
+
 
 SRM = SharedResourceManager()
