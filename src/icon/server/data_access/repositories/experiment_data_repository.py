@@ -20,6 +20,7 @@ from icon.server.data_access.models.sqlite.scan_parameter import (
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
+from icon.server.fitting.fit_runner import FitResult
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 if TYPE_CHECKING:
@@ -126,6 +127,8 @@ class ExperimentData:
     """Mapping of parameter id to time series (tuple of timestamp str and value)."""
     total_data_points: int
     """Total number of data points in the HDF5 file (before truncation)."""
+    fits: dict[str, dict[str, object]]
+    """Fit results keyed by result channel name."""
 
 
 def get_filename_by_job_id(job_id: int) -> str:
@@ -290,7 +293,7 @@ def write_shot_channels_to_datasets(
         shot_dataset = shot_group.require_dataset(
             key,
             shape=(number_of_data_points, number_of_shots),
-            maxshape=(None, number_of_shots),
+            maxshape=(None, None),
             chunks=True,
             dtype=np.float64,
             compression="gzip",
@@ -299,7 +302,13 @@ def write_shot_channels_to_datasets(
 
         if data_point_index >= number_of_data_points:
             resize_dataset(shot_dataset, next_index=data_point_index, axis=0)
-        shot_dataset[data_point_index] = value
+
+        actual_shots = len(value)
+        if actual_shots > shot_dataset.shape[1]:
+            resize_dataset(shot_dataset, next_index=actual_shots - 1, axis=1)
+        padded = np.full(shot_dataset.shape[1], np.nan)
+        padded[:actual_shots] = value
+        shot_dataset[data_point_index] = padded
 
 
 def write_vector_channels_to_datasets(
@@ -605,6 +614,7 @@ class ExperimentDataRepository:
             realtime_scan=False,
             parameters={},
             total_data_points=0,
+            fits={},
         )
 
         filename = get_filename_by_job_id(job_id)
@@ -720,7 +730,8 @@ class ExperimentDataRepository:
                     channel_name: {
                         int(data_point): vector_dataset[:].tolist()
                         for data_point, vector_dataset in cast(
-                            "Sequence[tuple[str, h5py.Dataset]]", vector_group.items()
+                            "Sequence[tuple[str, h5py.Dataset]]",
+                            vector_group.items(),
                         )
                     }
                     for channel_name, vector_group in cast(
@@ -740,6 +751,7 @@ class ExperimentDataRepository:
                 for entry in sequence_json_dataset
             ]
             data.parameters = extract_parameter_values(h5file)
+            data.fits = _read_fits_from_hdf5(h5file)
         return data
 
 
@@ -769,9 +781,10 @@ def extract_parameter_values(
 
 
 def get_hdf5_dtype(
-    value: str | float | bool,  # noqa: FBT001
+    value: str | float | bool,
 ) -> type[np.float64 | np.bool | np.int64] | h5py.Datatype:
     """Return the HDF5-compatible dtype."""
+
     if isinstance(value, str):
         return h5py.string_dtype()
     if isinstance(value, bool):
@@ -813,3 +826,72 @@ def h5_open(path: Path, mode: str, **kwargs: Any) -> Iterator[h5py.File]:
             break
         except (OSError, FileNotFoundError):
             time.sleep(POLL_INTERVAL)
+
+
+def _read_fits_from_hdf5(
+    h5file: h5py.File,
+) -> dict[str, dict[str, object]]:
+    """Read all fit results from an HDF5 file."""
+    if "fits" not in h5file:
+        return {}
+
+    fits: dict[str, dict[str, object]] = {}
+    fits_group = cast("h5py.Group", h5file["fits"])
+    for channel_name in fits_group:
+        channel_group = cast("h5py.Group", fits_group[channel_name])
+        fit_data = json.loads(cast("str", channel_group.attrs["fit_result"]))
+        fits[channel_name] = fit_data
+    return fits
+
+
+def write_fit_result_by_job_id(
+    *,
+    job_id: int,
+    fit_result: FitResult,
+) -> None:
+    """Write a fit result into the HDF5 file for a job.
+
+    Creates or overwrites the ``fits/<result_channel>`` group.
+
+    Args:
+        job_id: Job identifier.
+        fit_result: The fit result to persist.
+    """
+    h5_path = Path(get_config().data.results_dir) / get_filename_by_job_id(job_id)
+    with h5_open(h5_path, "a") as h5file:
+        fits_group = h5file.require_group("fits")
+        channel = fit_result.result_channel
+        if channel in fits_group:
+            del fits_group[channel]
+        grp = fits_group.create_group(channel)
+        grp.attrs["fit_result"] = json.dumps(asdict(fit_result))
+
+
+def get_fit_results_by_job_id(*, job_id: int) -> dict[str, dict[str, object]]:
+    """Read all fit results for a job from its HDF5 file.
+
+    Args:
+        job_id: Job identifier.
+
+    Returns:
+        Dict mapping result channel names to their fit result dicts.
+    """
+    h5_path = Path(get_config().data.results_dir) / get_filename_by_job_id(job_id)
+    if not h5_path.exists():
+        return {}
+
+    with h5_open(h5_path, "r") as h5file:
+        return _read_fits_from_hdf5(h5file)
+
+
+def delete_fit_result_by_job_id(*, job_id: int, result_channel: str) -> None:
+    """Delete a fit result for a specific channel from the HDF5 file.
+
+    Args:
+        job_id: Job identifier.
+        result_channel: Name of the result channel whose fit to delete.
+    """
+    h5_path = Path(get_config().data.results_dir) / get_filename_by_job_id(job_id)
+    with h5_open(h5_path, "a") as h5file:
+        if "fits" in h5file and result_channel in h5file["fits"]:
+            del h5file["fits"][result_channel]

@@ -33,6 +33,7 @@ from icon.server.data_access.repositories.job_run_repository import (
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
 )
+from icon.server.fitting.auto_fit import try_auto_fit
 from icon.server.hardware_processing.task import HardwareProcessingTask
 
 if TYPE_CHECKING:
@@ -91,7 +92,7 @@ def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
     }
 
     if not parameter_values:
-        return []
+        return [{}] * job.repetitions
 
     # Generate combinations using itertools.product
     keys, values = zip(*parameter_values.items(), strict=True)
@@ -214,6 +215,11 @@ class PreProcessingWorker(multiprocessing.Process):
                             run_id=pre_processing_task.job_run.id,
                             status=JobRunStatus.DONE,
                         )
+
+                    try_auto_fit(
+                        job_id=pre_processing_task.job.id,
+                        experiment_source_id=pre_processing_task.job.experiment_source_id,
+                    )
                 except Exception as e:
                     logger.exception(
                         "JobRun with id '%s' failed", pre_processing_task.job_run.id
@@ -411,7 +417,7 @@ class PreProcessingWorker(multiprocessing.Process):
         for combination in enumerate(scan_parameter_value_combinations):
             self._data_points_to_process.put(combination)
 
-        while self._processed_data_points.qsize() != len(
+        while self._processed_data_points.qsize() < len(
             scan_parameter_value_combinations
         ):
             self._handle_parameter_updates(pre_processing_task, namespace)
@@ -421,7 +427,16 @@ class PreProcessingWorker(multiprocessing.Process):
             try:
                 index, data_point = self._data_points_to_process.get(block=False)
             except queue.Empty:
-                time.sleep(0.001)
+                # Waiting phase: all tasks have been submitted but some may still
+                # be processing.  Any task that the hw worker marked as "outdated"
+                # (task.created < parameter_update_timestamp) ends up in
+                # _outdated_tasks instead of _processed_data_points.  We must
+                # regenerate those here; otherwise processed_data_points.qsize()
+                # never reaches N and this loop never exits.
+                time.sleep(1.0)
+                if job_run_cancelled_or_failed(job_id=pre_processing_task.job.id):
+                    break
+                self._regenerate_outdated_jobs(client, namespace)
                 continue
             finally:
                 should_exit = job_run_cancelled_or_failed(
@@ -480,6 +495,7 @@ class PreProcessingWorker(multiprocessing.Process):
                 parameter_dict={**self._parameter_dict, **task.scanned_params},
                 namespace=namespace,
             )
+            task.created = datetime.now(timezone)
             self._submit_task_to_hw_worker(task=task)
 
     def _handle_realtime_scan(

@@ -9,6 +9,7 @@ import ParameterPage from "./pages/parameters";
 import { DataPage } from "./pages/data";
 import DevicesPage from "./pages/devices";
 import { SettingsPage } from "./pages/settings";
+import TTLPage from "./pages/ttl";
 import JobViewerLayout from "./layouts/job-viewer";
 import { JobViewerPage } from "./pages/job-viewer";
 
@@ -39,6 +40,10 @@ const router = createBrowserRouter([
           {
             path: "devices",
             Component: DevicesPage,
+          },
+          {
+            path: "ttl",
+            Component: TTLPage,
           },
           {
             path: "settings",

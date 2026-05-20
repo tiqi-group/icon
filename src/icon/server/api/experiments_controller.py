@@ -54,9 +54,4 @@ class ExperimentsController(pydase.DataService):
         self._experiments = new_experiments
 
         if added_exps or removes_exps or updated_exps:
-            emit_queue.put(
-                {
-                    "event": "experiments.update",
-                    "data": new_experiments,
-                }
-            )
+            emit_queue.put({"event": "experiments.update", "data": None})

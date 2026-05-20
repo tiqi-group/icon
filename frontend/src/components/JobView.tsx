@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
@@ -27,6 +27,7 @@ import { deserialize } from "../utils/deserializer";
 import { updateJobParams } from "../utils/updateJobParams";
 import { cancelJob } from "../utils/cancelJob";
 import HistogramPlot from "./jobView/HistogramPlot";
+import FitPanel from "./jobView/FitPanel";
 
 function getPlotTitle(scheduledTime?: string, experimentName?: string): string {
   if (!scheduledTime) return experimentName || "";
@@ -37,16 +38,18 @@ function getPlotTitle(scheduledTime?: string, experimentName?: string): string {
 export const JobView = ({
   jobId,
   onLoaded,
+  showFitPanel = false,
 }: {
   jobId: string | undefined;
   onLoaded?: () => void;
+  showFitPanel?: boolean;
 }) => {
   const [experimentMetadata, setExperimentMetadata] =
     useState<ExperimentMetadata | null>(null);
 
   const jobInfo = useJobInfo(jobId);
   const jobRunInfo = useJobRunInfo(jobId);
-  const { experimentData, experimentDataError, loading } = useExperimentData(jobId);
+  const { experimentData, experimentDataError, loading, latestShotData, resultBounds } = useExperimentData(jobId);
   const is1D = jobInfo?.scan_parameters.length === 1;
   const is2D = (jobInfo?.scan_parameters.length ?? 0) >= 2;
 
@@ -55,16 +58,15 @@ export const JobView = ({
   const [yMax, setYMax] = useState<number | null>(null);
 
   const autoYBounds = useMemo(() => {
+    if (windowSize === null) {
+      if (!Number.isFinite(resultBounds.min)) return { min: 0, max: 0 };
+      return resultBounds;
+    }
     if (!experimentData?.result_channels) return { min: 0, max: 0 };
-
     let min = Infinity;
     let max = -Infinity;
-
     for (const channelData of Object.values(experimentData.result_channels)) {
-      let values = Object.values(channelData) as number[];
-      if (windowSize != null && values.length > windowSize) {
-        values = values.slice(-windowSize);
-      }
+      const values = (Object.values(channelData) as number[]).slice(-windowSize);
       for (const v of values) {
         if (Number.isFinite(v)) {
           if (v < min) min = v;
@@ -72,16 +74,11 @@ export const JobView = ({
         }
       }
     }
-
     if (!Number.isFinite(min)) return { min: 0, max: 0 };
     return { min, max };
-  }, [experimentData, windowSize]);
+  }, [experimentData.result_channels, windowSize, resultBounds]);
 
-  const dataLength = useMemo(() => {
-    if (!experimentData?.result_channels) return 0;
-    const firstChannel = Object.values(experimentData.result_channels)[0];
-    return firstChannel ? Object.values(firstChannel).length : 0;
-  }, [experimentData]);
+  const dataLength = experimentData.total_data_points;
 
   const loadedDataPoints = Object.keys(
     Object.values(experimentData.result_channels)[0] ?? {},
@@ -89,6 +86,12 @@ export const JobView = ({
   const isTruncated =
     experimentData.total_data_points > 0 &&
     loadedDataPoints < experimentData.total_data_points;
+
+  const [clickedX, setClickedX] = useState<number | null>(null);
+  const handleChartClick = useCallback((x: number) => setClickedX(x), []);
+
+  // Reset clicked position when switching jobs
+  useEffect(() => setClickedX(null), [jobId]);
 
   const [showRepetitions, setShowRepetitions] = useState<boolean>(() => {
     const v = localStorage.getItem("showRepetitions");
@@ -206,10 +209,10 @@ export const JobView = ({
                 <JobStatusIndicator status={jobRunInfo?.status} log={jobRunInfo?.log} />
                 <Typography variant="h6">
                   {jobId}
-                  {experimentMetadata?.constructor_kwargs.name && (
+                  {experimentMetadata?.constructor_kwargs?.name && (
                     <>
                       {" "}
-                      - {experimentMetadata?.constructor_kwargs.name} (
+                      - {experimentMetadata?.constructor_kwargs?.name} (
                       {experimentMetadata?.class_name})
                     </>
                   )}
@@ -390,13 +393,13 @@ export const JobView = ({
                 </div>
                 {expandedShotChannels[win.name] !== false && (
                   <HistogramPlot
-                    experimentData={experimentData}
+                    latestShotData={latestShotData}
                     channelNames={win.channel_names}
                     loading={loading}
                     title={win.name}
                     subtitle={getPlotTitle(
                       jobRunInfo?.scheduled_time,
-                      experimentMetadata?.constructor_kwargs.name,
+                      experimentMetadata?.constructor_kwargs?.name,
                     )}
                   />
                 )}
@@ -435,19 +438,32 @@ export const JobView = ({
                     title={win.name}
                     subtitle={getPlotTitle(
                       jobRunInfo?.scheduled_time,
-                      experimentMetadata?.constructor_kwargs.name,
+                      experimentMetadata?.constructor_kwargs?.name,
                     )}
                     repetitions={jobInfo?.repetitions}
                     showRepetitions={showRepetitions}
                     scanParameters={jobInfo?.scan_parameters}
                     windowSize={windowSize}
                     yRange={{ min: yMin, max: yMax }}
+                    fits={showFitPanel && is1D ? experimentData.fits : undefined}
+                    onChartClick={showFitPanel && is1D ? handleChartClick : undefined}
                   />
                 )}
               </CardContent>
             </Card>
           </Grid>
         ))}
+        {showFitPanel && is1D && jobId && jobInfo?.status === JobStatus.PROCESSED && (
+          <Grid size={{ xs: 12 }}>
+            <FitPanel
+              jobId={jobId}
+              experimentData={experimentData}
+              clickedX={clickedX}
+              scanParameters={jobInfo?.scan_parameters}
+            />
+          </Grid>
+        )}
+
         <Grid size={{ xs: 12 }}>
           <Card>
             <CardContent>

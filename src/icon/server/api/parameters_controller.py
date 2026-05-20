@@ -1,4 +1,7 @@
+import dataclasses
+import json
 import logging
+import math
 from typing import Any
 
 import pydase
@@ -40,9 +43,38 @@ def get_added_removed_and_updated_keys(
     removed_keys = keys1 - keys2
 
     intersect_keys = keys1 & keys2
-    updated_keys = {key for key in intersect_keys if new_dict[key] != cached_dict[key]}
-
+    updated_keys = {                                                                                                                                       
+        key                                                                                                                                         
+        for key in intersect_keys                                                                                                                   
+        if not _values_equal(new_dict[key], cached_dict[key])                                                                                       
+    }
+    
     return list(added_keys), list(removed_keys), list(updated_keys)
+
+def _values_equal(a: Any, b: Any) -> bool:
+    """NaN-safe deep equality for parameter/experiment metadata values.
+
+    Plain ``==`` returns False for NaN even when both sides are NaN, causing
+    spurious "updated" detections every reload cycle. Dataclasses are converted
+    with ``dataclasses.asdict`` before comparison so their nested float fields
+    are also covered.
+    """
+    if dataclasses.is_dataclass(a) and not isinstance(a, type):
+        a = dataclasses.asdict(a)
+    if dataclasses.is_dataclass(b) and not isinstance(b, type):
+        b = dataclasses.asdict(b)
+    try:
+        return json.dumps(a, default=_nan_safe) == json.dumps(b, default=_nan_safe)
+    except (TypeError, ValueError):
+        return a == b
+
+
+def _nan_safe(obj: Any) -> Any:
+    if isinstance(obj, float) and math.isnan(obj):
+        return None
+    raise TypeError(type(obj))                                                                                                                      
+                                                                                                                                                    
+               
 
 
 class ParametersController(pydase.DataService):
@@ -57,6 +89,19 @@ class ParametersController(pydase.DataService):
         super().__init__()
         self._all_parameter_metadata: dict[str, ParameterMetadata] = {}
         self._display_group_metadata: dict[str, dict[str, ParameterMetadata]] = {}
+
+    def get_parameter_by_id(self, parameter_id: str) -> DatabaseValueType:
+        """Return the current value of a single parameter.
+
+        Args:
+            parameter_id: The unique identifier of the parameter.
+
+        Returns:
+            The current value stored in the shared parameters dict.
+        """
+
+        return ParametersRepository.get_shared_parameters()[parameter_id]
+
 
     def update_parameter_by_id(self, parameter_id: str, value: Any) -> None:
         """Update a single parameter value in InfluxDB.

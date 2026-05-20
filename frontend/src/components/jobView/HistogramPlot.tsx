@@ -1,13 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
 import type { ECharts } from "echarts/core";
 import { ReactECharts } from "../ReactEcharts";
-import { ExperimentData } from "../../types/ExperimentData";
 import type { EChartsOption } from "echarts/types/dist/shared";
 import { copyEChartsToClipboard } from "../../utils/copyEChartsToClipboard";
 import { useNotifications } from "@toolpad/core";
 
 interface HistogramPlotProps {
-  experimentData: ExperimentData;
+  latestShotData: Record<string, number[]>;
   channelNames: string[];
   title: string;
   subtitle: string;
@@ -15,7 +14,7 @@ interface HistogramPlotProps {
 }
 
 export const HistogramPlot = ({
-  experimentData,
+  latestShotData,
   title,
   subtitle,
   loading,
@@ -24,42 +23,30 @@ export const HistogramPlot = ({
   const [chart, setChart] = useState<ECharts | null>(null);
   const notifications = useNotifications();
 
-  const latestPerChannel: Record<string, number[]> = {};
-  const sc = experimentData?.shot_channels ?? {};
+  const option = useMemo<EChartsOption | undefined>(() => {
+    const latestPerChannel: Record<string, number[]> = {};
 
-  for (const [channelName, groups] of Object.entries(sc)) {
-    if (!groups || !channelNames.includes(channelName)) continue;
+    for (const [channelName, arr] of Object.entries(latestShotData)) {
+      if (!arr || !channelNames.includes(channelName)) continue;
+      latestPerChannel[channelName] = arr;
+    }
 
-    // Get the latest key by calculating the max of the available keys
-    const keys = Object.keys(groups).map(Number);
-    const latestKey = String(Math.max(...keys));
+    const allArrays = Object.values(latestPerChannel);
+    if (allArrays.length === 0) return undefined;
 
-    latestPerChannel[channelName] = groups[latestKey];
-  }
+    const globalMax = Math.max(
+      ...allArrays.map((a) => Math.max(...a.filter((v) => !Number.isNaN(v))))
+    );
+    const rangeMax = Math.max(80, globalMax);
+    const categories = Array.from({ length: rangeMax + 1 }, (_, i) => String(i));
 
-  // Build the categories and frequency data
-  let categories: string[] = [];
-  const seriesData: { name: string; data: number[] }[] = [];
-
-  const allArrays = Object.values(latestPerChannel);
-  if (allArrays.length > 0) {
-    const globalMax = Math.max(...allArrays.map((a) => Math.max(...a)));
-    const rangeMax = Math.max(80, globalMax); // ensure at least 0..80
-
-    // categories are the integer values from 0..rangeMax
-    categories = Array.from({ length: rangeMax + 1 }, (_, i) => String(i));
-
-    for (const [name, arr] of Object.entries(latestPerChannel)) {
+    const seriesData = Object.entries(latestPerChannel).map(([name, arr]) => {
       const counts = new Array(rangeMax + 1).fill(0);
       for (const v of arr) {
-        counts[v]++;
+        if (!Number.isNaN(v)) counts[v]++;
       }
-      seriesData.push({ name, data: counts });
-    }
-  }
-
-  const option = useMemo<EChartsOption | undefined>(() => {
-    if (categories.length === 0 || seriesData.length === 0) return undefined;
+      return { name, data: counts };
+    });
 
     return {
       title: {
@@ -129,7 +116,7 @@ export const HistogramPlot = ({
         large: true,
       })),
     };
-  }, [title, categories, seriesData]);
+  }, [title, subtitle, latestShotData, channelNames]);
 
   const empty = !option;
 
