@@ -24,42 +24,33 @@ export const HistogramPlot = ({
   const [chart, setChart] = useState<ECharts | null>(null);
   const notifications = useNotifications();
 
-  const latestPerChannel: Record<string, number[]> = {};
-  const sc = experimentData?.shot_channels ?? {};
+  const option = useMemo<EChartsOption | undefined>(() => {
+    const sc = experimentData?.shot_channels ?? {};
+    const latestPerChannel: Record<string, number[]> = {};
 
-  for (const [channelName, groups] of Object.entries(sc)) {
-    if (!groups || !channelNames.includes(channelName)) continue;
+    for (const [channelName, groups] of Object.entries(sc)) {
+      if (!groups || !channelNames.includes(channelName)) continue;
+      const keys = Object.keys(groups).map(Number);
+      const latestKey = String(Math.max(...keys));
+      latestPerChannel[channelName] = groups[latestKey];
+    }
 
-    // Get the latest key by calculating the max of the available keys
-    const keys = Object.keys(groups).map(Number);
-    const latestKey = String(Math.max(...keys));
+    const allArrays = Object.values(latestPerChannel);
+    if (allArrays.length === 0) return undefined;
 
-    latestPerChannel[channelName] = groups[latestKey];
-  }
+    const globalMax = Math.max(
+      ...allArrays.map((a) => Math.max(...a.filter((v) => !Number.isNaN(v))))
+    );
+    const rangeMax = Math.max(80, globalMax);
+    const categories = Array.from({ length: rangeMax + 1 }, (_, i) => String(i));
 
-  // Build the categories and frequency data
-  let categories: string[] = [];
-  const seriesData: { name: string; data: number[] }[] = [];
-
-  const allArrays = Object.values(latestPerChannel);
-  if (allArrays.length > 0) {
-    const globalMax = Math.max(...allArrays.map((a) => Math.max(...a)));
-    const rangeMax = Math.max(80, globalMax); // ensure at least 0..80
-
-    // categories are the integer values from 0..rangeMax
-    categories = Array.from({ length: rangeMax + 1 }, (_, i) => String(i));
-
-    for (const [name, arr] of Object.entries(latestPerChannel)) {
+    const seriesData = Object.entries(latestPerChannel).map(([name, arr]) => {
       const counts = new Array(rangeMax + 1).fill(0);
       for (const v of arr) {
-        counts[v]++;
+        if (!Number.isNaN(v)) counts[v]++;
       }
-      seriesData.push({ name, data: counts });
-    }
-  }
-
-  const option = useMemo<EChartsOption | undefined>(() => {
-    if (categories.length === 0 || seriesData.length === 0) return undefined;
+      return { name, data: counts };
+    });
 
     return {
       title: {
@@ -129,7 +120,7 @@ export const HistogramPlot = ({
         large: true,
       })),
     };
-  }, [title, categories, seriesData]);
+  }, [title, subtitle, experimentData.shot_channels, channelNames]);
 
   const empty = !option;
 
