@@ -72,6 +72,14 @@ class BlockingExperimentLibraryClient:
         """
         raise NotImplementedError("Must be implemented by a subclass")
 
+    def get_setup_hardware_description(self) -> dict[str, dict]:
+        """Fetch hardware description from experiment library.
+
+        Returns:
+            Dictionary containing a description of the experiment setup.
+        """
+        raise NotImplementedError("Must be implemented by a subclass")
+
 
 class VEnvExperimentLibraryClient(ExperimentLibraryClient):
     """Wrapper client which runs an actual client in a virtual environment."""
@@ -142,5 +150,17 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
                 "exp_instance_name": exp_instance_name,
                 "parameter_dict": parameter_dict,
             },
+            logger=venv_logger,
+        )
+
+    async def get_setup_hardware_description(self) -> dict[str, dict]:
+        """Fetch hardware description from experiment library.
+
+        Returns:
+            Dictionary containing a description of the experiment setup.
+        """
+        return await self.venv.run(
+            self.client.get_setup_hardware_description,
+            args={},
             logger=venv_logger,
         )

@@ -504,6 +504,12 @@ class ExperimentDataRepository:
                 "data": data_point,
             }
         )
+        emit_queue.put(
+            {
+                "event": "last_experiment_sequence",
+                "data": data_point["sequence_json"],
+            }
+        )
 
     @staticmethod
     def write_parameter_update_by_job_id(

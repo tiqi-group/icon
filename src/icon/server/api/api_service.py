@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from typing import TYPE_CHECKING
 
@@ -108,6 +109,12 @@ class APIService(pydase.DataService):
         self.experiments._update_experiment_metadata(
             new_experiments=experiment_metadata
         )
+
+        hardware_dict = (
+            await self._experiment_library_client.get_setup_hardware_description()
+        )
+        self.experiments.hardware_description = json.dumps(hardware_dict)
+
         await self.parameters._update_parameter_metadata_and_display_groups(
             parameter_metadata=parameter_metadata
         )
