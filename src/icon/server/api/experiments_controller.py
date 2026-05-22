@@ -23,6 +23,7 @@ class ExperimentsController(pydase.DataService):
     def __init__(self) -> None:
         super().__init__()
         self._experiments: ExperimentDict = {}
+        self.hardware_description: str = ""
 
     def get_experiments(self) -> ExperimentDict:
         """Return the current experiment metadata.
@@ -60,3 +61,7 @@ class ExperimentsController(pydase.DataService):
                     "data": new_experiments,
                 }
             )
+
+    def get_hardware_description(self) -> str:
+        """Return a json string describing the experiment setup."""
+        return self.hardware_description

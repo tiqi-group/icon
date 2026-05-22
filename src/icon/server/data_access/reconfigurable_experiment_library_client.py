@@ -139,3 +139,12 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
             exp_instance_name=exp_instance_name,
             parameter_dict=parameter_dict,
         )
+
+    async def get_setup_hardware_description(self) -> dict[str, dict]:
+        """Fetch hardware description from experiment library.
+
+        Returns:
+            Dictionary containing a description of the experiment setup.
+        """
+        self.reload()
+        return await self.client.get_setup_hardware_description()

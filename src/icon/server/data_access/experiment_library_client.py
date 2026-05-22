@@ -93,6 +93,14 @@ class ExperimentLibraryClient:
         """
         raise NotImplementedError("Must be implemented by a subclass")
 
+    async def get_setup_hardware_description(self) -> dict[str, dict]:
+        """Fetch hardware description from experiment library.
+
+        Returns:
+            Dictionary containing a description of the experiment setup
+        """
+        raise NotImplementedError("Must be implemented by a subclass")
+
 
 class FallbackExperimentLibraryClient(ExperimentLibraryClient):
     """Client for an empty library."""
@@ -150,4 +158,18 @@ class FallbackExperimentLibraryClient(ExperimentLibraryClient):
             "readout_channel_windows": [],
             "shot_channel_windows": [],
             "vector_channel_windows": [],
+        }
+
+    async def get_setup_hardware_description(self) -> dict[str, dict]:
+        """Fetch hardware description from experiment library.
+
+        Returns:
+            Dictionary containing a description of the experiment setup.
+        """
+        return {
+            "RFs": {},
+            "TTLs": {},
+            "PMTs": {},
+            "RTDs": {},
+            "Readouts": {},
         }
