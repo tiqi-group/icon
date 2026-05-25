@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import TYPE_CHECKING
 
 from icon.client.api.experiments_controller import (
@@ -23,7 +21,7 @@ class ParametersController:
         client.parameters["Global Parameters"]["Tickle time"].value = 2.5
     """
 
-    def __init__(self, client: Client) -> None:
+    def __init__(self, client: "Client") -> None:
         self._client = client
         self._display_groups: dict[str, dict] = client.trigger_method(
             "parameters.get_display_groups"
