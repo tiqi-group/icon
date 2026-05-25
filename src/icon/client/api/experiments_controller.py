@@ -214,9 +214,7 @@ class ExperimentJobProxy:
         self._client = client
         self._job_id = job_id
         self._getting_data = False
-        self._client._sio.on(
-            f"experiment_{self._job_id}", self._handle_live_data_point
-        )
+        self._client._sio.on(f"experiment_{self._job_id}", self._handle_live_data_point)
 
     @property
     def job_id(self) -> int:
@@ -277,9 +275,7 @@ class ExperimentJobProxy:
         terminal_run_status = self.run_status
         if terminal_run_status in ("failed", "cancelled"):
             log = self.run_log or "(no log)"
-            raise RuntimeError(
-                f"Job {self._job_id} {terminal_run_status}:\n{log}"
-            )
+            raise RuntimeError(f"Job {self._job_id} {terminal_run_status}:\n{log}")
 
     def cancel(self) -> None:
         """Cancel this job. No-op if already processed."""
@@ -310,18 +306,17 @@ class ExperimentJobProxy:
         ).result()
 
     async def _subscribe_to_experiment_data_stream(self) -> None:
-        self._client._sio.on(
-            f"experiment_{self._job_id}", self._handle_live_data_point
-        )
+        self._client._sio.on(f"experiment_{self._job_id}", self._handle_live_data_point)
         self._client._loop.create_task(self._run_plot())
 
     async def _unsubscribe_from_experiment_data_stream(self) -> None:
-        self._client._sio.handlers.get("/", {}).pop(
-            f"experiment_{self._job_id}", None
-        )
+        self._client._sio.handlers.get("/", {}).pop(f"experiment_{self._job_id}", None)
 
     async def _handle_live_data_point(self, data_point: dict[str, Any]) -> None:
-        row = {**data_point.get("scan_params", {}), **data_point.get("result_channels", {})}
+        row = {
+            **data_point.get("scan_params", {}),
+            **data_point.get("result_channels", {}),
+        }
         df_new = pd.DataFrame([row], index=[data_point["index"]])
         existing = self._client._experiment_job_data.get(self._job_id)
         if existing is None:
@@ -371,8 +366,6 @@ class ExperimentJobProxy:
 
     def __repr__(self) -> str:
         return f"<ExperimentJobProxy job_id={self._job_id}>"
-
-
 
 
 class ExperimentProxy:

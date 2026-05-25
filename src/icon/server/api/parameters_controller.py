@@ -69,7 +69,6 @@ class ParametersController(pydase.DataService):
         """
         return ParametersRepository.get_shared_parameters()[parameter_id]
 
-
     def update_parameter_by_id(self, parameter_id: str, value: Any) -> None:
         """Update a single parameter value in InfluxDB.
 
