@@ -67,7 +67,6 @@ class ParametersController(pydase.DataService):
         Returns:
             The current value stored in the shared parameters dict.
         """
-
         return ParametersRepository.get_shared_parameters()[parameter_id]
 
 

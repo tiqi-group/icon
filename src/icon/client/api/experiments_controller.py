@@ -4,7 +4,6 @@ import asyncio
 import logging
 import time
 from collections import Counter
-from collections.abc import AsyncGenerator
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, TypedDict
 
@@ -16,6 +15,8 @@ from icon.server.api.models.experiment_dict import ExperimentMetadata
 from icon.server.data_access.models.sqlite.job import timezone
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
     from icon.client.client import Client
     from icon.server.api.models.experiment_dict import (
         ExperimentDict,
@@ -97,12 +98,12 @@ def get_display_group_identifier_dict(display_groups: list[str]) -> dict[str, st
         return namespace, instance.rstrip(")")
 
     def _short(namespace: str, instance: str) -> str:
-        class_part = namespace.split(".")[-1].replace("_", " ").title()
+        class_part = namespace.rsplit(".", 1)[-1].replace("_", " ").title()
         return f"{class_part} ({instance})"
 
     def _longer(namespace: str, instance: str) -> str:
         parts = namespace.split(".")
-        if len(parts) >= 2:
+        if len(parts) >= 2:  # noqa: PLR2004
             prefix = parts[-2].replace("_", " ").title()
             class_part = parts[-1].replace("_", " ").title()
             return f"{prefix} {class_part} ({instance})"
@@ -395,7 +396,7 @@ class ExperimentProxy:
             repr += f"\n    - {display_group}"
 
         return repr
-    
+
     def __iter__(self):
         for name in self._experiment_metadata.parameters:
             yield DisplayGroupProxy(
@@ -414,7 +415,7 @@ class ExperimentProxy:
     def schedule(
         self,
         *,
-        scan_parameters: list[ScanParameter] = [],
+        scan_parameters: list[ScanParameter] | None = None,
         priority: int = 20,
         repetitions: int = 1,
         number_of_shots: int = 50,
@@ -452,6 +453,8 @@ class ExperimentProxy:
         Returns:
             ExperimentJobProxy: Proxy object for the scheduled experiment job.
         """
+        if scan_parameters is None:
+            scan_parameters = []
         if local_parameters_timestamp is None:
             local_parameters_timestamp = datetime.now(tz=timezone)
         job_id: int = self._client.trigger_method(

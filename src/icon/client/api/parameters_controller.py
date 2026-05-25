@@ -46,6 +46,8 @@ class ParametersController:
         lines = ["<ParametersController>"]
         for short_name, full_key in self._display_group_id_mapping.items():
             lines.append(f"  [{short_name}]")
-            for meta in self._display_groups[full_key].values():
-                lines.append(f"    - {meta['display_name']}")
+            lines.extend(
+                f"    - {meta['display_name']}"
+                for meta in self._display_groups[full_key].values()
+            )
         return "\n".join(lines)

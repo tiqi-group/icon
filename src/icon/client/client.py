@@ -8,7 +8,7 @@ import pydase
 import socketio  # type: ignore[import-untyped]
 
 from icon.client.api.experiments_controller import ExperimentsController
-from icon.client.api.parameters_controller import ParametersController                                                                                                 
+from icon.client.api.parameters_controller import ParametersController
 from icon.serialization.deserializer import loads
 from icon.serialization.serializer import dump
 
