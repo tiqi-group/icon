@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import enum
 import logging
 import time
 from collections import Counter
@@ -26,6 +27,20 @@ if TYPE_CHECKING:
     )
 
 logger = logging.getLogger(__name__)
+
+
+class JobStatus(enum.Enum):
+    SUBMITTED = "submitted"
+    PROCESSING = "processing"
+    PROCESSED = "processed"
+
+
+class RunStatus(enum.Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    DONE = "done"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class ScanParameter(TypedDict):
@@ -221,26 +236,23 @@ class ExperimentJobProxy:
         return self._job_id
 
     @property
-    def status(self) -> str:
-        """High-level job status: 'submitted', 'processing', or 'processed'."""
+    def status(self) -> JobStatus:
+        """High-level job status."""
         job_dict: dict[str, Any] = self._client.trigger_method(
             "scheduler.get_job_by_id",
             kwargs={"job_id": self._job_id},
         )
-        return str(job_dict["status"])
+        return JobStatus(job_dict["status"])
 
     @property
-    def run_status(self) -> str | None:
-        """Run-level status: 'pending', 'processing', 'done', 'failed', or 'cancelled'.
-
-        Returns None if no run record exists yet (job still queued).
-        """
+    def run_status(self) -> RunStatus | None:
+        """Run-level status, or None if no run record exists yet (job still queued)."""
         try:
             run_dict: dict[str, Any] = self._client.trigger_method(
                 "scheduler.get_job_run_by_id",
                 kwargs={"job_id": self._job_id},
             )
-            return str(run_dict["status"])
+            return RunStatus(run_dict["status"])
         except Exception:
             return None
 
@@ -270,12 +282,14 @@ class ExperimentJobProxy:
         Raises:
             RuntimeError: If the run finished with status 'failed' or 'cancelled'.
         """
-        while self.status != "processed":
+        while self.status != JobStatus.PROCESSED:
             time.sleep(poll_interval)
         terminal_run_status = self.run_status
-        if terminal_run_status in ("failed", "cancelled"):
+        if terminal_run_status in (RunStatus.FAILED, RunStatus.CANCELLED):
             log = self.run_log or "(no log)"
-            raise RuntimeError(f"Job {self._job_id} {terminal_run_status}:\n{log}")
+            raise RuntimeError(
+                f"Job {self._job_id} {terminal_run_status.value}:\n{log}"
+            )
 
     def cancel(self) -> None:
         """Cancel this job. No-op if already processed."""
