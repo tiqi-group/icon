@@ -1,9 +1,7 @@
 import asyncio
 import logging
-from io import StringIO
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
 import pydase
 import socketio  # type: ignore[import-untyped]
 
@@ -16,11 +14,6 @@ if TYPE_CHECKING:
     from icon.serialization.types import SerializedIconObject
 
 logger = logging.getLogger(__name__)
-
-
-class ExperimentData(TypedDict):
-    job_id: int
-    data: str
 
 
 def trigger_method(
@@ -115,29 +108,8 @@ class Client(pydase.Client):
         )
         del self.proxy
 
-        self._experiment_job_data: dict[int, pd.DataFrame] = {}
         self.experiments = ExperimentsController(self)
         self.parameters = ParametersController(self)
-
-    async def _handle_experiment_data(self, data: ExperimentData) -> None:
-        logger.debug("Updating experiment data...")
-        job_id = data["job_id"]
-        data_frame = pd.read_json(StringIO(data["data"]))
-        if job_id not in self._experiment_job_data:
-            self._experiment_job_data[job_id] = data_frame
-        else:
-            # Update existing data
-            overlap = self._experiment_job_data[job_id].index.intersection(
-                data_frame.index
-            )
-
-            filtered_data_frame = data_frame.drop(overlap)
-
-            self._experiment_job_data[job_id] = pd.concat(
-                [self._experiment_job_data[job_id], filtered_data_frame]
-            )
-
-        logger.debug(self._experiment_job_data[job_id])
 
     async def _handle_connect(self) -> None:
         logger.debug("Connected to '%s' ...", self._url)
@@ -148,7 +120,6 @@ class Client(pydase.Client):
     async def _setup_events(self) -> None:
         self._sio.on("connect", self._handle_connect)
         self._sio.on("disconnect", self._handle_disconnect)
-        self._sio.on("experiment_data", self._handle_experiment_data)
 
     def get_value(self, full_access_path: str) -> Any:
         return get_value(
