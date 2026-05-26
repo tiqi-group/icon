@@ -6,8 +6,12 @@ import {
   MenuItem,
   Select,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
 import { useContext, useMemo } from "react";
+import { useParameter } from "../../hooks/useParameter";
+import { ParameterStoreContext } from "../../contexts/ParameterStoreContext";
 import { DeviceInfoContext } from "../../contexts/DeviceInfoContext";
 import { ExperimentsContext } from "../../contexts/ExperimentsContext";
 import { ParameterDisplayGroupsContext } from "../../contexts/ParameterDisplayGroupsContext";
@@ -17,6 +21,7 @@ import {
   experimentIdToNamespace,
 } from "../../utils/experimentUtils";
 import {
+  ScanInputMode,
   ScanParameterInfo,
   ScanPattern,
   scanPatterns,
@@ -62,6 +67,7 @@ export const ParameterCard = ({
   );
   const deviceInfo = useContext(DeviceInfoContext);
   const experiments = useContext(ExperimentsContext);
+  const parameterStore = useContext(ParameterStoreContext);
 
   // Create a mapping from namespace to experiment display name
   const namespaceToDisplayName: Record<string, string> = Object.fromEntries(
@@ -137,6 +143,51 @@ export const ParameterCard = ({
         ]),
     );
   }, [param, parameterDisplayGroups, deviceInfo]);
+
+  const inputMode: ScanInputMode = param.generation.inputMode ?? "startStop";
+
+  // Live value of the currently selected parameter — used to seed "Center" when
+  // switching to span/center mode.
+  const [currentParamValue] = useParameter(param.id);
+  const currentNumericValue =
+    typeof currentParamValue === "number" ? currentParamValue : null;
+
+  // Derived quantities for span/center mode.
+  const center = (param.generation.start + param.generation.stop) / 2;
+  const span = param.generation.stop - param.generation.start;
+
+  const handleInputModeChange = (
+    _: React.MouseEvent,
+    newMode: ScanInputMode | null,
+  ) => {
+    if (!newMode || newMode === inputMode) return;
+
+    if (newMode === "spanCenter") {
+      // Seed center from the live parameter value when available, otherwise keep the
+      // midpoint of the existing range.
+      const newCenter = currentNumericValue !== null ? currentNumericValue : center;
+      const newSpan = Math.abs(span) || 1; // keep existing span (>0 guard)
+      dispatchScanInfoStateUpdate({
+        type: "UPDATE_PARAMETER",
+        index,
+        payload: {
+          generation: {
+            ...param.generation,
+            inputMode: "spanCenter",
+            start: newCenter - newSpan / 2,
+            stop: newCenter + newSpan / 2,
+          },
+        },
+      });
+    } else {
+      // Switching back to start/stop: just flip the mode flag; start/stop are already correct.
+      dispatchScanInfoStateUpdate({
+        type: "UPDATE_PARAMETER",
+        index,
+        payload: { generation: { ...param.generation, inputMode: "startStop" } },
+      });
+    }
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -241,11 +292,32 @@ export const ParameterCard = ({
               value={param.id}
               title={param.id}
               onChange={(e) => {
-                dispatchScanInfoStateUpdate({
-                  type: "UPDATE_PARAMETER",
-                  index,
-                  payload: { id: e.target.value },
-                });
+                const newParamId = e.target.value;
+
+                if (inputMode === "spanCenter") {
+                  // Re-centre on the new parameter's live value (if numeric); keep the span.
+                  const rawValue = parameterStore?.get(newParamId);
+                  const newCenter = typeof rawValue === "number" ? rawValue : center;
+                  const currentSpan = Math.abs(span) || 1;
+                  dispatchScanInfoStateUpdate({
+                    type: "UPDATE_PARAMETER",
+                    index,
+                    payload: {
+                      id: newParamId,
+                      generation: {
+                        ...param.generation,
+                        start: newCenter - currentSpan / 2,
+                        stop: newCenter + currentSpan / 2,
+                      },
+                    },
+                  });
+                } else {
+                  dispatchScanInfoStateUpdate({
+                    type: "UPDATE_PARAMETER",
+                    index,
+                    payload: { id: newParamId },
+                  });
+                }
               }}
               renderValue={(value) => {
                 const selectedDisplayName = parameterOptions[value]?.displayName;
@@ -262,66 +334,149 @@ export const ParameterCard = ({
           </FormControl>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <TextField
-              required
-              disabled={!param.id}
-              label="Start"
+            <ToggleButtonGroup
+              value={inputMode}
+              exclusive
               size="small"
-              type="number"
               fullWidth
-              value={param.generation.start}
-              onChange={(e) =>
-                dispatchScanInfoStateUpdate({
-                  type: "UPDATE_PARAMETER",
-                  index,
-                  payload: {
-                    generation: {
-                      ...param.generation,
-                      start: Number(e.target.value),
-                    },
-                  },
-                })
-              }
-              variant="outlined"
-              slotProps={{
-                input: {
-                  inputProps: {
-                    min: parameterOptions[param.id]?.min,
-                    max: parameterOptions[param.id]?.max,
-                  },
-                },
-              }}
-            />
-            <TextField
-              required
               disabled={!param.id}
-              label="Stop"
-              size="small"
-              type="number"
-              fullWidth
-              value={param.generation.stop}
-              onChange={(e) =>
-                dispatchScanInfoStateUpdate({
-                  type: "UPDATE_PARAMETER",
-                  index,
-                  payload: {
-                    generation: {
-                      ...param.generation,
-                      stop: Number(e.target.value),
+              onChange={handleInputModeChange}
+            >
+              <ToggleButton value="startStop" sx={{ textTransform: "none" }}>
+                Start / Stop
+              </ToggleButton>
+              <ToggleButton value="spanCenter" sx={{ textTransform: "none" }}>
+                Center / Span
+              </ToggleButton>
+            </ToggleButtonGroup>
+
+            {inputMode === "spanCenter" ? (
+              <>
+                <TextField
+                  required
+                  disabled={!param.id}
+                  label="Center"
+                  size="small"
+                  type="number"
+                  fullWidth
+                  value={center}
+                  onChange={(e) => {
+                    const newCenter = Number(e.target.value);
+                    dispatchScanInfoStateUpdate({
+                      type: "UPDATE_PARAMETER",
+                      index,
+                      payload: {
+                        generation: {
+                          ...param.generation,
+                          start: newCenter - span / 2,
+                          stop: newCenter + span / 2,
+                        },
+                      },
+                    });
+                  }}
+                  variant="outlined"
+                  slotProps={{
+                    input: {
+                      inputProps: {
+                        min: parameterOptions[param.id]?.min,
+                        max: parameterOptions[param.id]?.max,
+                      },
                     },
-                  },
-                })
-              }
-              variant="outlined"
-              slotProps={{
-                input: {
-                  inputProps: {
-                    min: parameterOptions[param.id]?.min,
-                    max: parameterOptions[param.id]?.max,
-                  },
-                },
-              }}
-            />
+                  }}
+                />
+                <TextField
+                  required
+                  disabled={!param.id}
+                  label="Span"
+                  size="small"
+                  type="number"
+                  fullWidth
+                  value={Math.abs(span)}
+                  onChange={(e) => {
+                    const newSpan = Math.abs(Number(e.target.value));
+                    dispatchScanInfoStateUpdate({
+                      type: "UPDATE_PARAMETER",
+                      index,
+                      payload: {
+                        generation: {
+                          ...param.generation,
+                          start: center - newSpan / 2,
+                          stop: center + newSpan / 2,
+                        },
+                      },
+                    });
+                  }}
+                  variant="outlined"
+                  slotProps={{
+                    input: { inputProps: { min: 0 } },
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                <TextField
+                  required
+                  disabled={!param.id}
+                  label="Start"
+                  size="small"
+                  type="number"
+                  fullWidth
+                  value={param.generation.start}
+                  onChange={(e) =>
+                    dispatchScanInfoStateUpdate({
+                      type: "UPDATE_PARAMETER",
+                      index,
+                      payload: {
+                        generation: {
+                          ...param.generation,
+                          start: Number(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                  variant="outlined"
+                  slotProps={{
+                    input: {
+                      inputProps: {
+                        min: parameterOptions[param.id]?.min,
+                        max: parameterOptions[param.id]?.max,
+                      },
+                    },
+                  }}
+                />
+                <TextField
+                  required
+                  disabled={!param.id}
+                  label="Stop"
+                  size="small"
+                  type="number"
+                  fullWidth
+                  value={param.generation.stop}
+                  onChange={(e) =>
+                    dispatchScanInfoStateUpdate({
+                      type: "UPDATE_PARAMETER",
+                      index,
+                      payload: {
+                        generation: {
+                          ...param.generation,
+                          stop: Number(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                  variant="outlined"
+                  slotProps={{
+                    input: {
+                      inputProps: {
+                        min: parameterOptions[param.id]?.min,
+                        max: parameterOptions[param.id]?.max,
+                      },
+                    },
+                  }}
+                />
+              </>
+            )}
+
             <TextField
               required
               disabled={!param.id}
