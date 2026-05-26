@@ -31,24 +31,22 @@ export function buildResultChannelChartSeries(
   const getVal = (ch: Channel, rep: number, i: number): number =>
     Number.isFinite(ch.data[rep * xLen + i]) ? ch.data[rep * xLen + i] : Number.NaN;
 
-  // merged data — sorted by x so lines connect points in scan-parameter order
-  const fullDataSet: number[][] = xAxisData
-    .map((x, i) => {
-      const ys = resultChannels.map((ch) => {
-        let sum = 0,
-          cnt = 0;
-        for (let r = 0; r < repetitions; r++) {
-          const v = getVal(ch, r, i);
-          if (Number.isFinite(v)) {
-            sum += v;
-            cnt++;
-          }
+  // merged data
+  const fullDataSet: number[][] = xAxisData.map((x, i) => {
+    const ys = resultChannels.map((ch) => {
+      let sum = 0,
+        cnt = 0;
+      for (let r = 0; r < repetitions; r++) {
+        const v = getVal(ch, r, i);
+        if (Number.isFinite(v)) {
+          sum += v;
+          cnt++;
         }
-        return cnt ? sum / cnt : Number.NaN;
-      });
-      return [x, ...ys];
-    })
-    .sort((a, b) => a[0] - b[0]);
+      }
+      return cnt ? sum / cnt : Number.NaN;
+    });
+    return [x, ...ys];
+  });
 
   // merged series
   const chartSeries: EChartsOption["series"] = resultChannels.map((ch, chIdx) => ({
@@ -64,15 +62,13 @@ export function buildResultChannelChartSeries(
 
   if (showRepetitions && repetitions > 1) {
     for (let r = 0; r < repetitions; r++) {
-      const repData: number[][] = xAxisData
-        .map((x, i) => {
-          const ys = resultChannels.map((ch) => {
-            const v = getVal(ch, r, i);
-            return Number.isFinite(v) ? v : Number.NaN;
-          });
-          return [x, ...ys];
-        })
-        .sort((a, b) => a[0] - b[0]);
+      const repData: number[][] = xAxisData.map((x, i) => {
+        const ys = resultChannels.map((ch) => {
+          const v = getVal(ch, r, i);
+          return Number.isFinite(v) ? v : Number.NaN;
+        });
+        return [x, ...ys];
+      });
 
       for (let chIdx = 0; chIdx < resultChannels.length; chIdx++) {
         chartSeries.push({

@@ -218,9 +218,10 @@ const ResultChannelPlot = ({
 
         xAxisData = observedX;
 
-        const fullDataSet = observedX
-          .map((xVal, index) => [xVal, ...channels.map((ch) => ch.data[index])])
-          .sort((a, b) => (a[0] as number) - (b[0] as number));
+        const fullDataSet = observedX.map((xVal, index) => [
+          xVal,
+          ...channels.map((ch) => ch.data[index]),
+        ]);
 
         chartSeries = channels.map((channel, index) => ({
           name: channel.name,
