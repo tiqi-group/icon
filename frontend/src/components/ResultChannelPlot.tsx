@@ -59,38 +59,6 @@ function timeAxisProps(data: string[]) {
   };
 }
 
-function updateVisualMap(chart: ECharts, selectedChannelName: string | undefined) {
-  const opt = chart.getOption();
-
-  if (!selectedChannelName)
-    selectedChannelName = Object.entries(
-      // @ts-expect-error Type hint of ECharts is wrong
-      opt.legend[0].selected as Record<string, boolean>,
-    ).find(([, v]) => v)?.[0];
-
-  // @ts-expect-error Type hint of ECharts is wrong
-  const s = opt.series.find((ss) => ss.name === selectedChannelName);
-  if (!s || !s.data) return;
-
-  const channelValues = (s.data as [number, number, number][])
-    .map((d) => d[2])
-    .filter((v: number) => Number.isFinite(v));
-
-  if (!channelValues.length) return;
-
-  const min = Math.min(...channelValues);
-  const max = Math.max(...channelValues);
-
-  chart.dispatchAction({
-    type: "legendSelect",
-    name: selectedChannelName,
-  });
-
-  chart.setOption({
-    visualMap: [{ min, max }],
-  });
-}
-
 const ResultChannelPlot = ({
   experimentData,
   loading,
@@ -297,6 +265,23 @@ const ResultChannelPlot = ({
         });
       }
 
+      // Determine which channel is currently displayed and compute its data range so
+      // the color bar always reflects the actual values without a post-render fixup.
+      const activeChannelName = selectedChannel ?? resultChannels[0]?.name;
+      const activeChannel =
+        resultChannels.find((rc) => rc.name === activeChannelName) ?? resultChannels[0];
+      const finiteValues = (activeChannel?.data ?? []).filter((v) => Number.isFinite(v));
+      const vmMin = finiteValues.length ? Math.min(...finiteValues) : 0;
+      const vmMax =
+        finiteValues.length && Math.max(...finiteValues) !== vmMin
+          ? Math.max(...finiteValues)
+          : vmMin + 1; // guard against a flat / empty dataset
+
+      // Preserve the legend selection across setOption({ notMerge: true }) calls.
+      const legendSelected = Object.fromEntries(
+        resultChannels.map((rc) => [rc.name, rc.name === activeChannelName]),
+      );
+
       const categoryAxisProps = {
         axisLabel: { formatter: formatAxisLabel },
       };
@@ -305,12 +290,13 @@ const ResultChannelPlot = ({
         title,
         legend: {
           selectedMode: "single",
-          left: "right",
           top: 40,
+          left: "center",
+          selected: legendSelected,
         },
         grid: {
           left: 30,
-          right: 40,
+          right: 160,
           bottom: 20,
           top: 70,
           containLabel: true,
@@ -335,11 +321,19 @@ const ResultChannelPlot = ({
             : categoryAxisProps),
         },
         series,
-        visualMap: {
-          left: "right",
-          bottom: 30,
-          inRange: { color: ["#313695", "#1483d5", "#73bf7f", "#fcbe3d", "#ffff00"] },
-        },
+        visualMap: [
+          {
+            type: "continuous",
+            show: true,
+            calculable: true,
+            orient: "vertical",
+            right: 10,
+            top: "center",
+            min: vmMin,
+            max: vmMax,
+            inRange: { color: ["#313695", "#1483d5", "#73bf7f", "#fcbe3d", "#ffff00"] },
+          },
+        ],
       };
     }
 
@@ -408,6 +402,7 @@ const ResultChannelPlot = ({
     yRange,
     fits,
     channelNames,
+    selectedChannel,
   ]);
 
   const updateChart = useCallback(
@@ -435,25 +430,21 @@ const ResultChannelPlot = ({
     };
   }, [chart, onChartClick]);
 
-  useEffect(() => {
-    if (!is2D || !chart) return;
-
-    updateVisualMap(chart, selectedChannel);
-  }, [option, chart]);
-
+  // When the user picks a different channel in the legend, update selectedChannel so
+  // the useMemo recomputes the option (including the correct visualMap range) for the
+  // newly active channel.
   useEffect(() => {
     if (!is2D || !chart) return;
 
     // @ts-expect-error Typing is incorrect
     chart.on("legendselectchanged", (e: { name: string }) => {
       setSelectedChannel(e.name);
-      updateVisualMap(chart, e.name);
     });
 
     return () => {
       chart.off("legendselectchanged");
     };
-  }, [chart]);
+  }, [chart, is2D]);
 
   return (
     <>
