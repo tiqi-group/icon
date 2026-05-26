@@ -110,9 +110,9 @@ def get_display_group_identifier_dict(display_groups: list[str]) -> dict[str, st
         return f"{class_part} ({instance})"
 
     def _longer(namespace: str, instance: str) -> str:
-        MIN_PARTS = 2
+        min_parts = 2
         parts = namespace.split(".")
-        if len(parts) >= MIN_PARTS:
+        if len(parts) >= min_parts:
             prefix = parts[-2].replace("_", " ").title()
             class_part = parts[-1].replace("_", " ").title()
             return f"{prefix} {class_part} ({instance})"
