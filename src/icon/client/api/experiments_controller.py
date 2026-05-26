@@ -269,7 +269,10 @@ class ExperimentJobProxy:
         while self.status != JobStatus.PROCESSED:
             time.sleep(poll_interval)
         result = self.run()
-        if result is not None and result.status in (RunStatus.FAILED, RunStatus.CANCELLED):
+        if result is not None and result.status in (
+            RunStatus.FAILED,
+            RunStatus.CANCELLED,
+        ):
             log = result.log or "(no log)"
             raise RuntimeError(
                 f"Job {self._job_id} {result.status.name.lower()}:\n{log}"
