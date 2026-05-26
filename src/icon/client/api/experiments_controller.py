@@ -4,6 +4,7 @@ import enum
 import logging
 import time
 from collections import Counter
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, TypedDict
 
@@ -34,6 +35,12 @@ class RunStatus(enum.Enum):
     DONE = enum.auto()
     FAILED = enum.auto()
     CANCELLED = enum.auto()
+
+
+@dataclass
+class RunResult:
+    status: RunStatus
+    log: str | None
 
 
 class ScanParameter(TypedDict):
@@ -236,27 +243,17 @@ class ExperimentJobProxy:
         )
         return JobStatus[job_dict["status"].upper()]
 
-    @property
-    def run_status(self) -> RunStatus | None:
-        """Run-level status, or None if no run record exists yet (job still queued)."""
+    def run(self) -> RunResult | None:
+        """Run-level status and log, or None if no run record exists yet."""
         try:
             run_dict: dict[str, Any] = self._client.trigger_method(
                 "scheduler.get_job_run_by_id",
                 kwargs={"job_id": self._job_id},
             )
-            return RunStatus[run_dict["status"].upper()]
-        except Exception:
-            return None
-
-    @property
-    def run_log(self) -> str | None:
-        """Failure or cancellation message from the run, or None if no message."""
-        try:
-            run_dict: dict[str, Any] = self._client.trigger_method(
-                "scheduler.get_job_run_by_id",
-                kwargs={"job_id": self._job_id},
+            return RunResult(
+                status=RunStatus[run_dict["status"].upper()],
+                log=run_dict.get("log") or None,
             )
-            return run_dict.get("log") or None
         except Exception:
             return None
 
@@ -271,11 +268,11 @@ class ExperimentJobProxy:
         """
         while self.status != JobStatus.PROCESSED:
             time.sleep(poll_interval)
-        terminal_run_status = self.run_status
-        if terminal_run_status in (RunStatus.FAILED, RunStatus.CANCELLED):
-            log = self.run_log or "(no log)"
+        result = self.run()
+        if result is not None and result.status in (RunStatus.FAILED, RunStatus.CANCELLED):
+            log = result.log or "(no log)"
             raise RuntimeError(
-                f"Job {self._job_id} {terminal_run_status.name.lower()}:\n{log}"
+                f"Job {self._job_id} {result.status.name.lower()}:\n{log}"
             )
 
     def cancel(self) -> None:
