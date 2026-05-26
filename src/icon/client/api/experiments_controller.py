@@ -110,8 +110,9 @@ def get_display_group_identifier_dict(display_groups: list[str]) -> dict[str, st
         return f"{class_part} ({instance})"
 
     def _longer(namespace: str, instance: str) -> str:
+        MIN_PARTS = 2
         parts = namespace.split(".")
-        if len(parts) >= 2:  # noqa: PLR2004
+        if len(parts) >= MIN_PARTS:
             prefix = parts[-2].replace("_", " ").title()
             class_part = parts[-1].replace("_", " ").title()
             return f"{prefix} {class_part} ({instance})"
