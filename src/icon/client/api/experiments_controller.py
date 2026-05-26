@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import enum
 import logging
+import time
 from collections import Counter
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, TypedDict
 
@@ -18,6 +21,26 @@ if TYPE_CHECKING:
     )
 
 logger = logging.getLogger(__name__)
+
+
+class JobStatus(enum.Enum):
+    SUBMITTED = enum.auto()
+    PROCESSING = enum.auto()
+    PROCESSED = enum.auto()
+
+
+class RunStatus(enum.Enum):
+    PENDING = enum.auto()
+    PROCESSING = enum.auto()
+    DONE = enum.auto()
+    FAILED = enum.auto()
+    CANCELLED = enum.auto()
+
+
+@dataclass
+class RunResult:
+    status: RunStatus
+    log: str | None
 
 
 class ScanParameter(TypedDict):
@@ -68,6 +91,50 @@ def get_experiment_identifier_dict(experiments: list[str]) -> dict[str, str]:
         identifier_dict[unique_identifier] = entry
 
     return identifier_dict
+
+
+def get_display_group_identifier_dict(display_groups: list[str]) -> dict[str, str]:
+    """Map short display-name keys to full display-group keys.
+
+    ``'experiment_library.globals.global_parameters (Doppler Cooling)'``
+    becomes ``'Global Parameters (Doppler Cooling)'``.  When the short class
+    name collides across namespaces, the parent module is prepended to keep
+    keys unique.
+
+    Args:
+        display_groups: Full display-group key strings as returned by the server.
+
+    Returns:
+        Dict mapping short identifiers to full keys.
+    """
+
+    def _parse(key: str) -> tuple[str, str]:
+        namespace, _, instance = key.rpartition(" (")
+        return namespace, instance.rstrip(")")
+
+    def _short(namespace: str, instance: str) -> str:
+        class_part = namespace.rsplit(".", 1)[-1].replace("_", " ").title()
+        return f"{class_part} ({instance})"
+
+    def _longer(namespace: str, instance: str) -> str:
+        min_parts = 2
+        parts = namespace.split(".")
+        if len(parts) >= min_parts:
+            prefix = parts[-2].replace("_", " ").title()
+            class_part = parts[-1].replace("_", " ").title()
+            return f"{prefix} {class_part} ({instance})"
+        return f"{namespace} ({instance})"
+
+    short_names = [_short(*_parse(k)) for k in display_groups]
+    counts = Counter(short_names)
+
+    result: dict[str, str] = {}
+    for key in display_groups:
+        namespace, instance = _parse(key)
+        short = _short(namespace, instance)
+        result[short if counts[short] == 1 else _longer(namespace, instance)] = key
+
+    return result
 
 
 def get_parameter_identifier_mapping(
@@ -162,7 +229,64 @@ class ExperimentJobProxy:
     def __init__(self, *, client: Client, job_id: int) -> None:
         self._client = client
         self._job_id = job_id
-        self._getting_data = False
+
+    @property
+    def job_id(self) -> int:
+        return self._job_id
+
+    @property
+    def status(self) -> JobStatus:
+        """High-level job status."""
+        job_dict: dict[str, Any] = self._client.trigger_method(
+            "scheduler.get_job_by_id",
+            kwargs={"job_id": self._job_id},
+        )
+        return JobStatus[job_dict["status"].upper()]
+
+    def run(self) -> RunResult | None:
+        """Run-level status and log, or None if no run record exists yet."""
+        try:
+            run_dict: dict[str, Any] = self._client.trigger_method(
+                "scheduler.get_job_run_by_id",
+                kwargs={"job_id": self._job_id},
+            )
+            return RunResult(
+                status=RunStatus[run_dict["status"].upper()],
+                log=run_dict.get("log") or None,
+            )
+        except Exception:
+            return None
+
+    def wait(self, poll_interval: float = 2.0) -> None:
+        """Block until the job is done, then raise if it failed or was cancelled.
+
+        Args:
+            poll_interval: Seconds between status polls.
+
+        Raises:
+            RuntimeError: If the run finished with status 'failed' or 'cancelled'.
+        """
+        while self.status != JobStatus.PROCESSED:
+            time.sleep(poll_interval)
+        result = self.run()
+        if result is not None and result.status in (
+            RunStatus.FAILED,
+            RunStatus.CANCELLED,
+        ):
+            log = result.log or "(no log)"
+            raise RuntimeError(
+                f"Job {self._job_id} {result.status.name.lower()}:\n{log}"
+            )
+
+    def cancel(self) -> None:
+        """Cancel this job. No-op if already processed."""
+        self._client.trigger_method(
+            "scheduler.cancel_job",
+            kwargs={"job_id": self._job_id},
+        )
+
+    def __repr__(self) -> str:
+        return f"<ExperimentJobProxy job_id={self._job_id}>"
 
 
 class ExperimentProxy:
@@ -187,6 +311,14 @@ class ExperimentProxy:
 
         return repr
 
+    def __iter__(self):
+        for name in self._experiment_metadata.parameters:
+            yield DisplayGroupProxy(
+                self._client,
+                name,
+                self._experiment_metadata.parameters[name],
+            )
+
     def __getitem__(self, display_group_name: str) -> Any:
         return DisplayGroupProxy(
             self._client,
@@ -197,9 +329,10 @@ class ExperimentProxy:
     def schedule(
         self,
         *,
-        scan_parameters: list[ScanParameter],
+        scan_parameters: list[ScanParameter] | None = None,
         priority: int = 20,
         repetitions: int = 1,
+        number_of_shots: int = 50,
         local_parameters_timestamp: datetime | None = None,
         git_commit_hash: str | None = None,
         auto_calibration: bool = False,
@@ -219,6 +352,8 @@ class ExperimentProxy:
                 Priority level of the experiment (default: 20).
             repetitions:
                 Number of repetitions for the experiment to average over (default: 1).
+            number_of_shots:
+                Number of hardware shots per scan point (default: 50).
             local_parameters_timestamp:
                 Timestamp of the local parameters to be used. Defaults to the current
                 time.
@@ -227,11 +362,13 @@ class ExperimentProxy:
                 take the latest commit on the main/master branch. Defaults to None.
             auto_calibration:
                 Defines whether the parameter fits defined by the experiment should be
-                applied automatically .
+                applied automatically.
 
         Returns:
             ExperimentJobProxy: Proxy object for the scheduled experiment job.
         """
+        if scan_parameters is None:
+            scan_parameters = []
         if local_parameters_timestamp is None:
             local_parameters_timestamp = datetime.now(tz=timezone)
         job_id: int = self._client.trigger_method(
@@ -246,7 +383,7 @@ class ExperimentProxy:
                         "values": parameter["values"],
                         **(
                             {"device_name": parameter["device_name"]}
-                            if "device_name" in parameter
+                            if parameter.get("device_name") is not None
                             else {}
                         ),
                     }
@@ -255,6 +392,7 @@ class ExperimentProxy:
                 "priority": priority,
                 "local_parameters_timestamp": local_parameters_timestamp,
                 "repetitions": repetitions,
+                "number_of_shots": number_of_shots,
                 "git_commit_hash": git_commit_hash,
                 "auto_calibration": auto_calibration,
             },

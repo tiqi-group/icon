@@ -34,4 +34,4 @@ class HardwareProcessingTask(pydantic.BaseModel):
         outdated_tasks: Any
 
     def __lt__(self, other: HardwareProcessingTask) -> bool:
-        return self.priority < other.priority or self.created < other.created
+        return (self.priority, self.created) < (other.priority, other.created)
