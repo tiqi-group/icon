@@ -23,17 +23,17 @@ logger = logging.getLogger(__name__)
 
 
 class JobStatus(enum.Enum):
-    SUBMITTED = "submitted"
-    PROCESSING = "processing"
-    PROCESSED = "processed"
+    SUBMITTED = enum.auto()
+    PROCESSING = enum.auto()
+    PROCESSED = enum.auto()
 
 
 class RunStatus(enum.Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    DONE = "done"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
+    PENDING = enum.auto()
+    PROCESSING = enum.auto()
+    DONE = enum.auto()
+    FAILED = enum.auto()
+    CANCELLED = enum.auto()
 
 
 class ScanParameter(TypedDict):
@@ -234,7 +234,7 @@ class ExperimentJobProxy:
             "scheduler.get_job_by_id",
             kwargs={"job_id": self._job_id},
         )
-        return JobStatus(job_dict["status"])
+        return JobStatus[job_dict["status"].upper()]
 
     @property
     def run_status(self) -> RunStatus | None:
@@ -244,7 +244,7 @@ class ExperimentJobProxy:
                 "scheduler.get_job_run_by_id",
                 kwargs={"job_id": self._job_id},
             )
-            return RunStatus(run_dict["status"])
+            return RunStatus[run_dict["status"].upper()]
         except Exception:
             return None
 
@@ -275,7 +275,7 @@ class ExperimentJobProxy:
         if terminal_run_status in (RunStatus.FAILED, RunStatus.CANCELLED):
             log = self.run_log or "(no log)"
             raise RuntimeError(
-                f"Job {self._job_id} {terminal_run_status.value}:\n{log}"
+                f"Job {self._job_id} {terminal_run_status.name.lower()}:\n{log}"
             )
 
     def cancel(self) -> None:
