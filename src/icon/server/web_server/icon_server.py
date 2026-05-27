@@ -35,10 +35,12 @@ class IconServer(pydase.Server):
         def devices_callback(
             full_access_path: str, value: Any, cached_value_dict: SerializedObject
         ) -> None:
-            """This callback handles structural changes of devices. If the structure of
-            a device changes, it will re-calculate the scannable parameters and emit
-            them to the interested clients."""
+            """This callback handles structural changes of devices.
 
+            If the structure of
+            a device changes, it will re-calculate the scannable parameters and emit
+            them to the interested clients.
+            """
             if full_access_path.startswith("devices.device_proxies"):
                 emit_scannable_device_params_change(
                     self._observer, full_access_path, value, cached_value_dict

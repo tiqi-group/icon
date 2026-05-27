@@ -14,8 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class ScansController(pydase.DataService):
-    """Controller for triggering update events for jobs across multiple worker
-    processes.
+    """Controller for triggering update events for jobs across multiple worker processes.
 
     Each worker process has its own update queue (`[multiprocessing.Queue][]`), which
     this controller writes to when an update event is triggered.
@@ -35,7 +34,6 @@ class ScansController(pydase.DataService):
             job_id: The ID of the job whose parameters should be updated. If None, all
                 jobs will update their parameters.
         """
-
         for pre_processing_update_queue in self._pre_processing_update_queues:
             pre_processing_update_queue.put(
                 {

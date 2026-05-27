@@ -1,6 +1,4 @@
-"""
-This file contains the scripts to migrate configurations from one version to another.
-"""
+"""This file contains the scripts to migrate configurations from one version to another."""
 
 from collections.abc import Callable
 from typing import Any

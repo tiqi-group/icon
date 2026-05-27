@@ -10,7 +10,7 @@ from icon.server.api.models.parameter_metadata import (
 
 
 @pytest.mark.parametrize(
-    "experiments, expected",
+    ("experiments", "expected"),
     [
         # Test case: All instance names are unique
         (
@@ -53,7 +53,7 @@ def test_get_experiment_identifier_dict(
 
 
 @pytest.mark.parametrize(
-    "input_metadata,expected_output",
+    ("input_metadata", "expected_output"),
     [
         # Basic case
         (

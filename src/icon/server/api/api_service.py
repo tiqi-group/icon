@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from typing import TYPE_CHECKING
 
@@ -52,12 +53,13 @@ class APIService(pydase.DataService):
         pre_processing_event_queues: list[multiprocessing.Queue[UpdateQueue]],
         experiment_library_client: ExperimentLibraryClient,
     ) -> None:
-        """
-        Args:
-            pre_processing_event_queues: Queues used by `ScansController` to notify
-                pre-processing workers.
-        """
+        """Create a new APIService.
 
+        Args:
+        pre_processing_event_queues: Queues used by `ScansController` to notify
+            pre-processing workers.
+        experiment_library_client: Client for an experiment library
+        """
         super().__init__()
 
         self.devices = DevicesController()
@@ -87,8 +89,12 @@ class APIService(pydase.DataService):
     @task(autostart=True)
     async def _update_experiment_and_parameter_metadata_task(self) -> None:
         while True:
-            await self._update_experiment_and_parameter_metadata()
-
+            try:
+                await self._update_experiment_and_parameter_metadata()
+            except Exception:
+                logger.exception(
+                    "Failed to update experiment and parameter metadata: exception"
+                )
             await asyncio.sleep(get_config().experiment_library.update_interval)
 
     async def _update_experiment_and_parameter_metadata(self) -> None:
@@ -103,6 +109,12 @@ class APIService(pydase.DataService):
         self.experiments._update_experiment_metadata(
             new_experiments=experiment_metadata
         )
+
+        hardware_dict = (
+            await self._experiment_library_client.get_setup_hardware_description()
+        )
+        self.experiments.hardware_description = json.dumps(hardware_dict)
+
         await self.parameters._update_parameter_metadata_and_display_groups(
             parameter_metadata=parameter_metadata
         )
@@ -118,10 +130,7 @@ class APIService(pydase.DataService):
 
     @task(autostart=True)
     async def _initialise_parameters_repository_task(self) -> None:
-        """Periodically attempts to initialise the ParametersRepository until
-        successful.
-        """
-
+        """Periodically attempts to initialise the ParametersRepository until successful."""
         while not ParametersRepository.initialised:
             try:
                 self.parameters.initialise_parameters_repository()

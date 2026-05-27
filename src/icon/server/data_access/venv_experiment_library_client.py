@@ -46,6 +46,7 @@ class BlockingExperimentLibraryClient:
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
+            n_shots: Number of shots.
 
         Returns:
             JSON string containing the generated sequence.
@@ -68,6 +69,14 @@ class BlockingExperimentLibraryClient:
 
         Returns:
             Dictionary containing readout metadata for the experiment.
+        """
+        raise NotImplementedError("Must be implemented by a subclass")
+
+    def get_setup_hardware_description(self) -> dict[str, dict]:
+        """Fetch hardware description from experiment library.
+
+        Returns:
+            Dictionary containing a description of the experiment setup.
         """
         raise NotImplementedError("Must be implemented by a subclass")
 
@@ -101,6 +110,7 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
+            n_shots: Number of shots
 
         Returns:
             JSON string containing the generated sequence.
@@ -140,5 +150,17 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
                 "exp_instance_name": exp_instance_name,
                 "parameter_dict": parameter_dict,
             },
+            logger=venv_logger,
+        )
+
+    async def get_setup_hardware_description(self) -> dict[str, dict]:
+        """Fetch hardware description from experiment library.
+
+        Returns:
+            Dictionary containing a description of the experiment setup.
+        """
+        return await self.venv.run(
+            self.client.get_setup_hardware_description,
+            args={},
             logger=venv_logger,
         )

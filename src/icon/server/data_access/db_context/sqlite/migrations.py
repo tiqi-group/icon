@@ -16,6 +16,6 @@ def run_migrations() -> None:
     alembic_cfg.set_main_option("script_location", str(base_path / "alembic"))
 
     # Custom flag to prevent env.py from overriding logging
-    setattr(alembic_context, "_from_application", True)
+    alembic_context._from_application = True
 
     command.upgrade(alembic_cfg, "head")

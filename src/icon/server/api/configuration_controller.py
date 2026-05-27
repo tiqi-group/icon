@@ -10,7 +10,7 @@ from icon.config.config_path import get_config_path
 from icon.config.v2 import ServiceConfig
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(__name__)
 
 
 class ConfigurationController(pydase.DataService):
@@ -22,7 +22,6 @@ class ConfigurationController(pydase.DataService):
 
     def get_config(self) -> dict[str, Any]:
         """Get current configuration dictionary."""
-
         return get_config().model_dump()
 
     def update_config_option(self, key: str, value: Any) -> bool:
@@ -41,19 +40,9 @@ class ConfigurationController(pydase.DataService):
         Returns:
             True if the update is successful, False otherwise.
         """
-
         try:
-            # Traverse to the nested key
-            fields = key.split(".")
             current_config = get_config().model_dump()
-            current = current_config
-            for field in fields[:-1]:
-                if field not in current:
-                    raise KeyError(f"Key {key!r} not found in configuration.")
-                current = current[field]
-
-            # Update the value
-            current[fields[-1]] = value
+            set_nested(current_config, key, value)
 
             # Validate the updated configuration
             updated_config = ServiceConfig(config_sources=DataSource(current_config))
@@ -63,10 +52,10 @@ class ConfigurationController(pydase.DataService):
             emit_queue.put(
                 {"event": "config.update", "data": updated_config.model_dump()}
             )
-            return True
-        except KeyError as e:
-            logger.exception("Failed to update configuration: %s", e)
+        except KeyError:
+            logger.exception("Failed to update configuration")
             return False
+        return True
 
     def _save_configuration(self, new_config: ServiceConfig) -> None:
         """Save the updated configuration to the source YAML file.
@@ -77,6 +66,19 @@ class ConfigurationController(pydase.DataService):
             new_config:
                 The validated configuration instance.
         """
-
         with get_config_path().open("w") as file:
             file.write(yaml.dump(new_config.model_dump()))
+
+
+def set_nested(config: dict[str, Any], nested_key: str, value: Any) -> None:
+    """Set a value in a nested dict."""
+    current = config
+    *fields, last_field = nested_key.split(".")
+    # Traverse to the nested key
+    for field in fields:
+        if field not in current:
+            raise KeyError(f"Key {nested_key!r} not found in configuration.")
+        current = current[field]
+
+    # Update the value
+    current[last_field] = value

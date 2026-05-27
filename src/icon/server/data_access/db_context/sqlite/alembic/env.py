@@ -28,7 +28,7 @@ target_metadata = icon.server.data_access.models.sqlite.base.Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
+# >>> my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
 

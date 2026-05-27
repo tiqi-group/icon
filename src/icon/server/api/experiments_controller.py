@@ -23,6 +23,7 @@ class ExperimentsController(pydase.DataService):
     def __init__(self) -> None:
         super().__init__()
         self._experiments: ExperimentDict = {}
+        self.hardware_description: str = ""
 
     def get_experiments(self) -> ExperimentDict:
         """Return the current experiment metadata.
@@ -30,7 +31,6 @@ class ExperimentsController(pydase.DataService):
         Returns:
             Mapping of experiment IDs to their metadata.
         """
-
         return self._experiments
 
     def get_metadata(self, experiment_id: str) -> ExperimentMetadata:
@@ -47,11 +47,10 @@ class ExperimentsController(pydase.DataService):
         Args:
             new_experiments: Latest experiment metadata.
         """
-
         logger.debug("Updating experiment metadata...")
 
         added_exps, removes_exps, updated_exps = get_added_removed_and_updated_keys(
-            self._experiments, new_experiments
+            new_dict=new_experiments, cached_dict=self._experiments
         )
         self._experiments = new_experiments
 
@@ -62,3 +61,7 @@ class ExperimentsController(pydase.DataService):
                     "data": new_experiments,
                 }
             )
+
+    def get_hardware_description(self) -> str:
+        """Return a json string describing the experiment setup."""
+        return self.hardware_description

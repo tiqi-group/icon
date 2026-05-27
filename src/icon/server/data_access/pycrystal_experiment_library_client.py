@@ -1,3 +1,4 @@
+import importlib
 import logging
 import tempfile
 from collections.abc import Iterator
@@ -84,7 +85,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         }
 
     @parameter_metadata.setter
-    def parameter_metadata(self, value: "ParameterMetadataDict") -> None:
+    def parameter_metadata(self, value: "ParameterMetadataDict") -> None:  # noqa: ARG002
         raise RuntimeError("Read only attribute")
 
     @property
@@ -92,7 +93,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         return collect_experiment_metadata(self.experiment_library_module)
 
     @experiment_metadata.setter
-    def experiment_metadata(self, value: "ExperimentDict") -> None:
+    def experiment_metadata(self, value: "ExperimentDict") -> None:  # noqa: ARG002
         raise RuntimeError("Read only attribute")
 
     @staticmethod
@@ -109,6 +110,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
+            n_shots: Number of shots.
 
         Returns:
             JSON string containing the generated sequence.
@@ -165,6 +167,24 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             "vector_channel_windows": [
                 plot_window_metadata(m) for m in readout.vector_channel_windows
             ],
+        }
+
+    def get_setup_hardware_description(self) -> dict[str, dict]:
+        """Fetch hardware description from experiment library.
+
+        Returns:
+            Dictionary containing a description of the experiment setup.
+        """
+        hardware = importlib.import_module(
+            self.experiment_library_module + ".hardware_description.hardware"
+        )
+
+        return {
+            "RFs": hardware.hardware.rf_mapping,
+            "TTLs": hardware.hardware.ttl_mapping,
+            "PMTs": hardware.hardware.pmt_mapping,
+            "RTDs": hardware.hardware.triggered_devices_mapping,
+            "Readouts": hardware.hardware.readout_mapping,
         }
 
 

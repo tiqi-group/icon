@@ -1,4 +1,4 @@
-"""Renaming job_iterations table to job_runs
+"""Renaming job_iterations table to job_runs.
 
 Revision ID: 35d235813b7a
 Revises: 000976b1cd64

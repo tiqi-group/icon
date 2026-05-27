@@ -12,6 +12,7 @@ from icon.logging import setup_logging
 from icon.server.data_access.reconfigurable_experiment_library_client import (
     ReconfigurableExperimentLibraryClient,
 )
+from icon.server.shared_resource_manager import SRM
 
 if TYPE_CHECKING:
     from icon.server.post_processing.task import PostProcessingTask
@@ -60,9 +61,9 @@ def start_server() -> None:
     patch_serialization_methods()
     run_migrations()
 
-    scheduler = Scheduler(
-        pre_processing_queue=icon.server.shared_resource_manager.pre_processing_queue
-    )
+    SRM.start_srm()
+
+    scheduler = Scheduler(pre_processing_queue=SRM.pre_processing_queue)
     scheduler.start()
     config = get_config()
 
@@ -76,10 +77,10 @@ def start_server() -> None:
         PreProcessingWorker(
             experiment_library_client=exp_lib_client,
             worker_number=i,
-            hardware_processing_queue=icon.server.shared_resource_manager.hardware_processing_queue,
-            pre_processing_queue=icon.server.shared_resource_manager.pre_processing_queue,
+            hardware_processing_queue=SRM.hardware_processing_queue,
+            pre_processing_queue=SRM.pre_processing_queue,
             update_queue=queue,
-            manager=icon.server.shared_resource_manager.manager,
+            manager=SRM,
         ).start()
 
     post_processing_queue: multiprocessing.Queue[PostProcessingTask] = (
@@ -87,9 +88,9 @@ def start_server() -> None:
     )
 
     hardware_processing_worker = HardwareProcessingWorker(
-        hardware_processing_queue=icon.server.shared_resource_manager.hardware_processing_queue,
+        hardware_processing_queue=SRM.hardware_processing_queue,
         post_processing_queue=post_processing_queue,
-        manager=icon.server.shared_resource_manager.manager,
+        manager=SRM,
     )
     hardware_processing_worker.start()
 
@@ -121,9 +122,8 @@ def start_server() -> None:
     show_default=True,
     help="Path to the configuration file.",
 )
-def main(version: bool, verbose: int, quiet: int, config: pathlib.Path) -> None:
-    """Start the ICON server"""
-
+def main(*, version: bool, verbose: int, quiet: int, config: pathlib.Path) -> None:
+    """Start the ICON server."""
     if version:
         from importlib.metadata import distribution
 

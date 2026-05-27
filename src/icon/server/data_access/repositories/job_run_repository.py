@@ -23,7 +23,6 @@ def job_run_cancelled_or_failed(job_id: int) -> bool:
     Returns:
         True if the run status is CANCELLED or FAILED, False otherwise.
     """
-
     job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
     if job_run.status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
         logger.info(
@@ -52,7 +51,6 @@ class JobRunRepository:
         Returns:
             The persisted job run with generated fields populated.
         """
-
         with sqlalchemy.orm.Session(engine) as session:
             session.add(run)
             session.commit()
@@ -87,7 +85,6 @@ class JobRunRepository:
         Returns:
             The updated job run.
         """
-
         with sqlalchemy.orm.Session(engine) as session:
             stmt = (
                 update(JobRun)
@@ -132,7 +129,6 @@ class JobRunRepository:
         Returns:
             All matching runs.
         """
-
         if not isinstance(status, list):
             status = [status]
 
@@ -184,7 +180,6 @@ class JobRunRepository:
         Returns:
             The run linked to the given job.
         """
-
         with sqlalchemy.orm.Session(engine) as session:
             stmt = (
                 select(JobRun)
@@ -210,7 +205,6 @@ class JobRunRepository:
         Returns:
             The scheduled start time of the run.
         """
-
         with sqlalchemy.orm.Session(engine) as session:
             stmt = (
                 select(JobRun.scheduled_time)
@@ -228,10 +222,9 @@ class JobRunRepository:
         """Set the paramter update timestamp.
 
         Args:
-            job_id: ID of the job.
+            run_id: ID of the job.
             timestamp: New parameter update timestamp.
         """
-
         with sqlalchemy.orm.Session(engine) as session:
             stmt = (
                 update(JobRun)
@@ -250,11 +243,11 @@ class JobRunRepository:
         """Get the paramter update timestamp.
 
         Args:
-            job_id: ID of the job.
+            run_id: ID of the job.
+
         Returns:
             The parameter update timestamp.
         """
-
         with sqlalchemy.orm.Session(engine) as session:
             stmt = select(JobRun.parameter_update_timestamp).where(JobRun.id == run_id)
 
