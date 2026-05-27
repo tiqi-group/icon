@@ -98,14 +98,19 @@ def get_display_group_identifier_dict(display_groups: list[str]) -> dict[str, st
 
     ``'experiment_library.globals.global_parameters (Doppler Cooling)'``
     becomes ``'Global Parameters (Doppler Cooling)'``.  When the short class
-    name collides across namespaces, the parent module is prepended to keep
-    keys unique.
+    name collides across namespaces, the parent module is prepended to produce
+    a longer identifier.  If the longer identifier still collides, a
+    :exc:`ValueError` is raised.
 
     Args:
         display_groups: Full display-group key strings as returned by the server.
 
     Returns:
-        Dict mapping short identifiers to full keys.
+        Dict mapping short (or, on collision, longer) identifiers to full keys.
+
+    Raises:
+        ValueError: If two display groups cannot be disambiguated even with the
+            longer identifier.
     """
 
     def _parse(key: str) -> tuple[str, str]:
@@ -125,14 +130,31 @@ def get_display_group_identifier_dict(display_groups: list[str]) -> dict[str, st
             return f"{prefix} {class_part} ({instance})"
         return f"{namespace} ({instance})"
 
-    short_names = [_short(*_parse(k)) for k in display_groups]
-    counts = Counter(short_names)
+    parsed = [_parse(k) for k in display_groups]
+    short_names = [_short(ns, inst) for ns, inst in parsed]
+    short_counts = Counter(short_names)
+
+    # Pre-compute longer names only for keys whose short name is not unique,
+    # then count those to detect remaining collisions.
+    longer_counts: Counter[str] = Counter(
+        _longer(ns, inst)
+        for (ns, inst), short in zip(parsed, short_names)
+        if short_counts[short] > 1
+    )
 
     result: dict[str, str] = {}
-    for key in display_groups:
-        namespace, instance = _parse(key)
-        short = _short(namespace, instance)
-        result[short if counts[short] == 1 else _longer(namespace, instance)] = key
+    for key, (namespace, instance), short in zip(display_groups, parsed, short_names):
+        if short_counts[short] == 1:
+            result[short] = key
+        else:
+            longer = _longer(namespace, instance)
+            if longer_counts[longer] > 1:
+                raise ValueError(
+                    f"Cannot create a unique display-group identifier for '{key}': "
+                    f"both the short name '{short}' and the longer name '{longer}' "
+                    f"collide with another display group."
+                )
+            result[longer] = key
 
     return result
 
