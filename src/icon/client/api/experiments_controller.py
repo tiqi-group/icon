@@ -93,6 +93,29 @@ def get_experiment_identifier_dict(experiments: list[str]) -> dict[str, str]:
     return identifier_dict
 
 
+def _dg_parse(key: str) -> tuple[str, str]:
+    """Split a display-group key into its namespace and instance parts."""
+    namespace, _, instance = key.rpartition(" (")
+    return namespace, instance.rstrip(")")
+
+
+def _dg_short(namespace: str, instance: str) -> str:
+    """Return the short display-group identifier (class name + instance)."""
+    class_part = namespace.rsplit(".", 1)[-1].replace("_", " ").title()
+    return f"{class_part} ({instance})"
+
+
+def _dg_longer(namespace: str, instance: str) -> str:
+    """Return a longer display-group identifier with the parent module prepended."""
+    min_parts = 2
+    parts = namespace.split(".")
+    if len(parts) >= min_parts:
+        prefix = parts[-2].replace("_", " ").title()
+        class_part = parts[-1].replace("_", " ").title()
+        return f"{prefix} {class_part} ({instance})"
+    return f"{namespace} ({instance})"
+
+
 def get_display_group_identifier_dict(display_groups: list[str]) -> dict[str, str]:
     """Map short display-name keys to full display-group keys.
 
@@ -112,42 +135,26 @@ def get_display_group_identifier_dict(display_groups: list[str]) -> dict[str, st
         ValueError: If two display groups cannot be disambiguated even with the
             longer identifier.
     """
-
-    def _parse(key: str) -> tuple[str, str]:
-        namespace, _, instance = key.rpartition(" (")
-        return namespace, instance.rstrip(")")
-
-    def _short(namespace: str, instance: str) -> str:
-        class_part = namespace.rsplit(".", 1)[-1].replace("_", " ").title()
-        return f"{class_part} ({instance})"
-
-    def _longer(namespace: str, instance: str) -> str:
-        min_parts = 2
-        parts = namespace.split(".")
-        if len(parts) >= min_parts:
-            prefix = parts[-2].replace("_", " ").title()
-            class_part = parts[-1].replace("_", " ").title()
-            return f"{prefix} {class_part} ({instance})"
-        return f"{namespace} ({instance})"
-
-    parsed = [_parse(k) for k in display_groups]
-    short_names = [_short(ns, inst) for ns, inst in parsed]
+    parsed = [_dg_parse(k) for k in display_groups]
+    short_names = [_dg_short(ns, inst) for ns, inst in parsed]
     short_counts = Counter(short_names)
 
     # Pre-compute longer names only for keys whose short name is not unique,
     # then count those to detect remaining collisions.
     longer_counts: Counter[str] = Counter(
-        _longer(ns, inst)
-        for (ns, inst), short in zip(parsed, short_names)
+        _dg_longer(ns, inst)
+        for (ns, inst), short in zip(parsed, short_names, strict=True)
         if short_counts[short] > 1
     )
 
     result: dict[str, str] = {}
-    for key, (namespace, instance), short in zip(display_groups, parsed, short_names):
+    for key, (namespace, instance), short in zip(
+        display_groups, parsed, short_names, strict=True
+    ):
         if short_counts[short] == 1:
             result[short] = key
         else:
-            longer = _longer(namespace, instance)
+            longer = _dg_longer(namespace, instance)
             if longer_counts[longer] > 1:
                 raise ValueError(
                     f"Cannot create a unique display-group identifier for '{key}': "
