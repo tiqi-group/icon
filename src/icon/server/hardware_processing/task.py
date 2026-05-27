@@ -20,7 +20,7 @@ class HardwareProcessingTask(pydantic.BaseModel):
     scanned_params: dict[str, DatabaseValueType]
     global_parameter_timestamp: datetime
     sequence_json: str
-    src_dir: str
+    src_dir: str | None
     created: datetime
     if TYPE_CHECKING:
         processed_data_points: Queue[HardwareProcessingTask]
@@ -34,4 +34,4 @@ class HardwareProcessingTask(pydantic.BaseModel):
         outdated_tasks: Any
 
     def __lt__(self, other: HardwareProcessingTask) -> bool:
-        return self.priority < other.priority or self.created < other.created
+        return (self.priority, self.created) < (other.priority, other.created)

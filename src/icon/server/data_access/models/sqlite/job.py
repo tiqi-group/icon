@@ -51,10 +51,6 @@ class Job(Base):
         default=lambda: datetime.datetime.now(timezone)
     )
     """Timestamp when the job was created. This cannot be set manually."""
-    # user_id: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column(
-    #     sqlalchemy.ForeignKey("user.id"),
-    #     default=None,
-    # )
     experiment_source_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
         sqlalchemy.ForeignKey("experiment_sources.id")
     )
@@ -139,8 +135,8 @@ class Job(Base):
 
 @sqlalchemy.event.listens_for(Job, "before_insert")
 def receive_before_insert(
-    mapper: sqlalchemy.orm.Mapper[Job],
-    connection: sqlalchemy.engine.Connection,
+    mapper: sqlalchemy.orm.Mapper[Job],  # noqa: ARG001
+    connection: sqlalchemy.engine.Connection,  # noqa: ARG001
     target: Job,
 ) -> None:
     """Prevent manually setting the 'created' field on insert."""

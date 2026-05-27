@@ -1,4 +1,4 @@
-"""Adds status index to device table
+"""Adds status index to device table.
 
 Revision ID: 5f18f70e500a
 Revises: c6c455b61559

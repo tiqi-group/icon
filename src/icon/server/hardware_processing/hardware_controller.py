@@ -2,6 +2,7 @@ import logging
 
 try:
     import tiqi_zedboard.zedboard  # type: ignore
+
     HAS_TIQI_ZEDBOARD = True
 except ImportError:
     HAS_TIQI_ZEDBOARD = False
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class HardwareController:
-    def __init__(self, connect: bool = True) -> None:
+    def __init__(self, *, connect: bool = True) -> None:
         self._host = get_config().hardware.host
         self._port = get_config().hardware.port
         self._zedboard: tiqi_zedboard.zedboard.Zedboard | None = None
@@ -45,16 +46,17 @@ class HardwareController:
         if self._zedboard is not None:
             self._zedboard.sequence_JSON_parser.Sequence_JSON = sequence  # type: ignore
 
-    def run(self, *, sequence: str, number_of_shots: int) -> ResultDict:
+    def run(self, *, sequence: str) -> ResultDict:
         if not self.connected:
             self.connect()
 
         if not self.connected:
             if HAS_TIQI_ZEDBOARD:
                 raise RuntimeError("Could not connect to the Zedboard")
-            else:
-                raise RuntimeError("Tiqi zedboard package is not available. "
-                                   "Please use 'uv sync --all-extras' to install all dependencies")
+            raise RuntimeError(
+                "Tiqi zedboard package is not available. "
+                "Please use 'uv sync --all-extras' to install all dependencies"
+            )
 
         self._update_zedboard_sequence(sequence=sequence)
         self._zedboard.sequence_JSON_parser.Parse_JSON_Header()  # type: ignore

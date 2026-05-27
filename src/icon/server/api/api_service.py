@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pydase
@@ -22,27 +22,16 @@ from icon.server.api.status_controller import StatusController
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
 )
-from icon.server.data_access.repositories.pycrystal_library_repository import (
-    PycrystalLibraryRepository,
-)
 
 if TYPE_CHECKING:
     import multiprocessing
 
+    from icon.server.data_access.experiment_library_client import (
+        ExperimentLibraryClient,
+    )
     from icon.server.utils.types import UpdateQueue
 
 logger = logging.getLogger(__name__)
-
-
-def _check_experiment_library_directory() -> bool:
-    exp_lib_dir = get_config().experiment_library.dir
-    if exp_lib_dir is None:
-        logger.warning("Experiment library is not configured yet")
-        return False
-    if not Path(exp_lib_dir).exists():
-        logger.warning("Experiment library directory %a does not exist", exp_lib_dir)
-        return False
-    return True
 
 
 class APIService(pydase.DataService):
@@ -60,14 +49,17 @@ class APIService(pydase.DataService):
     """
 
     def __init__(
-        self, pre_processing_event_queues: list[multiprocessing.Queue[UpdateQueue]]
+        self,
+        pre_processing_event_queues: list[multiprocessing.Queue[UpdateQueue]],
+        experiment_library_client: ExperimentLibraryClient,
     ) -> None:
-        """
-        Args:
-            pre_processing_event_queues: Queues used by `ScansController` to notify
-                pre-processing workers.
-        """
+        """Create a new APIService.
 
+        Args:
+        pre_processing_event_queues: Queues used by `ScansController` to notify
+            pre-processing workers.
+        experiment_library_client: Client for an experiment library
+        """
         super().__init__()
 
         self.devices = DevicesController()
@@ -92,26 +84,37 @@ class APIService(pydase.DataService):
         processes."""
         self.status = StatusController()
         """Controller for system status monitoring."""
+        self._experiment_library_client = experiment_library_client
 
     @task(autostart=True)
     async def _update_experiment_and_parameter_metadata_task(self) -> None:
         while True:
-            await self._update_experiment_and_parameter_metadata()
-
+            try:
+                await self._update_experiment_and_parameter_metadata()
+            except Exception:
+                logger.exception(
+                    "Failed to update experiment and parameter metadata: exception"
+                )
             await asyncio.sleep(get_config().experiment_library.update_interval)
 
     async def _update_experiment_and_parameter_metadata(self) -> None:
-        if not _check_experiment_library_directory():
+        if not self._experiment_library_client.is_configured():
+            logger.warning("Experiment library is not configured yet")
             return
 
-        pycrystal_library_metadata = (
-            await PycrystalLibraryRepository.get_experiment_and_parameter_metadata()
-        )
-        experiment_metadata = pycrystal_library_metadata["experiment_metadata"]
-        parameter_metadata = pycrystal_library_metadata["parameter_metadata"]
+        (
+            experiment_metadata,
+            parameter_metadata,
+        ) = await self._experiment_library_client.load_metadata()
         self.experiments._update_experiment_metadata(
             new_experiments=experiment_metadata
         )
+
+        hardware_dict = (
+            await self._experiment_library_client.get_setup_hardware_description()
+        )
+        self.experiments.hardware_description = json.dumps(hardware_dict)
+
         await self.parameters._update_parameter_metadata_and_display_groups(
             parameter_metadata=parameter_metadata
         )
@@ -127,10 +130,7 @@ class APIService(pydase.DataService):
 
     @task(autostart=True)
     async def _initialise_parameters_repository_task(self) -> None:
-        """Periodically attempts to initialise the ParametersRepository until
-        successful.
-        """
-
+        """Periodically attempts to initialise the ParametersRepository until successful."""
         while not ParametersRepository.initialised:
             try:
                 self.parameters.initialise_parameters_repository()

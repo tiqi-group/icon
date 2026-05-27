@@ -117,7 +117,6 @@ class SchedulerController:
                 "experiment": experiment,
                 "priority": priority,
                 "local_parameters_timestamp": local_parameters_timestamp,
-                # "scan_info": scan_info,
                 "repetitions": repetitions,
             },
         )

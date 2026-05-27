@@ -27,23 +27,13 @@ def setup_sio_events(
 
     @sio.event
     async def connect(sid: str, environ: Any) -> None:
-        client_id_header = environ.get("HTTP_X_CLIENT_ID", None)
-        remote_username_header = environ.get("HTTP_REMOTE_USER", None)
-
-        if remote_username_header is not None:
-            log_id = f"user={click.style(remote_username_header, fg='cyan')}"
-        elif client_id_header is not None:
-            log_id = f"id={click.style(client_id_header, fg='cyan')}"
-        else:
-            log_id = f"sid={click.style(sid, fg='cyan')}"
-
         # send current controlling state to the newly connected client
         await sio.emit(
             "control_state", {"controlling_sid": sio.controlling_sid}, to=sid
         )
 
         async with sio.session(sid) as session:
-            session["client_id"] = log_id
+            session["client_id"] = log_id(environ, sid)
             logger.info("Client [%s] connected", session["client_id"])
 
     @sio.event
@@ -65,6 +55,17 @@ def setup_sio_events(
         if sio.controlling_sid == sid:
             sio.controlling_sid = None
             await sio.emit("control_state", {"controlling_sid": None})
+
+
+def log_id(headers: Any, sid: str) -> str:
+    client_id_header = headers.get("HTTP_X_CLIENT_ID", None)
+    remote_username_header = headers.get("HTTP_REMOTE_USER", None)
+
+    if remote_username_header is not None:
+        return f"user={click.style(remote_username_header, fg='cyan')}"
+    if client_id_header is not None:
+        return f"id={click.style(client_id_header, fg='cyan')}"
+    return f"sid={click.style(sid, fg='cyan')}"
 
 
 def patch_sio_setup() -> None:

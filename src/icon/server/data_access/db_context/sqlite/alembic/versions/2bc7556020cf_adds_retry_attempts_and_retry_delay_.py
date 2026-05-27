@@ -1,4 +1,4 @@
-"""Adds retry_attempts and retry_delay_seconds to devices table
+"""Adds retry_attempts and retry_delay_seconds to devices table.
 
 Revision ID: 2bc7556020cf
 Revises: 5f18f70e500a

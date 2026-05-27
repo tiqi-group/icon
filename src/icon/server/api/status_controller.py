@@ -31,7 +31,6 @@ class StatusController(pydase.DataService):
                 - `"influxdb"`: Whether InfluxDB is responsive.
                 - `"hardware"`: Whether the hardware connection is active.
         """
-
         return {
             "influxdb": self._influxdb_available,
             "hardware": self._hardware_available,
@@ -42,7 +41,6 @@ class StatusController(pydase.DataService):
 
         Emits a `"status.influxdb"` event to the Socket.IO queue.
         """
-
         status = influxdb_v1.is_responsive()
 
         self._influxdb_available = status
@@ -56,7 +54,6 @@ class StatusController(pydase.DataService):
 
         Emits a `"status.hardware"` event to the Socket.IO queue.
         """
-
         status = self.__hardware_controller.connected
 
         if (
@@ -79,7 +76,6 @@ class StatusController(pydase.DataService):
         - Updates hardware status.
         - Sleeps for the configured health check interval.
         """
-
         while True:
             self.check_influxdb_status()
             await self.check_hardware_status()

@@ -23,6 +23,7 @@ def is_responsive(host: str, port: int) -> bool:
             f"u={get_config().databases.influxdbv1.username}"
             f"&p={get_config().databases.influxdbv1.password}",
             data={"q": "SHOW DATABASES"},
+            timeout=1,
         )
     except Exception:
         return False
@@ -51,7 +52,7 @@ def influxdbv1_service() -> Iterable[None]:
         yield
 
 
-def test_InfluxDBv1Session(influxdbv1_service: None) -> None:  # noqa: N802
+def test_InfluxDBv1Session(influxdbv1_service: None) -> None:  # noqa: N802, ARG001
     test_value = 1337
 
     with InfluxDBv1Session() as session:
@@ -65,7 +66,8 @@ def test_InfluxDBv1Session(influxdbv1_service: None) -> None:  # noqa: N802
         )
         result = session.query(measurement="Pytest", field="test")
 
-        assert result is not None and result["test"] == test_value
+        assert result is not None
+        assert result["test"] == test_value
 
         assert session.query_last(measurement="Pytest") == {
             "test": test_value,

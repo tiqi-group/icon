@@ -1,4 +1,4 @@
-"""Adds debug_mode column to job table
+"""Adds debug_mode column to job table.
 
 Revision ID: f5fd45fdded6
 Revises: a8766054064d
