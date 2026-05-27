@@ -1,6 +1,7 @@
 import pytest
 
 from icon.client.api.experiments_controller import (
+    get_display_group_identifier_dict,
     get_experiment_identifier_dict,
     get_parameter_identifier_mapping,
 )
@@ -116,3 +117,58 @@ def test_get_parameter_identifier_mapping(
     input_metadata: dict[str, ParameterMetadata], expected_output: dict[str, str]
 ) -> None:
     assert get_parameter_identifier_mapping(input_metadata) == expected_output
+
+
+@pytest.mark.parametrize(
+    ("display_groups", "expected"),
+    [
+        # All short names are unique → use short names directly
+        (
+            [
+                "experiment_library.globals.global_parameters (Doppler Cooling)",
+                "experiment_library.motional.sideband_cooling (Sideband Cooling)",
+            ],
+            {
+                "Global Parameters (Doppler Cooling)": (
+                    "experiment_library.globals.global_parameters (Doppler Cooling)"
+                ),
+                "Sideband Cooling (Sideband Cooling)": (
+                    "experiment_library.motional.sideband_cooling (Sideband Cooling)"
+                ),
+            },
+        ),
+        # Short name collision → fall back to longer name (parent module prepended)
+        (
+            [
+                "experiment_library.module_a.global_parameters (Doppler Cooling)",
+                "experiment_library.module_b.global_parameters (Doppler Cooling)",
+            ],
+            {
+                "Module A Global Parameters (Doppler Cooling)": (
+                    "experiment_library.module_a.global_parameters (Doppler Cooling)"
+                ),
+                "Module B Global Parameters (Doppler Cooling)": (
+                    "experiment_library.module_b.global_parameters (Doppler Cooling)"
+                ),
+            },
+        ),
+        # Empty list → empty dict
+        ([], {}),
+    ],
+)
+def test_get_display_group_identifier_dict(
+    display_groups: list[str], expected: dict[str, str]
+) -> None:
+    assert get_display_group_identifier_dict(display_groups) == expected
+
+
+def test_get_display_group_identifier_dict_raises_on_longer_collision() -> None:
+    """ValueError is raised when even the longer name collides."""
+    # Both keys share the same parent module and class name → _longer produces
+    # the same string for both, so the collision cannot be resolved.
+    display_groups = [
+        "shared_parent.shared_class (Instance A)",
+        "shared_parent.shared_class (Instance A)",
+    ]
+    with pytest.raises(ValueError, match="collide"):
+        get_display_group_identifier_dict(display_groups)
