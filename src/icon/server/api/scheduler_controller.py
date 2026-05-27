@@ -205,7 +205,6 @@ class SchedulerController(pydase.DataService):
         Args:
             job_id: ID of the job to pause.
         """
-
         job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
         if job_run.status == JobRunStatus.PROCESSING:
             JobRunRepository.update_run_by_id(
@@ -226,7 +225,6 @@ class SchedulerController(pydase.DataService):
         Args:
             job_id: ID of the job to resume.
         """
-
         job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
         if job_run.status == JobRunStatus.PAUSED:
             JobRunRepository.update_run_by_id(
@@ -291,7 +289,6 @@ class SchedulerController(pydase.DataService):
         Returns:
             Mapping from job ID to the latest job run record.
         """
-
         return {run.job_id: run for run in JobRunRepository.get_latest_runs()}
 
     async def _cast_scan_values_to_param_type(

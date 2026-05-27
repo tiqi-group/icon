@@ -152,7 +152,6 @@ class JobRunRepository:
             One `JobRun` per `job_id`, picking the one with the latest
             `scheduled_time` when multiple runs exist for a job.
         """
-
         with sqlalchemy.orm.Session(engine) as session:
             subq = (
                 select(

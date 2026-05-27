@@ -22,7 +22,7 @@ def _mock_job_run(status: JobRunStatus, run_id: int = 42) -> MagicMock:
 
 
 @pytest.mark.parametrize(
-    "run_status,should_update",
+    ("run_status", "should_update"),
     [
         (JobRunStatus.PROCESSING, True),
         (JobRunStatus.PENDING, False),
@@ -36,6 +36,7 @@ def _mock_job_run(status: JobRunStatus, run_id: int = 42) -> MagicMock:
 def test_pause_job_guards_by_status(
     mock_job_run_repo: MagicMock,
     run_status: JobRunStatus,
+    *,
     should_update: bool,
     controller: SchedulerController,
 ) -> None:
@@ -54,7 +55,7 @@ def test_pause_job_guards_by_status(
 
 
 @pytest.mark.parametrize(
-    "run_status,should_update",
+    ("run_status", "should_update"),
     [
         (JobRunStatus.PAUSED, True),
         (JobRunStatus.PROCESSING, False),
@@ -68,6 +69,7 @@ def test_pause_job_guards_by_status(
 def test_resume_job_guards_by_status(
     mock_job_run_repo: MagicMock,
     run_status: JobRunStatus,
+    *,
     should_update: bool,
     controller: SchedulerController,
 ) -> None:
@@ -85,7 +87,7 @@ def test_resume_job_guards_by_status(
 
 
 @pytest.mark.parametrize(
-    "run_status,should_cancel",
+    ("run_status", "should_cancel"),
     [
         (JobRunStatus.PENDING, True),
         (JobRunStatus.PROCESSING, True),
@@ -101,6 +103,7 @@ def test_cancel_job_cancels_paused_runs(
     mock_job_run_repo: MagicMock,
     mock_job_repo: MagicMock,
     run_status: JobRunStatus,
+    *,
     should_cancel: bool,
     controller: SchedulerController,
 ) -> None:

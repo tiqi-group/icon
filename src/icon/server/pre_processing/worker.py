@@ -400,11 +400,8 @@ class PreProcessingWorker(multiprocessing.Process):
         in which case it would otherwise spin on an empty queue without yielding to
         the outer ``_regenerate_outdated_jobs`` call.
         """
-
         while (
-            JobRunRepository.get_run_by_job_id(
-                job_id=pre_processing_task.job.id
-            ).status
+            JobRunRepository.get_run_by_job_id(job_id=pre_processing_task.job.id).status
             == JobRunStatus.PAUSED
         ):
             self._handle_parameter_updates(pre_processing_task, namespace=namespace)
