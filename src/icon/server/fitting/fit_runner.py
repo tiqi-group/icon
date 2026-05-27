@@ -92,7 +92,7 @@ def _apply_range(
     return x, y
 
 
-def run_curve_fit(  # noqa: PLR0913, C901
+def run_curve_fit(  # noqa: C901
     x: npt.NDArray[np.float64],
     y: npt.NDArray[np.float64],
     result_channel: str,
@@ -103,7 +103,10 @@ def run_curve_fit(  # noqa: PLR0913, C901
     """Run a curve fit on the given data."""
     if func_type not in FIT_MODELS:
         return _make_error(
-            result_channel, func_type, x_range, init or {},
+            result_channel,
+            func_type,
+            x_range,
+            init or {},
             f"Unknown fit function: {func_type}",
         )
 
@@ -114,7 +117,10 @@ def run_curve_fit(  # noqa: PLR0913, C901
     min_points = len(model.param_names) + 1
     if len(x) < min_points:
         return _make_error(
-            result_channel, func_type, x_range, init or {},
+            result_channel,
+            func_type,
+            x_range,
+            init or {},
             f"Insufficient data points: {len(x)} (need at least {min_points})",
         )
 
@@ -125,16 +131,20 @@ def run_curve_fit(  # noqa: PLR0913, C901
             if name in init:
                 p0[i] = init[name]
 
-    init_dict = dict(zip(model.param_names, p0))
+    init_dict = dict(zip(model.param_names, p0, strict=True))
 
     try:
         popt, _ = curve_fit(model.func, x, y, p0=p0, maxfev=_MAX_FIT_EVALS)
     except (RuntimeError, ValueError) as exc:
         return _make_error(
-            result_channel, func_type, x_range, init_dict, str(exc),
+            result_channel,
+            func_type,
+            x_range,
+            init_dict,
+            str(exc),
         )
 
-    result_dict = dict(zip(model.param_names, (float(v) for v in popt)))
+    result_dict = dict(zip(model.param_names, (float(v) for v in popt), strict=True))
 
     if model.derived_params:
         result_dict.update(model.derived_params(result_dict))

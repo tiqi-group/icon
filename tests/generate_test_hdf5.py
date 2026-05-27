@@ -20,7 +20,9 @@ Requirements:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+import logging
+import sys
+from datetime import datetime, timedelta, timezone
 
 import h5py  # type: ignore
 import numpy as np
@@ -35,6 +37,8 @@ from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.models.sqlite.job_run import JobRun
 from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
 
+logger = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
 # Shared experiment source — reused across all generated jobs
 # ---------------------------------------------------------------------------
@@ -42,7 +46,9 @@ from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
 _EXPERIMENT_ID = "test.SyntheticExperiment (SyntheticExperiment)"
 
 
-def _get_or_create_experiment_source(session: sqlalchemy.orm.Session) -> ExperimentSource:
+def _get_or_create_experiment_source(
+    session: sqlalchemy.orm.Session,
+) -> ExperimentSource:
     existing = session.execute(
         sqlalchemy.select(ExperimentSource).where(
             ExperimentSource.experiment_id == _EXPERIMENT_ID
@@ -138,10 +144,16 @@ def _write_hdf5(
             compression="gzip",
         )
         result_ds[result_channel] = y
-        result_ds.attrs["Plot window metadata"] = json.dumps([
-            {"name": "Results", "index": 0, "type": "readout",
-             "channel_names": [result_channel]},
-        ])
+        result_ds.attrs["Plot window metadata"] = json.dumps(
+            [
+                {
+                    "name": "Results",
+                    "index": 0,
+                    "type": "readout",
+                    "channel_names": [result_channel],
+                },
+            ]
+        )
 
         shot_group = h5.create_group("shot_channels")
         shot_group.attrs["Plot window metadata"] = json.dumps([])
@@ -161,7 +173,7 @@ def _create_job(
     """Create SQLite records + HDF5 file; return the job ID."""
     with sqlalchemy.orm.Session(engine) as session:
         source = _get_or_create_experiment_source(session)
-        job, run = _insert_job_and_run(
+        job, _run = _insert_job_and_run(
             session,
             source,
             scan_values=x.tolist(),
@@ -173,7 +185,7 @@ def _create_job(
 
     filepath = _hdf5_path(scheduled_time)
     _write_hdf5(filepath, job_id, x, y, variable_id, result_channel)
-    print(f"[{label}] job_id={job_id}  file={filepath}")
+    logger.info("[%s] job_id=%s  file=%s", label, job_id, filepath)
     return job_id
 
 
@@ -183,7 +195,7 @@ def _create_job(
 
 # Use a fixed base time and offset each scenario by a minute so filenames
 # don't collide even if the script is re-run on the same second.
-_BASE_TIME = datetime(2025, 6, 1, 12, 0, 0)
+_BASE_TIME = datetime(2025, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
 
 
 def generate_clean_lorentzian() -> int:
@@ -192,7 +204,8 @@ def generate_clean_lorentzian() -> int:
     y = 1.0 + 5.0 / (1 + ((x - 150.0) / 5.0) ** 2)
     y += np.random.default_rng(42).normal(0, 0.05, len(x))
     return _create_job(
-        x, y,
+        x,
+        y,
         variable_id="frequency",
         result_channel="counts",
         scheduled_time=_BASE_TIME,
@@ -206,7 +219,8 @@ def generate_noisy_lorentzian() -> int:
     y = 1.0 + 5.0 / (1 + ((x - 150.0) / 5.0) ** 2)
     y += np.random.default_rng(42).normal(0, 1.0, len(x))
     return _create_job(
-        x, y,
+        x,
+        y,
         variable_id="frequency",
         result_channel="counts",
         scheduled_time=_BASE_TIME + timedelta(minutes=1),
@@ -224,7 +238,8 @@ def generate_w_shape() -> int:
     )
     y += np.random.default_rng(42).normal(0, 0.1, len(x))
     return _create_job(
-        x, y,
+        x,
+        y,
         variable_id="frequency",
         result_channel="counts",
         scheduled_time=_BASE_TIME + timedelta(minutes=2),
@@ -238,7 +253,8 @@ def generate_gaussian() -> int:
     y = 2.0 + 3.0 * np.exp(-((x - 5.0) ** 2) / (2 * 0.8**2))
     y += np.random.default_rng(42).normal(0, 0.05, len(x))
     return _create_job(
-        x, y,
+        x,
+        y,
         variable_id="detuning",
         result_channel="fluorescence",
         scheduled_time=_BASE_TIME + timedelta(minutes=3),
@@ -252,7 +268,8 @@ def generate_poly2() -> int:
     y = 2.0 * x**2 - 3.0 * x + 1.0
     y += np.random.default_rng(42).normal(0, 0.5, len(x))
     return _create_job(
-        x, y,
+        x,
+        y,
         variable_id="voltage",
         result_channel="counts",
         scheduled_time=_BASE_TIME + timedelta(minutes=4),
@@ -266,7 +283,8 @@ def generate_harmonic() -> int:
     y = 1.0 + 2.0 * np.cos(4.0 * x + 0.5)
     y += np.random.default_rng(42).normal(0, 0.1, len(x))
     return _create_job(
-        x, y,
+        x,
+        y,
         variable_id="time",
         result_channel="population",
         scheduled_time=_BASE_TIME + timedelta(minutes=5),
@@ -280,7 +298,8 @@ def generate_damped_harmonic() -> int:
     y = 1.0 + np.exp(-0.3 * x) * 2.0 * np.cos(4.0 * x + 0.5)
     y += np.random.default_rng(42).normal(0, 0.05, len(x))
     return _create_job(
-        x, y,
+        x,
+        y,
         variable_id="time",
         result_channel="population",
         scheduled_time=_BASE_TIME + timedelta(minutes=6),
@@ -288,7 +307,7 @@ def generate_damped_harmonic() -> int:
     )
 
 
-def _insert_job_and_run_2d(  # noqa: PLR0913
+def _insert_job_and_run_2d(
     session: sqlalchemy.orm.Session,
     source: ExperimentSource,
     scan_values_x: list[float],
@@ -333,7 +352,7 @@ def _insert_job_and_run_2d(  # noqa: PLR0913
     return job, run
 
 
-def _write_hdf5_2d(  # noqa: PLR0913
+def _write_hdf5_2d(
     filepath: str,
     job_id: int,
     x_flat: np.ndarray,
@@ -375,10 +394,16 @@ def _write_hdf5_2d(  # noqa: PLR0913
             compression="gzip",
         )
         result_ds[result_channel] = z
-        result_ds.attrs["Plot window metadata"] = json.dumps([
-            {"name": "Results", "index": 0, "type": "readout",
-             "channel_names": [result_channel]},
-        ])
+        result_ds.attrs["Plot window metadata"] = json.dumps(
+            [
+                {
+                    "name": "Results",
+                    "index": 0,
+                    "type": "readout",
+                    "channel_names": [result_channel],
+                },
+            ]
+        )
 
         shot_group = h5.create_group("shot_channels")
         shot_group.attrs["Plot window metadata"] = json.dumps([])
@@ -409,15 +434,16 @@ def generate_2d_gaussian() -> int:
 
     # 2D Gaussian
     amp, x0, y0, sx, sy, offset = 5.0, 150.0, 5.0, 15.0, 2.0, 1.0
-    z = amp * np.exp(-(
-        (x_flat - x0) ** 2 / (2 * sx**2)
-        + (y_flat - y0) ** 2 / (2 * sy**2)
-    )) + offset
+    z = (
+        amp
+        * np.exp(-((x_flat - x0) ** 2 / (2 * sx**2) + (y_flat - y0) ** 2 / (2 * sy**2)))
+        + offset
+    )
     z += np.random.default_rng(42).normal(0, 0.1, len(z))
 
     with sqlalchemy.orm.Session(engine) as session:
         source = _get_or_create_experiment_source(session)
-        job, run = _insert_job_and_run_2d(
+        job, _run = _insert_job_and_run_2d(
             session,
             source,
             scan_values_x=x_vals.tolist(),
@@ -431,17 +457,25 @@ def generate_2d_gaussian() -> int:
 
     filepath = _hdf5_path(scheduled_time)
     _write_hdf5_2d(
-        filepath, job_id, x_flat, y_flat, z,
-        variable_id_x, variable_id_y, result_channel,
+        filepath,
+        job_id,
+        x_flat,
+        y_flat,
+        z,
+        variable_id_x,
+        variable_id_y,
+        result_channel,
     )
-    print(f"[2d_gaussian] job_id={job_id}  file={filepath}")
+    logger.info("[2d_gaussian] job_id=%s  file=%s", job_id, filepath)
     return job_id
 
 
 if __name__ == "__main__":
-    print(f"Results dir : {get_config().data.results_dir}")
-    print(f"Database    : {get_config().databases.sqlite.file}")
-    print()
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout, format="%(message)s")
+
+    logger.info("Results dir : %s", get_config().data.results_dir)
+    logger.info("Database    : %s", get_config().databases.sqlite.file)
+    logger.info("")
 
     generate_clean_lorentzian()
     generate_noisy_lorentzian()
@@ -452,4 +486,6 @@ if __name__ == "__main__":
     generate_damped_harmonic()
     generate_2d_gaussian()
 
-    print("\nDone. Open http://localhost:8004 and go to the Data page to see the jobs.")
+    logger.info(
+        "\nDone. Open http://localhost:8004 and go to the Data page to see the jobs."
+    )

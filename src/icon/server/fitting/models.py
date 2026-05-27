@@ -28,9 +28,7 @@ class FitModel:
     param_names: list[str]
     default_update_param: str
     guess: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64]], list[float]]
-    derived_params: (
-        Callable[[dict[str, float]], dict[str, float]] | None
-    ) = None
+    derived_params: Callable[[dict[str, float]], dict[str, float]] | None = None
 
 
 def _lorentzian(
@@ -153,7 +151,7 @@ def _harmonic_guess(
     return [y0, a, omega, phi]
 
 
-def _damped_harmonic(  # noqa: PLR0913
+def _damped_harmonic(
     x: npt.NDArray[np.float64],
     y0: float,
     a: float,

@@ -77,12 +77,14 @@ class ExperimentDataController(pydase.DataService):
             (p for p in data.scan_parameters if p != "timestamp"), None
         )
         if scan_param_name is None:
-            return asdict(run_curve_fit(
-                x=np.array([]),
-                y=np.array([]),
-                result_channel=result_channel,
-                func_type=func_type,  # type: ignore[arg-type]
-            ))
+            return asdict(
+                run_curve_fit(
+                    x=np.array([]),
+                    y=np.array([]),
+                    result_channel=result_channel,
+                    func_type=func_type,  # type: ignore[arg-type]
+                )
+            )
 
         scan_values = data.scan_parameters[scan_param_name]
         channel_values = data.result_channels.get(result_channel, {})
@@ -110,10 +112,12 @@ class ExperimentDataController(pydase.DataService):
             )
 
         result_dict = asdict(fit_result)
-        emit_queue.put({
-            "event": f"experiment_fit_{job_id}",
-            "data": result_dict,
-        })
+        emit_queue.put(
+            {
+                "event": f"experiment_fit_{job_id}",
+                "data": result_dict,
+            }
+        )
         return result_dict
 
     async def delete_fit(
@@ -132,7 +136,9 @@ class ExperimentDataController(pydase.DataService):
             job_id=job_id,
             result_channel=result_channel,
         )
-        emit_queue.put({
-            "event": f"experiment_fit_{job_id}",
-            "data": {"result_channel": result_channel, "deleted": True},
-        })
+        emit_queue.put(
+            {
+                "event": f"experiment_fit_{job_id}",
+                "data": {"result_channel": result_channel, "deleted": True},
+            }
+        )

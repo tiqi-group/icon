@@ -55,9 +55,7 @@ def _auto_fit(job_id: int, experiment_source_id: int) -> None:
         max_transfer_bytes=2**62,
     )
 
-    scan_param_name = next(
-        (p for p in data.scan_parameters if p != "timestamp"), None
-    )
+    scan_param_name = next((p for p in data.scan_parameters if p != "timestamp"), None)
     if scan_param_name is None:
         return
 
@@ -79,9 +77,7 @@ def _fit_channel(
         return
 
     scan_values = data.scan_parameters[scan_param_name]
-    indices = sorted(
-        set(scan_values.keys()) & set(channel_values.keys())
-    )
+    indices = sorted(set(scan_values.keys()) & set(channel_values.keys()))
     x = np.array([float(scan_values[i]) for i in indices])
     y = np.array([float(channel_values[i]) for i in indices])
 
@@ -95,10 +91,12 @@ def _fit_channel(
 
     if fit_result.success:
         write_fit_result_by_job_id(job_id=job_id, fit_result=fit_result)
-        emit_queue.put({
-            "event": f"experiment_fit_{job_id}",
-            "data": asdict(fit_result),
-        })
+        emit_queue.put(
+            {
+                "event": f"experiment_fit_{job_id}",
+                "data": asdict(fit_result),
+            }
+        )
         logger.info(
             "Auto-fit %s on job %d channel '%s' succeeded",
             func_type,

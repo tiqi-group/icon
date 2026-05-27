@@ -3,6 +3,9 @@ import pytest
 
 from icon.server.fitting.fit_runner import FitResult, run_curve_fit
 
+# Minimum R^2 for a fit on clean synthetic data to be considered good.
+MIN_GOOD_R2 = 0.99
+
 
 def _synthetic_lorentzian(
     n: int = 100,
@@ -27,7 +30,7 @@ class TestRunCurveFit:
         assert result.success
         assert result.result["x0"] == pytest.approx(true["x0"], abs=0.1)
         assert result.result["a"] == pytest.approx(true["a"], abs=0.5)
-        assert result.goodness["r2"] > 0.99
+        assert result.goodness["r2"] > MIN_GOOD_R2
 
     def test_lorentzian_noisy(self) -> None:
         x, y, true = _synthetic_lorentzian(noise=0.5)
@@ -72,8 +75,10 @@ class TestRunCurveFit:
     def test_w_shape_with_init(self) -> None:
         """Two Lorentzian dips; init selects correct peak."""
         x = np.linspace(0, 20, 200)
-        y = 10.0 - 5.0 / (1 + ((x - 5.0) / 0.5) ** 2) - 5.0 / (
-            1 + ((x - 15.0) / 0.5) ** 2
+        y = (
+            10.0
+            - 5.0 / (1 + ((x - 5.0) / 0.5) ** 2)
+            - 5.0 / (1 + ((x - 15.0) / 0.5) ** 2)
         )
         # Guide to the second peak
         result = run_curve_fit(x, y, "ch1", "lorentzian", init={"x0": 15.0})
