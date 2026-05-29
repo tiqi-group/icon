@@ -25,7 +25,7 @@ class JobTransaction:
         Returns:
             A tuple of the updated Job and the newly created JobRun.
         """
-        with sqlalchemy.orm.Session(engine) as session, session.begin():
+        with sqlalchemy.orm.Session(engine, expire_on_commit=False) as session, session.begin():
             session.execute(
                 update(Job).where(Job.id == job_.id).values(status=JobStatus.PROCESSING)
             )
