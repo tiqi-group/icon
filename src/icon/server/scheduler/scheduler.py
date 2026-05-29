@@ -2,18 +2,15 @@ import logging
 import multiprocessing
 import queue
 import time
-from datetime import datetime
 from typing import Any
 
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.job_run import (
-    JobRun,
     timezone,
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
-from icon.server.data_access.repositories.job_run_repository import (
-    JobRunRepository,
-)
+from icon.server.data_access.repositories.job_run_repository import JobRunRepository
+from icon.server.data_access.repositories.job_transaction import JobTransaction
 from icon.server.pre_processing.task import PreProcessingTask
 
 logger = logging.getLogger(__name__)
@@ -42,7 +39,6 @@ def initialise_job_tables() -> None:
         JobRepository.update_job_status(job=job, status=JobStatus.PROCESSED)
 
 
-
 class Scheduler(multiprocessing.Process):
     def __init__(
         self,
@@ -58,50 +54,56 @@ class Scheduler(multiprocessing.Process):
         self.exit_now.set()
 
     def run(self) -> None:
-        initialise_job_tables()
+        self._initialize()
         while not self.exit_now.is_set():
-            try:
-                jobs = JobRepository.get_jobs_by_status_and_timeframe(
-                    status=JobStatus.SUBMITTED
-                )
-                for job_ in jobs:
-                    try:
-                        job = JobRepository.update_job_status(
-                            job=job_, status=JobStatus.PROCESSING
-                        )
-                        run = JobRun(
-                            job_id=job.id, scheduled_time=datetime.now(tz=timezone)
-                        )
-                        run = JobRunRepository.insert_run(run=run)
-
-                        self._pre_processing_queue.put(
-                            PreProcessingTask(
-                                job=job,
-                                job_run=run,
-                                git_commit_hash=job.git_commit_hash,
-                                scan_parameters=job.scan_parameters,
-                                local_parameters_timestamp=job.local_parameters_timestamp.astimezone(
-                                    tz=timezone
-                                ).isoformat(),
-                                priority=job.priority,
-                                auto_calibration=job.auto_calibration,
-                                debug_mode=job.debug_mode,
-                                repetitions=job.repetitions,
-                            )
-                        )
-                    except Exception:
-                        logger.exception(
-                            "Failed to dispatch job %s, reverting to SUBMITTED",
-                            job_.id,
-                        )
-                        try:
-                            JobRepository.update_job_status(
-                                job=job_, status=JobStatus.SUBMITTED
-                            )
-                        except Exception:
-                            logger.exception(
-                                "Failed to revert job %s back to SUBMITTED", job_.id
-                            )
-            except Exception:
-                logger.exception("Unexpected error in scheduler loop")
+            self._handle_submitted_jobs()
             time.sleep(0.1)
+
+    def _initialize(self) -> None:
+        initialise_job_tables()
+
+    def _handle_submitted_jobs(self) -> None:
+        try:
+            jobs = JobRepository.get_jobs_by_status_and_timeframe(
+                status=JobStatus.SUBMITTED
+            )
+        except Exception:
+            logger.warning("Unable to retrieve submitted jobs from the database.")
+            time.sleep(0.5)  # Delay before retry to avoid tight loop
+            return
+
+        for job_ in jobs:
+            try:
+                job, run = JobTransaction.insert_run_from_jobid(job_=job_)
+            except Exception:
+                logger.warning("Failed to create job run for job %s", job_.id)
+                continue
+
+            try:
+                task = PreProcessingTask(
+                    job=job,
+                    job_run=run,
+                    git_commit_hash=job.git_commit_hash,
+                    scan_parameters=job.scan_parameters,
+                    local_parameters_timestamp=job_.local_parameters_timestamp.astimezone(
+                        tz=timezone
+                    ).isoformat(),
+                    priority=job.priority,
+                    auto_calibration=job.auto_calibration,
+                    debug_mode=job.debug_mode,
+                    repetitions=job.repetitions,
+                )
+
+                self._pre_processing_queue.put(task)
+            except Exception:
+                logger.warning(
+                    "Failed to enqueue pre-processing task for job %s", job_.id
+                )
+                # Failing to enqueue the task, marks the Job as PROCESSED and JobRun as FAILED as we don't want to create another JobRun.
+                # The user should re-submit the job.
+                JobRunRepository.update_run_by_id(
+                    run_id=run.id,
+                    status=JobRunStatus.FAILED,
+                    log="Failed run due to failure to enqueue pre-processing task.",
+                )
+                JobRepository.update_job_status(job=job, status=JobStatus.PROCESSED)
