@@ -34,16 +34,28 @@ export const HistogramPlot = ({
     const allArrays = Object.values(latestPerChannel);
     if (allArrays.length === 0) return undefined;
 
-    const globalMax = Math.max(
-      ...allArrays.map((a) => Math.max(...a.filter((v) => !Number.isNaN(v))))
-    );
-    const rangeMax = Math.max(80, globalMax);
+    // Hard cap on histogram bins
+    const MAX_BINS = 4096;
+
+    // Largest finite value across displayed channels
+    let observedMax = 0;
+    for (const arr of allArrays) {
+      for (const v of arr) {
+        if (Number.isFinite(v) && v > observedMax) observedMax = v;
+      }
+    }
+
+    const rangeMax = Math.min(Math.max(80, Math.ceil(observedMax)), MAX_BINS);
     const categories = Array.from({ length: rangeMax + 1 }, (_, i) => String(i));
 
     const seriesData = Object.entries(latestPerChannel).map(([name, arr]) => {
       const counts = new Array(rangeMax + 1).fill(0);
       for (const v of arr) {
-        if (!Number.isNaN(v)) counts[v]++;
+        if (!Number.isFinite(v)) continue;
+        // Clamp into [0, rangeMax] so an out-of-range shot still gets counted
+        // (in the edge bin) instead of indexing past the array.
+        const bin = Math.min(Math.max(Math.floor(v), 0), rangeMax);
+        counts[bin]++;
       }
       return { name, data: counts };
     });
