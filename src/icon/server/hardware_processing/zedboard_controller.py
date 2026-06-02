@@ -64,13 +64,13 @@ class ZedboardController(HardwareController):
     def receive(self) -> ResultDict:
         results: tiqi_zedboard.zedboard.Result = self._zedboard.sequence_JSON_parser()  # type: ignore
 
-        return {
-            "result_channels": results.result_channels,
-            "vector_channels": results.vector_channels
+        return ResultDict(
+            result_channels=results.result_channels,
+            vector_channels=results.vector_channels
             if results.vector_channels is not None
             else {},
-            "shot_channels": results.shot_channels,
-        }
+            shot_channels=results.shot_channels,
+        )
 
     def status(self) -> tuple[StatusFlag, str, Any]:
         return (StatusFlag.UNKNOWN, "", None)
