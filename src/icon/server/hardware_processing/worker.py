@@ -14,6 +14,9 @@ import socketio.exceptions
 from icon.config.config import get_config
 from icon.server.data_access.models.enums import DeviceStatus, JobRunStatus
 from icon.server.data_access.repositories.device_repository import DeviceRepository
+from icon.server.data_access.repositories.experiment_data_repository import (
+    ExperimentDataPoint,
+)
 from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
     job_run_cancelled_or_failed,
@@ -26,9 +29,6 @@ if TYPE_CHECKING:
 
     from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
     from icon.server.data_access.models.sqlite.device import Device
-    from icon.server.data_access.repositories.experiment_data_repository import (
-        ExperimentDataPoint,
-    )
     from icon.server.hardware_processing.hardware_controller import HardwareController
     from icon.server.hardware_processing.task import HardwareProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
@@ -178,15 +178,15 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 self._hardware_controller.run()
                 result = self._hardware_controller.receive()
 
-                experiment_data_point: ExperimentDataPoint = {
-                    "index": task.data_point_index,
-                    "scan_params": task.scanned_params,
-                    "result_channels": result["result_channels"],
-                    "shot_channels": result["shot_channels"],
-                    "vector_channels": result["vector_channels"],
-                    "timestamp": timestamp.isoformat(),
-                    "sequence_json": task.sequence_json,
-                }
+                experiment_data_point = ExperimentDataPoint(
+                    index=task.data_point_index,
+                    scan_params=task.scanned_params,
+                    result_channels=result.result_channels,
+                    shot_channels=result.shot_channels,
+                    vector_channels=result.vector_channels,
+                    timestamp=timestamp.isoformat(),
+                    sequence_json=task.sequence_json,
+                )
 
                 post_processing_task = PostProcessingTask(
                     priority=task.priority,

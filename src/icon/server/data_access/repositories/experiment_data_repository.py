@@ -29,7 +29,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class ResultDict(TypedDict):
+@dataclass
+class ResultDict:
     """Scalar/vector/shot readouts for a single data point."""
 
     result_channels: dict[str, float]
@@ -40,6 +41,7 @@ class ResultDict(TypedDict):
     """Mapping from shot channel name to per-shot integers."""
 
 
+@dataclass
 class ExperimentDataPoint(ResultDict):
     """A single data point with its context."""
 
@@ -466,54 +468,54 @@ class ExperimentDataRepository:
 
             write_scan_parameters_and_timestamp_to_dataset(
                 h5file=h5file,
-                data_point_index=data_point["index"],
-                scan_params=data_point["scan_params"],
-                timestamp=data_point["timestamp"],
+                data_point_index=data_point.index,
+                scan_params=data_point.scan_params,
+                timestamp=data_point.timestamp,
                 number_of_data_points=number_of_data_points,
             )
 
             write_results_to_dataset(
                 h5file=h5file,
-                data_point_index=data_point["index"],
-                result_channels=data_point["result_channels"],
+                data_point_index=data_point.index,
+                result_channels=data_point.result_channels,
                 number_of_data_points=number_of_data_points,
             )
 
             write_shot_channels_to_datasets(
                 h5file=h5file,
-                data_point_index=data_point["index"],
-                shot_channels=data_point["shot_channels"],
+                data_point_index=data_point.index,
+                shot_channels=data_point.shot_channels,
                 number_of_data_points=number_of_data_points,
                 number_of_shots=number_of_shots,
             )
 
             write_vector_channels_to_datasets(
                 h5file=h5file,
-                data_point_index=data_point["index"],
-                vector_channels=data_point["vector_channels"],
+                data_point_index=data_point.index,
+                vector_channels=data_point.vector_channels,
             )
 
             write_sequence_json_to_dataset(
                 h5file=h5file,
-                data_point_index=data_point["index"],
-                sequence_json=data_point["sequence_json"],
+                data_point_index=data_point.index,
+                sequence_json=data_point.sequence_json,
             )
 
-            if data_point["index"] >= number_of_data_points:
-                h5file.attrs["number_of_data_points"] = data_point["index"] + 1
+            if data_point.index >= number_of_data_points:
+                h5file.attrs["number_of_data_points"] = data_point.index + 1
 
             logger.debug("Appended data to %s", h5_path)
 
         emit_queue.put(
             {
                 "event": f"experiment_{job_id}",
-                "data": data_point,
+                "data": asdict(data_point),
             }
         )
         emit_queue.put(
             {
                 "event": "last_experiment_sequence",
-                "data": data_point["sequence_json"],
+                "data": data_point.sequence_json,
             }
         )
 
