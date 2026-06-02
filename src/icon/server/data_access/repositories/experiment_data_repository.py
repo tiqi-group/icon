@@ -361,6 +361,9 @@ class ExperimentDataRepository:
             local_parameter_timestamp: Optional timestamp for local parameters.
             parameters: Scan parameters.
         """
+        if parameters is None:
+            parameters = []
+
         filename = get_filename_by_job_id(job_id)
         h5_path = Path(get_config().data.results_dir) / filename
 
