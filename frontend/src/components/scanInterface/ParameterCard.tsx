@@ -23,37 +23,6 @@ import {
 } from "../../types/ScanParameterInfo";
 import { isScannableParameterType } from "../../utils/scanUtils";
 
-const generateScanValues = (
-  start: number,
-  stop: number,
-  points: number,
-  pattern: ScanPattern,
-) => {
-  const linspace = (n: number) =>
-    Array.from({ length: n }, (_, i) => start + (i * (stop - start)) / (n - 1));
-
-  switch (pattern) {
-    case "linear":
-      return linspace(points);
-    case "scatter":
-      return linspace(points).sort(() => Math.random() - 0.5);
-    case "centred": {
-      const base = linspace(points);
-      const mid = Math.floor((points - 1) / 2);
-      const order = [mid];
-      for (let k = 1; order.length < points; k++) {
-        if (mid - k >= 0) order.push(mid - k);
-        if (mid + k < points) order.push(mid + k);
-      }
-      return order.map((i) => base[i]);
-    }
-    case "forwardReverse": {
-      const base = linspace(points);
-      return [...base, ...base.reverse()];
-    }
-  }
-};
-
 const renderPatternLabel = (pattern: ScanPattern): string => {
   switch (pattern) {
     case "linear":
@@ -165,8 +134,6 @@ export const ParameterCard = ({
     );
   }, [param, parameterDisplayGroups, deviceInfo]);
 
-  const pattern = param.generation.pattern ?? "linear";
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div
@@ -187,6 +154,7 @@ export const ParameterCard = ({
               dispatchScanInfoStateUpdate({
                 type: "UPDATE_PARAMETER",
                 index,
+                parameter_id: isRealtime ? "Real Time" : "",
                 payload: {
                   id: isRealtime ? "Real Time" : "",
                   deviceNameOrDisplayGroup: "",
@@ -239,6 +207,7 @@ export const ParameterCard = ({
                 dispatchScanInfoStateUpdate({
                   type: "UPDATE_PARAMETER",
                   index,
+                  parameter_id: "",
                   payload: {
                     id: "",
                     deviceNameOrDisplayGroup: e.target.value,
@@ -275,6 +244,7 @@ export const ParameterCard = ({
                 dispatchScanInfoStateUpdate({
                   type: "UPDATE_PARAMETER",
                   index,
+                  parameter_id: e.target.value,
                   payload: { id: e.target.value },
                 });
               }}
@@ -313,17 +283,12 @@ export const ParameterCard = ({
                 dispatchScanInfoStateUpdate({
                   type: "UPDATE_PARAMETER",
                   index,
+                  parameter_id: param.id,
                   payload: {
                     generation: {
                       ...param.generation,
                       start: Number(e.target.value),
                     },
-                    values: generateScanValues(
-                      Number(e.target.value),
-                      param.generation.stop,
-                      param.generation.points,
-                      pattern,
-                    ),
                   },
                 })
               }
@@ -348,17 +313,12 @@ export const ParameterCard = ({
                 dispatchScanInfoStateUpdate({
                   type: "UPDATE_PARAMETER",
                   index,
+                  parameter_id: param.id,
                   payload: {
                     generation: {
                       ...param.generation,
                       stop: Number(e.target.value),
                     },
-                    values: generateScanValues(
-                      param.generation.start,
-                      Number(e.target.value),
-                      param.generation.points,
-                      pattern,
-                    ),
                   },
                 })
               }
@@ -384,17 +344,12 @@ export const ParameterCard = ({
                 dispatchScanInfoStateUpdate({
                   type: "UPDATE_PARAMETER",
                   index,
+                  parameter_id: param.id,
                   payload: {
                     generation: {
                       ...param.generation,
                       points: Number(e.target.value),
                     },
-                    values: generateScanValues(
-                      param.generation.start,
-                      param.generation.stop,
-                      Number(e.target.value),
-                      pattern,
-                    ),
                   },
                 })
               }
@@ -412,23 +367,17 @@ export const ParameterCard = ({
             <InputLabel>Scan pattern</InputLabel>
             <Select
               label="Scan pattern"
-              value={pattern}
+              value={param.generation.pattern}
               onChange={(e) => {
-                const nextPattern = e.target.value as ScanPattern;
                 dispatchScanInfoStateUpdate({
                   type: "UPDATE_PARAMETER",
                   index: index!,
+                  parameter_id: param.id,
                   payload: {
                     generation: {
                       ...param.generation,
-                      pattern: nextPattern,
+                      pattern: e.target.value as ScanPattern,
                     },
-                    values: generateScanValues(
-                      param.generation.start,
-                      param.generation.stop,
-                      param.generation.points,
-                      nextPattern,
-                    ),
                   },
                 });
               }}
@@ -455,9 +404,9 @@ export const ParameterCard = ({
             dispatchScanInfoStateUpdate({
               type: "UPDATE_PARAMETER",
               index,
+              parameter_id: param.id,
               payload: {
                 n_scan_points: isNaN(parsed) ? 0 : parsed,
-                values: [],
               },
             });
           }}

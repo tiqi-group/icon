@@ -1,11 +1,13 @@
 import { useEffect, useReducer } from "react";
 import { ScanParameterInfo } from "../types/ScanParameterInfo";
+import { ScanParameterValueGenerator } from "../types/ScanParameterValueGenerator";
 
 export interface ScanInfoState {
   priority: number;
   shots: number;
   repetitions: number;
   parameters: ScanParameterInfo[];
+  valueGenerators: Record<string, ScanParameterValueGenerator>;
 }
 
 export type ScanInfoAction =
@@ -13,12 +15,23 @@ export type ScanInfoAction =
   | { type: "SET_PRIORITY" | "SET_SHOTS" | "SET_REPETITIONS"; payload: number }
   | { type: "ADD_PARAMETER" }
   | { type: "REMOVE_PARAMETER"; index: number }
-  | { type: "UPDATE_PARAMETER"; index: number; payload: Partial<ScanParameterInfo> };
+  | {
+      type: "UPDATE_PARAMETER";
+      index: number;
+      parameter_id: string;
+      payload: Partial<ScanParameterInfo>;
+    };
+
+const defaultValueGenerator: ScanParameterValueGenerator = {
+  start: 0,
+  stop: 1,
+  points: 2,
+  pattern: "linear",
+};
 
 const defaultParameter: ScanParameterInfo = {
   id: "",
-  values: [0, 1],
-  generation: { start: 0, stop: 1, points: 2, pattern: "linear" },
+  generation: defaultValueGenerator,
   namespace: "",
   deviceNameOrDisplayGroup: "",
 };
@@ -27,6 +40,7 @@ export const defaultScanInfoState: ScanInfoState = {
   shots: 50,
   repetitions: 1,
   parameters: [defaultParameter],
+  valueGenerators: { "": defaultValueGenerator },
 };
 
 const STORAGE_KEY_PREFIX = "scanInfoState:";
@@ -45,7 +59,14 @@ const saveScanInfoStateToLocalStorage = (
 const getScanInfoStateFromLocalStorage = (experimentId: string): ScanInfoState => {
   const data = localStorage.getItem(`${STORAGE_KEY_PREFIX}${experimentId}`);
   if (data) {
-    return JSON.parse(data) as ScanInfoState;
+    const restoredScanInfoState = JSON.parse(data) as ScanInfoState;
+    // Backwards compatibility: if valueGenerators is not present, populate with default
+    return !restoredScanInfoState.valueGenerators
+      ? {
+          ...restoredScanInfoState,
+          valueGenerators: { "": defaultValueGenerator },
+        }
+      : restoredScanInfoState;
   } else {
     saveScanInfoStateToLocalStorage(experimentId, defaultScanInfoState);
     return defaultScanInfoState;
@@ -66,11 +87,31 @@ const reducer =
         parameters: state.parameters.filter((_, i) => i !== action.index),
       };
     } else if (action.type === "UPDATE_PARAMETER") {
+      // Update valueGenerators if generation info was changed
+      const valueGenerators =
+        action.payload.generation != null
+          ? {
+              ...state.valueGenerators,
+              [action.parameter_id]: action.payload.generation,
+            }
+          : state.valueGenerators;
+
+      // Retrieve generation description from valueGenerators if generation did not change
+      const payload =
+        action.payload.generation == null
+          ? {
+              ...action.payload,
+              generation:
+                state.valueGenerators[action.parameter_id] ?? defaultValueGenerator,
+            }
+          : action.payload;
+
       newState = {
         ...state,
         parameters: state.parameters.map((param, i) =>
-          i === action.index ? { ...param, ...action.payload } : param,
+          i === action.index ? { ...param, ...payload } : param,
         ),
+        valueGenerators: valueGenerators,
       };
     } else {
       newState = {
