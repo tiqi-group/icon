@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from icon.server.pre_processing.task import PreProcessingTask
 
 DEFAULT_WAIT_FOR_JOB_HANDLED_TIMEOUT = 2  # seconds
-TEST_EXPERIMENT_ID = "test_experiment_id"
+TEST_EXPERIMENT_ID = "test.module.ClassName (SchedulerTestExperiment)"
 
 class IntentionalError(Exception):
     """Custom exception class for intentional errors for testing purposes."""
