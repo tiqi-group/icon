@@ -15,12 +15,7 @@ export type ScanInfoAction =
   | { type: "SET_PRIORITY" | "SET_SHOTS" | "SET_REPETITIONS"; payload: number }
   | { type: "ADD_PARAMETER" }
   | { type: "REMOVE_PARAMETER"; index: number }
-  | {
-      type: "UPDATE_PARAMETER";
-      index: number;
-      parameter_id: string;
-      payload: Partial<ScanParameterInfo>;
-    };
+  | { type: "UPDATE_PARAMETER"; index: number; payload: Partial<ScanParameterInfo> };
 
 const defaultValueGenerator: ScanParameterValueGenerator = {
   start: 0,
@@ -88,11 +83,12 @@ const reducer =
       };
     } else if (action.type === "UPDATE_PARAMETER") {
       // Update valueGenerators if generation info was changed
+      const parameter_id = action.payload.id ?? state.parameters[action.index].id;
       const valueGenerators =
         action.payload.generation != null
           ? {
               ...state.valueGenerators,
-              [action.parameter_id]: action.payload.generation,
+              [parameter_id]: action.payload.generation,
             }
           : state.valueGenerators;
 
@@ -101,8 +97,7 @@ const reducer =
         action.payload.generation == null
           ? {
               ...action.payload,
-              generation:
-                state.valueGenerators[action.parameter_id] ?? defaultValueGenerator,
+              generation: state.valueGenerators[parameter_id] ?? defaultValueGenerator,
             }
           : action.payload;
 

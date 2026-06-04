@@ -105,7 +105,6 @@ export const ScanProvider = ({
                   dispatchScanInfoStateUpdate({
                     type: "UPDATE_PARAMETER",
                     index,
-                    parameter_id: selectedParam.id,
                     payload: {
                       id: selectedParam.id,
                       namespace: selectedParam.namespace,

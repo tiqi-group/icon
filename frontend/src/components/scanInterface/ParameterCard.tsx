@@ -154,7 +154,6 @@ export const ParameterCard = ({
               dispatchScanInfoStateUpdate({
                 type: "UPDATE_PARAMETER",
                 index,
-                parameter_id: isRealtime ? "Real Time" : "",
                 payload: {
                   id: isRealtime ? "Real Time" : "",
                   deviceNameOrDisplayGroup: "",
@@ -207,7 +206,6 @@ export const ParameterCard = ({
                 dispatchScanInfoStateUpdate({
                   type: "UPDATE_PARAMETER",
                   index,
-                  parameter_id: "",
                   payload: {
                     id: "",
                     deviceNameOrDisplayGroup: e.target.value,
@@ -244,7 +242,6 @@ export const ParameterCard = ({
                 dispatchScanInfoStateUpdate({
                   type: "UPDATE_PARAMETER",
                   index,
-                  parameter_id: e.target.value,
                   payload: { id: e.target.value },
                 });
               }}
@@ -283,7 +280,6 @@ export const ParameterCard = ({
                 dispatchScanInfoStateUpdate({
                   type: "UPDATE_PARAMETER",
                   index,
-                  parameter_id: param.id,
                   payload: {
                     generation: {
                       ...param.generation,
@@ -313,7 +309,6 @@ export const ParameterCard = ({
                 dispatchScanInfoStateUpdate({
                   type: "UPDATE_PARAMETER",
                   index,
-                  parameter_id: param.id,
                   payload: {
                     generation: {
                       ...param.generation,
@@ -344,7 +339,6 @@ export const ParameterCard = ({
                 dispatchScanInfoStateUpdate({
                   type: "UPDATE_PARAMETER",
                   index,
-                  parameter_id: param.id,
                   payload: {
                     generation: {
                       ...param.generation,
@@ -372,7 +366,6 @@ export const ParameterCard = ({
                 dispatchScanInfoStateUpdate({
                   type: "UPDATE_PARAMETER",
                   index: index!,
-                  parameter_id: param.id,
                   payload: {
                     generation: {
                       ...param.generation,
@@ -404,7 +397,6 @@ export const ParameterCard = ({
             dispatchScanInfoStateUpdate({
               type: "UPDATE_PARAMETER",
               index,
-              parameter_id: param.id,
               payload: {
                 n_scan_points: isNaN(parsed) ? 0 : parsed,
               },
