@@ -42,6 +42,10 @@ const getDisplayNameFromNamespace = (namespace: string): string => {
   return parts[parts.length - 1];
 };
 
+const truncateDisplayName = (displayName: string): string => {
+  return displayName.length > 30 ? displayName.slice(0, 30) + "..." : displayName;
+};
+
 export const ParameterCard = ({
   param,
   index,
@@ -155,8 +159,7 @@ export const ParameterCard = ({
                 type: "UPDATE_PARAMETER",
                 index,
                 payload: {
-                  id: isRealtime ? "Real Time" : "",
-                  deviceNameOrDisplayGroup: "",
+                  id: isRealtime ? "Real Time" : undefined,
                   namespace: e.target.value,
                   n_scan_points: isRealtime ? 0 : undefined,
                 },
@@ -166,9 +169,7 @@ export const ParameterCard = ({
               const displayName = selected === "Devices" || selected === "Real Time"
                 ? selected
                 : (namespaceToDisplayName[selected] || getDisplayNameFromNamespace(selected));
-              const truncated =
-                displayName.length > 30 ? displayName.slice(0, 30) + "..." : displayName;
-              return truncated;
+              return truncateDisplayName(displayName);
             }}
           >
             {Object.keys(parameterSources).map((namespace) => {
@@ -207,21 +208,16 @@ export const ParameterCard = ({
                   type: "UPDATE_PARAMETER",
                   index,
                   payload: {
-                    id: "",
                     deviceNameOrDisplayGroup: e.target.value,
                   },
                 });
               }}
-              renderValue={(selected) => {
-                const truncated =
-                  selected.length > 30 ? selected.slice(0, 30) + "..." : selected;
-                return truncated;
-              }}
+              renderValue={(selected) => truncateDisplayName(selected)}
             >
               {(parameterSources[param.namespace!] ?? []).map(
                 (groupOrDevice: string) => (
                   <MenuItem key={groupOrDevice} value={groupOrDevice}>
-                    {groupOrDevice},
+                    {groupOrDevice}
                   </MenuItem>
                 ),
               )}
@@ -233,7 +229,13 @@ export const ParameterCard = ({
             size="small"
             disabled={Object.keys(parameterOptions).length === 0}
           >
-            <InputLabel>Parameter</InputLabel>
+            <InputLabel>
+              {param.namespace &&
+              param.deviceNameOrDisplayGroup &&
+              Object.keys(parameterOptions).length === 0
+                ? "No scannable Parameters"
+                : "Parameter"}
+            </InputLabel>
             <Select
               label="Parameter"
               value={param.id}
@@ -246,31 +248,23 @@ export const ParameterCard = ({
                 });
               }}
               renderValue={(value) => {
-                if (Object.keys(parameterOptions).length === 0) {
-                  return "No scannable parameters";
-                }
                 const selectedDisplayName = parameterOptions[value]?.displayName;
                 if (selectedDisplayName === undefined) return value;
-                return selectedDisplayName.length > 30
-                  ? selectedDisplayName.slice(0, 30) + "..."
-                  : selectedDisplayName;
+                return truncateDisplayName(selectedDisplayName);
               }}
             >
-              {Object.keys(parameterOptions).length === 0 ? (
-                <MenuItem disabled>No scannable parameters</MenuItem>
-              ) : (
-                Object.entries(parameterOptions).map(([paramId, metadata]) => (
-                  <MenuItem key={paramId} value={paramId} title={paramId}>
-                    {metadata.displayName}
-                  </MenuItem>
-                ))
-              )}
+              {Object.entries(parameterOptions).map(([paramId, metadata]) => (
+                <MenuItem key={paramId} value={paramId} title={paramId}>
+                  {metadata.displayName}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <TextField
               required
+              disabled={!param.id}
               label="Start"
               size="small"
               type="number"
@@ -300,6 +294,7 @@ export const ParameterCard = ({
             />
             <TextField
               required
+              disabled={!param.id}
               label="Stop"
               size="small"
               type="number"
@@ -329,6 +324,7 @@ export const ParameterCard = ({
             />
             <TextField
               required
+              disabled={!param.id}
               label="Points"
               size="small"
               type="number"
@@ -360,6 +356,7 @@ export const ParameterCard = ({
           <FormControl fullWidth size="small">
             <InputLabel>Scan pattern</InputLabel>
             <Select
+              disabled={!param.id}
               label="Scan pattern"
               value={param.generation.pattern}
               onChange={(e) => {
