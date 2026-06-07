@@ -1,5 +1,5 @@
-import React, { useContext, useMemo } from "react";
-import { List, ListItemButton, ListItemText, ListSubheader } from "@mui/material";
+import React, { useContext, useEffect, useMemo, useState } from "react";
+import { FormControlLabel, List, ListItemButton, ListItemText, ListSubheader, Switch } from "@mui/material";
 import { JobsContext } from "../contexts/JobsContext";
 import { JobView } from "../components/JobView";
 import { useSearchParams } from "react-router";
@@ -39,6 +39,19 @@ export function DataPage() {
     return Object.values(groupedJobs).some((list) => list.length > 0);
   }, [groupedJobs]);
 
+  const [alwaysShowLatest, setAlwaysShowLatest] = useState(false);
+
+  const latestJobId = useMemo(() => {
+    const ids = Object.keys(jobs).map(Number);
+    return ids.length > 0 ? Math.max(...ids) : null;
+  }, [jobs]);
+
+  useEffect(() => {
+    if (alwaysShowLatest && latestJobId !== null) {
+      setSearchParams({ jobId: String(latestJobId) });
+    }
+  }, [alwaysShowLatest, latestJobId]);
+
   const handleSelectJob = (jobId: number) => {
     setSearchParams({ jobId: String(jobId) });
   };
@@ -54,6 +67,17 @@ export function DataPage() {
           borderRight: "1px solid var(--mui-palette-divider)",
         }}
       >
+        <FormControlLabel
+          control={
+            <Switch
+              size="small"
+              checked={alwaysShowLatest}
+              onChange={(_, v) => setAlwaysShowLatest(v)}
+            />
+          }
+          label="Latest"
+          sx={{ mx: 1, my: 0.5 }}
+        />
         <List dense disablePadding>
           {(Object.entries(groupedJobs) as [JobStatus, Job[]][]).map(
             ([status, jobList]) =>
