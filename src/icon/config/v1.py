@@ -59,6 +59,7 @@ class HardwareConfig(BaseModel):
     host: str = "localhost"
     port: int = 6007
     n_ttl_channels: int = 32
+    timeout: int = 5
 
 
 class ServiceConfigV1(BaseConfig):  # type: ignore[misc]

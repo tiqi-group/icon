@@ -28,7 +28,9 @@ class HardwareController:
         self._port = get_config().hardware.port
         if HAS_TIQI_ZEDBOARD:
             self._zedboard = tiqi_zedboard.zedboard.Zedboard(
-                hostname=self._host, port=self._port
+                hostname=self._host,
+                port=self._port,
+                timeout=get_config().hardware.timeout,
             )
             if not self.connected:
                 logger.warning("Failed to connect to the Zedboard")
