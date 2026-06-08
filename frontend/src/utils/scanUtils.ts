@@ -1,4 +1,30 @@
 /**
+ * Constructs a unique key for identifying a scanned parameter.
+ *
+ * For experiment parameters, this returns the parameter ID as-is.
+ * For device parameters (i.e., when namespace is "Devices"), it returns
+ * the full access path used to uniquely identify the parameter, including
+ * the device name.
+ *
+ * Example:
+ *   makeScannedParamKey("laser_power", "Devices", "Laser A")
+ *   → 'devices.device_proxies["Laser A"].laser_power'
+ *
+ * @param id - The parameter ID.
+ * @param namespace - The parameter's namespace (e.g., "Devices" or an experiment namespace).
+ * @param deviceNameOrDisplayGroup - Device name (for device parameters) or display group name.
+ * @returns A string key uniquely identifying the scanned parameter.
+ */
+export const makeScannedParamKey = (
+  id: string,
+  namespace: string,
+  deviceNameOrDisplayGroup: string,
+): string =>
+  namespace === "Devices"
+    ? `devices.device_proxies["${deviceNameOrDisplayGroup}"].${id}`
+    : id;
+
+/**
  * Returns the index of a scanned parameter within the scanned parameters list.
  *
  * This function checks if the given `paramId` exists in the `scannedParams` array

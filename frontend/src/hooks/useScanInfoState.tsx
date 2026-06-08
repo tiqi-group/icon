@@ -29,7 +29,7 @@ const defaultValueGenerator: ScanParameterValueGenerator = {
   pattern: "linear",
 };
 
-const defaultParameter: ScanParameterInfo = {
+export const defaultParameter: ScanParameterInfo = {
   id: "",
   generation: defaultValueGenerator,
   namespace: "",
@@ -70,7 +70,7 @@ const getScanInfoStateFromLocalStorage = (experimentId: string): ScanInfoState =
   }
 };
 
-const reducer =
+export const reducer =
   (experimentId: string) => (state: ScanInfoState, action: ScanInfoAction) => {
     let newState: ScanInfoState;
 
