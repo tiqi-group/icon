@@ -3,6 +3,7 @@ import {
   SerializedHierarchicalNav,
   emptyNavHistory,
 } from "./HierarchicalNavManager";
+import { makeScannedParamKey, extractScannedParamId } from "./scanUtils";
 import { ScanParameterValueGenerator } from "../types/ScanParameterValueGenerator";
 import { ScanParameterInfo } from "../types/ScanParameterInfo";
 
@@ -46,29 +47,41 @@ export class ScanInfoNavManager extends HierarchicalNavManager<ScanParamLeaf> {
     let updatedScanInfoHistory: ScanInfoNavHistory;
 
     if (update.generation) {
-      // Generation parameter provided. Update the leaf node
+      // Generation parameter provided. Update the leaf node.
       updatedParam = { ...current, ...update };
       updatedScanInfoHistory = this.update(
         [updatedParam.namespace, updatedParam.deviceNameOrDisplayGroup],
-        updatedParam.id,
+        makeScannedParamKey(
+          updatedParam.id,
+          updatedParam.namespace,
+          updatedParam.deviceNameOrDisplayGroup,
+        ),
         leafFromParam(updatedParam),
       ).serialize();
     } else if (update.id) {
-      // Parameter id provided. Lookup leaf node
-      const leaf = this.lookupLeaf(update.id) ?? this.defaultLeaf();
+      // Parameter id provided. Lookup leaf node by its globally-unique scanned key.
+      const namespace = update.namespace ?? current.namespace;
+      const deviceNameOrDisplayGroup =
+        update.deviceNameOrDisplayGroup ?? current.deviceNameOrDisplayGroup;
+      const leafKey = makeScannedParamKey(
+        update.id,
+        namespace,
+        deviceNameOrDisplayGroup,
+      );
+      const leaf = this.lookupLeaf(leafKey) ?? this.defaultLeaf();
       updatedParam = paramFromLeaf(
-        update.namespace ?? current.namespace,
-        update.deviceNameOrDisplayGroup ?? current.deviceNameOrDisplayGroup,
+        namespace,
+        deviceNameOrDisplayGroup,
         update.id,
         leaf,
       );
       updatedScanInfoHistory = this.update(
-        [updatedParam.namespace, updatedParam.deviceNameOrDisplayGroup],
-        update.id,
+        [namespace, deviceNameOrDisplayGroup],
+        leafKey,
         leaf,
       ).serialize();
     } else {
-      // No id or generation parameter. Resolve leaf from partial path
+      // No id or generation parameter. Resolve leaf from partial path.
       const partialPath: (string | undefined)[] = [
         update.namespace ?? current.namespace,
         "deviceNameOrDisplayGroup" in update
@@ -76,7 +89,8 @@ export class ScanInfoNavManager extends HierarchicalNavManager<ScanParamLeaf> {
           : undefined,
       ];
       const { path, leafKey, leaf } = this.resolve(partialPath);
-      updatedParam = paramFromLeaf(path[0], path[1], leafKey, leaf);
+      const id = extractScannedParamId(leafKey, path[0], path[1]);
+      updatedParam = paramFromLeaf(path[0], path[1], id, leaf);
       updatedScanInfoHistory = this.update(path, leafKey, leaf).serialize();
     }
     return { updatedParam, updatedScanInfoHistory };

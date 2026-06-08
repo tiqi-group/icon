@@ -25,6 +25,26 @@ export const makeScannedParamKey = (
     : id;
 
 /**
+ * Inverse of makeScannedParamKey: recovers the bare parameter id from a scanned
+ * key. For device parameters it strips the `devices.device_proxies["<device>"].`
+ * prefix; for other namespaces the key is already the bare id.
+ *
+ * @param scannedKey - The full scanned parameter key (as built by makeScannedParamKey).
+ * @param namespace - The parameter's namespace (e.g., "Devices").
+ * @param deviceNameOrDisplayGroup - Device name (for device parameters) or display group name.
+ * @returns The bare parameter id.
+ */
+export const extractScannedParamId = (
+  scannedKey: string,
+  namespace: string,
+  deviceNameOrDisplayGroup: string,
+): string => {
+  if (namespace !== "Devices") return scannedKey;
+  const prefix = `devices.device_proxies["${deviceNameOrDisplayGroup}"].`;
+  return scannedKey.startsWith(prefix) ? scannedKey.slice(prefix.length) : scannedKey;
+};
+
+/**
  * Returns the index of a scanned parameter within the scanned parameters list.
  *
  * This function checks if the given `paramId` exists in the `scannedParams` array
