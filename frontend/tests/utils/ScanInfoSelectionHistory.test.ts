@@ -1,34 +1,34 @@
 import {
-  ScanInfoNavManager,
-  emptyScanInfoNavHistory,
-} from "../../src/utils/ScanInfoNavManager";
-import { ScanParameterValueGenerator } from "../../src/types/ScanParameterValueGenerator";
+  ScanInfoSelectionHistory,
+  emptyScanInfoHistory,
+} from "../../src/utils/ScanInfoSelectionHistory";
+import { ScanParameterGenerationSpec } from "../../src/types/ScanParameterGenerationSpec";
 import { ScanParameterInfo } from "../../src/types/ScanParameterInfo";
 
 const gen = (
   start: number,
   stop: number,
   points = 2,
-  pattern: ScanParameterValueGenerator["pattern"] = "linear",
-): ScanParameterValueGenerator => ({ start, stop, points, pattern });
+  pattern: ScanParameterGenerationSpec["pattern"] = "linear",
+): ScanParameterGenerationSpec => ({ start, stop, points, pattern });
 
 const defaultGen = gen(0, 1);
-const mkMgr = (history = emptyScanInfoNavHistory) =>
-  new ScanInfoNavManager(() => defaultGen, history);
+const mkMgr = (history = emptyScanInfoHistory) =>
+  new ScanInfoSelectionHistory(() => defaultGen, history);
 
 const param = (
   namespace: string,
   deviceNameOrDisplayGroup: string,
   id: string,
-  generation: ScanParameterValueGenerator,
+  generation: ScanParameterGenerationSpec,
 ): ScanParameterInfo => ({ namespace, deviceNameOrDisplayGroup, id, generation });
 
 // Record a fully-specified parameter into history by replaying a "generation" update.
-const record = (history: typeof emptyScanInfoNavHistory, p: ScanParameterInfo) =>
+const record = (history: typeof emptyScanInfoHistory, p: ScanParameterInfo) =>
   mkMgr(history).handleParamUpdate(p, { generation: p.generation })
     .updatedScanInfoHistory;
 
-describe("ScanInfoNavManager.handleParamUpdate", () => {
+describe("ScanInfoSelectionHistory.handleParamUpdate", () => {
   describe("generation provided", () => {
     it("merges the new generator and records it in history", () => {
       const current = param("E", "grp", "p1", gen(0, 1));
@@ -49,7 +49,7 @@ describe("ScanInfoNavManager.handleParamUpdate", () => {
   describe("id provided", () => {
     it("recalls the stored generator for a known parameter id", () => {
       const history = record(
-        emptyScanInfoNavHistory,
+        emptyScanInfoHistory,
         param("E", "grp", "p1", gen(2, 8)),
       );
       const current = param("E", "grp", "pX", gen(0, 1));
@@ -68,7 +68,7 @@ describe("ScanInfoNavManager.handleParamUpdate", () => {
   describe("namespace change", () => {
     it("cascades back the last display group, parameter and generator for that namespace", () => {
       const history = record(
-        emptyScanInfoNavHistory,
+        emptyScanInfoHistory,
         param("E2", "grpB", "pB", gen(3, 9)),
       );
       const current = param("E1", "grpA", "pA", gen(0, 1));
@@ -83,7 +83,7 @@ describe("ScanInfoNavManager.handleParamUpdate", () => {
   describe("display group change", () => {
     it("recalls the last parameter and generator for that group", () => {
       const history = record(
-        emptyScanInfoNavHistory,
+        emptyScanInfoHistory,
         param("E2", "grpB", "pB", gen(3, 9)),
       );
       const current = param("E2", "grpA", "pA", gen(0, 1));
@@ -96,7 +96,7 @@ describe("ScanInfoNavManager.handleParamUpdate", () => {
 
     it("treats an explicit empty display group as a cleared selection (presence vs truthiness)", () => {
       const history = record(
-        emptyScanInfoNavHistory,
+        emptyScanInfoHistory,
         param("E2", "grpB", "pB", gen(3, 9)),
       );
       const current = param("E2", "grpB", "pB", gen(3, 9));
@@ -111,7 +111,7 @@ describe("ScanInfoNavManager.handleParamUpdate", () => {
 
   describe("recall scenario", () => {
     it("restores a namespace's full selection after navigating away and back", () => {
-      let history = emptyScanInfoNavHistory;
+      let history = emptyScanInfoHistory;
       history = record(history, param("E1", "grpA", "pA", gen(1, 2)));
       history = record(history, param("E2", "grpB", "pB", gen(3, 4)));
 
@@ -133,7 +133,7 @@ describe("ScanInfoNavManager.handleParamUpdate", () => {
 
   describe("Devices namespace", () => {
     it("keeps generators separate for same-named params on different devices", () => {
-      let history = emptyScanInfoNavHistory;
+      let history = emptyScanInfoHistory;
       history = record(history, param("Devices", "LaserA", "frequency", gen(1, 2)));
       history = record(history, param("Devices", "LaserB", "frequency", gen(3, 4)));
 
@@ -147,7 +147,7 @@ describe("ScanInfoNavManager.handleParamUpdate", () => {
 
     it("recalls a stored generator by bare id for a device parameter", () => {
       const history = record(
-        emptyScanInfoNavHistory,
+        emptyScanInfoHistory,
         param("Devices", "LaserA", "frequency", gen(5, 6)),
       );
       const { updatedParam } = mkMgr(history).handleParamUpdate(

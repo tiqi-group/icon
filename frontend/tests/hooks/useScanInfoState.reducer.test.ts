@@ -4,6 +4,7 @@ import {
   defaultParameter,
   ScanInfoState,
 } from "../../src/hooks/useScanInfoState";
+import { scanPatterns } from "../../src/types/ScanParameterInfo";
 
 class LocalStorageMock {
   store: Record<string, string> = {};
@@ -22,6 +23,7 @@ class LocalStorageMock {
 }
 
 const EXP = "exp1";
+const TEST_NAMESPACE = "ns1";
 const STORAGE_KEY = `scanInfoState:${EXP}`;
 const run = reducer(EXP);
 
@@ -35,7 +37,7 @@ const baseState = (): ScanInfoState => structuredClone(defaultScanInfoState);
 
 describe("useScanInfoState reducer", () => {
   it("RESET replaces the whole state with the payload", () => {
-    const payload = { ...baseState(), priority: 99 };
+    const payload = { ...baseState(), priority: 20 };
     expect(run(baseState(), { type: "RESET", payload })).toBe(payload);
   });
 
@@ -70,18 +72,20 @@ describe("useScanInfoState reducer", () => {
       payload: { id: "Real Time", namespace: "Real Time", n_scan_points: 0 },
     });
     expect(next.parameters[0].id).toBe("Real Time");
-    expect(next.navHistory).toBe(state.navHistory); // untouched reference
+    expect(next.history).toBe(state.history);
   });
 
-  it("UPDATE_PARAMETER (normal) resolves the param and records navHistory", () => {
+  it("UPDATE_PARAMETER with namespace resolves the param and records navHistory", () => {
     const next = run(baseState(), {
       type: "UPDATE_PARAMETER",
       index: 0,
-      payload: { namespace: "E1" },
+      payload: { namespace: TEST_NAMESPACE },
     });
-    expect(next.parameters[0].namespace).toBe("E1");
+    expect(next.parameters[0].namespace).toBe(TEST_NAMESPACE);
     expect(next.parameters[0].generation).toEqual(defaultParameter.generation);
-    expect(next.navHistory).not.toEqual(defaultScanInfoState.navHistory);
+    const saved = JSON.parse(store.getItem(STORAGE_KEY) as string);
+    expect(saved.history.selectionTree.lastKey).toEqual(TEST_NAMESPACE);
+    expect(Object.keys(saved.history.selectionTree.children)).toContain(TEST_NAMESPACE);
   });
 
   it("persists the new state to localStorage", () => {

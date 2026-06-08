@@ -1,18 +1,18 @@
 import { useEffect, useReducer } from "react";
 import { ScanParameterInfo } from "../types/ScanParameterInfo";
-import { ScanParameterValueGenerator } from "../types/ScanParameterValueGenerator";
+import { ScanParameterGenerationSpec } from "../types/ScanParameterGenerationSpec";
 import {
-  ScanInfoNavHistory,
-  ScanInfoNavManager,
-  emptyScanInfoNavHistory,
-} from "../utils/ScanInfoNavManager";
+  SerializedScanInfoSelectionHistory,
+  ScanInfoSelectionHistory,
+  emptyScanInfoHistory,
+} from "../utils/ScanInfoSelectionHistory";
 
 export interface ScanInfoState {
   priority: number;
   shots: number;
   repetitions: number;
   parameters: ScanParameterInfo[];
-  navHistory: ScanInfoNavHistory;
+  history: SerializedScanInfoSelectionHistory;
 }
 
 export type ScanInfoAction =
@@ -22,7 +22,7 @@ export type ScanInfoAction =
   | { type: "REMOVE_PARAMETER"; index: number }
   | { type: "UPDATE_PARAMETER"; index: number; payload: Partial<ScanParameterInfo> };
 
-const defaultValueGenerator: ScanParameterValueGenerator = {
+const defaultParameterGenerationSpec: ScanParameterGenerationSpec = {
   start: 0,
   stop: 1,
   points: 2,
@@ -31,7 +31,7 @@ const defaultValueGenerator: ScanParameterValueGenerator = {
 
 export const defaultParameter: ScanParameterInfo = {
   id: "",
-  generation: defaultValueGenerator,
+  generation: defaultParameterGenerationSpec,
   namespace: "",
   deviceNameOrDisplayGroup: "",
 };
@@ -40,7 +40,7 @@ export const defaultScanInfoState: ScanInfoState = {
   shots: 50,
   repetitions: 1,
   parameters: [defaultParameter],
-  navHistory: emptyScanInfoNavHistory,
+  history: emptyScanInfoHistory,
 };
 
 const STORAGE_KEY_PREFIX = "scanInfoState:";
@@ -62,7 +62,7 @@ const getScanInfoStateFromLocalStorage = (experimentId: string): ScanInfoState =
     const restored = JSON.parse(data) as ScanInfoState;
     return {
       ...restored,
-      navHistory: restored.navHistory ?? emptyScanInfoNavHistory,
+      history: restored.history ?? emptyScanInfoHistory,
     };
   } else {
     saveScanInfoStateToLocalStorage(experimentId, defaultScanInfoState);
@@ -84,7 +84,7 @@ export const reducer =
         parameters: state.parameters.filter((_, i) => i !== action.index),
       };
     } else if (action.type === "UPDATE_PARAMETER") {
-      if (action.payload.id === "Real Time") {
+      if (action.payload.id === "Real Time" || action.payload.n_scan_points != null) {
         newState = {
           ...state,
           parameters: state.parameters.map((p, i) =>
@@ -92,16 +92,16 @@ export const reducer =
           ),
         };
       } else {
-        const { updatedParam, updatedScanInfoHistory } = new ScanInfoNavManager(
-          () => defaultValueGenerator,
-          state.navHistory,
+        const { updatedParam, updatedScanInfoHistory } = new ScanInfoSelectionHistory(
+          () => defaultParameterGenerationSpec,
+          state.history,
         ).handleParamUpdate(state.parameters[action.index], action.payload);
         newState = {
           ...state,
           parameters: state.parameters.map((p, i) =>
             i === action.index ? updatedParam : p,
           ),
-          navHistory: updatedScanInfoHistory,
+          history: updatedScanInfoHistory,
         };
       }
     } else {

@@ -1,24 +1,26 @@
 import {
-  HierarchicalNavManager,
-  SerializedHierarchicalNav,
-  emptyNavHistory,
-} from "./HierarchicalNavManager";
+  MruSelectionTree,
+  SerializedMruSelectionTree,
+  emptySelectionHistory,
+} from "./MruSelectionTree";
 import { makeScannedParamKey, extractScannedParamId } from "./scanUtils";
-import { ScanParameterValueGenerator } from "../types/ScanParameterValueGenerator";
+import { ScanParameterGenerationSpec } from "../types/ScanParameterGenerationSpec";
 import { ScanParameterInfo } from "../types/ScanParameterInfo";
 
-export type ScanParamLeaf = ScanParameterValueGenerator;
-export type ScanInfoNavHistory = SerializedHierarchicalNav<ScanParamLeaf>;
+export type SerializedScanInfoSelectionHistory =
+  SerializedMruSelectionTree<ScanParameterGenerationSpec>;
 
-export const emptyScanInfoNavHistory = emptyNavHistory<ScanParamLeaf>();
+export const emptyScanInfoHistory =
+  emptySelectionHistory<ScanParameterGenerationSpec>();
 
-const leafFromParam = (p: ScanParameterInfo): ScanParamLeaf => p.generation;
+const leafFromParam = (p: ScanParameterInfo): ScanParameterGenerationSpec =>
+  p.generation;
 
 const paramFromLeaf = (
   namespace: string,
   deviceNameOrDisplayGroup: string,
   id: string,
-  leaf: ScanParamLeaf,
+  leaf: ScanParameterGenerationSpec,
 ): ScanParameterInfo => ({
   namespace,
   deviceNameOrDisplayGroup,
@@ -31,20 +33,35 @@ const paramFromLeaf = (
   },
 });
 
-export class ScanInfoNavManager extends HierarchicalNavManager<ScanParamLeaf> {
+/**
+ * Remembers the last-selected {@link ScanParameterGenerationSpec} for each
+ * scan parameter across navigation changes.
+ *
+ * Specializes {@link MruSelectionTree} with a two-level selection hierarchy:
+ * (namespace/deviceNameOrDisplayGroup) {@link ScanParameterGenerationSpec}
+ * as leaf types. {@link makeScannedParamKey} is used to generate non-ambiguous
+ * leafKeys which uniquely identify the selected parameter for the given selection.
+ *
+ * Use `handleParamUpdate` to apply partial updates to a `ScanParameterInfo`
+ * and get back the updated parameter plus the updated history.
+ */
+export class ScanInfoSelectionHistory extends MruSelectionTree<ScanParameterGenerationSpec> {
   constructor(
-    defaultLeaf: () => ScanParameterValueGenerator,
-    history: ScanInfoNavHistory = emptyScanInfoNavHistory,
+    defaultLeaf: () => ScanParameterGenerationSpec,
+    history: SerializedScanInfoSelectionHistory = emptyScanInfoHistory,
   ) {
-    super(2, defaultLeaf, history.navTree, history.leaves);
+    super(2, defaultLeaf, history);
   }
 
   handleParamUpdate(
     current: ScanParameterInfo,
     update: Partial<ScanParameterInfo>,
-  ): { updatedParam: ScanParameterInfo; updatedScanInfoHistory: ScanInfoNavHistory } {
+  ): {
+    updatedParam: ScanParameterInfo;
+    updatedScanInfoHistory: SerializedScanInfoSelectionHistory;
+  } {
     let updatedParam: ScanParameterInfo;
-    let updatedScanInfoHistory: ScanInfoNavHistory;
+    let updatedScanInfoHistory: SerializedScanInfoSelectionHistory;
 
     if (update.generation) {
       // Generation parameter provided. Update the leaf node.
