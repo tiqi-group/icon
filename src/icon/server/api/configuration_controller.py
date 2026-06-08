@@ -2,11 +2,9 @@ import logging
 from typing import Any
 
 import pydase
-import yaml
 from confz import DataSource
 
-from icon.config.config import get_config
-from icon.config.config_path import get_config_path
+from icon.config.config import get_config, save_config
 from icon.config.latest import ServiceConfig
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
@@ -48,7 +46,7 @@ class ConfigurationController(pydase.DataService):
             updated_config = ServiceConfig(config_sources=DataSource(current_config))
 
             # Save the updated configuration back to the file
-            self._save_configuration(updated_config)
+            save_config(updated_config)
             emit_queue.put(
                 {"event": "config.update", "data": updated_config.model_dump()}
             )
@@ -56,18 +54,6 @@ class ConfigurationController(pydase.DataService):
             logger.exception("Failed to update configuration")
             return False
         return True
-
-    def _save_configuration(self, new_config: ServiceConfig) -> None:
-        """Save the updated configuration to the source YAML file.
-
-        Serializes the updated configuration and writes it back to the file.
-
-        Args:
-            new_config:
-                The validated configuration instance.
-        """
-        with get_config_path().open("w") as file:
-            file.write(yaml.dump(new_config.model_dump()))
 
 
 def set_nested(config: dict[str, Any], nested_key: str, value: Any) -> None:
