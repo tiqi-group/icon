@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import click
 
-from icon.config.config_path import set_config_path
+from icon.config.config import set_config_path
 from icon.logging import setup_logging
 from icon.server.data_access.reconfigurable_experiment_library_client import (
     ReconfigurableExperimentLibraryClient,
