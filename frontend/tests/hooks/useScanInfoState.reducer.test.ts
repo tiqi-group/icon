@@ -4,7 +4,6 @@ import {
   defaultParameter,
   ScanInfoState,
 } from "../../src/hooks/useScanInfoState";
-import { scanPatterns } from "../../src/types/ScanParameterInfo";
 
 class LocalStorageMock {
   store: Record<string, string> = {};

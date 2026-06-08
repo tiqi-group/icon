@@ -41,7 +41,7 @@ describe("MruSelectionTree", () => {
       expect(leaf).toBe("DEFAULT");
     });
 
-    it("remembers a distinct last child per branch", () => {
+    it("remembers a distinct last child per path", () => {
       const mgr = makeManager(2)
         .update(["nsA", "dg1"], "p1", "A1")
         .update(["nsB", "dg2"], "p2", "B2");

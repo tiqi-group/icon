@@ -3,13 +3,13 @@ import {
   emptyScanInfoHistory,
 } from "../../src/utils/ScanInfoSelectionHistory";
 import { ScanParameterGenerationSpec } from "../../src/types/ScanParameterGenerationSpec";
-import { ScanParameterInfo } from "../../src/types/ScanParameterInfo";
+import { ScanParameterInfo, ScanPattern } from "../../src/types/ScanParameterInfo";
 
 const gen = (
   start: number,
   stop: number,
   points = 2,
-  pattern: ScanParameterGenerationSpec["pattern"] = "linear",
+  pattern: ScanPattern = "linear",
 ): ScanParameterGenerationSpec => ({ start, stop, points, pattern });
 
 const defaultGen = gen(0, 1);
@@ -48,10 +48,7 @@ describe("ScanInfoSelectionHistory.handleParamUpdate", () => {
 
   describe("id provided", () => {
     it("recalls the stored generator for a known parameter id", () => {
-      const history = record(
-        emptyScanInfoHistory,
-        param("E", "grp", "p1", gen(2, 8)),
-      );
+      const history = record(emptyScanInfoHistory, param("E", "grp", "p1", gen(2, 8)));
       const current = param("E", "grp", "pX", gen(0, 1));
 
       const { updatedParam } = mkMgr(history).handleParamUpdate(current, { id: "p1" });
