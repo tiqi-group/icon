@@ -1,18 +1,18 @@
+from pathlib import Path
 from typing import Any
 
 from confz import BaseConfig
 from pydantic import BaseModel
 
-from icon.config.v1 import (
-    DatabaseConfig,
-    DataConfiguration,
-    DateConfig,
-    HardwareConfig,
-    HealthCheckConfig,
-    ServerConfig,
-)
-
 __version__ = 2
+
+
+class HealthCheckConfig(BaseModel):
+    interval_seconds: float = 10.0
+
+
+class DataConfiguration(BaseModel):
+    results_dir: str = str(Path.cwd() / "output")
 
 
 class ExperimentLibraryConfig(BaseModel):
@@ -20,6 +20,46 @@ class ExperimentLibraryConfig(BaseModel):
     client_class: str = "AsyncPyCrystalClient"
     client_args: dict[str, Any] = {}
     update_interval: int = 30
+
+
+class InfluxDBv1Config(BaseModel):
+    host: str = "localhost"
+    port: int = 8087
+    username: str = "admin"
+    password: str = "admin"  # noqa: S105
+    database: str = "testing"
+    measurement: str = "Experiment Parameters"
+    ssl: bool = False
+    verify_ssl: bool = False
+    headers: dict[str, str] = {}
+
+
+class SQLiteConfig(BaseModel):
+    file: str = str(Path.cwd() / "icon.db")
+
+
+class DatabaseConfig(BaseModel):
+    influxdbv1: InfluxDBv1Config = InfluxDBv1Config()
+    sqlite: SQLiteConfig = SQLiteConfig()
+
+
+class DateConfig(BaseModel):
+    timezone: str = "Europe/Zurich"
+
+
+class PreProcessingConfig(BaseModel):
+    workers: int = 2
+
+
+class ServerConfig(BaseModel):
+    port: int = 8004
+    host: str = "0.0.0.0"
+    pre_processing: PreProcessingConfig = PreProcessingConfig()
+
+
+class HardwareConfig(BaseModel):
+    host: str = "localhost"
+    port: int = 6007
 
 
 class ServiceConfig(BaseConfig):  # type: ignore[misc]

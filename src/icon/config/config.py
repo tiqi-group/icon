@@ -4,14 +4,15 @@ from pathlib import Path, PosixPath
 import yaml
 from confz import BaseConfig, FileSource
 
-from icon.config import v1
-from icon.config import v2 as latest
+from icon.config import latest, v1
 from icon.config.config_path import get_config_path
 from icon.config.migrations import migration_by_version
 
 logger = logging.getLogger("config")
 
-VERSIONS: dict[int, BaseConfig] = {1: v1.ServiceConfigV1, 2: latest.ServiceConfig}
+VERSIONS: dict[int, BaseConfig] = {
+    cfg.__version__: cfg.ServiceConfig for cfg in (v1, latest)
+}
 
 
 # https://github.com/yaml/pyyaml/issues/617#issuecomment-1039273397
@@ -27,11 +28,11 @@ def get_config() -> latest.ServiceConfig:
 
     if not source.is_file():
         source.parent.mkdir(parents=True, exist_ok=True)
-        with source.open("a") as file:
-            file.write(yaml.dump(latest.ServiceConfig().model_dump()))
+        with source.open("a") as f:
+            f.write(yaml.dump(latest.ServiceConfig().model_dump()))
 
-    with source.open("r") as file:
-        content = yaml.safe_load(file)
+    with source.open("r") as f:
+        content = yaml.safe_load(f)
         config_version = content.get("version", None)
 
     schema = VERSIONS.get(config_version)

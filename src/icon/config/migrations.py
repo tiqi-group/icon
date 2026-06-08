@@ -3,9 +3,8 @@
 from collections.abc import Callable
 from typing import Any
 
-from icon.config.v1 import ServiceConfigV1
-from icon.config.v2 import ExperimentLibraryConfig
-from icon.config.v2 import ServiceConfig as ServiceConfigV2
+from icon.config import latest as v2
+from icon.config import v1
 
 migration_by_version = {}
 
@@ -19,10 +18,10 @@ def migration(*, version: int) -> Callable[[Any], Any]:
 
 
 @migration(version=1)
-def migrate_v1_to_v2(old_config: ServiceConfigV1) -> ServiceConfigV2:
+def migrate_v1_to_v2(old_config: v1.ServiceConfig) -> v2.ServiceConfig:
     exp_lib = old_config.experiment_library
-    return ServiceConfigV2(
-        experiment_library=ExperimentLibraryConfig(
+    return v2.ServiceConfig(
+        experiment_library=v2.ExperimentLibraryConfig(
             update_interval=exp_lib.update_interval,
             client_args={
                 "checkout_path": exp_lib.dir,
