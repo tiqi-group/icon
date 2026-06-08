@@ -85,7 +85,7 @@ function updateVisualMap(chart: ECharts, selectedChannelName: string | undefined
   });
 
   chart.setOption({
-    visualMap: [{ min, max }],
+    visualMap: [{ min, max, ...(max <= 1 && { formatter: (v: number) => v.toFixed(2) }) }],
   });
 }
 
