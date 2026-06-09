@@ -58,13 +58,34 @@ class ConfigurationController(pydase.DataService):
 
 def set_nested(config: dict[str, Any], nested_key: str, value: Any) -> None:
     """Set a value in a nested dict."""
-    current = config
-    *fields, last_field = nested_key.split(".")
+    current: dict[str, Any] | list[Any] = config
+    *fields, last_field = parse_config_key(nested_key)
     # Traverse to the nested key
     for field in fields:
-        if field not in current:
+        if isinstance(current, dict) and (
+            not isinstance(field, str) or field not in current
+        ):
             raise KeyError(f"Key {nested_key!r} not found in configuration.")
-        current = current[field]
+        if isinstance(current, list) and (
+            not isinstance(field, int) or field >= len(current)
+        ):
+            raise IndexError(
+                f"Configuration error: Index out of range: {field} in {nested_key!r}"
+            )
+        current = current[field]  # type: ignore[index]
 
     # Update the value
-    current[last_field] = value
+    current[last_field] = value  # type: ignore[index]
+
+
+def parse_config_key(nested_key: str) -> list[str | int]:
+    components = nested_key.split(".")
+
+    def split_index(key: str) -> tuple[str | int, ...]:
+        try:
+            key, index_str = key.removesuffix("]").split("[", 1)
+            return key, int(index_str)
+        except ValueError:
+            return (key,)
+
+    return [c for pair in components for c in pair]
