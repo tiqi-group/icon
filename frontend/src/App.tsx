@@ -11,8 +11,10 @@ import { SvgIcon } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { ParameterDisplayGroupsContext } from "./contexts/ParameterDisplayGroupsContext";
 import { reducer, JobsContext } from "./contexts/JobsContext";
+import { reducer as jobRunsReducer, JobRunsContext } from "./contexts/JobRunsContext";
 import { ParameterStoreProvider } from "./contexts/ParameterStoreContext";
 import { useJobsSync } from "./hooks/useJobsSync";
+import { useJobRunsSync } from "./hooks/useJobRunsSync";
 import { deviceInfoReducer, DeviceInfoContext } from "./contexts/DeviceInfoContext";
 import { useDevicesSync } from "./hooks/useDevicesSync";
 import { DeviceStateContext, deviceStateReducer } from "./contexts/DeviceStateContext";
@@ -74,6 +76,7 @@ export const BRANDING = {
 
 export default function App() {
   const [scheduledJobs, schedulerDispatch] = useReducer(reducer, {});
+  const [jobRuns, jobRunsDispatch] = useReducer(jobRunsReducer, {});
   const [deviceInfo, deviceInfoDispatch] = useReducer(deviceInfoReducer, {});
   const [deviceStates, deviceStateDispatch] = useReducer(deviceStateReducer, null);
   const parameterStore = useParameterStore();
@@ -82,6 +85,7 @@ export default function App() {
   const experiments = useExperiments();
 
   useJobsSync(schedulerDispatch);
+  useJobRunsSync(jobRunsDispatch);
   useDevicesSync(deviceStateDispatch, deviceInfoDispatch);
 
   return (
@@ -91,16 +95,18 @@ export default function App() {
           <DeviceStateContext.Provider value={deviceStates}>
             <DeviceInfoContext.Provider value={deviceInfo}>
               <JobsContext.Provider value={scheduledJobs}>
-                <ParameterDisplayGroupsContext.Provider
-                  value={{
-                    parameterDisplayGroups,
-                    parameterNamespaceToDisplayGroups,
-                  }}
-                >
-                  <ExperimentsContext.Provider value={experiments}>
-                    <Outlet />
-                  </ExperimentsContext.Provider>
-                </ParameterDisplayGroupsContext.Provider>
+                <JobRunsContext.Provider value={jobRuns}>
+                  <ParameterDisplayGroupsContext.Provider
+                    value={{
+                      parameterDisplayGroups,
+                      parameterNamespaceToDisplayGroups,
+                    }}
+                  >
+                    <ExperimentsContext.Provider value={experiments}>
+                      <Outlet />
+                    </ExperimentsContext.Provider>
+                  </ParameterDisplayGroupsContext.Provider>
+                </JobRunsContext.Provider>
               </JobsContext.Provider>
             </DeviceInfoContext.Provider>
           </DeviceStateContext.Provider>
