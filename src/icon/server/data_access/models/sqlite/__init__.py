@@ -12,8 +12,6 @@ from icon.server.data_access.models.sqlite.experiment_source import ExperimentSo
 from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.models.sqlite.job_run import JobRun
 from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
-from icon.server.data_access.models.sqlite.ttl_mask_state import TTLMaskState
-
 __all__ = [
     "Base",
     "Device",
@@ -21,5 +19,4 @@ __all__ = [
     "Job",
     "JobRun",
     "ScanParameter",
-    "TTLMaskState",
 ]

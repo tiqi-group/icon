@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ExperimentData, FitResult } from "../types/ExperimentData";
 import { ReactECharts, ReactEChartsProps } from "./ReactEcharts";
 import { EChartsOption } from "echarts";
@@ -106,6 +106,7 @@ const ResultChannelPlot = ({
   onChartClick,
 }: ResultChannelPlotProps) => {
   const [chart, setChart] = useState<ECharts | null>(null);
+  const chartRef = useRef<ECharts | null>(null);
   const notifications = useNotifications();
 
   const [selectedChannel, setSelectedChannel] = useState<string | undefined>(undefined);
@@ -364,6 +365,7 @@ const ResultChannelPlot = ({
             min: vmMin,
             max: vmMax,
             inRange: { color: ["#313695", "#1483d5", "#73bf7f", "#fcbe3d", "#ffff00"] },
+            ...(vmMax <= 1 && { formatter: (v: number) => v.toFixed(2) }),
           },
         ],
       };
@@ -425,7 +427,7 @@ const ResultChannelPlot = ({
             show: true,
             title: "Copy to Clipboard",
             icon: "path://M48.7643 38.2962H100.5807a6.0158 6.0158 0 0 1 6.0158 6.0158V115.2992a6.0158 6.0158 0 0 1-6.0158 6.0158H48.7643a6.0158 6.0158 0 0 1-6.0158-6.0158V44.312a6.0158 6.0158 0 0 1 6.0158-6.0158zM31.3642 21.6047c-3.3328 0-6.0162 2.6829-6.0162 6.0157v70.9874c0 3.3328 2.6834 6.0157 6.0162 6.0157H42.7485V44.3119c0-3.3328 2.6829-6.0157 6.0157-6.0157h40.4322V27.6204c0-3.3328-2.6829-6.0157-6.0157-6.0157z",
-            onclick: () => copyEChartsToClipboard(chart, notifications.show),
+            onclick: () => copyEChartsToClipboard(chartRef.current, notifications.show),
           },
         },
       },
@@ -460,8 +462,9 @@ const ResultChannelPlot = ({
   ]);
 
   const updateChart = useCallback(
-    (chart: ECharts) => {
-      setChart(chart);
+    (c: ECharts) => {
+      chartRef.current = c;
+      setChart(c);
     },
     [setChart],
   );
