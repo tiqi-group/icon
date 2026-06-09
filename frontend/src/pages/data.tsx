@@ -57,7 +57,7 @@ export function DataPage() {
   };
 
   return (
-    <div style={{ display: "flex", height: "100%" }}>
+    <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
       <div
         style={{
           flexShrink: 0,
@@ -127,7 +127,7 @@ export function DataPage() {
         </List>
       </div>
 
-      <div style={{ width: "100%" }}>
+      <div style={{ flexGrow: 1, height: "100%", overflow: "auto" }}>
         {selectedJobId ? (
           <div style={{ width: "100%" }}>
             {layoutReady ? (
