@@ -60,16 +60,9 @@ class HardwareController:
                 "Please use 'uv sync --all-extras' to install all dependencies"
             )
 
-        try:
-            self._update_zedboard_sequence(sequence=sequence)
-            self._zedboard.sequence_JSON_parser.Parse_JSON_Header()  # type: ignore
-            results: tiqi_zedboard.zedboard.Result = self._zedboard.sequence_JSON_parser()  # type: ignore
-        except TimeoutError:
-            # Null out the connection so the next task triggers a fresh connect(),
-            # clearing any stale data left in the socket buffer by the timed-out reply.
-            logger.warning("Zedboard timed out — forcing reconnect for next attempt")
-            self._zedboard = None
-            raise
+        self._update_zedboard_sequence(sequence=sequence)
+        self._zedboard.sequence_JSON_parser.Parse_JSON_Header()  # type: ignore
+        results: tiqi_zedboard.zedboard.Result = self._zedboard.sequence_JSON_parser()  # type: ignore
 
         return {
             "result_channels": results.result_channels,
