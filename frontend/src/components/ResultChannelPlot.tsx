@@ -110,6 +110,7 @@ const ResultChannelPlot = ({
   const notifications = useNotifications();
 
   const [selectedChannel, setSelectedChannel] = useState<string | undefined>(undefined);
+  const [showShotNoise, setShowShotNoise] = useState(false);
 
   const is2D = scanParameters.length === 2;
 
@@ -169,6 +170,10 @@ const ResultChannelPlot = ({
       },
       top: "-1%",
     };
+    const hasShotData = channelNames.some(
+      (n) => experimentData.shot_channels[n] !== undefined,
+    );
+
     let chartSeries: EChartsOption["series"] = [];
     const nOrdinaryParameters =
       scanParameters.length -
@@ -245,6 +250,8 @@ const ResultChannelPlot = ({
           resultChannels,
           repetitions,
           showRepetitions,
+          hasShotData ? experimentData.shot_channels : undefined,
+          showShotNoise,
         );
       }
     } else if (scanParameters.length === 2) {
@@ -429,6 +436,13 @@ const ResultChannelPlot = ({
             icon: "path://M48.7643 38.2962H100.5807a6.0158 6.0158 0 0 1 6.0158 6.0158V115.2992a6.0158 6.0158 0 0 1-6.0158 6.0158H48.7643a6.0158 6.0158 0 0 1-6.0158-6.0158V44.312a6.0158 6.0158 0 0 1 6.0158-6.0158zM31.3642 21.6047c-3.3328 0-6.0162 2.6829-6.0162 6.0157v70.9874c0 3.3328 2.6834 6.0157 6.0162 6.0157H42.7485V44.3119c0-3.3328 2.6829-6.0157 6.0157-6.0157h40.4322V27.6204c0-3.3328-2.6829-6.0157-6.0157-6.0157z",
             onclick: () => copyEChartsToClipboard(chartRef.current, notifications.show),
           },
+          myShotNoise: {
+            show: hasShotData,
+            title: showShotNoise ? "Hide shot noise" : "Show shot noise",
+            // vertical bar with two caps — represents an error bar
+            icon: "path://M512 100 L512 900 M312 250 L712 250 M312 750 L712 750",
+            onclick: () => setShowShotNoise((v) => !v),
+          },
         },
       },
       animation: false,
@@ -459,6 +473,7 @@ const ResultChannelPlot = ({
     fits,
     channelNames,
     selectedChannel,
+    showShotNoise,
   ]);
 
   const updateChart = useCallback(
