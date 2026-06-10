@@ -170,9 +170,7 @@ const ResultChannelPlot = ({
       },
       top: "-1%",
     };
-    const hasShotData = channelNames.some(
-      (n) => experimentData.shot_channels[n] !== undefined,
-    );
+    const hasShotData = Object.keys(experimentData.shot_channels).length > 0;
 
     let chartSeries: EChartsOption["series"] = [];
     const nOrdinaryParameters =
