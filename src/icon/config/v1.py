@@ -58,7 +58,7 @@ class ServerConfig(BaseModel):
 class HardwareConfig(BaseModel):
     host: str = "localhost"
     port: int = 6007
-    timeout: int = 5
+    timeout: int = 10
 
 
 class ServiceConfigV1(BaseConfig):  # type: ignore[misc]
