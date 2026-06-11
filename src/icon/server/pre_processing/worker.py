@@ -45,7 +45,11 @@ if TYPE_CHECKING:
     from icon.server.data_access.models.sqlite.job import Job
     from icon.server.pre_processing.task import PreProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
-    from icon.server.utils.types import UpdateQueue
+    from icon.server.utils.types import (
+        DataPointToProcess,
+        RetakeDataPointsEvent,
+        UpdateQueue,
+    )
 
 logger = logging.getLogger(__name__)
 timezone = pytz.timezone(get_config().date.timezone)
@@ -173,10 +177,11 @@ class PreProcessingWorker(multiprocessing.Process):
         self._worker_number = worker_number
         self._manager = manager
         # Queues to communicate with the hardware worker:
-        self._data_points_to_process: queue.Queue[
-            tuple[int, dict[str, DatabaseValueType]]
-        ]
+        self._data_points_to_process: queue.PriorityQueue[DataPointToProcess]
         self._processed_data_points: queue.Queue[HardwareProcessingTask]
+        # Number of data points the regular scan loop expects to be processed.
+        # Grows when data points are re-queued for retaking.
+        self._expected_data_points: int = 0
         self._parameter_dict: dict[str, DatabaseValueType] = {}
         self._outdated_tasks: queue.PriorityQueue[HardwareProcessingTask] = (
             manager.PriorityQueue()
@@ -193,7 +198,7 @@ class PreProcessingWorker(multiprocessing.Process):
             while True:
                 pre_processing_task = self._queue.get()
 
-                self._data_points_to_process = self._manager.Queue()
+                self._data_points_to_process = self._manager.PriorityQueue()
                 self._processed_data_points = self._manager.Queue()
 
                 try:
@@ -363,23 +368,58 @@ class PreProcessingWorker(multiprocessing.Process):
         self, pre_processing_task: PreProcessingTask, namespace: ExperimentIdentifier
     ) -> None:
         for parameter_update in consume_queue(self._update_queue):
-            event = parameter_update["event"]
-            job_id = parameter_update.get("job_id", None)
-            new_parameters = parameter_update.get("new_parameters", None)
-
-            if event == "update_parameters" and (
-                job_id is None or job_id == pre_processing_task.job.id
-            ):
-                self._update_parameter_dict(
-                    pre_processing_task, namespace, mode=ParamUpdateMode.ALL_UP_TO_DATE
-                )
-            elif event == "calibration" and new_parameters is not None:
+            if parameter_update["event"] == "update_parameters":
+                job_id = parameter_update.get("job_id", None)
+                if job_id is None or job_id == pre_processing_task.job.id:
+                    self._update_parameter_dict(
+                        pre_processing_task,
+                        namespace,
+                        mode=ParamUpdateMode.ALL_UP_TO_DATE,
+                    )
+            elif parameter_update["event"] == "calibration":
                 self._update_parameter_dict(
                     pre_processing_task,
                     namespace,
-                    new_parameters=new_parameters,
+                    new_parameters=parameter_update["new_parameters"],
                     mode=ParamUpdateMode.ONLY_NEW_PARAMETERS,
                 )
+            elif parameter_update["event"] == "retake_data_points":
+                self._retake_data_points(pre_processing_task, parameter_update)
+
+    def _retake_data_points(
+        self,
+        pre_processing_task: PreProcessingTask,
+        event: RetakeDataPointsEvent,
+    ) -> None:
+        """Re-queue the last ``no_data_points`` data points for re-acquisition.
+
+        The invalid data is moved into ``invalid_*`` datasets in the HDF5 file by
+        ``ExperimentDataRepository.mark_data_points_as_invalid``; the freed indices
+        are re-queued (with their exact original scan-parameter values, looked up
+        from ``get_scan_combinations``) so they are re-taken. As
+        ``_data_points_to_process`` is a priority queue keyed by index, these
+        lower-index points are processed before the remaining unscanned points on
+        resume. ``_expected_data_points`` is bumped so the scan loop does not
+        terminate before the retakes complete.
+
+        Not supported for realtime/continuous scans.
+        """
+        if event["job_id"] != pre_processing_task.job.id:
+            return
+        if contains_realtime_parameter(pre_processing_task.job.scan_parameters):
+            logger.warning(
+                "Retaking data points is not supported for continuous scans."
+            )
+            return
+
+        invalidated_indices = ExperimentDataRepository.mark_data_points_as_invalid(
+            job_id=event["job_id"],
+            no_data_points=event["no_data_points"],
+        )
+        combinations = get_scan_combinations(pre_processing_task.job)
+        for index in invalidated_indices:
+            self._data_points_to_process.put((index, combinations[index]))
+        self._expected_data_points += len(invalidated_indices)
 
     def _wait_while_paused(
         self,
@@ -435,12 +475,11 @@ class PreProcessingWorker(multiprocessing.Process):
                 "No scan combinations to process: check that 'repetitions' >= 1 "
                 "and all scan parameters have at least one scan value."
             )
+        self._expected_data_points = len(scan_parameter_value_combinations)
         for combination in enumerate(scan_parameter_value_combinations):
             self._data_points_to_process.put(combination)
 
-        while self._processed_data_points.qsize() != len(
-            scan_parameter_value_combinations
-        ):
+        while self._processed_data_points.qsize() != self._expected_data_points:
             self._handle_parameter_updates(pre_processing_task, namespace)
             self._wait_while_paused(client, pre_processing_task, namespace=namespace)
 
