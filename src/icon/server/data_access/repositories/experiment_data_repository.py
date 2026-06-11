@@ -331,6 +331,169 @@ def write_vector_channels_to_datasets(
             )
 
 
+def _append_invalid_indices(h5file: h5py.File, indices: list[int]) -> int:
+    """Append original data-point indices to the 'invalid_indices' dataset.
+
+    Args:
+        h5file: Open HDF5 file handle.
+        indices: Original indices of the data points being invalidated.
+
+    Returns:
+        The append position of the first new entry, used to align the
+        per-channel invalid datasets with this batch.
+    """
+    if "invalid_indices" in h5file:
+        dataset = cast("h5py.Dataset", h5file["invalid_indices"])
+    else:
+        dataset = h5file.create_dataset(
+            "invalid_indices",
+            shape=(0,),
+            maxshape=(None,),
+            chunks=True,
+            dtype=np.int64,
+        )
+    base = int(dataset.shape[0])
+    dataset.resize(base + len(indices), axis=0)
+    dataset[base:] = indices
+    return base
+
+
+def _move_rows_to_invalid(h5file: h5py.File, name: str, start: int, count: int) -> None:
+    """Move rows ``[start:start + count]`` of a dataset into 'invalid_<name>'.
+
+    Appends the rows to the (create-if-absent) invalid dataset and shrinks the
+    live dataset. Works for both the 2D ``scan_parameters`` and the 1D
+    ``result_channels`` datasets. No-op if the source dataset is absent.
+
+    Args:
+        h5file: Open HDF5 file handle.
+        name: Name of the live dataset to move rows out of.
+        start: Index of the first row to move.
+        count: Number of rows to move.
+    """
+    source = h5file.get(name)
+    if source is None:
+        return
+    source = cast("h5py.Dataset", source)
+    rows = source[start : start + count]
+    invalid_name = f"invalid_{name}"
+    if invalid_name in h5file:
+        dataset = cast("h5py.Dataset", h5file[invalid_name])
+    else:
+        dataset = h5file.create_dataset(
+            invalid_name,
+            shape=(0, *source.shape[1:]),
+            maxshape=(None, *source.shape[1:]),
+            chunks=True,
+            dtype=source.dtype,
+            compression="gzip",
+            compression_opts=9,
+        )
+    base = int(dataset.shape[0])
+    dataset.resize(base + count, axis=0)
+    dataset[base:] = rows
+    source.resize(start, axis=0)
+
+
+def _move_shot_channels_to_invalid(h5file: h5py.File, start: int, count: int) -> None:
+    """Move shot-channel rows ``[start:start + count]`` into 'invalid_shot_channels'.
+
+    Args:
+        h5file: Open HDF5 file handle.
+        start: Index of the first row to move.
+        count: Number of rows to move.
+    """
+    shot_group = h5file.get("shot_channels")
+    if shot_group is None:
+        return
+    invalid_group = h5file.require_group("invalid_shot_channels")
+    for channel_name, channel in cast("h5py.Group", shot_group).items():
+        source = cast("h5py.Dataset", channel)
+        rows = source[start : start + count]
+        if channel_name in invalid_group:
+            dataset = cast("h5py.Dataset", invalid_group[channel_name])
+        else:
+            dataset = invalid_group.create_dataset(
+                channel_name,
+                shape=(0, source.shape[1]),
+                maxshape=(None, source.shape[1]),
+                chunks=True,
+                dtype=source.dtype,
+                compression="gzip",
+                compression_opts=9,
+            )
+        base = int(dataset.shape[0])
+        dataset.resize(base + count, axis=0)
+        dataset[base:] = rows
+        source.resize(start, axis=0)
+
+
+def _move_vector_channels_to_invalid(
+    h5file: h5py.File, indices: list[int], base: int
+) -> None:
+    """Move per-index vector datasets into 'invalid_vector_channels'.
+
+    Each moved dataset is renamed to its append position (``base + offset``),
+    aligning it with ``invalid_indices`` and avoiding name collisions across
+    repeated retakes. Deleting the live dataset frees its name so re-acquisition
+    recreates it.
+
+    Args:
+        h5file: Open HDF5 file handle.
+        indices: Original indices of the data points being invalidated.
+        base: Append position of the first moved entry in ``invalid_indices``.
+    """
+    vector_group = h5file.get("vector_channels")
+    if vector_group is None:
+        return
+    invalid_group = h5file.require_group("invalid_vector_channels")
+    for channel_name, channel in cast("h5py.Group", vector_group).items():
+        channel_group = cast("h5py.Group", channel)
+        invalid_channel_group = invalid_group.require_group(channel_name)
+        for offset, index in enumerate(indices):
+            source_name = str(index)
+            if source_name in channel_group:
+                channel_group.copy(
+                    source_name, invalid_channel_group, name=str(base + offset)
+                )
+                del channel_group[source_name]
+
+
+def _move_last_n_data_points_to_invalid(
+    h5file: h5py.File, no_data_points: int
+) -> list[int]:
+    """Move the last ``no_data_points`` data points into 'invalid_*' datasets.
+
+    The live datasets shrink so the points can be re-acquired at their original
+    indices, and ``number_of_data_points`` is decremented accordingly. The moved
+    data is preserved under ``invalid_indices`` and the matching ``invalid_*``
+    datasets/groups.
+
+    Args:
+        h5file: Open HDF5 file handle.
+        no_data_points: Number of trailing data points to invalidate. Clamped to
+            the number of stored data points.
+
+    Returns:
+        The original indices of the invalidated data points (ascending).
+    """
+    total = int(h5file.attrs.get("number_of_data_points", 0))
+    count = min(no_data_points, total)
+    if count <= 0:
+        return []
+    start = total - count
+    moved_indices = list(range(start, total))
+
+    base = _append_invalid_indices(h5file, moved_indices)
+    _move_rows_to_invalid(h5file, "scan_parameters", start, count)
+    _move_rows_to_invalid(h5file, "result_channels", start, count)
+    _move_shot_channels_to_invalid(h5file, start, count)
+    _move_vector_channels_to_invalid(h5file, moved_indices, base)
+
+    h5file.attrs["number_of_data_points"] = start
+    return moved_indices
+
+
 class ExperimentDataRepository:
     """Repository for HDF5-based experiment data.
 
@@ -578,6 +741,27 @@ class ExperimentDataRepository:
                 },
             }
         )
+
+    @staticmethod
+    def mark_data_points_as_invalid(*, job_id: int, no_data_points: int) -> list[int]:
+        """Move the last ``no_data_points`` data points of a job into invalid datasets.
+
+        The bad data is preserved under ``invalid_*`` datasets (tagged with the
+        original data-point index in ``invalid_indices``) and removed from the live
+        datasets so the points can be re-acquired at their original indices.
+
+        Args:
+            job_id: Job identifier.
+            no_data_points: Number of trailing data points to invalidate. Clamped to
+                the number of stored data points.
+
+        Returns:
+            The original indices of the invalidated data points (ascending).
+        """
+        filename = get_filename_by_job_id(job_id)
+        h5_path = Path(get_config().data.results_dir) / filename
+        with h5_open(h5_path, "a") as h5file:
+            return _move_last_n_data_points_to_invalid(h5file, no_data_points)
 
     @staticmethod
     def get_experiment_data_by_job_id(  # noqa: C901
