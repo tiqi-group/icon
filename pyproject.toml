@@ -125,6 +125,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = [
     "S101",     # assert
+    "PLR2004",  # magic value used in comparison (expected values in tests)
 ]
 
 [tool.ruff.lint.mccabe]
