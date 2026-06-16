@@ -144,6 +144,9 @@ ignore_missing_imports = false
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "session"
+markers = [
+    "container: marks tests which need a container runtime",
+]
 
 # [tool.uv.sources]
 # tiqi-zedboard = { path = "../tiqi-zedboard", editable = true }
