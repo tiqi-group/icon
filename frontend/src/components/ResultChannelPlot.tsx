@@ -87,7 +87,7 @@ function updateVisualMap(chart: ECharts, selectedChannelName: string | undefined
   });
 
   chart.setOption({
-    visualMap: [{ min, max }],
+    visualMap: [{ min, max, ...(max <= 1 && { formatter: (v: number) => v.toFixed(2) }) }],
   });
 }
 
@@ -222,10 +222,9 @@ const ResultChannelPlot = ({
 
         xAxisData = observedX;
 
-        const fullDataSet = observedX.map((xVal, index) => [
-          xVal,
-          ...channels.map((ch) => ch.data[index]),
-        ]);
+        const fullDataSet = observedX
+          .map((xVal, index) => [xVal, ...channels.map((ch) => ch.data[index])])
+          .sort((a, b) => (a[0] as number) - (b[0] as number));
 
         chartSeries = channels.map((channel, index) => ({
           name: channel.name,
