@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 import re
 from typing import TYPE_CHECKING, Any
@@ -49,12 +47,12 @@ class ParametersRepository:
     Emits Socket.IO events on updates.
     """
 
-    _shared_parameters: DictProxy[str, DatabaseValueType]
+    _shared_parameters: "DictProxy[str, DatabaseValueType]"
     initialised: bool = False
 
     @classmethod
     def initialize(
-        cls, *, shared_parameters: DictProxy[str, DatabaseValueType]
+        cls, *, shared_parameters: "DictProxy[str, DatabaseValueType]"
     ) -> None:
         """Initialize the repository with a shared parameters dict.
 
@@ -149,7 +147,7 @@ class ParametersRepository:
         return cls._shared_parameters.get(parameter_id, None)
 
     @classmethod
-    def get_shared_parameters(cls) -> DictProxy[str, DatabaseValueType]:
+    def get_shared_parameters(cls) -> "DictProxy[str, DatabaseValueType]":
         """Return the full shared parameter dictionary.
 
         Returns:

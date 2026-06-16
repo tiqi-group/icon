@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 import queue
 from multiprocessing.managers import DictProxy, SyncManager
@@ -22,9 +20,9 @@ class SharedResourceManager(SyncManager):
 
     PriorityQueue: type[queue.PriorityQueue[Any]]
 
-    pre_processing_queue: queue.PriorityQueue[PreProcessingTask]
-    hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask]
-    parameters_dict: DictProxy[str, DatabaseValueType]
+    pre_processing_queue: "queue.PriorityQueue[PreProcessingTask]"
+    hardware_processing_queue: "queue.PriorityQueue[HardwareProcessingTask]"
+    parameters_dict: "DictProxy[str, DatabaseValueType]"
 
     def __init__(self) -> None:
         super().__init__()

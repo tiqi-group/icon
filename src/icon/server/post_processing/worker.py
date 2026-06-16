@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 import multiprocessing
 from typing import TYPE_CHECKING
@@ -21,7 +19,7 @@ logger = logging.getLogger(__name__)
 class PostProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
-        post_processing_queue: multiprocessing.Queue[PostProcessingTask],
+        post_processing_queue: "multiprocessing.Queue[PostProcessingTask]",
     ) -> None:
         super().__init__()
         self._post_processing_queue = post_processing_queue

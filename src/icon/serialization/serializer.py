@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import inspect
 import logging
 from datetime import datetime
@@ -35,7 +33,9 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
     """Serialization of pydantic models to the `pydase.utils.serialization.serializer.Serializer`."""
 
     @classmethod
-    def serialize_object(cls, obj: Any, access_path: str = "") -> SerializedIconObject:  # type: ignore[override] # noqa: C901
+    def serialize_object(  # noqa: C901
+        cls, obj: Any, access_path: str = ""
+    ) -> "SerializedIconObject":  # type: ignore[override]
         result: SerializedIconObject | None = None
 
         if isinstance(obj, Exception):
@@ -82,7 +82,9 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
         )
 
     @classmethod
-    def _serialize_datetime(cls, obj: datetime, access_path: str) -> SerializedDatetime:
+    def _serialize_datetime(
+        cls, obj: datetime, access_path: str
+    ) -> "SerializedDatetime":
         return {
             "type": "datetime",
             "value": obj.astimezone(timezone).isoformat(),
@@ -94,7 +96,7 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
     @classmethod
     def _serialize_pydantic_model(
         cls, obj: pydantic.BaseModel, access_path: str
-    ) -> SerializedPydanticModel:
+    ) -> "SerializedPydanticModel":
         doc = get_attribute_doc(obj)
         dumped_model = obj.model_dump_json()
         return {
@@ -109,12 +111,12 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
     @classmethod
     def _serialize_orm(
         cls, obj: sqlalchemy.orm.DeclarativeBase, access_path: str
-    ) -> SerializedDict:
+    ) -> "SerializedDict":
         dumped_model = SQLAlchemyDictEncoder.encode(obj=obj)
         return cls._serialize_dict(dumped_model, access_path)
 
     @classmethod
-    def _serialize_exception(cls, obj: Exception) -> SerializedException:
+    def _serialize_exception(cls, obj: Exception) -> "SerializedException":
         try:
             value = obj.args[0]
         except Exception:
@@ -130,5 +132,5 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
         }
 
 
-def dump(obj: Any) -> SerializedIconObject:
+def dump(obj: Any) -> "SerializedIconObject":
     return IconSerializer.serialize_object(obj)

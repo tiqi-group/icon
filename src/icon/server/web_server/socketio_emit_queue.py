@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import multiprocessing
 from typing import Any, NotRequired, TypedDict
 
@@ -10,4 +8,4 @@ class EmitEvent(TypedDict):
     room: NotRequired[str]
 
 
-emit_queue: multiprocessing.Queue[EmitEvent] = multiprocessing.Queue()
+emit_queue: "multiprocessing.Queue[EmitEvent]" = multiprocessing.Queue()

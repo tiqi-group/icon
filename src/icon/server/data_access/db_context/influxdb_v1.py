@@ -1,16 +1,12 @@
-from __future__ import annotations
-
 import logging
 import sys
-from typing import TYPE_CHECKING, Any, Literal
+from types import TracebackType
+from typing import Any, Literal
 
 import influxdb
 import requests
 
 from icon.config.config import get_config
-
-if TYPE_CHECKING:
-    from types import TracebackType
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self

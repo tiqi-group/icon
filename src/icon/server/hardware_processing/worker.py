@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 import multiprocessing
 import re
@@ -68,10 +66,10 @@ def parse_parameter_id(param_id: str) -> tuple[str | None, str]:
 class HardwareProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
-        hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask],
-        post_processing_queue: multiprocessing.Queue[PostProcessingTask],
-        manager: SharedResourceManager,
-        hardware_controller: HardwareController,
+        hardware_processing_queue: "queue.PriorityQueue[HardwareProcessingTask]",
+        post_processing_queue: "multiprocessing.Queue[PostProcessingTask]",
+        manager: "SharedResourceManager",
+        hardware_controller: "HardwareController",
     ) -> None:
         super().__init__()
         self._queue = hardware_processing_queue
@@ -82,7 +80,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self._hardware_controller = hardware_controller
 
     def _update_pydase_service_parameter(
-        self, device: Device, access_path: str, new_value: DatabaseValueType
+        self, device: "Device", access_path: str, new_value: "DatabaseValueType"
     ) -> None:
         client = self._pydase_clients[device.name]
         try:
@@ -112,7 +110,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
             f"{device.retry_attempts} attempts."
         )
 
-    def _add_device(self, device: Device) -> None:
+    def _add_device(self, device: "Device") -> None:
         self._pydase_clients[device.name] = pydase.Client(
             url=device.url,
             client_id="icon-hardware-worker",
@@ -120,7 +118,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
         )
 
     def _set_pydase_service_values(
-        self, scanned_params: dict[str, DatabaseValueType]
+        self, scanned_params: "dict[str, DatabaseValueType]"
     ) -> None:
         for param, value in scanned_params.items():
             device_name, access_path = parse_parameter_id(param_id=param)

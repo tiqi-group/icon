@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import json
 import logging
@@ -51,9 +49,9 @@ class APIService(pydase.DataService):
 
     def __init__(
         self,
-        pre_processing_event_queues: list[multiprocessing.Queue[UpdateQueue]],
-        experiment_library_client: ReconfigurableExperimentLibraryClient,
-        hardware_controller: HardwareController,
+        pre_processing_event_queues: "list[multiprocessing.Queue[UpdateQueue]]",
+        experiment_library_client: "ReconfigurableExperimentLibraryClient",
+        hardware_controller: "HardwareController",
     ) -> None:
         """Create a new APIService.
 

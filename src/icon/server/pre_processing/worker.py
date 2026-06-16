@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import itertools
 import logging
@@ -8,6 +6,7 @@ import os
 import queue
 import re
 import time
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -38,8 +37,6 @@ from icon.server.hardware_processing.task import HardwareProcessingTask
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
-
     from icon.server.data_access.experiment_library_client import (
         ExperimentLibraryClient,
     )
@@ -72,7 +69,7 @@ def change_process_priority(priority: int) -> None:
         p.nice(priority)
 
 
-def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
+def get_scan_combinations(job: "Job") -> list[dict[str, DatabaseValueType]]:
     """Generates all combinations of scan parameters for a given job.
 
     Repeats each combination `job.repetitions` times.
@@ -161,11 +158,11 @@ class PreProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
         worker_number: int,
-        pre_processing_queue: queue.PriorityQueue[PreProcessingTask],
-        update_queue: multiprocessing.Queue[UpdateQueue],
-        hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask],
-        manager: SharedResourceManager,
-        experiment_library_client: ExperimentLibraryClient,
+        pre_processing_queue: "queue.PriorityQueue[PreProcessingTask]",
+        update_queue: "multiprocessing.Queue[UpdateQueue]",
+        hardware_processing_queue: "queue.PriorityQueue[HardwareProcessingTask]",
+        manager: "SharedResourceManager",
+        experiment_library_client: "ExperimentLibraryClient",
     ) -> None:
         super().__init__()
         self._queue = pre_processing_queue
@@ -245,8 +242,8 @@ class PreProcessingWorker(multiprocessing.Process):
 
     def _process_task(
         self,
-        pre_processing_task: PreProcessingTask,
-        isolated_lib_client: ExperimentLibraryClient,
+        pre_processing_task: "PreProcessingTask",
+        isolated_lib_client: "ExperimentLibraryClient",
     ) -> None:
         job = pre_processing_task.job
         JobRunRepository.update_run_by_id(
@@ -305,7 +302,7 @@ class PreProcessingWorker(multiprocessing.Process):
 
     def _update_parameter_dict(
         self,
-        pre_processing_task: PreProcessingTask,
+        pre_processing_task: "PreProcessingTask",
         namespace: ExperimentIdentifier,
         new_parameters: dict[str, DatabaseValueType] | None = None,
         mode: ParamUpdateMode = ParamUpdateMode.LOCALS_FROM_TS_GLOBALS_LATEST,
@@ -368,7 +365,7 @@ class PreProcessingWorker(multiprocessing.Process):
         )
 
     def _handle_parameter_updates(
-        self, pre_processing_task: PreProcessingTask, namespace: ExperimentIdentifier
+        self, pre_processing_task: "PreProcessingTask", namespace: ExperimentIdentifier
     ) -> None:
         for parameter_update in consume_queue(self._update_queue):
             event = parameter_update["event"]
@@ -403,9 +400,9 @@ class PreProcessingWorker(multiprocessing.Process):
 
     def _handle_regular_scan(
         self,
-        pre_processing_task: PreProcessingTask,
+        pre_processing_task: "PreProcessingTask",
         namespace: ExperimentIdentifier,
-        client: ExperimentLibraryClient,
+        client: "ExperimentLibraryClient",
         src_dir: str | None,
     ) -> Iterable[None]:
         scan_parameter_value_combinations = get_scan_combinations(
@@ -458,7 +455,7 @@ class PreProcessingWorker(multiprocessing.Process):
     def _create_hardware_task(
         self,
         *,
-        pre_processing_task: PreProcessingTask,
+        pre_processing_task: "PreProcessingTask",
         index: int,
         data_point: dict[str, DatabaseValueType],
         sequence_json: str,
@@ -479,7 +476,7 @@ class PreProcessingWorker(multiprocessing.Process):
         )
 
     def _regenerate_outdated_jobs(
-        self, client: ExperimentLibraryClient, namespace: ExperimentIdentifier
+        self, client: "ExperimentLibraryClient", namespace: ExperimentIdentifier
     ) -> None:
         for task in consume_queue(self._outdated_tasks):
             task.sequence_json = generate_sequence_json(
@@ -492,9 +489,9 @@ class PreProcessingWorker(multiprocessing.Process):
 
     def _handle_realtime_scan(
         self,
-        pre_processing_task: PreProcessingTask,
+        pre_processing_task: "PreProcessingTask",
         namespace: ExperimentIdentifier,
-        client: ExperimentLibraryClient,
+        client: "ExperimentLibraryClient",
         src_dir: str | None,
     ) -> Iterable[None]:
         params = pre_processing_task.job.scan_parameters
@@ -549,7 +546,7 @@ class PreProcessingWorker(multiprocessing.Process):
 T = TypeVar("T")
 
 
-def consume_queue(q: multiprocessing.Queue[T] | queue.Queue[T]) -> Iterator[T]:
+def consume_queue(q: "multiprocessing.Queue[T] | queue.Queue[T]") -> Iterator[T]:
     while True:
         try:
             yield q.get(block=False)
@@ -562,7 +559,7 @@ def freeze_dict(combination: dict[str, DatabaseValueType]) -> ScanCombination:
 
 
 def generate_sequence_json(
-    client: ExperimentLibraryClient,
+    client: "ExperimentLibraryClient",
     n_shots: int,
     parameter_dict: dict[str, DatabaseValueType],
     namespace: ExperimentIdentifier,
