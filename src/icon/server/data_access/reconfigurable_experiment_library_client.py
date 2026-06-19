@@ -141,7 +141,7 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
             parameter_dict=parameter_dict,
         )
 
-    async def get_setup_hardware_description(self) -> dict[str, dict]:
+    async def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:
         """Fetch hardware description from experiment library.
 
         Returns:
