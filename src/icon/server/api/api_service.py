@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from icon.server.data_access.reconfigurable_experiment_library_client import (
         ReconfigurableExperimentLibraryClient,
     )
-    from icon.server.hardware_processing.hardware_controller import HardwareController
+    from icon.server.hardware_processing.devices import Devices
     from icon.server.utils.types import UpdateQueue
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ class APIService(pydase.DataService):
         self,
         pre_processing_event_queues: "list[multiprocessing.Queue[UpdateQueue]]",
         experiment_library_client: "ReconfigurableExperimentLibraryClient",
-        hardware_controller: "HardwareController",
+        devices: "Devices",
     ) -> None:
         """Create a new APIService.
 
@@ -59,7 +59,7 @@ class APIService(pydase.DataService):
         pre_processing_event_queues: Queues used by `ScansController` to notify
             pre-processing workers.
         experiment_library_client: Client for an experiment library
-        hardware_controller: Controller for the hardware
+        devices: Controllers for the hardware devices
         """
         super().__init__()
 
@@ -83,7 +83,7 @@ class APIService(pydase.DataService):
         )
         """Controller for triggering update events for jobs across multiple worker
         processes."""
-        self.status = StatusController(hardware_controller)
+        self.status = StatusController(devices)
         """Controller for system status monitoring."""
         self._experiment_library_client = experiment_library_client
 

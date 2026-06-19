@@ -42,3 +42,34 @@ class Reloader:
 
     def is_configured(self) -> bool:
         return self.obj is not self.fallback_obj
+
+
+class DictReloader:
+    def __init__(
+        self,
+        initial_objs: dict[str, Any],
+        obj_factory: Callable[..., Any],
+        subconfig: "Callable[[ServiceConfig], dict[str, Any]]",
+    ) -> None:
+        self.current_config: dict[str, Any] = {}
+        self.obj_factory = staticmethod(obj_factory)
+        self.objs = initial_objs
+        self.subconfig = staticmethod(subconfig)
+
+    def reload_changed(self) -> list[Any]:
+        new_config = self.subconfig(get_config())
+        changed_or_new = [
+            (key, args)
+            for key, args in new_config.items()
+            if args != self.current_config.get(key)
+        ]
+        for key, args in changed_or_new:
+            try:
+                self.objs[key] = self.obj_factory(**args)
+            except ReloadError as e:
+                logger.warning(format(e))
+                del self.objs[key]
+        for removed in set(self.objs) - set(new_config):
+            del self.objs[removed]
+        self.current_config = new_config
+        return [self.objs[key] for key, _ in changed_or_new]

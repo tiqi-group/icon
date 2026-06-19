@@ -45,11 +45,12 @@ class ExperimentDataController(pydase.DataService):
             job_id=job_id,
             max_transfer_bytes=max_transfer_bytes,
         )
-        return asdict(result)
+        return result.serialize()
 
     async def run_fit(
         self,
         job_id: int,
+        device_id: str,
         result_channel: str,
         func_type: str,
         x_range: list[float] | None = None,
@@ -59,6 +60,7 @@ class ExperimentDataController(pydase.DataService):
 
         Args:
             job_id: Job identifier.
+            device_id: ID of the device whose readout data should be fitted.
             result_channel: Name of the result channel to fit.
             func_type: Fit model name (e.g. "lorentzian").
             x_range: Optional [min, max] to restrict fit domain.
@@ -87,7 +89,11 @@ class ExperimentDataController(pydase.DataService):
             )
 
         scan_values = data.scan_parameters[scan_param_name]
-        channel_values = data.result_channels.get(result_channel, {})
+        channel_values = next(
+            d.readouts.result_channels.get(result_channel, {})
+            for d in data.device_data
+            if d.device_id == device_id
+        )
 
         # Build aligned x, y arrays sorted by index
         indices = sorted(set(scan_values.keys()) & set(channel_values.keys()))
@@ -108,14 +114,14 @@ class ExperimentDataController(pydase.DataService):
             await asyncio.to_thread(
                 write_fit_result_by_job_id,
                 job_id=job_id,
-                fit_result=fit_result,
+                fit_results=[(device_id, fit_result)],
             )
 
         result_dict = asdict(fit_result)
         emit_queue.put(
             {
                 "event": f"experiment_fit_{job_id}",
-                "data": result_dict,
+                "data": {"device_id": device_id, "fit_data": result_dict},
             }
         )
         return result_dict
@@ -124,21 +130,28 @@ class ExperimentDataController(pydase.DataService):
         self,
         job_id: int,
         result_channel: str,
+        device_id: str,
     ) -> None:
         """Delete a fit result for a result channel.
 
         Args:
             job_id: Job identifier.
+            device_id: Device for which to delete the channel.
             result_channel: Name of the result channel whose fit to remove.
         """
         await asyncio.to_thread(
             delete_fit_result_by_job_id,
             job_id=job_id,
+            device_id=device_id,
             result_channel=result_channel,
         )
         emit_queue.put(
             {
                 "event": f"experiment_fit_{job_id}",
-                "data": {"result_channel": result_channel, "deleted": True},
+                "data": {
+                    "result_channel": result_channel,
+                    "deleted": True,
+                    "device_id": device_id,
+                },
             }
         )

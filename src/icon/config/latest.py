@@ -4,7 +4,7 @@ from typing import Any
 from confz import BaseConfig
 from pydantic import BaseModel
 
-__version__ = 2
+__version__ = 3
 
 
 class HealthCheckConfig(BaseModel):
@@ -57,9 +57,16 @@ class ServerConfig(BaseModel):
     pre_processing: PreProcessingConfig = PreProcessingConfig()
 
 
-class HardwareConfig(BaseModel):
+class DeviceConfig(BaseModel):
+    id: str
+    controller_module: str
+    controller_class: str
     host: str = "localhost"
     port: int = 6007
+
+
+class HardwareConfig(BaseModel):
+    devices: list[DeviceConfig] = []
 
 
 class ServiceConfig(BaseConfig):  # type: ignore[misc]

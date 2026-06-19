@@ -12,7 +12,7 @@ import { DevicesStatusCard } from "../components/statusCards/DevicesStatus";
 
 interface Status {
   influxdb: boolean;
-  hardware: boolean;
+  hardware: Record<string, boolean>;
 }
 
 export default function DashboardPage() {
@@ -20,7 +20,9 @@ export default function DashboardPage() {
   const configuration = useConfiguration();
 
   const [influxReachable, setInfluxReachable] = useState<boolean>(false);
-  const [hardwareReachable, setHardwareReachable] = useState<boolean>(false);
+  const [hardwareReachable, setHardwareReachable] = useState<Record<string, boolean>>(
+    {},
+  );
 
   useEffect(() => {
     runMethod("status.get_status", [], {}, (response) => {
@@ -30,7 +32,9 @@ export default function DashboardPage() {
     });
 
     socket.on("status.influxdb", (status: boolean) => setInfluxReachable(status));
-    socket.on("status.hardware", (status: boolean) => setHardwareReachable(status));
+    socket.on("status.hardware", (status: Record<string, boolean>) =>
+      setHardwareReachable(status),
+    );
     return () => {
       socket.off("status.influxdb");
       socket.off("status.hardware");
@@ -60,10 +64,12 @@ export default function DashboardPage() {
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent sx={{ display: "flex", flex: 1, alignItems: "center" }}>
-              <HardwareStatusCard
-                hardwareReachable={hardwareReachable}
-                configuration={configuration}
-              />
+              {configuration?.hardware?.devices.map((dev) => (
+                <HardwareStatusCard
+                  hardwareReachable={hardwareReachable[dev.id]}
+                  configuration={dev}
+                />
+              ))}
             </CardContent>
           </Card>
         </Grid>

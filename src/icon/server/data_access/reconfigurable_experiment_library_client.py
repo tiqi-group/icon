@@ -13,11 +13,9 @@ from icon.server.data_access.experiment_library_client import (
 )
 
 if TYPE_CHECKING:
-    from icon.server.api.models.experiment_dict import (
-        ExperimentDict,
-    )
-    from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
-    from icon.server.data_access.repositories.experiment_data_repository import (
+    from icon.server.api.models.experiment_dict import ExperimentDict
+    from icon.server.data_access.experiment_data import (
+        DatabaseValueType,
         ReadoutMetadata,
     )
 
@@ -90,30 +88,38 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
         self.client = self.reloader.reload()
         return await self.client.load_metadata()
 
-    async def generate_json_sequence(
+    async def load_device_order(self) -> list[str]:
+        """Return the device ids in the order the devices should be handled by the hardware processor."""
+        self.client = self.reloader.reload()
+        return await self.client.load_device_order()
+
+    async def create_hardware_instructions(
         self,
         *,
         exp_module_name: str,
         exp_instance_name: str,
         parameter_dict: "dict[str, DatabaseValueType]",
+        device_id: str,
         n_shots: int,
-    ) -> str:
-        """Generate a JSON sequence for an experiment.
+    ) -> bytes:
+        """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
+            device_id: Id of the hardware for which to create the instructions
             n_shots: Number of shots.
 
         Returns:
             JSON string containing the generated sequence.
         """
         self.client = self.reloader.reload()
-        return await self.client.generate_json_sequence(
+        return await self.client.create_hardware_instructions(
             exp_module_name=exp_module_name,
             exp_instance_name=exp_instance_name,
             parameter_dict=parameter_dict,
+            device_id=device_id,
             n_shots=n_shots,
         )
 
@@ -123,8 +129,8 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
         exp_module_name: str,
         exp_instance_name: str,
         parameter_dict: "dict[str, DatabaseValueType]",
-    ) -> "ReadoutMetadata":
-        """Fetch readout metadata for an experiment.
+    ) -> "list[tuple[str, ReadoutMetadata]]":
+        """Fetch metadata about the readout data an experiment will yield.
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -132,7 +138,7 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
             parameter_dict: Mapping of parameter IDs to values.
 
         Returns:
-            Dictionary containing readout metadata for the experiment.
+            Device ID, readout metadata pairs for the experiment.
         """
         self.client = self.reloader.reload()
         return await self.client.get_experiment_readout_metadata(

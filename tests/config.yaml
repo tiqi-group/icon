@@ -21,8 +21,12 @@ experiment_library:
   module: icon.server.data_access.pycrystal_experiment_library_client
   update_interval: 30
 hardware:
-  host: localhost
-  port: 6098
+  devices:
+  - controller_class: ZedboardController
+    controller_module: icon.server.hardware_processing.zedboard_controller
+    host: localhost
+    id: zedboard
+    port: 6098
 health_check:
   interval_seconds: 5.0
 server:
@@ -30,4 +34,4 @@ server:
   port: 8004
   pre_processing:
     workers: 2
-version: 2
+version: 3

@@ -4,13 +4,14 @@ from typing import TYPE_CHECKING, Any
 
 from icon.config.config import get_config
 from icon.server.data_access.db_context.influxdb_v1 import (
-    DatabaseValueType,
     InfluxDBv1Session,
 )
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 if TYPE_CHECKING:
     from multiprocessing.managers import DictProxy
+
+    from icon.server.data_access.experiment_data import DatabaseValueType
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ class ParametersRepository:
     def update_parameters(
         cls,
         *,
-        parameter_mapping: dict[str, DatabaseValueType],
+        parameter_mapping: "dict[str, DatabaseValueType]",
     ) -> None:
         """Update parameters in both shared state and InfluxDB.
 
@@ -94,7 +95,7 @@ class ParametersRepository:
     def _update_shared_parameters(
         cls,
         *,
-        parameter_mapping: dict[str, DatabaseValueType],
+        parameter_mapping: "dict[str, DatabaseValueType]",
     ) -> None:
         """Update multiple parameters in shared state.
 
@@ -109,7 +110,7 @@ class ParametersRepository:
         cls,
         *,
         parameter_id: str,
-        new_value: DatabaseValueType,
+        new_value: "DatabaseValueType",
     ) -> None:
         """Update a single parameter in shared state and emit an event.
 
@@ -133,7 +134,7 @@ class ParametersRepository:
         cls,
         *,
         parameter_id: str,
-    ) -> DatabaseValueType | None:
+    ) -> "DatabaseValueType | None":
         """Return a single parameter value from shared state.
 
         Args:
@@ -168,7 +169,7 @@ class ParametersRepository:
     @staticmethod
     def get_influxdb_parameters(
         *, before: str | None = None, namespace: str | None = None
-    ) -> dict[str, DatabaseValueType]:
+    ) -> "dict[str, DatabaseValueType]":
         """Return the latest parameter values from InfluxDB.
 
         Args:
@@ -186,7 +187,7 @@ class ParametersRepository:
             )
 
     @staticmethod
-    def get_influxdb_parameter_by_id(parameter_id: str) -> DatabaseValueType | None:
+    def get_influxdb_parameter_by_id(parameter_id: str) -> "DatabaseValueType | None":
         """Return a single parameter value from InfluxDB.
 
         Args:
@@ -211,7 +212,7 @@ class ParametersRepository:
 
     @staticmethod
     def _update_influxdb_parameters(
-        parameter_mapping: dict[str, DatabaseValueType],
+        parameter_mapping: "dict[str, DatabaseValueType]",
     ) -> None:
         """Write multiple parameter values into InfluxDB.
 

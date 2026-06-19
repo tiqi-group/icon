@@ -45,7 +45,10 @@ export default function FitPanel({
   scanParameters = [],
 }: FitPanelProps) {
   const notifications = useNotifications();
-  const channelNames = Object.keys(experimentData.result_channels);
+  // Take main device for now:
+  const deviceData = experimentData.device_data[0];
+  const deviceId = deviceData.device_id;
+  const channelNames = Object.keys(deviceData.readouts.result_channels);
   const [selectedChannel, setSelectedChannel] = useState<string>(channelNames[0] ?? "");
   const [funcType, setFuncType] = useState<string>("lorentzian");
   const [xMin, setXMin] = useState<string>("");
@@ -75,7 +78,7 @@ export default function FitPanel({
     setUpdateValue("");
   }, [jobId]);
 
-  const fit: FitResult | undefined = experimentData.fits[selectedChannel];
+  const fit: FitResult | undefined = deviceData.fits[selectedChannel];
   const paramNames = FIT_PARAM_NAMES[funcType] ?? [];
 
   // Non-realtime scan parameters (the ones relevant for fitting)
@@ -121,6 +124,7 @@ export default function FitPanel({
       [],
       {
         job_id: Number(jobId),
+        device_id: deviceId,
         result_channel: selectedChannel,
         func_type: funcType,
         x_range: xRange,
@@ -134,6 +138,7 @@ export default function FitPanel({
     runMethod("data.delete_fit", [], {
       job_id: Number(jobId),
       result_channel: selectedChannel,
+      device_id: deviceId,
     });
   };
 

@@ -57,13 +57,18 @@ export const JobView = ({
   const [yMin, setYMin] = useState<number | null>(null);
   const [yMax, setYMax] = useState<number | null>(null);
 
+  // take main device for now:
+  const deviceData = experimentData?.device_data?.[0];
+  console.warn(experimentData);
+  const resultChannels = deviceData?.readouts?.result_channels;
+
   const autoYBounds = useMemo(() => {
-    if (!experimentData?.result_channels) return { min: 0, max: 0 };
+    if (!resultChannels) return { min: 0, max: 0 };
 
     let min = Infinity;
     let max = -Infinity;
 
-    for (const channelData of Object.values(experimentData.result_channels)) {
+    for (const channelData of Object.values(resultChannels)) {
       let values = Object.values(channelData) as number[];
       if (windowSize != null && values.length > windowSize) {
         values = values.slice(-windowSize);
@@ -81,13 +86,13 @@ export const JobView = ({
   }, [experimentData, windowSize]);
 
   const dataLength = useMemo(() => {
-    if (!experimentData?.result_channels) return 0;
-    const firstChannel = Object.values(experimentData.result_channels)[0];
+    if (!resultChannels) return 0;
+    const firstChannel = Object.values(resultChannels)[0];
     return firstChannel ? Object.values(firstChannel).length : 0;
   }, [experimentData]);
 
   const loadedDataPoints = Object.keys(
-    Object.values(experimentData.result_channels)[0] ?? {},
+    Object.values(resultChannels ?? {})[0] ?? {},
   ).length;
   const isTruncated =
     experimentData.total_data_points > 0 &&
@@ -375,7 +380,7 @@ export const JobView = ({
           </Grid>
         )}
 
-        {experimentData?.plot_windows?.shot_channels?.map((win) => (
+        {deviceData?.plot_windows?.shot_channels?.map((win) => (
           <Grid size={{ xs: 12, sm: 12, lg: 4 }} key={`shot-${win.index}`}>
             <Card>
               <CardContent sx={{ padding: 1 }}>
@@ -414,7 +419,7 @@ export const JobView = ({
           </Grid>
         ))}
 
-        {experimentData?.plot_windows?.result_channels?.map((win) => (
+        {deviceData?.plot_windows?.result_channels?.map((win) => (
           <Grid size={{ xs: 12, sm: 12, lg: 6 }} key={`result-${win.index}`}>
             <Card>
               <CardContent sx={{ padding: 1 }}>
@@ -451,7 +456,7 @@ export const JobView = ({
                     scanParameters={jobInfo?.scan_parameters}
                     windowSize={windowSize}
                     yRange={{ min: yMin, max: yMax }}
-                    fits={showFitPanel && is1D ? experimentData.fits : undefined}
+                    fits={showFitPanel && is1D ? deviceData.fits : undefined}
                     onChartClick={showFitPanel && is1D ? handleChartClick : undefined}
                   />
                 )}

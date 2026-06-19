@@ -1,10 +1,10 @@
 import logging
-from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
 from scipy.optimize import curve_fit  # type: ignore[import-untyped]
 
+from icon.server.data_access.experiment_data import FitResult
 from icon.server.fitting.models import FIT_MODELS, FitFunctionType
 
 logger = logging.getLogger(__name__)
@@ -14,21 +14,6 @@ _MAX_FIT_EVALS = 10000
 
 
 _FIT_CURVE_POINTS = 200
-
-
-@dataclass
-class FitResult:
-    """Result of a curve fit operation."""
-
-    result_channel: str
-    func_type: str
-    x_range: list[float] | None
-    init: dict[str, float]
-    result: dict[str, float]
-    goodness: dict[str, float]
-    success: bool
-    message: str
-    fit_curve: dict[str, list[float]] | None = None
 
 
 def _filter_valid(

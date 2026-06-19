@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 import pydantic
 
-from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+from icon.server.data_access.experiment_data import DatabaseValueType
 from icon.server.pre_processing.task import PreProcessingTask
 
 if TYPE_CHECKING:
@@ -20,7 +20,7 @@ class HardwareProcessingTask(pydantic.BaseModel):
     priority: int
     scanned_params: dict[str, DatabaseValueType]
     global_parameter_timestamp: datetime
-    sequence_json: str
+    hardware_instructions: list[tuple[str, bytes]]
     src_dir: str | None
     created: datetime
     if TYPE_CHECKING:

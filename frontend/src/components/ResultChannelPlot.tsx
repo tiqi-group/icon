@@ -112,6 +112,10 @@ const ResultChannelPlot = ({
 
   const is2D = scanParameters.length === 2;
 
+  // Take main device for now:
+  const rawResultChannels =
+    experimentData?.device_data?.[0].readouts?.result_channels ?? {};
+
   const option = useMemo<ReactEChartsProps["option"] | undefined>(() => {
     if (!experimentData || Object.keys(experimentData.scan_parameters).length === 0)
       return {};
@@ -124,7 +128,7 @@ const ResultChannelPlot = ({
 
     const timestampEntry = scanInfo.find((param) => param.name === "timestamp");
 
-    const resultChannels = Object.entries(experimentData.result_channels)
+    const resultChannels = Object.entries(rawResultChannels)
       .filter(([name]) => channelNames.includes(name))
       .map(([name, data]) => ({
         name,
@@ -457,8 +461,7 @@ const ResultChannelPlot = ({
 
   return (
     <>
-      {Object.keys(experimentData.result_channels).length === 0 ||
-      option === undefined ? (
+      {Object.keys(rawResultChannels).length === 0 || option === undefined ? (
         loading ? (
           <div
             style={{
