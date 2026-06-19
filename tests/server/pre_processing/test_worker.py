@@ -37,7 +37,10 @@ def _make_worker() -> tuple[PreProcessingWorker, list[_FakeTask]]:
 
 
 def _pre_processing_task() -> SimpleNamespace:
-    return SimpleNamespace(job=SimpleNamespace(id=1), job_run=SimpleNamespace(id=1))
+    return SimpleNamespace(
+        job=SimpleNamespace(id=1, scan_parameters=[]),
+        job_run=SimpleNamespace(id=1),
+    )
 
 
 def test_regenerate_only_regenerates_stale_tasks() -> None:
@@ -90,3 +93,30 @@ def test_regenerate_stops_when_paused() -> None:
     assert submitted == []
     assert generate.call_count == 0
     assert worker._outdated_tasks.qsize() == NUM_TASKS
+
+
+def test_regenerate_does_not_regenerate_realtime_tasks() -> None:
+    """Realtime tasks keep their last-generated sequence, never the generic regen."""
+    worker, submitted = _make_worker()
+    stale = _FakeTask(created=PARAM_UPDATE_TS - timedelta(seconds=10))
+    worker._outdated_tasks.put(stale)
+
+    with (
+        patch("icon.server.pre_processing.worker.generate_sequence_json") as generate,
+        patch(
+            "icon.server.pre_processing.worker.contains_realtime_parameter",
+            return_value=True,
+        ),
+        patch("icon.server.pre_processing.worker.JobRunRepository") as repo,
+    ):
+        repo.get_parameter_update_timestamp.return_value = PARAM_UPDATE_TS
+        repo.get_run_by_job_id.return_value = MagicMock(status=JobRunStatus.PROCESSING)
+        worker._regenerate_outdated_jobs(
+            client=object(),
+            pre_processing_task=_pre_processing_task(),
+            namespace=object(),
+        )
+
+    assert generate.call_count == 0
+    assert submitted == [stale]
+    assert stale.sequence_json == "ORIGINAL"

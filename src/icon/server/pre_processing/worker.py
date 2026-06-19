@@ -507,6 +507,13 @@ class PreProcessingWorker(multiprocessing.Process):
         parameter_update_timestamp = JobRunRepository.get_parameter_update_timestamp(
             run_id=pre_processing_task.job_run.id,
         )
+        # Realtime scans manage their own sequence (re)generation in
+        # _handle_realtime_scan (keyed on the global parameter timestamp). Their tasks
+        # must never be regenerated through this generic staleness path; they already
+        # carry the last-generated sequence, so they are resubmitted as-is.
+        is_realtime = contains_realtime_parameter(
+            pre_processing_task.job.scan_parameters
+        )
         for task in consume_queue(self._outdated_tasks):
             # Don't resubmit into a paused hardware worker: it would only divert the
             # task straight back, so we would regenerate it on every lap. Leave the
@@ -519,7 +526,7 @@ class PreProcessingWorker(multiprocessing.Process):
                 break
             # Only stale tasks (parameters changed since the task was built) need a
             # fresh sequence. Pause-diverted tasks keep their valid sequence as-is.
-            if task.created < parameter_update_timestamp:
+            if not is_realtime and task.created < parameter_update_timestamp:
                 task.sequence_json = generate_sequence_json(
                     client,
                     n_shots=task.pre_processing_task.job.number_of_shots,
