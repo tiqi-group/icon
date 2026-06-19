@@ -145,3 +145,21 @@ def test_regenerate_drops_cancelled_tasks() -> None:
     assert generate.call_count == 0
     assert worker._processed_data_points.qsize() == NUM_TASKS
     assert worker._outdated_tasks.qsize() == 0
+
+
+def test_regenerate_skips_timestamp_query_when_no_tasks() -> None:
+    """No parameter-update-timestamp query on an empty drain spin (poll cost)."""
+    worker, submitted = _make_worker()  # _outdated_tasks is empty
+
+    with (
+        patch("icon.server.pre_processing.worker.generate_sequence_json"),
+        patch("icon.server.pre_processing.worker.JobRunRepository") as repo,
+    ):
+        worker._regenerate_outdated_jobs(
+            client=object(),
+            pre_processing_task=_pre_processing_task(),
+            namespace=object(),
+        )
+
+    repo.get_parameter_update_timestamp.assert_not_called()
+    assert submitted == []
