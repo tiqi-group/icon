@@ -4,7 +4,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from icon.server.data_access.experiment_library_client import ExperimentLibraryClient
-from icon.server.data_access.venv_exec import VirtualEnvironment
+from icon.server.data_access.venv_exec import VirtualEnvironment, deep_asdict
 
 if TYPE_CHECKING:
     from icon.server.api.models.experiment_dict import ExperimentDict
