@@ -508,13 +508,24 @@ class PreProcessingWorker(multiprocessing.Process):
             run_id=pre_processing_task.job_run.id,
         )
         for task in consume_queue(self._outdated_tasks):
-            task.sequence_json = generate_sequence_json(
-                client,
-                n_shots=task.pre_processing_task.job.number_of_shots,
-                parameter_dict={**self._parameter_dict, **task.scanned_params},
-                namespace=namespace,
-            )
+            # Don't resubmit into a paused hardware worker: it would only divert the
+            # task straight back, so we would regenerate it on every lap. Leave the
+            # remaining tasks queued until the job resumes.
+            job_run_status = JobRunRepository.get_run_by_job_id(
+                job_id=pre_processing_task.job.id
+            ).status
+            if job_run_status == JobRunStatus.PAUSED:
+                self._outdated_tasks.put(task)
+                break
+            # Only stale tasks (parameters changed since the task was built) need a
+            # fresh sequence. Pause-diverted tasks keep their valid sequence as-is.
             if task.created < parameter_update_timestamp:
+                task.sequence_json = generate_sequence_json(
+                    client,
+                    n_shots=task.pre_processing_task.job.number_of_shots,
+                    parameter_dict={**self._parameter_dict, **task.scanned_params},
+                    namespace=namespace,
+                )
                 task.created = datetime.now(timezone)
             self._submit_task_to_hw_worker(task=task)
 
