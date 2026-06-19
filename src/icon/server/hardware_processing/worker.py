@@ -23,6 +23,7 @@ from icon.server.data_access.repositories.job_run_repository import (
 )
 from icon.server.hardware_processing.utils import extract_hardware_error_message
 from icon.server.post_processing.task import PostProcessingTask
+from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
 
 if TYPE_CHECKING:
     import queue
@@ -143,6 +144,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 new_value=value,
             )
 
+    @handle_keyboard_interrupt(logger)
     def run(self) -> None:
         self._pydase_clients = {
             device.name: pydase.Client(

@@ -138,7 +138,10 @@ def main(*, version: bool, verbose: int, quiet: int, config: pathlib.Path) -> No
     setup_logging(level)
 
     set_config_path(config or pathlib.Path.home() / ".config/icon/config.yaml")
-    start_server()
+    try:
+        start_server()
+    except KeyboardInterrupt:
+        logging.getLogger(__name__).info("Exit")
 
 
 if __name__ == "__main__":
