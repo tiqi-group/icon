@@ -524,6 +524,12 @@ class PreProcessingWorker(multiprocessing.Process):
             if job_run_status == JobRunStatus.PAUSED:
                 self._outdated_tasks.put(task)
                 break
+            # The job was cancelled (or failed) while this task was outstanding.
+            # Account for it directly so the scan loop's qsize check can complete,
+            # instead of regenerating it and bouncing it through the hardware worker.
+            if job_run_status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
+                self._processed_data_points.put(task)
+                continue
             # Only stale tasks (parameters changed since the task was built) need a
             # fresh sequence. Pause-diverted tasks keep their valid sequence as-is.
             if not is_realtime and task.created < parameter_update_timestamp:

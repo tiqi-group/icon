@@ -31,6 +31,7 @@ def _make_worker() -> tuple[PreProcessingWorker, list[_FakeTask]]:
     worker = PreProcessingWorker.__new__(PreProcessingWorker)
     worker._parameter_dict = {}
     worker._outdated_tasks = queue.PriorityQueue()
+    worker._processed_data_points = queue.Queue()
     submitted: list[_FakeTask] = []
     worker._submit_task_to_hw_worker = lambda *, task: submitted.append(task)
     return worker, submitted
@@ -120,3 +121,27 @@ def test_regenerate_does_not_regenerate_realtime_tasks() -> None:
     assert generate.call_count == 0
     assert submitted == [stale]
     assert stale.sequence_json == "ORIGINAL"
+
+
+def test_regenerate_drops_cancelled_tasks() -> None:
+    """Cancelled jobs' tasks are accounted for directly, not bounced through HW."""
+    worker, submitted = _make_worker()
+    worker._outdated_tasks.put(_FakeTask(created=PARAM_UPDATE_TS))
+    worker._outdated_tasks.put(_FakeTask(created=PARAM_UPDATE_TS))
+
+    with (
+        patch("icon.server.pre_processing.worker.generate_sequence_json") as generate,
+        patch("icon.server.pre_processing.worker.JobRunRepository") as repo,
+    ):
+        repo.get_parameter_update_timestamp.return_value = PARAM_UPDATE_TS
+        repo.get_run_by_job_id.return_value = MagicMock(status=JobRunStatus.CANCELLED)
+        worker._regenerate_outdated_jobs(
+            client=object(),
+            pre_processing_task=_pre_processing_task(),
+            namespace=object(),
+        )
+
+    assert submitted == []
+    assert generate.call_count == 0
+    assert worker._processed_data_points.qsize() == NUM_TASKS
+    assert worker._outdated_tasks.qsize() == 0
