@@ -1,0 +1,80 @@
+from pathlib import Path
+from typing import Any
+
+from confz import BaseConfig
+from pydantic import BaseModel
+
+__version__ = 3
+
+
+class HealthCheckConfig(BaseModel):
+    interval_seconds: float = 10.0
+
+
+class DataConfiguration(BaseModel):
+    results_dir: str = str(Path.cwd() / "output")
+
+
+class ExperimentLibraryConfig(BaseModel):
+    module: str = "icon.server.data_access.pycrystal_experiment_library_client"
+    client_class: str = "AsyncPyCrystalClient"
+    client_args: dict[str, Any] = {}
+    update_interval: int = 30
+
+
+class InfluxDBv1Config(BaseModel):
+    host: str = "localhost"
+    port: int = 8087
+    username: str = "admin"
+    password: str = "admin"  # noqa: S105
+    database: str = "testing"
+    measurement: str = "Experiment Parameters"
+    ssl: bool = False
+    verify_ssl: bool = False
+    headers: dict[str, str] = {}
+
+
+class SQLiteConfig(BaseModel):
+    file: str = str(Path.cwd() / "icon.db")
+
+
+class DatabaseConfig(BaseModel):
+    influxdbv1: InfluxDBv1Config = InfluxDBv1Config()
+    sqlite: SQLiteConfig = SQLiteConfig()
+
+
+class DateConfig(BaseModel):
+    timezone: str = "Europe/Zurich"
+
+
+class PreProcessingConfig(BaseModel):
+    workers: int = 2
+
+
+class ServerConfig(BaseModel):
+    port: int = 8004
+    host: str = "0.0.0.0"
+    pre_processing: PreProcessingConfig = PreProcessingConfig()
+
+
+class DeviceConfig(BaseModel):
+    id: str
+    controller_module: str
+    controller_class: str
+    host: str = "localhost"
+    port: int = 6007
+
+
+class HardwareConfig(BaseModel):
+    devices: list[DeviceConfig] = []
+
+
+class ServiceConfig(BaseConfig):  # type: ignore[misc]
+    version: int = __version__
+    experiment_library: ExperimentLibraryConfig = ExperimentLibraryConfig()
+    databases: DatabaseConfig = DatabaseConfig()
+    date: DateConfig = DateConfig()
+    server: ServerConfig = ServerConfig()
+    hardware: HardwareConfig = HardwareConfig()
+    health_check: HealthCheckConfig = HealthCheckConfig()
+    data: DataConfiguration = DataConfiguration()

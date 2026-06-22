@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import itertools
 import logging
@@ -8,6 +6,7 @@ import os
 import queue
 import re
 import time
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -17,7 +16,7 @@ import psutil
 import pytz
 
 from icon.config.config import get_config
-from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+from icon.server.data_access.experiment_data import DatabaseValueType
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.scan_parameter import (
     contains_realtime_parameter,
@@ -35,14 +34,14 @@ from icon.server.data_access.repositories.parameters_repository import (
 )
 from icon.server.fitting.auto_fit import try_auto_fit
 from icon.server.hardware_processing.task import HardwareProcessingTask
+from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
-
     from icon.server.data_access.experiment_library_client import (
         ExperimentLibraryClient,
     )
     from icon.server.data_access.models.sqlite.job import Job
+    from icon.server.hardware_processing.devices import Devices
     from icon.server.pre_processing.task import PreProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
     from icon.server.utils.types import UpdateQueue
@@ -71,7 +70,7 @@ def change_process_priority(priority: int) -> None:
         p.nice(priority)
 
 
-def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
+def get_scan_combinations(job: "Job") -> list[dict[str, DatabaseValueType]]:
     """Generates all combinations of scan parameters for a given job.
 
     Repeats each combination `job.repetitions` times.
@@ -160,11 +159,12 @@ class PreProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
         worker_number: int,
-        pre_processing_queue: queue.PriorityQueue[PreProcessingTask],
-        update_queue: multiprocessing.Queue[UpdateQueue],
-        hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask],
-        manager: SharedResourceManager,
-        experiment_library_client: ExperimentLibraryClient,
+        pre_processing_queue: "queue.PriorityQueue[PreProcessingTask]",
+        update_queue: "multiprocessing.Queue[UpdateQueue]",
+        hardware_processing_queue: "queue.PriorityQueue[HardwareProcessingTask]",
+        manager: "SharedResourceManager",
+        experiment_library_client: "ExperimentLibraryClient",
+        devices: "Devices",
     ) -> None:
         super().__init__()
         self._queue = pre_processing_queue
@@ -182,7 +182,9 @@ class PreProcessingWorker(multiprocessing.Process):
             manager.PriorityQueue()
         )
         self._experiment_library_client = experiment_library_client
+        self._devices = devices
 
+    @handle_keyboard_interrupt(logger)
     def run(self) -> None:
         with self._experiment_library_client.isolated() as isolated_lib_client:
             logger.debug(
@@ -243,8 +245,8 @@ class PreProcessingWorker(multiprocessing.Process):
 
     def _process_task(
         self,
-        pre_processing_task: PreProcessingTask,
-        isolated_lib_client: ExperimentLibraryClient,
+        pre_processing_task: "PreProcessingTask",
+        isolated_lib_client: "ExperimentLibraryClient",
     ) -> None:
         job = pre_processing_task.job
         JobRunRepository.update_run_by_id(
@@ -303,7 +305,7 @@ class PreProcessingWorker(multiprocessing.Process):
 
     def _update_parameter_dict(
         self,
-        pre_processing_task: PreProcessingTask,
+        pre_processing_task: "PreProcessingTask",
         namespace: ExperimentIdentifier,
         new_parameters: dict[str, DatabaseValueType] | None = None,
         mode: ParamUpdateMode = ParamUpdateMode.LOCALS_FROM_TS_GLOBALS_LATEST,
@@ -366,7 +368,7 @@ class PreProcessingWorker(multiprocessing.Process):
         )
 
     def _handle_parameter_updates(
-        self, pre_processing_task: PreProcessingTask, namespace: ExperimentIdentifier
+        self, pre_processing_task: "PreProcessingTask", namespace: ExperimentIdentifier
     ) -> None:
         for parameter_update in consume_queue(self._update_queue):
             event = parameter_update["event"]
@@ -401,9 +403,9 @@ class PreProcessingWorker(multiprocessing.Process):
 
     def _handle_regular_scan(
         self,
-        pre_processing_task: PreProcessingTask,
+        pre_processing_task: "PreProcessingTask",
         namespace: ExperimentIdentifier,
-        client: ExperimentLibraryClient,
+        client: "ExperimentLibraryClient",
         src_dir: str | None,
     ) -> Iterable[None]:
         scan_parameter_value_combinations = get_scan_combinations(
@@ -443,11 +445,12 @@ class PreProcessingWorker(multiprocessing.Process):
                     pre_processing_task=pre_processing_task,
                     index=index,
                     data_point=data_point,
-                    sequence_json=generate_sequence_json(
+                    hardware_instructions=create_hardware_instructions(
                         client,
                         n_shots=pre_processing_task.job.number_of_shots,
                         parameter_dict={**self._parameter_dict, **data_point},
                         namespace=namespace,
+                        devices=self._devices,
                     ),
                     src_dir=src_dir,
                 )
@@ -456,10 +459,10 @@ class PreProcessingWorker(multiprocessing.Process):
     def _create_hardware_task(
         self,
         *,
-        pre_processing_task: PreProcessingTask,
+        pre_processing_task: "PreProcessingTask",
         index: int,
         data_point: dict[str, DatabaseValueType],
-        sequence_json: str,
+        hardware_instructions: list[tuple[str, bytes]],
         src_dir: str | None,
     ) -> HardwareProcessingTask:
         return HardwareProcessingTask(
@@ -469,7 +472,7 @@ class PreProcessingWorker(multiprocessing.Process):
             global_parameter_timestamp=self._global_parameter_timestamp,
             scanned_params=data_point,
             src_dir=src_dir,
-            sequence_json=sequence_json,
+            hardware_instructions=hardware_instructions,
             processed_data_points=self._processed_data_points,
             data_points_to_process=self._data_points_to_process,
             outdated_tasks=self._outdated_tasks,
@@ -477,22 +480,23 @@ class PreProcessingWorker(multiprocessing.Process):
         )
 
     def _regenerate_outdated_jobs(
-        self, client: ExperimentLibraryClient, namespace: ExperimentIdentifier
+        self, client: "ExperimentLibraryClient", namespace: ExperimentIdentifier
     ) -> None:
         for task in consume_queue(self._outdated_tasks):
-            task.sequence_json = generate_sequence_json(
+            task.hardware_instructions = create_hardware_instructions(
                 client,
                 n_shots=task.pre_processing_task.job.number_of_shots,
                 parameter_dict={**self._parameter_dict, **task.scanned_params},
                 namespace=namespace,
+                devices=self._devices,
             )
             self._submit_task_to_hw_worker(task=task)
 
     def _handle_realtime_scan(
         self,
-        pre_processing_task: PreProcessingTask,
+        pre_processing_task: "PreProcessingTask",
         namespace: ExperimentIdentifier,
-        client: ExperimentLibraryClient,
+        client: "ExperimentLibraryClient",
         src_dir: str | None,
     ) -> Iterable[None]:
         params = pre_processing_task.job.scan_parameters
@@ -529,11 +533,12 @@ class PreProcessingWorker(multiprocessing.Process):
                         pre_processing_task=pre_processing_task,
                         index=index,
                         data_point=data_point,
-                        sequence_json=generate_sequence_json(
+                        hardware_instructions=create_hardware_instructions(
                             client,
                             n_shots=pre_processing_task.job.number_of_shots,
                             parameter_dict={**self._parameter_dict, **data_point},
                             namespace=namespace,
+                            devices=self._devices,
                         ),
                         src_dir=src_dir,
                     )
@@ -547,7 +552,7 @@ class PreProcessingWorker(multiprocessing.Process):
 T = TypeVar("T")
 
 
-def consume_queue(q: multiprocessing.Queue[T] | queue.Queue[T]) -> Iterator[T]:
+def consume_queue(q: "multiprocessing.Queue[T] | queue.Queue[T]") -> Iterator[T]:
     while True:
         try:
             yield q.get(block=False)
@@ -559,17 +564,36 @@ def freeze_dict(combination: dict[str, DatabaseValueType]) -> ScanCombination:
     return frozenset(combination.items())
 
 
-def generate_sequence_json(
-    client: ExperimentLibraryClient,
+def create_hardware_instructions(
+    client: "ExperimentLibraryClient",
     n_shots: int,
     parameter_dict: dict[str, DatabaseValueType],
+    devices: "Devices",
     namespace: ExperimentIdentifier,
-) -> str:
-    return asyncio.run(
-        client.generate_json_sequence(
-            n_shots=n_shots,
-            parameter_dict=parameter_dict,
-            exp_module_name=namespace.module_name,
-            exp_instance_name=namespace.instance_name,
+) -> list[tuple[str, bytes]]:
+    order = asyncio.run(client.load_device_order())
+    order_set = set(order)
+    device_ids = devices.ids()
+    device_ids_set = set(device_ids)
+    ordered = [d for d in order if d in device_ids_set]
+    unordered = [d for d in device_ids if d not in order_set]
+    if unordered:
+        logger.warning(
+            "No order available from the experiment library for the devices: %s. Devices will be processed in the order they are configured.",
+            ",".join(unordered),
         )
-    )
+    return [
+        (
+            device_id,
+            asyncio.run(
+                client.create_hardware_instructions(
+                    n_shots=n_shots,
+                    parameter_dict=parameter_dict,
+                    exp_module_name=namespace.module_name,
+                    exp_instance_name=namespace.instance_name,
+                    device_id=device_id,
+                )
+            ),
+        )
+        for device_id in ordered + unordered
+    ]

@@ -1,7 +1,7 @@
 """Abstraction over experiment library clients."""
 
 from contextlib import AbstractContextManager, nullcontext
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
     from icon.server.api.models.experiment_dict import (
@@ -10,8 +10,8 @@ if TYPE_CHECKING:
     from icon.server.api.models.parameter_metadata import (
         ParameterMetadata,
     )
-    from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
-    from icon.server.data_access.repositories.experiment_data_repository import (
+    from icon.server.data_access.experiment_data import (
+        DatabaseValueType,
         ReadoutMetadata,
     )
 
@@ -53,20 +53,29 @@ class ExperimentLibraryClient:
         """
         raise NotImplementedError("Must be implemented by a subclass")
 
-    async def generate_json_sequence(
+    async def load_device_order(self) -> list[str]:
+        """Return an ordered list of device ids.
+
+        Devices should be triggered in that order by the hardware processor.
+        """
+        raise NotImplementedError("Must be implemented by a subclass")
+
+    async def create_hardware_instructions(
         self,
         *,
         exp_module_name: str,
         exp_instance_name: str,
         parameter_dict: "dict[str, DatabaseValueType]",
+        device_id: str,
         n_shots: int,
-    ) -> str:
-        """Generate a JSON sequence for an experiment.
+    ) -> bytes:
+        """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
+            device_id: Id of the hardware for which to create the instructions.
             n_shots: Number of shots
 
         Returns:
@@ -80,8 +89,8 @@ class ExperimentLibraryClient:
         exp_module_name: str,
         exp_instance_name: str,
         parameter_dict: "dict[str, DatabaseValueType]",
-    ) -> "ReadoutMetadata":
-        """Fetch readout metadata for an experiment.
+    ) -> "list[tuple[str, ReadoutMetadata]]":
+        """Fetch metadata about the readout data an experiment will yield.
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -89,11 +98,11 @@ class ExperimentLibraryClient:
             parameter_dict: Mapping of parameter IDs to values.
 
         Returns:
-            Dictionary containing readout metadata for the experiment.
+            Device ID, readout metadata pairs for the experiment.
         """
         raise NotImplementedError("Must be implemented by a subclass")
 
-    async def get_setup_hardware_description(self) -> dict[str, dict]:
+    async def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:
         """Fetch hardware description from experiment library.
 
         Returns:
@@ -113,26 +122,32 @@ class FallbackExperimentLibraryClient(ExperimentLibraryClient):
         """
         return ({}, {"all parameters": {}, "display groups": {}})
 
-    async def generate_json_sequence(
+    async def load_device_order(self) -> list[str]:
+        """Return the device ids in the order the devices should be handled by the hardware processor."""
+        return []
+
+    async def create_hardware_instructions(
         self,
         *,
         exp_module_name: str,  # noqa: ARG002
         exp_instance_name: str,  # noqa: ARG002
         parameter_dict: "dict[str, DatabaseValueType]",  # noqa: ARG002
+        device_id: str,  # noqa: ARG002
         n_shots: int,  # noqa: ARG002
-    ) -> str:
-        """Generate a JSON sequence for an experiment.
+    ) -> bytes:
+        """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
+            device_id: Id of the hardware for which to create the instructions.
             n_shots: Number of shots.
 
         Returns:
             JSON string containing the generated sequence.
         """
-        return ""
+        return b""
 
     async def get_experiment_readout_metadata(
         self,
@@ -140,8 +155,8 @@ class FallbackExperimentLibraryClient(ExperimentLibraryClient):
         exp_module_name: str,  # noqa: ARG002
         exp_instance_name: str,  # noqa: ARG002
         parameter_dict: "dict[str, DatabaseValueType]",  # noqa: ARG002
-    ) -> "ReadoutMetadata":
-        """Fetch readout metadata for an experiment.
+    ) -> "list[tuple[str, ReadoutMetadata]]":
+        """Fetch metadata about the readout data an experiment will yield.
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -151,16 +166,9 @@ class FallbackExperimentLibraryClient(ExperimentLibraryClient):
         Returns:
             Dictionary containing readout metadata for the experiment.
         """
-        return {
-            "readout_channel_names": [],
-            "shot_channel_names": [],
-            "vector_channel_names": [],
-            "readout_channel_windows": [],
-            "shot_channel_windows": [],
-            "vector_channel_windows": [],
-        }
+        return []
 
-    async def get_setup_hardware_description(self) -> dict[str, dict]:
+    async def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:
         """Fetch hardware description from experiment library.
 
         Returns:

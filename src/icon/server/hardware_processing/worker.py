@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 import multiprocessing
 import re
@@ -12,24 +10,26 @@ import pytz
 import socketio.exceptions
 
 from icon.config.config import get_config
+from icon.server.data_access.experiment_data import (
+    ExperimentDataPoint,
+    ExperimentDeviceDataPoint,
+)
 from icon.server.data_access.models.enums import DeviceStatus, JobRunStatus
 from icon.server.data_access.repositories.device_repository import DeviceRepository
 from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
     job_run_cancelled_or_failed,
 )
-from icon.server.hardware_processing.hardware_controller import HardwareController
 from icon.server.hardware_processing.utils import extract_hardware_error_message
 from icon.server.post_processing.task import PostProcessingTask
+from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
 
 if TYPE_CHECKING:
     import queue
 
-    from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+    from icon.server.data_access.experiment_data import DatabaseValueType
     from icon.server.data_access.models.sqlite.device import Device
-    from icon.server.data_access.repositories.experiment_data_repository import (
-        ExperimentDataPoint,
-    )
+    from icon.server.hardware_processing.devices import Devices
     from icon.server.hardware_processing.task import HardwareProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
 
@@ -67,9 +67,10 @@ def parse_parameter_id(param_id: str) -> tuple[str | None, str]:
 class HardwareProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
-        hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask],
-        post_processing_queue: multiprocessing.Queue[PostProcessingTask],
-        manager: SharedResourceManager,
+        hardware_processing_queue: "queue.PriorityQueue[HardwareProcessingTask]",
+        post_processing_queue: "multiprocessing.Queue[PostProcessingTask]",
+        manager: "SharedResourceManager",
+        devices: "Devices",
     ) -> None:
         super().__init__()
         self._queue = hardware_processing_queue
@@ -77,10 +78,10 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self._manager = manager
         self._pydase_clients: dict[str, pydase.Client] = {}
 
-        self._hardware_controller = HardwareController()
+        self._devices = devices
 
     def _update_pydase_service_parameter(
-        self, device: Device, access_path: str, new_value: DatabaseValueType
+        self, device: "Device", access_path: str, new_value: "DatabaseValueType"
     ) -> None:
         client = self._pydase_clients[device.name]
         try:
@@ -110,7 +111,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
             f"{device.retry_attempts} attempts."
         )
 
-    def _add_device(self, device: Device) -> None:
+    def _add_device(self, device: "Device") -> None:
         self._pydase_clients[device.name] = pydase.Client(
             url=device.url,
             client_id="icon-hardware-worker",
@@ -118,7 +119,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
         )
 
     def _set_pydase_service_values(
-        self, scanned_params: dict[str, DatabaseValueType]
+        self, scanned_params: "dict[str, DatabaseValueType]"
     ) -> None:
         for param, value in scanned_params.items():
             device_name, access_path = parse_parameter_id(param_id=param)
@@ -142,6 +143,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 new_value=value,
             )
 
+    @handle_keyboard_interrupt(logger)
     def run(self) -> None:
         self._pydase_clients = {
             device.name: pydase.Client(
@@ -173,17 +175,26 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 self._set_pydase_service_values(scanned_params=task.scanned_params)
 
                 timestamp = datetime.now(timezone)
-                result = self._hardware_controller.run(sequence=task.sequence_json)
+                for device_id, instructions in task.hardware_instructions:
+                    self._devices[device_id].send(data=instructions)
+                device_data = []
+                for device_id, instructions in task.hardware_instructions:
+                    device = self._devices[device_id]
+                    device.run()
+                    device_data.append(
+                        ExperimentDeviceDataPoint(
+                            device_id,
+                            readouts=device.receive(),
+                            hardware_instructions=instructions,
+                        )
+                    )
 
-                experiment_data_point: ExperimentDataPoint = {
-                    "index": task.data_point_index,
-                    "scan_params": task.scanned_params,
-                    "result_channels": result["result_channels"],
-                    "shot_channels": result["shot_channels"],
-                    "vector_channels": result["vector_channels"],
-                    "timestamp": timestamp.isoformat(),
-                    "sequence_json": task.sequence_json,
-                }
+                experiment_data_point = ExperimentDataPoint(
+                    index=task.data_point_index,
+                    scan_params=task.scanned_params,
+                    device_data=device_data,
+                    timestamp=timestamp.isoformat(),
+                )
 
                 post_processing_task = PostProcessingTask(
                     priority=task.priority,

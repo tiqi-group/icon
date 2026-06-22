@@ -24,8 +24,7 @@ export interface Configuration {
     update_interval: number;
   };
   hardware: {
-    host: string;
-    port: number;
+    devices: { id: string }[];
   };
   health_check: {
     interval_seconds: number;

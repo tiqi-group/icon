@@ -1,7 +1,6 @@
-from __future__ import annotations
-
 import logging
 import sys
+from types import TracebackType
 from typing import TYPE_CHECKING, Any, Literal
 
 import influxdb
@@ -10,7 +9,7 @@ import requests
 from icon.config.config import get_config
 
 if TYPE_CHECKING:
-    from types import TracebackType
+    from icon.server.data_access.experiment_data import DatabaseValueType
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
@@ -18,9 +17,6 @@ else:
     from typing import Self
 
 logger = logging.getLogger(__name__)
-
-
-DatabaseValueType = bool | float | int | str
 
 
 def escape_quotes(value: str) -> str:
@@ -184,7 +180,7 @@ class InfluxDBv1Session:
         self,
         measurement: str,
         field: str,
-    ) -> dict[str, DatabaseValueType] | None:
+    ) -> "dict[str, DatabaseValueType] | None":
         """Query the most recent value of a specific field from a given measurement.
 
         Args:
@@ -208,7 +204,7 @@ class InfluxDBv1Session:
         measurement: str,
         namespace: str | None = None,
         before: str | None = None,
-    ) -> dict[str, DatabaseValueType]:
+    ) -> "dict[str, DatabaseValueType]":
         """Query the most recent non-null values of all fields from a given measurement.
 
         Args:

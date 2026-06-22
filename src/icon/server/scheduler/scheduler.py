@@ -15,6 +15,7 @@ from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
 )
 from icon.server.pre_processing.task import PreProcessingTask
+from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,7 @@ class Scheduler(multiprocessing.Process):
         self.kwargs = kwargs
         self._pre_processing_queue = pre_processing_queue
 
+    @handle_keyboard_interrupt(logger)
     def run(self) -> None:
         initialise_job_tables()
         while not should_exit():

@@ -1,14 +1,15 @@
-# ruff: noqa: TC001 TC003
-from __future__ import annotations
-
+# ruff: noqa: TC003
 from datetime import datetime
 from queue import PriorityQueue, Queue
 from typing import TYPE_CHECKING, Any
 
 import pydantic
 
-from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+from icon.server.data_access.experiment_data import DatabaseValueType
 from icon.server.pre_processing.task import PreProcessingTask
+
+if TYPE_CHECKING:
+    from typing import Self
 
 
 class HardwareProcessingTask(pydantic.BaseModel):
@@ -19,13 +20,13 @@ class HardwareProcessingTask(pydantic.BaseModel):
     priority: int
     scanned_params: dict[str, DatabaseValueType]
     global_parameter_timestamp: datetime
-    sequence_json: str
+    hardware_instructions: list[tuple[str, bytes]]
     src_dir: str | None
     created: datetime
     if TYPE_CHECKING:
-        processed_data_points: Queue[HardwareProcessingTask]
+        processed_data_points: "Queue[Self]"
         data_points_to_process: Queue[tuple[int, dict[str, DatabaseValueType]]]
-        outdated_tasks: PriorityQueue[HardwareProcessingTask]
+        outdated_tasks: "PriorityQueue[Self]"
     else:
         # must be Any as the queues are AutoProxy instances, which I didn't figure out
         # how to type
@@ -33,5 +34,5 @@ class HardwareProcessingTask(pydantic.BaseModel):
         data_points_to_process: Any
         outdated_tasks: Any
 
-    def __lt__(self, other: HardwareProcessingTask) -> bool:
+    def __lt__(self, other: "Self") -> bool:
         return (self.priority, self.created) < (other.priority, other.created)

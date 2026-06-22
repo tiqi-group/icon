@@ -196,18 +196,18 @@ export const SettingsPage = () => {
       </TabPanel>
       <TabPanel value={tab} index={4}>
         <Typography variant="h6">Hardware</Typography>
-        <EditableSettingField
-          configKey="hardware.host"
-          label="Host"
-          value={config.hardware.host}
-          description="Hostname or IP address for the hardware server."
-        />
-        <EditableSettingField
-          configKey="hardware.port"
-          label="Port"
-          value={config.hardware.port}
-          description="Port number used to communicate with the hardware server."
-        />
+        {config.hardware.devices.map((cfg, index) => (
+          <>
+            <Typography variant="h6">{cfg.id}</Typography>
+            <Paper elevation={1}>
+              <EditableDictField
+                configKey={`config.hardware.devices[${index}]`}
+                label="Hardware Device Configuration (device specific)"
+                value={cfg}
+              />
+            </Paper>
+          </>
+        ))}
       </TabPanel>
       <TabPanel value={tab} index={5}>
         <Typography variant="h6">Health Check</Typography>

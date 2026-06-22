@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import enum
 import logging
 import time
@@ -44,7 +42,7 @@ class RunResult:
 
 
 class ScanParameter(TypedDict):
-    parameter: ParameterProxy | str
+    parameter: "ParameterProxy | str"
     """A ParameterProxy object retrieved from the API, or the parameter identifier. """
     values: list[Any]
     """List of explicit values to scan."""
@@ -138,7 +136,7 @@ def get_display_group_identifier_dict(display_groups: list[str]) -> dict[str, st
 
 
 def get_parameter_identifier_mapping(
-    display_group_metadata: dict[str, ParameterMetadata],
+    display_group_metadata: "dict[str, ParameterMetadata]",
 ) -> dict[str, str]:
     parameter_id_mapping: dict[str, str] = {}
     for parameter_id, parameter_metadata in display_group_metadata.items():
@@ -148,7 +146,10 @@ def get_parameter_identifier_mapping(
 
 class ParameterProxy:
     def __init__(
-        self, client: Client, parameter_id: str, parameter_metadata: ParameterMetadata
+        self,
+        client: "Client",
+        parameter_id: str,
+        parameter_metadata: "ParameterMetadata",
     ) -> None:
         self._client = client
         self._parameter_metadata = parameter_metadata
@@ -186,9 +187,9 @@ class ParameterProxy:
 class DisplayGroupProxy:
     def __init__(
         self,
-        client: Client,
+        client: "Client",
         display_group_name: str,
-        display_group_metadata: dict[str, ParameterMetadata],
+        display_group_metadata: "dict[str, ParameterMetadata]",
     ) -> None:
         self._client = client
         self._display_group_metadata = display_group_metadata
@@ -226,7 +227,7 @@ class DisplayGroupProxy:
 
 
 class ExperimentJobProxy:
-    def __init__(self, *, client: Client, job_id: int) -> None:
+    def __init__(self, *, client: "Client", job_id: int) -> None:
         self._client = client
         self._job_id = job_id
 
@@ -292,7 +293,7 @@ class ExperimentJobProxy:
 class ExperimentProxy:
     def __init__(
         self,
-        client: Client,
+        client: "Client",
         experiment_id: str,
         experiment_metadata: ExperimentMetadata,
     ) -> None:
@@ -401,7 +402,7 @@ class ExperimentProxy:
 
 
 class ExperimentsController:
-    def __init__(self, client: Client) -> None:
+    def __init__(self, client: "Client") -> None:
         self._client = client
         self._experiments: ExperimentDict = {
             key: ExperimentMetadata(**val)

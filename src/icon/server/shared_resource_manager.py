@@ -1,12 +1,10 @@
-from __future__ import annotations
-
 import logging
 import queue
 from multiprocessing.managers import DictProxy, SyncManager
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+    from icon.server.data_access.experiment_data import DatabaseValueType
     from icon.server.hardware_processing.task import HardwareProcessingTask
     from icon.server.pre_processing.task import PreProcessingTask
 
@@ -22,9 +20,9 @@ class SharedResourceManager(SyncManager):
 
     PriorityQueue: type[queue.PriorityQueue[Any]]
 
-    pre_processing_queue: queue.PriorityQueue[PreProcessingTask]
-    hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask]
-    parameters_dict: DictProxy[str, DatabaseValueType]
+    pre_processing_queue: "queue.PriorityQueue[PreProcessingTask]"
+    hardware_processing_queue: "queue.PriorityQueue[HardwareProcessingTask]"
+    parameters_dict: "DictProxy[str, DatabaseValueType]"
 
     def __init__(self) -> None:
         super().__init__()

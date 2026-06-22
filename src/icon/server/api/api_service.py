@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import json
 import logging
@@ -26,9 +24,10 @@ from icon.server.data_access.repositories.parameters_repository import (
 if TYPE_CHECKING:
     import multiprocessing
 
-    from icon.server.data_access.experiment_library_client import (
-        ExperimentLibraryClient,
+    from icon.server.data_access.reconfigurable_experiment_library_client import (
+        ReconfigurableExperimentLibraryClient,
     )
+    from icon.server.hardware_processing.devices import Devices
     from icon.server.utils.types import UpdateQueue
 
 logger = logging.getLogger(__name__)
@@ -50,8 +49,9 @@ class APIService(pydase.DataService):
 
     def __init__(
         self,
-        pre_processing_event_queues: list[multiprocessing.Queue[UpdateQueue]],
-        experiment_library_client: ExperimentLibraryClient,
+        pre_processing_event_queues: "list[multiprocessing.Queue[UpdateQueue]]",
+        experiment_library_client: "ReconfigurableExperimentLibraryClient",
+        devices: "Devices",
     ) -> None:
         """Create a new APIService.
 
@@ -59,6 +59,7 @@ class APIService(pydase.DataService):
         pre_processing_event_queues: Queues used by `ScansController` to notify
             pre-processing workers.
         experiment_library_client: Client for an experiment library
+        devices: Controllers for the hardware devices
         """
         super().__init__()
 
@@ -82,7 +83,7 @@ class APIService(pydase.DataService):
         )
         """Controller for triggering update events for jobs across multiple worker
         processes."""
-        self.status = StatusController()
+        self.status = StatusController(devices)
         """Controller for system status monitoring."""
         self._experiment_library_client = experiment_library_client
 

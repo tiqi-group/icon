@@ -3,26 +3,20 @@ import { runMethod, socket } from "../socket";
 import {
   ExperimentData,
   ExperimentDataPoint,
+  ExperimentDeviceData,
+  ExperimentDeviceDataPoint,
   FitResult,
+  PlotWindows,
   ParameterValue,
 } from "../types/ExperimentData";
 import { SerializedObject } from "../types/SerializedObject";
 import { deserialize } from "../utils/deserializer";
 
 const emptyExperimentData: ExperimentData = {
-  plot_windows: {
-    result_channels: [],
-    shot_channels: [],
-    vector_channels: [],
-  },
-  shot_channels: {},
-  result_channels: {},
-  vector_channels: {},
+  device_data: [],
   scan_parameters: {},
-  json_sequences: [],
   parameters: {},
   total_data_points: 0,
-  fits: {},
 };
 
 /**
@@ -30,7 +24,7 @@ const emptyExperimentData: ExperimentData = {
  *
  * - Fetches initial experiment data via RPC.
  * - Subscribes to live updates via WebSocket and merges new data.
- * - Updates json_sequences only when the sequence changes.
+ * - Updates hardware_instructions only when the sequence changes.
  * - Captures any fetch error in `experimentDataError`.
  *
  * @param jobId - The job ID to fetch and subscribe to.
@@ -53,20 +47,28 @@ export function useExperimentData(jobId: string | undefined) {
     const handleNewDataPoint = (data: ExperimentDataPoint) => {
       setError(null);
       setExperimentData((prev) => {
-        const shot_channels = { ...prev.shot_channels };
-        for (const [channel, value] of Object.entries(data.shot_channels)) {
-          (shot_channels[channel] ??= {})[data.index] = value;
-        }
-
-        const result_channels = { ...prev.result_channels };
-        for (const [channel, value] of Object.entries(data.result_channels)) {
-          (result_channels[channel] ??= {})[data.index] = value;
-        }
-
-        const vector_channels = { ...prev.vector_channels };
-        for (const [channel, value] of Object.entries(data.vector_channels)) {
-          (vector_channels[channel] ??= {})[data.index] = value;
-        }
+        const mergeDataPoint = (
+          deviceData: ExperimentDeviceData,
+          dev: ExperimentDeviceDataPoint,
+        ) => {
+          for (const [channel, value] of Object.entries(dev.readouts.shot_channels)) {
+            (deviceData.readouts.shot_channels[channel] ??= {})[data.index] = value;
+          }
+          for (const [channel, value] of Object.entries(dev.readouts.result_channels)) {
+            (deviceData.readouts.result_channels[channel] ??= {})[data.index] = value;
+          }
+          for (const [channel, value] of Object.entries(dev.readouts.vector_channels)) {
+            (deviceData.readouts.vector_channels[channel] ??= {})[data.index] = value;
+          }
+          const lastEntry = deviceData.hardware_instructions.at(-1);
+          if (!lastEntry || lastEntry[1] !== dev.hardware_instructions) {
+            deviceData.hardware_instructions.push([
+              data.index,
+              dev.hardware_instructions,
+            ]);
+          }
+          return deviceData;
+        };
 
         const scan_parameters = { ...prev.scan_parameters };
         for (const [param, value] of Object.entries(data.scan_params)) {
@@ -74,19 +76,14 @@ export function useExperimentData(jobId: string | undefined) {
         }
         (scan_parameters["timestamp"] ??= {})[data.index] = data.timestamp;
 
-        const json_sequences = [...prev.json_sequences];
-        const lastEntry = json_sequences.at(-1);
-        if (!lastEntry || lastEntry[1] !== data.sequence_json) {
-          json_sequences.push([data.index, data.sequence_json]);
-        }
-
         return {
           ...prev,
-          shot_channels,
-          result_channels,
-          vector_channels,
+          device_data: mergeDeviceData(
+            prev.device_data,
+            data.device_data.map((dataPoint) => [dataPoint.device_id, dataPoint]),
+            mergeDataPoint,
+          ),
           scan_parameters,
-          json_sequences,
           total_data_points: prev.total_data_points + 1,
         };
       });
@@ -94,13 +91,32 @@ export function useExperimentData(jobId: string | undefined) {
 
     const metadataEvent = `experiment_${jobId}_metadata`;
 
-    const handleMetadata = (data: {
-      readout_metadata: ExperimentData["plot_windows"];
-    }) => {
+    const handleMetadata = (
+      data: {
+        device_id: string;
+        readout_metadata: PlotWindows;
+      }[],
+    ) => {
       console.info("Got experiment metadata");
-      console.info(data.readout_metadata);
+      const mergePlotWindows = (
+        deviceData: ExperimentDeviceData,
+        plot_windows: PlotWindows,
+      ) => {
+        console.info(plot_windows);
+        return { ...deviceData, plot_windows };
+      };
       setExperimentData((prev) => {
-        return { ...prev, plot_windows: data.readout_metadata };
+        return {
+          ...prev,
+          device_data: mergeDeviceData(
+            prev.device_data,
+            data.map(({ device_id, readout_metadata }) => [
+              device_id,
+              readout_metadata,
+            ]),
+            mergePlotWindows,
+          ),
+        };
       });
     };
 
@@ -112,16 +128,27 @@ export function useExperimentData(jobId: string | undefined) {
     };
 
     const fitEvent = `experiment_fit_${jobId}`;
-    const handleFitEvent = (data: FitResult & { deleted?: boolean }) => {
+    type Add = { fit_data: FitResult; device_id: string };
+    type Delete = { deleted: boolean; result_channel: string; device_id: string };
+    function isDelete(data: Add | Delete): data is Delete {
+      return "deleted" in data;
+    }
+    const handleFitEvent = (data: Add | Delete) => {
       setExperimentData((prev) => {
-        if (data.deleted) {
-          const { [data.result_channel]: _removed, ...rest } = prev.fits;
-          void _removed;
-          return { ...prev, fits: rest };
-        }
         return {
           ...prev,
-          fits: { ...prev.fits, [data.result_channel]: data },
+          device_data: prev.device_data.map((dev) => {
+            if (dev.device_id != data.device_id) return dev;
+            if (isDelete(data)) {
+              const { [data.result_channel]: _removed, ...rest } = dev.fits;
+              void _removed;
+              return { ...dev, fits: rest };
+            }
+            return {
+              ...dev,
+              fits: { ...dev.fits, [data.fit_data.result_channel]: data.fit_data },
+            };
+          }),
         };
       });
     };
@@ -154,4 +181,34 @@ export function useExperimentData(jobId: string | undefined) {
   }, [jobId]);
 
   return { experimentData, experimentDataError, loading };
+}
+
+function mergeDeviceData<T>(
+  deviceData: ExperimentDeviceData[],
+  data: [string, T][],
+  merge: (dev: ExperimentDeviceData, d: T) => ExperimentDeviceData,
+) {
+  const deviceDataById = Object.fromEntries(
+    deviceData.map((dev) => [dev.device_id, structuredClone(dev)]),
+  );
+  for (const [devId, dev] of data) {
+    deviceDataById[devId] = merge(
+      deviceDataById[devId] ?? defaultDeviceData(devId),
+      dev,
+    );
+  }
+  return Object.values(deviceDataById);
+}
+
+function defaultDeviceData(deviceId: string) {
+  return {
+    device_id: deviceId,
+    readouts: { result_channels: {}, vector_channels: {}, shot_channels: {} },
+    plot_windows: {
+      result_channels: [],
+      vector_channels: [],
+      shot_channels: [],
+    },
+    hardware_instructions: [],
+  };
 }

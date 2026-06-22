@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 from typing import TYPE_CHECKING
 
@@ -22,7 +20,7 @@ class ScansController(pydase.DataService):
 
     def __init__(
         self,
-        pre_processing_update_queues: list[multiprocessing.Queue[UpdateQueue]],
+        pre_processing_update_queues: "list[multiprocessing.Queue[UpdateQueue]]",
     ) -> None:
         super().__init__()
         self._pre_processing_update_queues = pre_processing_update_queues

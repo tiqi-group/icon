@@ -1,14 +1,13 @@
-# ruff: noqa: TC001 TC003
-from __future__ import annotations
-
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 import pydantic
 
-from icon.server.data_access.repositories.experiment_data_repository import (
-    ExperimentDataPoint,
-)
+from icon.server.data_access.experiment_data import ExperimentDataPoint
 from icon.server.pre_processing.task import PreProcessingTask
+
+if TYPE_CHECKING:
+    from typing import Self
 
 
 class PostProcessingTask(pydantic.BaseModel):
@@ -18,5 +17,5 @@ class PostProcessingTask(pydantic.BaseModel):
     src_dir: str | None
     created: datetime
 
-    def __lt__(self, other: PostProcessingTask) -> bool:
+    def __lt__(self, other: "Self") -> bool:
         return self.priority < other.priority

@@ -1,6 +1,7 @@
 import importlib
 import logging
 import tempfile
+import warnings
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -15,6 +16,10 @@ from pycrystal.utils.helpers import (
 )
 
 import icon.server.utils.git_helpers
+from icon.server.data_access.experiment_data import (
+    PlotWindowMetadata,
+    ReadoutMetadata,
+)
 from icon.server.data_access.experiment_library_client import ExperimentLibraryClient
 from icon.server.data_access.venv_experiment_library_client import (
     BlockingExperimentLibraryClient,
@@ -27,12 +32,8 @@ if TYPE_CHECKING:
     from icon.server.api.models.experiment_dict import (
         ExperimentDict,
     )
-    from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+    from icon.server.data_access.experiment_data import DatabaseValueType
     from icon.server.data_access.experiment_library_client import ParameterMetadataDict
-    from icon.server.data_access.repositories.experiment_data_repository import (
-        PlotWindowMetadata,
-        ReadoutMetadata,
-    )
 
 logger = logging.getLogger("experiment_library")
 logging.getLogger("pycrystal").setLevel(logging.ERROR)
@@ -73,6 +74,15 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         self.experiment_library_module = experiment_library_module
 
     @property
+    def device_order(self) -> list[str]:
+        # TODO(g-braeunlich): https://github.com/tiqi-group/icon/issues/110
+        raise NotImplementedError("Not yet available in pycrystal")
+
+    @device_order.setter
+    def device_order(self, value: list[str]) -> None:  # noqa: ARG002
+        raise RuntimeError("Read only attribute")
+
+    @property
     def parameter_metadata(self) -> "ParameterMetadataDict":
         parameter_registry = Parameter.registry.namespace_registry
         return {
@@ -97,19 +107,21 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         raise RuntimeError("Read only attribute")
 
     @staticmethod
-    def generate_json_sequence(
+    def create_hardware_instructions(
         *,
         exp_module_name: str,
         exp_instance_name: str,
         parameter_dict: "dict[str, DatabaseValueType]",
+        device_id: str,
         n_shots: int,
-    ) -> str:
-        """Generate a JSON sequence for an experiment.
+    ) -> bytes:
+        """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
+            device_id: Id of the device for which to create the instructions
             n_shots: Number of shots.
 
         Returns:
@@ -117,19 +129,33 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         """
         exp_instance = import_experiment_instance(exp_module_name, exp_instance_name)
 
-        return exp_instance.pulse_sequence_str_from_args(
-            parameter_dict,
-            n_shots,
-            LOG_LEVEL,
-        )
+        try:
+            return exp_instance.pulse_sequence_from_args(
+                parameter_dict,
+                n_shots,
+                LOG_LEVEL,
+                device_id=device_id,
+            )
+        except AttributeError:
+            warnings.warn(
+                "Experiment does not define `pulse_sequence_from_args` falling back to legacy behaviour",
+                category=DeprecationWarning,
+                stacklevel=0,
+            )
+            return exp_instance.pulse_sequence_str_from_args(
+                parameter_dict,
+                n_shots,
+                LOG_LEVEL,
+            )
 
-    @staticmethod
     def get_experiment_readout_metadata(
+        self,
+        *,
         exp_module_name: str,
         exp_instance_name: str,
         parameter_dict: "dict[str, DatabaseValueType]",
-    ) -> "ReadoutMetadata":
-        """Fetch readout metadata for an experiment.
+    ) -> "list[tuple[str, ReadoutMetadata]]":
+        """Fetch metadata about the readout data an experiment will yield.
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -137,39 +163,54 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             parameter_dict: Mapping of parameter IDs to values.
 
         Returns:
-            Dictionary containing readout metadata for the experiment.
+            Device ID, readout metadata pairs for the experiment.
         """
         pycrystal.parameters.Parameter.db = pycrystal.database.local_cache.LocalCache(
             key_val_dict=parameter_dict,
         )
 
         exp_instance = import_experiment_instance(exp_module_name, exp_instance_name)
-        readout = exp_instance.get_readout_metadata(parameter_dict, LOG_LEVEL)
+        readout_per_device = exp_instance.get_readout_metadata(
+            parameter_dict, LOG_LEVEL
+        )
+        if not isinstance(readout_per_device, list):
+            warnings.warn(
+                "Experiment library: `get_experiment_readout_metadata()` only returns readout metadata for a single device. It should return a list of (device id, metadata) tuples.",
+                category=DeprecationWarning,
+                stacklevel=0,
+            )
+            readout_per_device = [("zedboard", readout_per_device)]
 
         def plot_window_metadata(data: Any) -> "PlotWindowMetadata":
-            return {
-                "name": data.name,
-                "index": data.index,
-                "type": data.type.name.lower(),
-                "channel_names": data.channel_names,
-            }
+            return PlotWindowMetadata(
+                name=data.name,
+                index=data.index,
+                type=data.type.name.lower(),
+                channel_names=data.channel_names,
+            )
 
-        return {
-            "readout_channel_names": readout.readout_channel_names,
-            "shot_channel_names": readout.shot_channel_names,
-            "vector_channel_names": readout.vector_channel_names,
-            "readout_channel_windows": [
-                plot_window_metadata(m) for m in readout.readout_channel_windows
-            ],
-            "shot_channel_windows": [
-                plot_window_metadata(m) for m in readout.shot_channel_windows
-            ],
-            "vector_channel_windows": [
-                plot_window_metadata(m) for m in readout.vector_channel_windows
-            ],
-        }
+        return [
+            (
+                device_id,
+                ReadoutMetadata(
+                    readout_channel_names=readout.readout_channel_names,
+                    shot_channel_names=readout.shot_channel_names,
+                    vector_channel_names=readout.vector_channel_names,
+                    readout_channel_windows=[
+                        plot_window_metadata(m) for m in readout.readout_channel_windows
+                    ],
+                    shot_channel_windows=[
+                        plot_window_metadata(m) for m in readout.shot_channel_windows
+                    ],
+                    vector_channel_windows=[
+                        plot_window_metadata(m) for m in readout.vector_channel_windows
+                    ],
+                ),
+            )
+            for device_id, readout in readout_per_device
+        ]
 
-    def get_setup_hardware_description(self) -> dict[str, dict]:
+    def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:
         """Fetch hardware description from experiment library.
 
         Returns:
