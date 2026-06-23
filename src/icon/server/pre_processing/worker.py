@@ -247,6 +247,12 @@ class PreProcessingWorker(multiprocessing.Process):
         isolated_lib_client: ExperimentLibraryClient,
     ) -> None:
         job = pre_processing_task.job
+
+        if job_run_cancelled_or_failed(
+            job_id=job.id,
+        ):
+            return
+
         JobRunRepository.update_run_by_id(
             run_id=pre_processing_task.job_run.id,
             status=JobRunStatus.PROCESSING,
@@ -255,11 +261,6 @@ class PreProcessingWorker(multiprocessing.Process):
         namespace = ExperimentIdentifier.from_str(job.experiment_source.experiment_id)
         # empty update queue
         self._handle_parameter_updates(pre_processing_task, namespace=namespace)
-
-        if job_run_cancelled_or_failed(
-            job_id=job.id,
-        ):
-            return
 
         change_process_priority(pre_processing_task.priority)
 
