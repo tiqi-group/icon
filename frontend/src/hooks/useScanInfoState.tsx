@@ -1,11 +1,18 @@
 import { useEffect, useReducer } from "react";
 import { ScanParameterInfo } from "../types/ScanParameterInfo";
+import { ScanParameterGenerationSpec } from "../types/ScanParameterGenerationSpec";
+import {
+  SerializedScanInfoSelectionHistory,
+  ScanInfoSelectionHistory,
+  emptyScanInfoHistory,
+} from "../utils/ScanInfoSelectionHistory";
 
 export interface ScanInfoState {
   priority: number;
   shots: number;
   repetitions: number;
   parameters: ScanParameterInfo[];
+  history: SerializedScanInfoSelectionHistory;
 }
 
 export type ScanInfoAction =
@@ -15,10 +22,16 @@ export type ScanInfoAction =
   | { type: "REMOVE_PARAMETER"; index: number }
   | { type: "UPDATE_PARAMETER"; index: number; payload: Partial<ScanParameterInfo> };
 
-const defaultParameter: ScanParameterInfo = {
+const defaultParameterGenerationSpec: ScanParameterGenerationSpec = {
+  start: 0,
+  stop: 1,
+  points: 2,
+  pattern: "linear",
+};
+
+export const defaultParameter: ScanParameterInfo = {
   id: "",
-  values: [0, 1],
-  generation: { start: 0, stop: 1, points: 2, pattern: "linear" },
+  generation: defaultParameterGenerationSpec,
   namespace: "",
   deviceNameOrDisplayGroup: "",
 };
@@ -27,6 +40,7 @@ export const defaultScanInfoState: ScanInfoState = {
   shots: 50,
   repetitions: 1,
   parameters: [defaultParameter],
+  history: emptyScanInfoHistory,
 };
 
 const STORAGE_KEY_PREFIX = "scanInfoState:";
@@ -45,14 +59,18 @@ const saveScanInfoStateToLocalStorage = (
 const getScanInfoStateFromLocalStorage = (experimentId: string): ScanInfoState => {
   const data = localStorage.getItem(`${STORAGE_KEY_PREFIX}${experimentId}`);
   if (data) {
-    return JSON.parse(data) as ScanInfoState;
+    const restored = JSON.parse(data) as ScanInfoState;
+    return {
+      ...restored,
+      history: restored.history ?? emptyScanInfoHistory,
+    };
   } else {
     saveScanInfoStateToLocalStorage(experimentId, defaultScanInfoState);
     return defaultScanInfoState;
   }
 };
 
-const reducer =
+export const reducer =
   (experimentId: string) => (state: ScanInfoState, action: ScanInfoAction) => {
     let newState: ScanInfoState;
 
@@ -66,12 +84,26 @@ const reducer =
         parameters: state.parameters.filter((_, i) => i !== action.index),
       };
     } else if (action.type === "UPDATE_PARAMETER") {
-      newState = {
-        ...state,
-        parameters: state.parameters.map((param, i) =>
-          i === action.index ? { ...param, ...action.payload } : param,
-        ),
-      };
+      if (action.payload.id === "Real Time" || action.payload.n_scan_points != null) {
+        newState = {
+          ...state,
+          parameters: state.parameters.map((p, i) =>
+            i === action.index ? { ...p, ...action.payload } : p,
+          ),
+        };
+      } else {
+        const { updatedParam, updatedScanInfoHistory } = new ScanInfoSelectionHistory(
+          () => defaultParameterGenerationSpec,
+          state.history,
+        ).handleParamUpdate(state.parameters[action.index], action.payload);
+        newState = {
+          ...state,
+          parameters: state.parameters.map((p, i) =>
+            i === action.index ? updatedParam : p,
+          ),
+          history: updatedScanInfoHistory,
+        };
+      }
     } else {
       newState = {
         ...state,

@@ -23,37 +23,6 @@ import {
 } from "../../types/ScanParameterInfo";
 import { isScannableParameterType } from "../../utils/scanUtils";
 
-const generateScanValues = (
-  start: number,
-  stop: number,
-  points: number,
-  pattern: ScanPattern,
-) => {
-  const linspace = (n: number) =>
-    Array.from({ length: n }, (_, i) => start + (i * (stop - start)) / (n - 1));
-
-  switch (pattern) {
-    case "linear":
-      return linspace(points);
-    case "scatter":
-      return linspace(points).sort(() => Math.random() - 0.5);
-    case "centred": {
-      const base = linspace(points);
-      const mid = Math.floor((points - 1) / 2);
-      const order = [mid];
-      for (let k = 1; order.length < points; k++) {
-        if (mid - k >= 0) order.push(mid - k);
-        if (mid + k < points) order.push(mid + k);
-      }
-      return order.map((i) => base[i]);
-    }
-    case "forwardReverse": {
-      const base = linspace(points);
-      return [...base, ...base.reverse()];
-    }
-  }
-};
-
 const renderPatternLabel = (pattern: ScanPattern): string => {
   switch (pattern) {
     case "linear":
@@ -71,6 +40,10 @@ const getDisplayNameFromNamespace = (namespace: string): string => {
   if (namespace.endsWith(".globals.global_parameters")) return "Global Parameters";
   const parts = namespace.split(".");
   return parts[parts.length - 1];
+};
+
+const truncateDisplayName = (displayName: string): string => {
+  return displayName.length > 30 ? displayName.slice(0, 30) + "..." : displayName;
 };
 
 export const ParameterCard = ({
@@ -165,8 +138,6 @@ export const ParameterCard = ({
     );
   }, [param, parameterDisplayGroups, deviceInfo]);
 
-  const pattern = param.generation.pattern ?? "linear";
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div
@@ -188,8 +159,7 @@ export const ParameterCard = ({
                 type: "UPDATE_PARAMETER",
                 index,
                 payload: {
-                  id: isRealtime ? "Real Time" : "",
-                  deviceNameOrDisplayGroup: "",
+                  id: isRealtime ? "Real Time" : undefined,
                   namespace: e.target.value,
                   n_scan_points: isRealtime ? 0 : undefined,
                 },
@@ -199,9 +169,7 @@ export const ParameterCard = ({
               const displayName = selected === "Devices" || selected === "Real Time"
                 ? selected
                 : (namespaceToDisplayName[selected] || getDisplayNameFromNamespace(selected));
-              const truncated =
-                displayName.length > 30 ? displayName.slice(0, 30) + "..." : displayName;
-              return truncated;
+              return truncateDisplayName(displayName);
             }}
           >
             {Object.keys(parameterSources).map((namespace) => {
@@ -240,21 +208,16 @@ export const ParameterCard = ({
                   type: "UPDATE_PARAMETER",
                   index,
                   payload: {
-                    id: "",
                     deviceNameOrDisplayGroup: e.target.value,
                   },
                 });
               }}
-              renderValue={(selected) => {
-                const truncated =
-                  selected.length > 30 ? selected.slice(0, 30) + "..." : selected;
-                return truncated;
-              }}
+              renderValue={(selected) => truncateDisplayName(selected)}
             >
               {(parameterSources[param.namespace!] ?? []).map(
                 (groupOrDevice: string) => (
                   <MenuItem key={groupOrDevice} value={groupOrDevice}>
-                    {groupOrDevice},
+                    {groupOrDevice}
                   </MenuItem>
                 ),
               )}
@@ -266,7 +229,13 @@ export const ParameterCard = ({
             size="small"
             disabled={Object.keys(parameterOptions).length === 0}
           >
-            <InputLabel>Parameter</InputLabel>
+            <InputLabel>
+              {param.namespace &&
+              param.deviceNameOrDisplayGroup &&
+              Object.keys(parameterOptions).length === 0
+                ? "No scannable Parameters"
+                : "Parameter"}
+            </InputLabel>
             <Select
               label="Parameter"
               value={param.id}
@@ -279,31 +248,23 @@ export const ParameterCard = ({
                 });
               }}
               renderValue={(value) => {
-                if (Object.keys(parameterOptions).length === 0) {
-                  return "No scannable parameters";
-                }
                 const selectedDisplayName = parameterOptions[value]?.displayName;
                 if (selectedDisplayName === undefined) return value;
-                return selectedDisplayName.length > 30
-                  ? selectedDisplayName.slice(0, 30) + "..."
-                  : selectedDisplayName;
+                return truncateDisplayName(selectedDisplayName);
               }}
             >
-              {Object.keys(parameterOptions).length === 0 ? (
-                <MenuItem disabled>No scannable parameters</MenuItem>
-              ) : (
-                Object.entries(parameterOptions).map(([paramId, metadata]) => (
-                  <MenuItem key={paramId} value={paramId} title={paramId}>
-                    {metadata.displayName}
-                  </MenuItem>
-                ))
-              )}
+              {Object.entries(parameterOptions).map(([paramId, metadata]) => (
+                <MenuItem key={paramId} value={paramId} title={paramId}>
+                  {metadata.displayName}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <TextField
               required
+              disabled={!param.id}
               label="Start"
               size="small"
               type="number"
@@ -318,12 +279,6 @@ export const ParameterCard = ({
                       ...param.generation,
                       start: Number(e.target.value),
                     },
-                    values: generateScanValues(
-                      Number(e.target.value),
-                      param.generation.stop,
-                      param.generation.points,
-                      pattern,
-                    ),
                   },
                 })
               }
@@ -339,6 +294,7 @@ export const ParameterCard = ({
             />
             <TextField
               required
+              disabled={!param.id}
               label="Stop"
               size="small"
               type="number"
@@ -353,12 +309,6 @@ export const ParameterCard = ({
                       ...param.generation,
                       stop: Number(e.target.value),
                     },
-                    values: generateScanValues(
-                      param.generation.start,
-                      Number(e.target.value),
-                      param.generation.points,
-                      pattern,
-                    ),
                   },
                 })
               }
@@ -374,6 +324,7 @@ export const ParameterCard = ({
             />
             <TextField
               required
+              disabled={!param.id}
               label="Points"
               size="small"
               type="number"
@@ -389,12 +340,6 @@ export const ParameterCard = ({
                       ...param.generation,
                       points: Number(e.target.value),
                     },
-                    values: generateScanValues(
-                      param.generation.start,
-                      param.generation.stop,
-                      Number(e.target.value),
-                      pattern,
-                    ),
                   },
                 })
               }
@@ -411,24 +356,18 @@ export const ParameterCard = ({
           <FormControl fullWidth size="small">
             <InputLabel>Scan pattern</InputLabel>
             <Select
+              disabled={!param.id}
               label="Scan pattern"
-              value={pattern}
+              value={param.generation.pattern}
               onChange={(e) => {
-                const nextPattern = e.target.value as ScanPattern;
                 dispatchScanInfoStateUpdate({
                   type: "UPDATE_PARAMETER",
                   index: index!,
                   payload: {
                     generation: {
                       ...param.generation,
-                      pattern: nextPattern,
+                      pattern: e.target.value as ScanPattern,
                     },
-                    values: generateScanValues(
-                      param.generation.start,
-                      param.generation.stop,
-                      param.generation.points,
-                      nextPattern,
-                    ),
                   },
                 });
               }}
@@ -457,7 +396,6 @@ export const ParameterCard = ({
               index,
               payload: {
                 n_scan_points: isNaN(parsed) ? 0 : parsed,
-                values: [],
               },
             });
           }}

@@ -1,4 +1,4 @@
-import { deserialize } from "../deserializer";
+import { deserialize } from "../../src/utils/deserializer";
 import {
   SerializedInteger,
   SerializedFloat,
@@ -9,7 +9,7 @@ import {
   SerializedDict,
   SerializedNoneType,
   SerializedDataService,
-} from "../../types/SerializedObject";
+} from "../../src/types/SerializedObject";
 
 describe("Deserializer", () => {
   test("should deserialize a SerializedInteger", () => {

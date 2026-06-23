@@ -1,4 +1,8 @@
-import { FIT_DEFAULT_UPDATE_PARAM, FIT_PARAM_NAMES, FIT_TYPES } from "../fitFunctions";
+import {
+  FIT_DEFAULT_UPDATE_PARAM,
+  FIT_PARAM_NAMES,
+  FIT_TYPES,
+} from "../../src/utils/fitFunctions";
 
 describe("fit model metadata", () => {
   it("every FIT_TYPE has param names defined", () => {
