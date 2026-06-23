@@ -1,6 +1,8 @@
 import React, { useContext, useMemo } from "react";
 import { List, ListItemButton, ListItemText, ListSubheader } from "@mui/material";
 import { JobsContext } from "../contexts/JobsContext";
+import { JobRunsContext } from "../contexts/JobRunsContext";
+import { JobStatusIndicator } from "../components/JobStatusIndicator";
 import { JobView } from "../components/JobView";
 import { useSearchParams } from "react-router";
 import { Job } from "../types/Job";
@@ -10,6 +12,7 @@ import { getExperimentNameFromExperimentId } from "../utils/experimentUtils";
 
 export function DataPage() {
   const jobs = useContext(JobsContext);
+  const jobRuns = useContext(JobRunsContext);
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedJobId = searchParams.get("jobId");
 
@@ -77,6 +80,7 @@ export function DataPage() {
                       second: "2-digit",
                     }).format(new Date(job.created));
 
+                    const run = jobRuns[job.id];
                     return (
                       <ListItemButton
                         key={job.id}
@@ -86,6 +90,7 @@ export function DataPage() {
                           openJobWindow(job.id, job.experiment_source.experiment_id)
                         }
                       >
+                        <JobStatusIndicator status={run?.status} log={run?.log} />
                         <ListItemText
                           primary={`${getExperimentNameFromExperimentId(job.experiment_source.experiment_id)} (${
                             job.scan_parameters.length === 0

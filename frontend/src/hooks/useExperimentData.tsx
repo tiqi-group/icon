@@ -20,6 +20,7 @@ const emptyExperimentData: ExperimentData = {
   vector_channels: {},
   scan_parameters: {},
   json_sequences: [],
+  realtime_scan: false,
   parameters: {},
   total_data_points: 0,
   fits: {},

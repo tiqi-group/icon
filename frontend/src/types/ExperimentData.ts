@@ -47,6 +47,7 @@ export interface ExperimentData {
   vector_channels: Record<string, Record<string, number[]>>;
   scan_parameters: Record<string, Record<string, number | boolean | string>>;
   json_sequences: [number, string][];
+  realtime_scan: boolean;
   parameters: Record<string, ParameterValue>;
   total_data_points: number;
   fits: Record<string, FitResult>;

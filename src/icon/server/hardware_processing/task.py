@@ -24,7 +24,7 @@ class HardwareProcessingTask(pydantic.BaseModel):
     created: datetime
     if TYPE_CHECKING:
         processed_data_points: Queue[HardwareProcessingTask]
-        data_points_to_process: Queue[tuple[int, dict[str, DatabaseValueType]]]
+        data_points_to_process: PriorityQueue[tuple[int, dict[str, DatabaseValueType]]]
         outdated_tasks: PriorityQueue[HardwareProcessingTask]
     else:
         # must be Any as the queues are AutoProxy instances, which I didn't figure out
