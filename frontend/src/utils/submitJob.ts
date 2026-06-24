@@ -77,7 +77,9 @@ export const submitJob = (experimentId: string, scanInfoState: ScanInfoState) =>
     },
     (ack) => {
       const jobId = deserialize(ack as SerializedInteger);
-      openJobWindow(jobId, experimentId);
+      if (localStorage.getItem("openExperimentWindows") !== "false") {
+        openJobWindow(jobId, experimentId);
+      }
     },
   );
 };

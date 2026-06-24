@@ -9,6 +9,7 @@ import {
   FormHelperText,
   Tooltip,
 } from "@mui/material";
+import { useNotifications } from "@toolpad/core";
 import { useScanContext } from "../../hooks/useScanContext";
 import { submitJob } from "../../utils/submitJob";
 import ScanParameterTable from "./ScanParameterTable";
@@ -18,6 +19,8 @@ interface ScanInterfaceProps {
 }
 const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
   const { scanInfoState, dispatchScanInfoStateUpdate } = useScanContext();
+  const notifications = useNotifications();
+  const [submitDisabled, setSubmitDisabled] = useState(false);
 
   const isContinuousScan = scanInfoState.parameters.every(
     (p) => p.namespace === "Real Time" && p.n_scan_points === 0,
@@ -90,6 +93,12 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
 
     if (validateForm()) {
       submitJob(experimentId, scanInfoState);
+      notifications.show("Job submitted", {
+        severity: "success",
+        autoHideDuration: 3000,
+      });
+      setSubmitDisabled(true);
+      setTimeout(() => setSubmitDisabled(false), 1000);
     }
   };
 
@@ -181,6 +190,7 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
           variant="contained"
           color="primary"
           onClick={handleSubmit}
+          disabled={submitDisabled}
         >
           Run
         </Button>
