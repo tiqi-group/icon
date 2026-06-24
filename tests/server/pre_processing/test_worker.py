@@ -9,6 +9,7 @@ from icon.server.pre_processing.worker import PreProcessingWorker
 # Fixed reference point: the parameter-update timestamp the consumer compares against.
 PARAM_UPDATE_TS = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
 NUM_TASKS = 2  # tasks placed in the queue per test
+UPDATED_FREQ = 2.0  # parameter value after a calibration during a pause
 
 
 class _FakeTask:
@@ -44,8 +45,16 @@ def _pre_processing_task() -> SimpleNamespace:
     )
 
 
+def _run_mock(status: JobRunStatus) -> MagicMock:
+    # SQLite returns this column without timezone info (stored as UTC), so mirror that.
+    return MagicMock(
+        status=status,
+        parameter_update_timestamp=PARAM_UPDATE_TS.replace(tzinfo=None),
+    )
+
+
 def test_regenerate_only_regenerates_stale_tasks() -> None:
-    """Pause-diverted (fresh) tasks must not be needlessly regenerated (#1)."""
+    """Pause-diverted (fresh) tasks must not be needlessly regenerated."""
     worker, submitted = _make_worker()
     stale = _FakeTask(created=PARAM_UPDATE_TS - timedelta(seconds=10))
     fresh = _FakeTask(created=PARAM_UPDATE_TS + timedelta(seconds=10))
@@ -59,8 +68,7 @@ def test_regenerate_only_regenerates_stale_tasks() -> None:
         ) as generate,
         patch("icon.server.pre_processing.worker.JobRunRepository") as repo,
     ):
-        repo.get_parameter_update_timestamp.return_value = PARAM_UPDATE_TS
-        repo.get_run_by_job_id.return_value = MagicMock(status=JobRunStatus.PROCESSING)
+        repo.get_run_by_job_id.return_value = _run_mock(JobRunStatus.PROCESSING)
         worker._regenerate_outdated_jobs(
             client=object(),
             pre_processing_task=_pre_processing_task(),
@@ -74,7 +82,7 @@ def test_regenerate_only_regenerates_stale_tasks() -> None:
 
 
 def test_regenerate_stops_when_paused() -> None:
-    """Draining must stop without feeding a paused hardware worker (#3)."""
+    """Draining must stop without feeding a paused hardware worker."""
     worker, submitted = _make_worker()
     worker._outdated_tasks.put(_FakeTask(created=PARAM_UPDATE_TS))
     worker._outdated_tasks.put(_FakeTask(created=PARAM_UPDATE_TS))
@@ -83,8 +91,7 @@ def test_regenerate_stops_when_paused() -> None:
         patch("icon.server.pre_processing.worker.generate_sequence_json") as generate,
         patch("icon.server.pre_processing.worker.JobRunRepository") as repo,
     ):
-        repo.get_parameter_update_timestamp.return_value = PARAM_UPDATE_TS
-        repo.get_run_by_job_id.return_value = MagicMock(status=JobRunStatus.PAUSED)
+        repo.get_run_by_job_id.return_value = _run_mock(JobRunStatus.PAUSED)
         worker._regenerate_outdated_jobs(
             client=object(),
             pre_processing_task=_pre_processing_task(),
@@ -110,8 +117,7 @@ def test_regenerate_does_not_regenerate_realtime_tasks() -> None:
         ),
         patch("icon.server.pre_processing.worker.JobRunRepository") as repo,
     ):
-        repo.get_parameter_update_timestamp.return_value = PARAM_UPDATE_TS
-        repo.get_run_by_job_id.return_value = MagicMock(status=JobRunStatus.PROCESSING)
+        repo.get_run_by_job_id.return_value = _run_mock(JobRunStatus.PROCESSING)
         worker._regenerate_outdated_jobs(
             client=object(),
             pre_processing_task=_pre_processing_task(),
@@ -133,8 +139,7 @@ def test_regenerate_drops_cancelled_tasks() -> None:
         patch("icon.server.pre_processing.worker.generate_sequence_json") as generate,
         patch("icon.server.pre_processing.worker.JobRunRepository") as repo,
     ):
-        repo.get_parameter_update_timestamp.return_value = PARAM_UPDATE_TS
-        repo.get_run_by_job_id.return_value = MagicMock(status=JobRunStatus.CANCELLED)
+        repo.get_run_by_job_id.return_value = _run_mock(JobRunStatus.CANCELLED)
         worker._regenerate_outdated_jobs(
             client=object(),
             pre_processing_task=_pre_processing_task(),
@@ -147,19 +152,28 @@ def test_regenerate_drops_cancelled_tasks() -> None:
     assert worker._outdated_tasks.qsize() == 0
 
 
-def test_regenerate_skips_timestamp_query_when_no_tasks() -> None:
-    """No parameter-update-timestamp query on an empty drain spin (poll cost)."""
-    worker, submitted = _make_worker()  # _outdated_tasks is empty
+def test_regenerate_uses_updated_parameters_after_pause() -> None:
+    """A parameter changed during a pause is applied when a stale task is regenerated."""
+    worker, submitted = _make_worker()
+    worker._parameter_dict = {"freq": UPDATED_FREQ}
+    # Built before the parameter update -> stale -> regenerated with the new value.
+    stale = _FakeTask(created=PARAM_UPDATE_TS - timedelta(seconds=10))
+    worker._outdated_tasks.put(stale)
 
     with (
-        patch("icon.server.pre_processing.worker.generate_sequence_json"),
+        patch(
+            "icon.server.pre_processing.worker.generate_sequence_json",
+            return_value="REGENERATED",
+        ) as generate,
         patch("icon.server.pre_processing.worker.JobRunRepository") as repo,
     ):
+        repo.get_run_by_job_id.return_value = _run_mock(JobRunStatus.PROCESSING)
         worker._regenerate_outdated_jobs(
             client=object(),
             pre_processing_task=_pre_processing_task(),
             namespace=object(),
         )
 
-    repo.get_parameter_update_timestamp.assert_not_called()
-    assert submitted == []
+    assert submitted == [stale]
+    assert stale.sequence_json == "REGENERATED"
+    assert generate.call_args.kwargs["parameter_dict"]["freq"] == UPDATED_FREQ

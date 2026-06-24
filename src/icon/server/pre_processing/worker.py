@@ -9,7 +9,7 @@ import queue
 import re
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Self, TypeVar
 
@@ -511,42 +511,39 @@ class PreProcessingWorker(multiprocessing.Process):
         is_realtime = contains_realtime_parameter(
             pre_processing_task.job.scan_parameters
         )
-        # Read lazily: this runs on every drain-loop iteration, usually with an empty
-        # queue, so we avoid a database query unless a task actually needs the check.
-        parameter_update_timestamp: datetime | None = None
         for task in consume_queue(self._outdated_tasks):
+            # A single fetch covers every check below: the run carries both the
+            # current status (pause/cancel) and the parameter-update timestamp.
+            job_run = JobRunRepository.get_run_by_job_id(
+                job_id=pre_processing_task.job.id
+            )
             # Don't resubmit into a paused hardware worker: it would only divert the
             # task straight back, so we would regenerate it on every lap. Leave the
             # remaining tasks queued until the job resumes.
-            job_run_status = JobRunRepository.get_run_by_job_id(
-                job_id=pre_processing_task.job.id
-            ).status
-            if job_run_status == JobRunStatus.PAUSED:
+            if job_run.status == JobRunStatus.PAUSED:
                 self._outdated_tasks.put(task)
                 break
             # The job was cancelled (or failed) while this task was outstanding.
             # Account for it directly so the scan loop's qsize check can complete,
             # instead of regenerating it and bouncing it through the hardware worker.
-            if job_run_status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
+            if job_run.status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
                 self._processed_data_points.put(task)
                 continue
             # Only stale tasks (parameters changed since the task was built) need a
             # fresh sequence. Pause-diverted tasks keep their valid sequence as-is.
-            if not is_realtime:
-                if parameter_update_timestamp is None:
-                    parameter_update_timestamp = (
-                        JobRunRepository.get_parameter_update_timestamp(
-                            run_id=pre_processing_task.job_run.id,
-                        )
-                    )
-                if task.created < parameter_update_timestamp:
-                    task.sequence_json = generate_sequence_json(
-                        client,
-                        n_shots=task.pre_processing_task.job.number_of_shots,
-                        parameter_dict={**self._parameter_dict, **task.scanned_params},
-                        namespace=namespace,
-                    )
-                    task.created = datetime.now(timezone)
+            parameter_update_timestamp = job_run.parameter_update_timestamp
+            if (
+                not is_realtime
+                and parameter_update_timestamp is not None
+                and task.created < parameter_update_timestamp.replace(tzinfo=UTC)
+            ):
+                task.sequence_json = generate_sequence_json(
+                    client,
+                    n_shots=task.pre_processing_task.job.number_of_shots,
+                    parameter_dict={**self._parameter_dict, **task.scanned_params},
+                    namespace=namespace,
+                )
+                task.created = datetime.now(timezone)
             self._submit_task_to_hw_worker(task=task)
 
     def _handle_realtime_scan(
