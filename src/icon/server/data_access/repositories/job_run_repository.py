@@ -93,7 +93,6 @@ class JobRunRepository:
                 .returning(JobRun)
             )
             run = session.execute(stmt).scalar_one()
-            job_id = run.job_id
             session.commit()
 
             logger.debug("Updated run %s", run)
@@ -103,7 +102,6 @@ class JobRunRepository:
                 "event": "job_run.update",
                 "data": {
                     "run_id": run_id,
-                    "job_id": job_id,
                     "updated_properties": {
                         "status": status.value,
                         "log": log,
@@ -142,30 +140,6 @@ class JobRunRepository:
             if load_job:
                 stmt = stmt.options(sqlalchemy.orm.joinedload(JobRun.job))
 
-            return session.execute(stmt).scalars().all()
-
-    @staticmethod
-    def get_latest_runs() -> Sequence[JobRun]:
-        """Return the most recent job run for every job.
-
-        Returns:
-            One `JobRun` per `job_id`, picking the one with the latest
-            `scheduled_time` when multiple runs exist for a job.
-        """
-        with sqlalchemy.orm.Session(engine) as session:
-            subq = (
-                select(
-                    JobRun.job_id,
-                    sqlalchemy.func.max(JobRun.scheduled_time).label("max_time"),
-                )
-                .group_by(JobRun.job_id)
-                .subquery()
-            )
-            stmt = select(JobRun).join(
-                subq,
-                (JobRun.job_id == subq.c.job_id)
-                & (JobRun.scheduled_time == subq.c.max_time),
-            )
             return session.execute(stmt).scalars().all()
 
     @staticmethod

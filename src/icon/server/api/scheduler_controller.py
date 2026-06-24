@@ -283,14 +283,6 @@ class SchedulerController(pydase.DataService):
         """
         return JobRunRepository.get_run_by_job_id(job_id=job_id)
 
-    def get_job_runs(self) -> dict[int, JobRun]:
-        """Fetch the most recent job run for every job.
-
-        Returns:
-            Mapping from job ID to the latest job run record.
-        """
-        return {run.job_id: run for run in JobRunRepository.get_latest_runs()}
-
     async def _cast_scan_values_to_param_type(
         self,
         values: list[str | int | bool | float] | None = None,
