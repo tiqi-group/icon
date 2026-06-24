@@ -169,7 +169,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             ],
         }
 
-    def get_setup_hardware_description(self) -> dict[str, dict]:
+    def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:
         """Fetch hardware description from experiment library.
 
         Returns:

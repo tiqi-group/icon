@@ -2,12 +2,10 @@ import logging
 from typing import Any
 
 import pydase
-import yaml
 from confz import DataSource
 
-from icon.config.config import get_config
-from icon.config.config_path import get_config_path
-from icon.config.v2 import ServiceConfig
+from icon.config.config import get_config, save_config
+from icon.config.latest import ServiceConfig
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 logger = logging.getLogger(__name__)
@@ -48,7 +46,7 @@ class ConfigurationController(pydase.DataService):
             updated_config = ServiceConfig(config_sources=DataSource(current_config))
 
             # Save the updated configuration back to the file
-            self._save_configuration(updated_config)
+            save_config(updated_config)
             emit_queue.put(
                 {"event": "config.update", "data": updated_config.model_dump()}
             )
@@ -57,28 +55,37 @@ class ConfigurationController(pydase.DataService):
             return False
         return True
 
-    def _save_configuration(self, new_config: ServiceConfig) -> None:
-        """Save the updated configuration to the source YAML file.
-
-        Serializes the updated configuration and writes it back to the file.
-
-        Args:
-            new_config:
-                The validated configuration instance.
-        """
-        with get_config_path().open("w") as file:
-            file.write(yaml.dump(new_config.model_dump()))
-
 
 def set_nested(config: dict[str, Any], nested_key: str, value: Any) -> None:
     """Set a value in a nested dict."""
-    current = config
-    *fields, last_field = nested_key.split(".")
+    current: dict[str, Any] | list[Any] = config
+    *fields, last_field = parse_config_key(nested_key)
     # Traverse to the nested key
     for field in fields:
-        if field not in current:
+        if isinstance(current, dict) and (
+            not isinstance(field, str) or field not in current
+        ):
             raise KeyError(f"Key {nested_key!r} not found in configuration.")
-        current = current[field]
+        if isinstance(current, list) and (
+            not isinstance(field, int) or field >= len(current)
+        ):
+            raise IndexError(
+                f"Configuration error: Index out of range: {field} in {nested_key!r}"
+            )
+        current = current[field]  # type: ignore[index]
 
     # Update the value
-    current[last_field] = value
+    current[last_field] = value  # type: ignore[index]
+
+
+def parse_config_key(nested_key: str) -> list[str | int]:
+    components = nested_key.split(".")
+
+    def split_index(key: str) -> tuple[str | int, ...]:
+        try:
+            key, index_str = key.removesuffix("]").split("[", 1)
+            return key, int(index_str)
+        except ValueError:
+            return (key,)
+
+    return [c for group in components for c in split_index(group)]

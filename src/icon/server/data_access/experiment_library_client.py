@@ -1,7 +1,7 @@
 """Abstraction over experiment library clients."""
 
 from contextlib import AbstractContextManager, nullcontext
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
     from icon.server.api.models.experiment_dict import (
@@ -93,7 +93,7 @@ class ExperimentLibraryClient:
         """
         raise NotImplementedError("Must be implemented by a subclass")
 
-    async def get_setup_hardware_description(self) -> dict[str, dict]:
+    async def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:
         """Fetch hardware description from experiment library.
 
         Returns:
@@ -160,7 +160,7 @@ class FallbackExperimentLibraryClient(ExperimentLibraryClient):
             "vector_channel_windows": [],
         }
 
-    async def get_setup_hardware_description(self) -> dict[str, dict]:
+    async def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:
         """Fetch hardware description from experiment library.
 
         Returns:

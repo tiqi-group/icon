@@ -52,6 +52,7 @@ def influxdbv1_service() -> Iterable[None]:
         yield
 
 
+@pytest.mark.container
 def test_InfluxDBv1Session(influxdbv1_service: None) -> None:  # noqa: N802, ARG001
     test_value = 1337
 

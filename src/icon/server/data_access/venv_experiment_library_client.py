@@ -1,7 +1,7 @@
 """Access isolated experiment libraries."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from icon.server.data_access.experiment_library_client import ExperimentLibraryClient
 from icon.server.data_access.venv_exec import VirtualEnvironment
@@ -72,7 +72,7 @@ class BlockingExperimentLibraryClient:
         """
         raise NotImplementedError("Must be implemented by a subclass")
 
-    def get_setup_hardware_description(self) -> dict[str, dict]:
+    def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:
         """Fetch hardware description from experiment library.
 
         Returns:
@@ -153,7 +153,7 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
             logger=venv_logger,
         )
 
-    async def get_setup_hardware_description(self) -> dict[str, dict]:
+    async def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:
         """Fetch hardware description from experiment library.
 
         Returns:
