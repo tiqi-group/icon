@@ -1,5 +1,13 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
-import { FormControlLabel, List, ListItemButton, ListItemText, ListSubheader, Switch } from "@mui/material";
+import {
+  FormControlLabel,
+  List,
+  ListItemButton,
+  ListItemText,
+  ListSubheader,
+  Switch,
+  Tooltip,
+} from "@mui/material";
 import { JobsContext } from "../contexts/JobsContext";
 import { JobView } from "../components/JobView";
 import { useSearchParams } from "react-router";
@@ -67,17 +75,19 @@ export function DataPage() {
           borderRight: "1px solid var(--mui-palette-divider)",
         }}
       >
-        <FormControlLabel
-          control={
-            <Switch
-              size="small"
-              checked={alwaysShowLatest}
-              onChange={(_, v) => setAlwaysShowLatest(v)}
-            />
-          }
-          label="Latest"
-          sx={{ mx: 1, my: 0.5 }}
-        />
+        <Tooltip title="Switch to newest job as it's created">
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={alwaysShowLatest}
+                onChange={(_, v) => setAlwaysShowLatest(v)}
+              />
+            }
+            label="Latest"
+            sx={{ mx: 1, my: 0.5 }}
+          />
+        </Tooltip>
         <List dense disablePadding>
           {(Object.entries(groupedJobs) as [JobStatus, Job[]][]).map(
             ([status, jobList]) =>
