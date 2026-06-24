@@ -166,7 +166,13 @@ class HardwareProcessingWorker(multiprocessing.Process):
                     run_id=task.pre_processing_task.job_run.id,
                 )
             )
-            if task.created < parameter_update_timestamp:
+            job_run_status = JobRunRepository.get_run_by_job_id(
+                job_id=task.pre_processing_task.job.id,
+            ).status
+            if (
+                task.created < parameter_update_timestamp
+                or job_run_status == JobRunStatus.PAUSED
+            ):
                 task.outdated_tasks.put(task)
                 continue
             try:

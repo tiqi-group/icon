@@ -22,7 +22,11 @@ logger = logging.getLogger(__name__)
 def initialise_job_tables() -> None:
     # update job_runs table
     job_runs = JobRunRepository.get_runs_by_status(
-        status=[JobRunStatus.PENDING, JobRunStatus.PROCESSING]
+        status=[
+            JobRunStatus.PENDING,
+            JobRunStatus.PROCESSING,
+            JobRunStatus.PAUSED,
+        ]
     )
     for job_run in job_runs:
         JobRunRepository.update_run_by_id(
