@@ -822,6 +822,7 @@ POLL_INTERVAL = 0.05
 
 _HDF5_GLOBAL_LOCK = threading.RLock()
 
+
 @contextmanager
 def h5_open(path: Path, mode: str, **kwargs: Any) -> Iterator[h5py.File]:
     with _HDF5_GLOBAL_LOCK:
