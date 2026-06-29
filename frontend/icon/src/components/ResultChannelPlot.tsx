@@ -25,7 +25,8 @@ interface ResultChannelPlotProps {
 
 const formatAxisLabel = (value: string): string => {
   const num = parseFloat(value);
-  return isNaN(num) ? value : num.toFixed(3);
+  if (isNaN(num)) return value;
+  return String(Number(num.toPrecision(6)));
 };
 
 function hasDayBreak(data: string[]) {
@@ -226,20 +227,31 @@ const ResultChannelPlot = ({
           : yScan.scan_values;
       const series = [];
 
+      const xCategories = xScan.realtime
+        ? undefined
+        : [...new Set(xScanValues as number[])]
+            .sort((a, b) => a - b)
+            .map((v) => String(v));
+      const yCategories = yScan.realtime
+        ? undefined
+        : [...new Set(yScanValues as number[])]
+            .sort((a, b) => a - b)
+            .map((v) => String(v));
+
       for (const resultChannel of resultChannels) {
         const data: [number | string, number | string, number][] = [];
         if (xScan.realtime) {
           for (let i = 0; i < xScanValues.length; i++) {
             data.push([
               xScanValues[Math.floor(i / yScanValues.length)],
-              yScanValues[i % yScanValues.length],
+              String(yScanValues[i % yScanValues.length]),
               resultChannel.data[i],
             ]);
           }
         } else if (yScan.realtime) {
           for (let i = 0; i < yScanValues.length; i++) {
             data.push([
-              xScanValues[i % xScanValues.length],
+              String(xScanValues[i % xScanValues.length]),
               yScanValues[Math.floor(i / xScanValues.length)],
               resultChannel.data[i],
             ]);
@@ -248,8 +260,8 @@ const ResultChannelPlot = ({
           for (let i = 0; i < xScanValues.length; i++) {
             for (let j = 0; j < yScanValues.length; j++) {
               data.push([
-                xScanValues[i],
-                yScanValues[j],
+                String(xScanValues[i]),
+                String(yScanValues[j]),
                 resultChannel.data[i * yScanValues.length + j],
               ]);
             }
@@ -303,12 +315,29 @@ const ResultChannelPlot = ({
           top: 70,
           containLabel: true,
         },
-        tooltip: {},
+        tooltip: {
+          trigger: "item",
+          formatter: (params: {
+            seriesName?: string;
+            value: [number | string, number | string, number];
+          }) => {
+            const [x, y, value] = params.value;
+            return [
+              params.seriesName ? `<strong>${params.seriesName}</strong>` : "",
+              `${xScan.name}: ${formatAxisLabel(String(x))}`,
+              `${yScan.name}: ${formatAxisLabel(String(y))}`,
+              `value: ${value}`,
+            ]
+              .filter(Boolean)
+              .join("<br/>");
+          },
+        },
         xAxis: {
           name: xScan.name,
           type: "category",
           nameLocation: "middle",
           nameGap: 25,
+          ...(xCategories ? { data: xCategories } : {}),
           ...(xScan.realtime
             ? timeAxisProps(xScanValues as string[])
             : categoryAxisProps),
@@ -318,6 +347,7 @@ const ResultChannelPlot = ({
           type: "category",
           nameLocation: "middle",
           nameGap: 45,
+          ...(yCategories ? { data: yCategories } : {}),
           ...(yScan.realtime
             ? timeAxisProps(yScanValues as string[])
             : categoryAxisProps),
