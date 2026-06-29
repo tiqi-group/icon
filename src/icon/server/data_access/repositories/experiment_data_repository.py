@@ -1,5 +1,6 @@
 import json
 import logging
+import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -819,16 +820,19 @@ def get_result_channels_dataset(
 
 POLL_INTERVAL = 0.05
 
+_HDF5_GLOBAL_LOCK = threading.RLock()
+
 
 @contextmanager
 def h5_open(path: Path, mode: str, **kwargs: Any) -> Iterator[h5py.File]:
-    while True:
-        try:
-            with h5py.File(str(path), mode, **kwargs) as h5file:
-                yield h5file
-            break
-        except (OSError, FileNotFoundError):
-            time.sleep(POLL_INTERVAL)
+    with _HDF5_GLOBAL_LOCK:
+        while True:
+            try:
+                with h5py.File(str(path), mode, **kwargs) as h5file:
+                    yield h5file
+                break
+            except (OSError, FileNotFoundError):
+                time.sleep(POLL_INTERVAL)
 
 
 def _read_fits_from_hdf5(
