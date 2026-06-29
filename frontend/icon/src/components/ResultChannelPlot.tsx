@@ -323,10 +323,18 @@ const ResultChannelPlot = ({
           }) => {
             const [x, y, value] = params.value;
             return [
-              params.seriesName ? `<strong>${params.seriesName}</strong>` : "",
-              `${xScan.name}: ${formatAxisLabel(String(x))}`,
-              `${yScan.name}: ${formatAxisLabel(String(y))}`,
-              `value: ${value}`,
+              xScan.realtime
+                ? formatDateTime(String(x))
+                : yScan.realtime
+                  ? formatDateTime(String(y))
+                  : undefined,
+              xScan.realtime
+                ? undefined
+                : `${xScan.name}: ${formatAxisLabel(String(x))}`,
+              yScan.realtime
+                ? undefined
+                : `${yScan.name}: ${formatAxisLabel(String(y))}`,
+              `${params.seriesName}: <b>${value}</b>`,
             ]
               .filter(Boolean)
               .join("<br/>");
