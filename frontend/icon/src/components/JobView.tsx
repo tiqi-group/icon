@@ -59,6 +59,8 @@ export const JobView = ({
   const [yMin, setYMin] = useState<number | null>(null);
   const [yMax, setYMax] = useState<number | null>(null);
 
+  const hasRepetitions = (jobInfo?.repetitions ?? 0) > 1;
+
   const autoYBounds = useMemo(() => {
     if (!experimentData?.readouts?.result_channels) return { min: 0, max: 0 };
 
@@ -277,14 +279,20 @@ export const JobView = ({
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <Typography variant="body2">Show repetitions</Typography>
                 <Tooltip
-                  title={is1D ? "" : "Repetitions can only be shown for 1D scans"}
-                  disableHoverListener={is1D}
+                  title={
+                    is1D && hasRepetitions
+                      ? ""
+                      : is1D
+                        ? "Scan has no repetitions"
+                        : "Repetitions can only be shown for 1D scans"
+                  }
+                  disableHoverListener={is1D && hasRepetitions}
                 >
                   <span>
                     <Switch
-                      checked={showRepetitions}
+                      checked={is1D && hasRepetitions ? showRepetitions : false}
                       onChange={(_, v) => setShowRepetitions(v)}
-                      disabled={!is1D}
+                      disabled={!(is1D && hasRepetitions)}
                     />
                   </span>
                 </Tooltip>
