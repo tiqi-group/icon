@@ -4,8 +4,14 @@ import logging
 import sys
 from typing import TYPE_CHECKING, Any, Literal
 
+import influxdb_client
+from influxdb_client.client.write_api import SYNCHRONOUS
+
 from icon.config.config import get_config
-from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType, escape_quotes
+from icon.server.data_access.db_context.influxdb_v1 import (
+    DatabaseValueType,
+    escape_quotes,
+)
 
 if TYPE_CHECKING:
     from types import TracebackType
@@ -20,8 +26,6 @@ logger = logging.getLogger(__name__)
 
 def is_responsive() -> bool:
     try:
-        import influxdb_client
-
         config = get_config().databases.influxdbv2
         with influxdb_client.InfluxDBClient(
             url=config.url,
@@ -64,9 +68,6 @@ class InfluxDBv2Session:
 
     def connect(self) -> None:
         """Open a connection and initialise write/query APIs."""
-        import influxdb_client
-        from influxdb_client.client.write_api import SYNCHRONOUS
-
         self._client = influxdb_client.InfluxDBClient(
             url=self._config.url,
             token=self._config.token,
@@ -84,10 +85,10 @@ class InfluxDBv2Session:
         self,
         points: list[dict[str, Any]],
         time_precision: Literal["s", "m", "ms", "u"] | None = None,
-        database: str | None = None,
+        _database: str | None = None,
         tags: dict[str, str] | None = None,
-        batch_size: int | None = None,
-        consistency: Literal["any", "one", "quorum", "all"] | None = None,
+        _batch_size: int | None = None,
+        _consistency: Literal["any", "one", "quorum", "all"] | None = None,
     ) -> bool:
         """Write points to the configured bucket.
 
@@ -96,8 +97,6 @@ class InfluxDBv2Session:
         Parameters that are specific to v1 (database, batch_size, consistency)
         are accepted for interface compatibility but ignored.
         """
-        import influxdb_client
-
         _precision_map: dict[str | None, str | None] = {
             "s": "s",
             "m": "ms",
