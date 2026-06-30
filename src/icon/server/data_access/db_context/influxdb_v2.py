@@ -131,10 +131,10 @@ class InfluxDBv2Session:
         """Return the most recent value of *field* from *measurement*."""
         flux = (
             f'from(bucket: "{escape_quotes(self.bucket)}")\n'
-            f'  |> range(start: 0)\n'
+            f"  |> range(start: 0)\n"
             f'  |> filter(fn: (r) => r._measurement == "{escape_quotes(measurement)}")\n'
             f'  |> filter(fn: (r) => r._field == "{escape_quotes(field)}")\n'
-            f'  |> last()'
+            f"  |> last()"
         )
         try:
             tables = self._query_api.query(flux, org=self.org)
@@ -160,10 +160,10 @@ class InfluxDBv2Session:
         )
         flux = (
             f'from(bucket: "{escape_quotes(self.bucket)}")\n'
-            f'  |> range(start: 0{stop_clause})\n'
+            f"  |> range(start: 0{stop_clause})\n"
             f'  |> filter(fn: (r) => r._measurement == "{escape_quotes(measurement)}")\n'
-            f'{namespace_filter}'
-            f'  |> last()'
+            f"{namespace_filter}"
+            f"  |> last()"
         )
         try:
             tables = self._query_api.query(flux, org=self.org)
@@ -181,17 +181,15 @@ class InfluxDBv2Session:
         """Return all field names present in *measurement*."""
         flux = (
             f'import "influxdata/influxdb/schema"\n'
-            f'schema.measurementFieldKeys(\n'
+            f"schema.measurementFieldKeys(\n"
             f'  bucket: "{escape_quotes(self.bucket)}",\n'
             f'  measurement: "{escape_quotes(measurement)}"\n'
-            f')'
+            f")"
         )
         try:
             tables = self._query_api.query(flux, org=self.org)
             return [
-                str(record.get_value())
-                for table in tables
-                for record in table.records
+                str(record.get_value()) for table in tables for record in table.records
             ]
         except Exception:
             logger.exception(

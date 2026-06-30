@@ -164,9 +164,7 @@ class ParametersRepository:
     def get_influxdb_parameter_keys() -> list[str]:
         """Return all parameter field keys from InfluxDB v1."""
         with get_influxdb_session() as influxdbv1:
-            return influxdbv1.get_field_keys(
-                get_influxdb_measurement()
-            )
+            return influxdbv1.get_field_keys(get_influxdb_measurement())
 
     @staticmethod
     def get_influxdb_parameters(
