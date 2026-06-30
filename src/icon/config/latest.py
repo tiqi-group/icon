@@ -36,7 +36,7 @@ class InfluxDBv1Config(BaseModel):
 
 class InfluxDBv2Config(BaseModel):
     url: str = "http://localhost:8086"
-    token: str = ""  # noqa: S105
+    token: str = ""
     org: str = ""
     bucket: str = "testing"
     measurement: str = "Experiment Parameters"
