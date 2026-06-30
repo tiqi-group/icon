@@ -102,70 +102,141 @@ export const SettingsPage = () => {
         />
       </TabPanel>
       <TabPanel value={tab} index={2}>
-        <Typography variant="h6">InfluxDBv1</Typography>
-        <EditableSettingField
-          configKey="databases.influxdbv1.host"
-          label="Host"
-          value={config.databases.influxdbv1.host}
-          description="Hostname or IP address of the InfluxDB v1 instance."
-        />
-        <EditableSettingField
-          configKey="databases.influxdbv1.port"
-          label="Port"
-          value={config.databases.influxdbv1.port}
-          description="Port number for the InfluxDB v1 instance."
-        />
-        <EditableSettingField
-          configKey="databases.influxdbv1.username"
-          label="Username"
-          value={config.databases.influxdbv1.username}
-          description="Username for authenticating with InfluxDB v1."
-        />
-        <EditableSettingField
-          configKey="databases.influxdbv1.password"
-          label="Password"
-          value={config.databases.influxdbv1.password}
-          description="Password for the specified InfluxDB user. For InfluxDB v2, use the API token here."
-        />
-        <EditableSettingField
-          configKey="databases.influxdbv1.database"
-          label="Database"
-          value={config.databases.influxdbv1.database}
-          description="Name of the InfluxDB v1 database to use."
-        />
+        <Typography variant="h6">Backend</Typography>
         <BaseButton
-          label="SSL"
-          description="Enable SSL for secure connection to InfluxDB."
-          color={config.databases.influxdbv1.ssl === true ? "success" : "inherit"}
+          label="Backend"
+          description="Select which InfluxDB backend to use."
+          color="inherit"
           onClick={() =>
             updateConfiguration(
-              "databases.influxdbv1.ssl",
-              !config.databases.influxdbv1.ssl,
+              "databases.backend",
+              config.databases.backend === "influxdbv1" ? "influxdbv2" : "influxdbv1",
             )
           }
         >
-          {config.databases.influxdbv1.ssl == true ? "True" : "False"}
+          {config.databases.backend === "influxdbv2" ? "InfluxDB v2" : "InfluxDB v1"}
         </BaseButton>
-        <BaseButton
-          label="Verify SSL"
-          description="Verify SSL certificates when connecting to InfluxDB."
-          color={
-            config.databases.influxdbv1.verify_ssl === true ? "success" : "inherit"
-          }
-          onClick={() =>
-            updateConfiguration(
-              "databases.influxdbv1.verify_ssl",
-              !config.databases.influxdbv1.verify_ssl,
-            )
-          }
-        >
-          {config.databases.influxdbv1.verify_ssl == true ? "True" : "False"}
-        </BaseButton>
-        <EditableDictField
-          configKey="databases.influxdbv1.headers"
-          label="Headers"
-          value={config.databases.influxdbv1.headers}
-        />
+
+        {config.databases.backend === "influxdbv2" ? (
+          <>
+            <Typography variant="h6" sx={{ mt: 2 }}>InfluxDB v2</Typography>
+            <EditableSettingField
+              configKey="databases.influxdbv2.url"
+              label="URL"
+              value={config.databases.influxdbv2.url}
+              description="URL of the InfluxDB v2 instance (e.g. http://localhost:8086)."
+            />
+            <EditableSettingField
+              configKey="databases.influxdbv2.token"
+              label="Token"
+              value={config.databases.influxdbv2.token}
+              description="API token for authenticating with InfluxDB v2."
+            />
+            <EditableSettingField
+              configKey="databases.influxdbv2.org"
+              label="Organization"
+              value={config.databases.influxdbv2.org}
+              description="Organization name in InfluxDB v2."
+            />
+            <EditableSettingField
+              configKey="databases.influxdbv2.bucket"
+              label="Bucket"
+              value={config.databases.influxdbv2.bucket}
+              description="Bucket to read from and write to."
+            />
+            <EditableSettingField
+              configKey="databases.influxdbv2.measurement"
+              label="Measurement"
+              value={config.databases.influxdbv2.measurement}
+              description="Measurement name used for experiment parameters."
+            />
+            <BaseButton
+              label="Verify SSL"
+              description="Verify SSL certificates when connecting to InfluxDB v2."
+              color={config.databases.influxdbv2.verify_ssl === true ? "success" : "inherit"}
+              onClick={() =>
+                updateConfiguration(
+                  "databases.influxdbv2.verify_ssl",
+                  !config.databases.influxdbv2.verify_ssl,
+                )
+              }
+            >
+              {config.databases.influxdbv2.verify_ssl ? "True" : "False"}
+            </BaseButton>
+          </>
+        ) : (
+          <>
+            <Typography variant="h6" sx={{ mt: 2 }}>InfluxDB v1</Typography>
+            <EditableSettingField
+              configKey="databases.influxdbv1.host"
+              label="Host"
+              value={config.databases.influxdbv1.host}
+              description="Hostname or IP address of the InfluxDB v1 instance."
+            />
+            <EditableSettingField
+              configKey="databases.influxdbv1.port"
+              label="Port"
+              value={config.databases.influxdbv1.port}
+              description="Port number for the InfluxDB v1 instance."
+            />
+            <EditableSettingField
+              configKey="databases.influxdbv1.username"
+              label="Username"
+              value={config.databases.influxdbv1.username}
+              description="Username for authenticating with InfluxDB v1."
+            />
+            <EditableSettingField
+              configKey="databases.influxdbv1.password"
+              label="Password"
+              value={config.databases.influxdbv1.password}
+              description="Password for authenticating with InfluxDB v1."
+            />
+            <EditableSettingField
+              configKey="databases.influxdbv1.database"
+              label="Database"
+              value={config.databases.influxdbv1.database}
+              description="Name of the InfluxDB v1 database to use."
+            />
+            <EditableSettingField
+              configKey="databases.influxdbv1.measurement"
+              label="Measurement"
+              value={config.databases.influxdbv1.measurement}
+              description="Measurement name used for experiment parameters."
+            />
+            <BaseButton
+              label="SSL"
+              description="Enable SSL for secure connection to InfluxDB v1."
+              color={config.databases.influxdbv1.ssl === true ? "success" : "inherit"}
+              onClick={() =>
+                updateConfiguration(
+                  "databases.influxdbv1.ssl",
+                  !config.databases.influxdbv1.ssl,
+                )
+              }
+            >
+              {config.databases.influxdbv1.ssl ? "True" : "False"}
+            </BaseButton>
+            <BaseButton
+              label="Verify SSL"
+              description="Verify SSL certificates when connecting to InfluxDB v1."
+              color={config.databases.influxdbv1.verify_ssl === true ? "success" : "inherit"}
+              onClick={() =>
+                updateConfiguration(
+                  "databases.influxdbv1.verify_ssl",
+                  !config.databases.influxdbv1.verify_ssl,
+                )
+              }
+            >
+              {config.databases.influxdbv1.verify_ssl ? "True" : "False"}
+            </BaseButton>
+            <EditableDictField
+              configKey="databases.influxdbv1.headers"
+              label="Headers"
+              value={config.databases.influxdbv1.headers}
+            />
+          </>
+        )}
+
         <br />
         <Typography variant="h6">SQLite</Typography>
         <EditableSettingField

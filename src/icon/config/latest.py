@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from confz import BaseConfig
 from pydantic import BaseModel
@@ -34,12 +34,23 @@ class InfluxDBv1Config(BaseModel):
     headers: dict[str, str] = {}
 
 
+class InfluxDBv2Config(BaseModel):
+    url: str = "http://localhost:8086"
+    token: str = ""  # noqa: S105
+    org: str = ""
+    bucket: str = "testing"
+    measurement: str = "Experiment Parameters"
+    verify_ssl: bool = True
+
+
 class SQLiteConfig(BaseModel):
     file: str = str(Path.cwd() / "icon.db")
 
 
 class DatabaseConfig(BaseModel):
+    backend: Literal["influxdbv1", "influxdbv2"] = "influxdbv1"
     influxdbv1: InfluxDBv1Config = InfluxDBv1Config()
+    influxdbv2: InfluxDBv2Config = InfluxDBv2Config()
     sqlite: SQLiteConfig = SQLiteConfig()
 
 

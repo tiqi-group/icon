@@ -17,13 +17,13 @@ export const InfluxDBStatusCard = ({
     return <Typography variant="h6">InfluxDB</Typography>;
   }
 
-  const { host, port, database } = configuration.databases.influxdbv1;
+  const isV2 = configuration.databases.backend === "influxdbv2";
 
   return (
     <Stack spacing={1}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <ReachabilityIndicator enabled reachable={influxReachable} />
-        <Typography variant="h6">InfluxDB</Typography>
+        <Typography variant="h6">InfluxDB {isV2 ? "v2" : "v1"}</Typography>
         <IconButton
           component={RouterLink}
           to="/settings?tab=databases"
@@ -35,9 +35,19 @@ export const InfluxDBStatusCard = ({
           <EditIcon fontSize="small" />
         </IconButton>
       </div>
-      <Typography variant="body2">Host: {host}</Typography>
-      <Typography variant="body2">Port: {port}</Typography>
-      <Typography variant="body2">Database: {database}</Typography>
+      {isV2 ? (
+        <>
+          <Typography variant="body2">URL: {configuration.databases.influxdbv2.url}</Typography>
+          <Typography variant="body2">Org: {configuration.databases.influxdbv2.org}</Typography>
+          <Typography variant="body2">Bucket: {configuration.databases.influxdbv2.bucket}</Typography>
+        </>
+      ) : (
+        <>
+          <Typography variant="body2">Host: {configuration.databases.influxdbv1.host}</Typography>
+          <Typography variant="body2">Port: {configuration.databases.influxdbv1.port}</Typography>
+          <Typography variant="body2">Database: {configuration.databases.influxdbv1.database}</Typography>
+        </>
+      )}
     </Stack>
   );
 };
