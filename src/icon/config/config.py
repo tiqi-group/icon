@@ -9,6 +9,7 @@ from icon.config import latest, v1
 from icon.config.migrations import migration_by_version
 
 _ENV_KEY = "ICON_CONFIG"
+_LOCAL_CONFIG_PATH_FILE = Path(__file__).parents[3] / "config_path.local"
 
 logger = logging.getLogger("config")
 
@@ -40,7 +41,8 @@ def get_config() -> latest.ServiceConfig:
     schema = VERSIONS.get(config_version)
     if schema is None:
         raise RuntimeError("Unsupported configuration version: {config_version}")
-    config = schema(config_sources=FileSource(source))
+
+    config = schema(config_sources=[FileSource(source)])
     original_config_version = config.version
     while config.version < latest.__version__:
         config = migration_by_version[config.version](config)
@@ -79,7 +81,9 @@ def set_config_path(p: Path) -> None:
 
 
 def get_config_path() -> Path:
-    """Read from env, else default."""
+    """Read from env, local pointer file, or default."""
     if env := os.environ.get(_ENV_KEY):
         return _normalize(env)
+    if _LOCAL_CONFIG_PATH_FILE.is_file():
+        return _normalize(_LOCAL_CONFIG_PATH_FILE.read_text().strip())
     return _normalize(Path.home() / ".config/icon/config.yaml")

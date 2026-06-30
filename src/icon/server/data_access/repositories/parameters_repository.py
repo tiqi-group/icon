@@ -4,15 +4,16 @@ import logging
 import re
 from typing import TYPE_CHECKING, Any
 
-from icon.config.config import get_config
-from icon.server.data_access.db_context.influxdb_v1 import (
-    DatabaseValueType,
-    InfluxDBv1Session,
+from icon.server.data_access.db_context import (
+    get_influxdb_measurement,
+    get_influxdb_session,
 )
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 if TYPE_CHECKING:
     from multiprocessing.managers import DictProxy
+
+    from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
 
 logger = logging.getLogger(__name__)
 
@@ -162,10 +163,8 @@ class ParametersRepository:
     @staticmethod
     def get_influxdb_parameter_keys() -> list[str]:
         """Return all parameter field keys from InfluxDB v1."""
-        with InfluxDBv1Session() as influxdbv1:
-            return influxdbv1.get_field_keys(
-                get_config().databases.influxdbv1.measurement
-            )
+        with get_influxdb_session() as influxdbv1:
+            return influxdbv1.get_field_keys(get_influxdb_measurement())
 
     @staticmethod
     def get_influxdb_parameters(
@@ -180,9 +179,9 @@ class ParametersRepository:
         Returns:
             Mapping of parameter IDs to values.
         """
-        with InfluxDBv1Session() as influxdbv1:
+        with get_influxdb_session() as influxdbv1:
             return influxdbv1.query_last(
-                get_config().databases.influxdbv1.measurement,
+                get_influxdb_measurement(),
                 before=before,
                 namespace=namespace,
             )
@@ -197,16 +196,16 @@ class ParametersRepository:
         Returns:
             The parameter value, or None if not found.
         """
-        with InfluxDBv1Session() as influxdb:
+        with get_influxdb_session() as influxdb:
             result_dict = influxdb.query(
-                measurement=get_config().databases.influxdbv1.measurement,
+                measurement=get_influxdb_measurement(),
                 field=parameter_id,
             )
             if result_dict is None:
                 logger.error(
                     "Could not find parameter with id %s in database %s",
                     parameter_id,
-                    get_config().databases.influxdbv1.measurement,
+                    get_influxdb_measurement(),
                 )
                 return None
             return result_dict[parameter_id]
@@ -225,11 +224,11 @@ class ParametersRepository:
         for parameter_id, value in parameter_mapping.items():
             records.append(
                 {
-                    "measurement": get_config().databases.influxdbv1.measurement,
+                    "measurement": get_influxdb_measurement(),
                     "tags": get_specifiers_from_parameter_identifier(parameter_id),
                     "fields": {parameter_id: value},
                 }
             )
 
-        with InfluxDBv1Session() as influxdb:
+        with get_influxdb_session() as influxdb:
             influxdb.write_points(points=records)

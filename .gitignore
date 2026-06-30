@@ -3,6 +3,10 @@ output/
 poetry.lock
 .python-version
 
+# Local config overrides (user-specific, not shared)
+*.local.yaml
+config_path.local
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -4,14 +4,24 @@ export interface Configuration {
     timezone: string;
   };
   databases: {
+    backend: "influxdbv1" | "influxdbv2";
     influxdbv1: {
       database: string;
       headers: Record<string, string>;
       host: string;
+      measurement: string;
       password: string;
       port: number;
       ssl: boolean;
       username: string;
+      verify_ssl: boolean;
+    };
+    influxdbv2: {
+      url: string;
+      token: string;
+      org: string;
+      bucket: string;
+      measurement: string;
       verify_ssl: boolean;
     };
     sqlite: {

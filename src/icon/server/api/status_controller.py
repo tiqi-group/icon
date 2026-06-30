@@ -4,7 +4,7 @@ import pydase
 from pydase.task.decorator import task
 
 from icon.config.config import get_config
-from icon.server.data_access.db_context import influxdb_v1
+from icon.server.data_access.db_context import is_responsive as influxdb_is_responsive
 from icon.server.hardware_processing.hardware_controller import HardwareController
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
@@ -41,7 +41,7 @@ class StatusController(pydase.DataService):
 
         Emits a `"status.influxdb"` event to the Socket.IO queue.
         """
-        status = influxdb_v1.is_responsive()
+        status = influxdb_is_responsive()
 
         self._influxdb_available = status
         emit_queue.put({"event": "status.influxdb", "data": status})
