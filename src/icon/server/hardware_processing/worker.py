@@ -64,6 +64,22 @@ def parse_parameter_id(param_id: str) -> tuple[str | None, str]:
     return None, param_id
 
 
+def should_divert_task(
+    task: HardwareProcessingTask,
+    parameter_update_timestamp: datetime,
+    job_run_status: JobRunStatus,
+) -> bool:
+    """Whether the hardware worker should divert a task back to pre-processing.
+
+    A task is diverted when its job is paused, or when its parameters went stale
+    (it was built before the last parameter update).
+    """
+    return (
+        task.created < parameter_update_timestamp
+        or job_run_status == JobRunStatus.PAUSED
+    )
+
+
 class HardwareProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
@@ -169,10 +185,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
             job_run_status = JobRunRepository.get_run_by_job_id(
                 job_id=task.pre_processing_task.job.id,
             ).status
-            if (
-                task.created < parameter_update_timestamp
-                or job_run_status == JobRunStatus.PAUSED
-            ):
+            if should_divert_task(task, parameter_update_timestamp, job_run_status):
                 task.outdated_tasks.put(task)
                 continue
             try:
