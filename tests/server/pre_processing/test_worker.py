@@ -3,8 +3,6 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.hardware_processing.worker import should_divert_task
 from icon.server.pre_processing.worker import PreProcessingWorker
@@ -30,9 +28,11 @@ class _FakeTask:
         sequence_json: str = "ORIGINAL",
         *,
         realtime: bool = False,
+        data_point_index: int = 0,
     ) -> None:
         self.created = created
         self.priority = 0
+        self.data_point_index = data_point_index
         self.scanned_params: dict = {}
         self.sequence_json = sequence_json
         self.pre_processing_task = SimpleNamespace(
@@ -51,6 +51,7 @@ def _make_worker() -> tuple[PreProcessingWorker, list[_FakeTask]]:
     worker._parameter_dict = {}
     worker._outdated_tasks = queue.PriorityQueue()
     worker._processed_data_points = queue.Queue()
+    worker._data_points_to_process = queue.Queue()
     submitted: list[_FakeTask] = []
     worker._submit_task_to_hw_worker = lambda *, task: submitted.append(task)
     return worker, submitted
@@ -121,17 +122,24 @@ def test_regenerate_stops_when_paused() -> None:
     assert worker._outdated_tasks.qsize() == NUM_TASKS
 
 
-def test_regenerate_does_not_regenerate_realtime_tasks() -> None:
-    """Realtime tasks keep their last-generated sequence, never the generic regen."""
+def test_regenerate_requeues_stale_realtime_tasks() -> None:
+    """A stale realtime task is handed back to the realtime scan loop as a data point.
+
+    It must not be regenerated here (that is the realtime handler's job) nor resubmitted
+    as-is (the hardware worker would divert it as stale again, looping forever).
+    """
     worker, submitted = _make_worker()
-    stale = _FakeTask(created=PARAM_UPDATE_TS - timedelta(seconds=10))
+    stale = _FakeTask(
+        created=PARAM_UPDATE_TS - timedelta(seconds=10), data_point_index=7
+    )
+    stale.scanned_params = {"freq": 1.0}
     worker._outdated_tasks.put(stale)
 
     generate = _run_regenerate(worker, JobRunStatus.PROCESSING, realtime=True)
 
     assert generate.call_count == 0
-    assert submitted == [stale]
-    assert stale.sequence_json == "ORIGINAL"
+    assert submitted == []
+    assert worker._data_points_to_process.get_nowait() == (7, {"freq": 1.0})
 
 
 def test_regenerate_drops_cancelled_tasks() -> None:
@@ -162,11 +170,6 @@ def test_regenerate_uses_updated_parameters_after_pause() -> None:
     assert generate.call_args.kwargs["parameter_dict"]["freq"] == UPDATED_FREQ
 
 
-@pytest.mark.xfail(
-    reason="On resume after a parameter update, the consumer resubmits the stale "
-    "realtime task and the hardware worker re-diverts it, looping forever.",
-    strict=True,
-)
 def test_no_tight_loop_on_realtime_resume() -> None:
     """The consumer<->hardware-worker round-trip must terminate for a realtime scan.
 

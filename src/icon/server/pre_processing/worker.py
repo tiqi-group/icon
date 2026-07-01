@@ -504,10 +504,6 @@ class PreProcessingWorker(multiprocessing.Process):
         pre_processing_task: PreProcessingTask,
         namespace: ExperimentIdentifier,
     ) -> None:
-        # Realtime scans manage their own sequence (re)generation in
-        # _handle_realtime_scan (keyed on the global parameter timestamp). Their tasks
-        # must never be regenerated through this generic staleness path; they already
-        # carry the last-generated sequence, so they are resubmitted as-is.
         is_realtime = contains_realtime_parameter(
             pre_processing_task.job.scan_parameters
         )
@@ -532,11 +528,21 @@ class PreProcessingWorker(multiprocessing.Process):
             # Only stale tasks (parameters changed since the task was built) need a
             # fresh sequence. Pause-diverted tasks keep their valid sequence as-is.
             parameter_update_timestamp = job_run.parameter_update_timestamp
-            if (
-                not is_realtime
-                and parameter_update_timestamp is not None
+            is_stale = (
+                parameter_update_timestamp is not None
                 and task.created < parameter_update_timestamp.replace(tzinfo=UTC)
-            ):
+            )
+            if is_stale and is_realtime:
+                # A realtime task can't be regenerated here; its sequence is owned by
+                # _handle_realtime_scan (keyed on the global parameter timestamp).
+                # Resubmitting it as-is would get it diverted as stale again, looping
+                # forever. Hand its data point back to _handle_realtime_scan instead,
+                # which rebuilds the task from the updated parameters.
+                self._data_points_to_process.put(
+                    (task.data_point_index, task.scanned_params)
+                )
+                continue
+            if is_stale:
                 task.sequence_json = generate_sequence_json(
                     client,
                     n_shots=task.pre_processing_task.job.number_of_shots,
