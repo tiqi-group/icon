@@ -3,8 +3,6 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.hardware_processing.worker import should_divert_task
 from icon.server.pre_processing.worker import PreProcessingWorker
@@ -35,11 +33,15 @@ class _FakeTask:
         self.priority = 0
         self.scanned_params: dict = {}
         self.sequence_json = sequence_json
+        # Mirror PreProcessingTask, which exposes scan_parameters both as its own field
+        # and via .job (the scheduler sets the field to job.scan_parameters).
+        scan_parameters = _scan_parameters(realtime=realtime)
         self.pre_processing_task = SimpleNamespace(
+            scan_parameters=scan_parameters,
             job=SimpleNamespace(
                 number_of_shots=100,
-                scan_parameters=_scan_parameters(realtime=realtime),
-            )
+                scan_parameters=scan_parameters,
+            ),
         )
 
     def __lt__(self, other: "_FakeTask") -> bool:
@@ -162,11 +164,6 @@ def test_regenerate_uses_updated_parameters_after_pause() -> None:
     assert generate.call_args.kwargs["parameter_dict"]["freq"] == UPDATED_FREQ
 
 
-@pytest.mark.xfail(
-    reason="On resume after a parameter update, the consumer resubmits the stale "
-    "realtime task and the hardware worker re-diverts it, looping forever.",
-    strict=True,
-)
 def test_no_tight_loop_on_realtime_resume() -> None:
     """The consumer<->hardware-worker round-trip must terminate for a realtime scan.
 

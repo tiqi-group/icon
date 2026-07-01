@@ -13,6 +13,9 @@ import socketio.exceptions
 
 from icon.config.config import get_config
 from icon.server.data_access.models.enums import DeviceStatus, JobRunStatus
+from icon.server.data_access.models.sqlite.scan_parameter import (
+    contains_realtime_parameter,
+)
 from icon.server.data_access.repositories.device_repository import DeviceRepository
 from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
@@ -71,13 +74,16 @@ def should_divert_task(
 ) -> bool:
     """Whether the hardware worker should divert a task back to pre-processing.
 
-    A task is diverted when its job is paused, or when its parameters went stale
-    (it was built before the last parameter update).
+    A paused job always diverts. Otherwise a task is diverted when its parameters
+    went stale (it was built before the last parameter update) -- except for realtime
+    scans, whose sequences the realtime handler regenerates in place, so diverting a
+    stale realtime task would just bounce it back and forth in a tight loop.
     """
-    return (
-        task.created < parameter_update_timestamp
-        or job_run_status == JobRunStatus.PAUSED
-    )
+    if job_run_status == JobRunStatus.PAUSED:
+        return True
+    if contains_realtime_parameter(task.pre_processing_task.scan_parameters):
+        return False
+    return task.created < parameter_update_timestamp
 
 
 class HardwareProcessingWorker(multiprocessing.Process):
