@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import influxdb
 import requests
@@ -11,6 +11,8 @@ from icon.config.config import get_config
 
 if TYPE_CHECKING:
     from types import TracebackType
+
+    from influxdb.resultset import ResultSet
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
@@ -24,8 +26,13 @@ DatabaseValueType = bool | float | int | str
 
 
 def escape_quotes(value: str) -> str:
-    """Escape double quotes and single quotes with backslashes."""
+    """Escape backslashes and double quotes for use in a double-quoted identifier."""
     return value.replace("\\", "\\\\").replace('"', r"\"")
+
+
+def escape_tag_value(value: str) -> str:
+    """Escape backslashes and single quotes for use in a single-quoted literal."""
+    return value.replace("\\", "\\\\").replace("'", r"\'")
 
 
 def is_responsive() -> bool:
@@ -122,7 +129,7 @@ class InfluxDBv1Session:
     def write_points(
         self,
         points: list[dict[str, Any]],
-        time_precision: Literal["s", "m", "ms", "u"] | None = None,
+        time_precision: Literal["s", "m", "ms", "u", "n"] | None = None,
         database: str | None = None,
         tags: dict[str, str] | None = None,
         batch_size: int | None = None,
@@ -134,7 +141,7 @@ class InfluxDBv1Session:
             points:
                 The list of points to be written in the database.
             time_precision:
-                Either 's', 'm', 'ms' or 'u', defaults to None.
+                Either 's', 'm', 'ms', 'u' or 'n', defaults to None.
             database:
                 The database to write the points to. Defaults to the client's current
                 database.
@@ -180,68 +187,32 @@ class InfluxDBv1Session:
             consistency=consistency,
         )
 
-    def query(
-        self,
-        measurement: str,
-        field: str,
-    ) -> dict[str, DatabaseValueType] | None:
-        """Query the most recent value of a specific field from a given measurement.
+    def query(self, stmt: str, epoch: str | None = None) -> ResultSet:
+        """Run a raw InfluxQL query and return its result set.
+
+        This is a thin, schema-agnostic passthrough. Callers use ``.get_points()`` for a
+        flat point iterator or ``.items()`` for series grouped by their tags. Schema-aware
+        statement construction lives in the parameter repository, not here.
 
         Args:
-            measurement: Name of the measurement to query.
-            field: Name of the field to retrieve.
+            stmt: The InfluxQL statement to execute.
+            epoch: Optional time precision for returned timestamps (e.g. ``"ns"``).
 
         Returns:
-            A dictionary containing the latest field value.
+            The InfluxDB result set.
         """
-        stmt = (
-            f'SELECT "{escape_quotes(field)}" FROM '
-            f'"{escape_quotes(measurement)!s}" ORDER BY time DESC LIMIT 1'
-        )
-        try:
-            return next(self._client.query(stmt).get_points())  # type: ignore
-        except StopIteration:
-            return None
-
-    def query_last(
-        self,
-        measurement: str,
-        namespace: str | None = None,
-        before: str | None = None,
-    ) -> dict[str, DatabaseValueType]:
-        """Query the most recent non-null values of all fields from a given measurement.
-
-        Args:
-            measurement: Name of the measurement to query.
-            namespace: Optional tag filter.
-            before: Optional upper bound on the time.
-
-        Returns:
-            Dictionary of field names to their latest values.
-        """
-        clauses = []
-        if namespace is not None:
-            clauses.append(f"\"namespace\" = '{escape_quotes(namespace)}'")
-        if before is not None:
-            clauses.append(f"time <= '{before}'")
-
-        where_clause = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-        stmt = (
-            f'SELECT last(*::field) FROM "{escape_quotes(measurement)}"{where_clause}'
-        )
-
-        try:
-            return {
-                key[5:]: value  # removes "last_" from the beginning of each key
-                for key, value in next(self._client.query(stmt).get_points()).items()  # type: ignore
-                if key != "time"  # exclude "time" key which is meaningless
-                and value is not None
-            }
-        except StopIteration:
-            return {}
+        # Non-chunked queries always return a single ResultSet (never a generator).
+        return cast("ResultSet", self._client.query(stmt, epoch=epoch))
 
     def get_field_keys(self, measurement: str) -> list[str]:
-        """Return list of field names from a measurement."""
+        """Return all field keys of a measurement."""
         stmt = f'SHOW FIELD KEYS FROM "{escape_quotes(measurement)}"'
-        result = list(self._client.query(stmt).get_points())  # type: ignore
-        return [row["fieldKey"] for row in result]
+        return [row["fieldKey"] for row in self.query(stmt).get_points()]
+
+    def get_databases(self) -> list[str]:
+        """Return the names of all databases on the server."""
+        return [db["name"] for db in self._client.get_list_database()]
+
+    def get_measurements(self) -> list[str]:
+        """Return the measurement names in the current database."""
+        return [m["name"] for m in self._client.get_list_measurements()]
