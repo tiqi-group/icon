@@ -30,7 +30,9 @@ logger = logging.getLogger(__name__)
 class NotInitialisedError(Exception):
     """Raised when repository methods are called before initialization."""
 
+
 _SPECIFIER_KEY_ORDER = ("namespace", "parameter_group", "param_type")
+
 
 def get_specifiers_from_parameter_identifier(
     parameter_identifier: str,
@@ -50,6 +52,7 @@ def get_specifiers_from_parameter_identifier(
     matches = pattern.findall(parameter_identifier)
 
     return dict(matches)
+
 
 def build_parameter_identifier_from_specifiers(specifiers: dict[str, str]) -> str:
     """Reconstruct a parameter identifier string from its specifiers.
@@ -140,6 +143,7 @@ def value_from_point(point: dict[str, Any]) -> DatabaseValueType | None:
             return value
     return None
 
+
 class ParameterBackendV2(InfluxDBParameterBackendABC):
     """v2 schema: one ``value_*`` field per DatabaseValueType with specifiers as tags.
 
@@ -148,7 +152,9 @@ class ParameterBackendV2(InfluxDBParameterBackendABC):
     the tag set is mapped back to a parameter identifier.
     """
 
-    _SELECT_LAST = ", ".join(f'last("{field}") AS "{field}"' for field in FIELD_KEY_NAMES)
+    _SELECT_LAST = ", ".join(
+        f'last("{field}") AS "{field}"' for field in FIELD_KEY_NAMES
+    )
 
     @property
     def measurement(self) -> str:
@@ -194,7 +200,9 @@ class ParameterBackendV2(InfluxDBParameterBackendABC):
             f'FROM "{escape_quotes(self.measurement)}"{where}'
         )
         with InfluxDBv1Session() as session:
-            point: dict[str, DatabaseValueType] = next(session.query(stmt).get_points(), {})
+            point: dict[str, DatabaseValueType] = next(
+                session.query(stmt).get_points(), {}
+            )
         return value_from_point(point)
 
     def _fields_for(
@@ -226,12 +234,15 @@ class ParameterBackendV1(InfluxDBParameterBackendABC):
             f"{_where_clause(namespace, before)}"
         )
         with InfluxDBv1Session() as session:
-            row : dict[str, DatabaseValueType] = next(session.query(stmt).get_points(), {})
+            row: dict[str, DatabaseValueType] = next(
+                session.query(stmt).get_points(), {}
+            )
 
         return {
             key[5:]: value  # removes "last_" from the beginning of each key
             for key, value in row.items()
-            if key != "time" and value is not None # exclude "time" key which is meaningless
+            if key != "time"
+            and value is not None  # exclude "time" key which is meaningless
         }
 
     def get_influxdb_parameter_keys(self) -> list[str]:

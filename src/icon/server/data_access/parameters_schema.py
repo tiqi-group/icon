@@ -25,12 +25,14 @@ _IDENTIFIER_MARKER = "namespace='"
 # Since V2, we prefix the configured measurement name
 V2_MEASUREMENT_PREFIX = "icon|v2|"
 
+
 # Field keys which hold the values inside influxdb. One per data type.
 class FieldKey(str, Enum):
     FLOAT = "value_float"
     INT = "value_int"
     STR = "value_str"
     BOOL = "value_bool"
+
 
 FIELD_KEY_NAMES = tuple(field.value for field in FieldKey)
 
