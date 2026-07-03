@@ -57,7 +57,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Any
 
 import click
 from tqdm import tqdm
@@ -65,6 +65,7 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 
 from icon.config.config import get_config, set_config_path
 from icon.server.data_access.db_context.influxdb_v1 import (
+    DatabaseValueType,
     InfluxDBv1Session,
     escape_quotes,
 )
@@ -81,18 +82,18 @@ from icon.server.data_access.repositories.parameters_repository import (
     value_from_point,
 )
 
-if TYPE_CHECKING:
-    from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
-
 logger = logging.getLogger("migrate_influxdb_schema")
 
 # A legacy parameter field key always contains the namespace specifier.
 _IDENTIFIER_MARKER = "namespace='"
 
+ParameterValue = tuple[
+    DatabaseValueType, int, dict[str, str]
+]  # value, timestamp_ns, tags
+ParameterMapping = dict[str, ParameterValue]  # measurement, (value, timestamp_ns, tags)
 
-def legacy_parameter_fields(
-    session: InfluxDBv1Session, measurement: str
-) -> list[str]:
+
+def legacy_parameter_fields(session: InfluxDBv1Session, measurement: str) -> list[str]:
     """Return the legacy field keys that look like parameter identifiers."""
     return [
         key
@@ -103,38 +104,78 @@ def legacy_parameter_fields(
 
 def read_latest_point(
     session: InfluxDBv1Session, measurement: str, field_key: str
-) -> tuple[DatabaseValueType, int] | None:
-    """Return the ``(value, timestamp_ns)`` of a legacy parameter's most recent point."""
+) -> ParameterValue | None:
+    """Return the ``(value, timestamp_ns, tags)`` of a legacy parameter's most recent point."""
     stmt = (
-        f'SELECT "{escape_quotes(field_key)}" AS value '
-        f'FROM "{escape_quotes(measurement)}" ORDER BY time DESC LIMIT 1'
+        f'SELECT "{escape_quotes(field_key)}"'
+        f'FROM "{escape_quotes(measurement)}" GROUP BY * ORDER BY time DESC LIMIT 1'
     )
-    point = next(session.query(stmt, epoch="ns").get_points(), None)
-    return None if point is None else (point["value"], point["time"])
+    result = session.query(stmt, epoch="ns").items()
+    if len(result) == 0:
+        return None
+
+    (_measurement, tags), points = result[0]
+    point = next(iter(points), None)
+    if point is None:
+        return None
+    value = point.get(field_key)
+
+    return None if point is None else (value, point["time"], tags)
 
 
 def collect_current_values(
     session: InfluxDBv1Session, measurement: str
-) -> dict[str, tuple[DatabaseValueType, int]]:
+) -> tuple[ParameterMapping, dict[str, str]]:
     """Read the current value and timestamp of every legacy parameter."""
     field_keys = legacy_parameter_fields(session, measurement)
     logger.info("Found %d legacy parameter field(s) to migrate.", len(field_keys))
 
-    parameter_mapping: dict[str, tuple[DatabaseValueType, int]] = {}
+    parameter_mapping: ParameterMapping = {}
+    ignored_params: dict[str, tuple[str, dict[str, Any]]] = {}
     progress = tqdm(field_keys, desc="Reading parameters", unit="param")
     for index, field_key in enumerate(progress, start=1):
         point = read_latest_point(session, measurement, field_key)
         if point is None:
-            logger.warning("No value found for parameter: %s", field_key)
+            logger.info(
+                "[%d/%d] IGNORING %s : %s",
+                index,
+                len(field_keys),
+                field_key,
+                "No value found for parameter",
+            )
+            ignored_params[field_key] = ("No value found for parameter", {})
             continue
-        parameter_mapping[field_key] = point
-        logger.info("[%d/%d] %s = %r", index, len(field_keys), field_key, point[0])
+        parameter_id_from_tags = build_parameter_identifier_from_specifiers(
+            dict(point[2])
+        )
+        if parameter_id_from_tags != field_key:
+            logger.info(
+                "[%d/%d] IGNORING %s : %s",
+                index,
+                len(field_keys),
+                field_key,
+                "Corrupt parameter id. Ignoring for migration! \n"
+                f'    found="{field_key}" \n'
+                f'    expected_from_tags="{parameter_id_from_tags}")',
+            )
+            ignored_params[field_key] = (
+                "Field key and tags are not consistent",
+                {
+                    "found": field_key,
+                    "expected": parameter_id_from_tags,
+                    "tags": dict(point[2]),
+                },
+            )
+            continue
 
-    return parameter_mapping
+        parameter_mapping[field_key] = point
+        logger.info("[%d/%d] OK %s = %r", index, len(field_keys), field_key, point[0])
+
+    return parameter_mapping, ignored_params
 
 
 def write_migrated_parameters(
-    parameter_mapping: dict[str, tuple[DatabaseValueType, int]],
+    parameter_mapping: ParameterMapping,
     target_measurement: str,
 ) -> None:
     """Write migrated parameters into the target measurement, preserving timestamps.
@@ -152,16 +193,14 @@ def write_migrated_parameters(
             "time": timestamp_ns,
             "fields": {field_key_from_value(value): value},
         }
-        for parameter_id, (value, timestamp_ns) in parameter_mapping.items()
+        for parameter_id, (value, timestamp_ns, tags) in parameter_mapping.items()
     ]
     with InfluxDBv1Session() as influxdb:
         influxdb.write_points(points=points, time_precision="n")
 
 
-def read_target_state(
-    session: InfluxDBv1Session, measurement: str
-) -> dict[str, tuple[DatabaseValueType, int]]:
-    """Read ``{parameter_id: (value, timestamp_ns)}`` from a typed-schema measurement.
+def read_target_state(session: InfluxDBv1Session, measurement: str) -> ParameterMapping:
+    """Read ``{parameter_id: (value, timestamp_ns, tags)}`` from a typed-schema measurement.
 
     Takes the latest point per series (``ORDER BY time DESC LIMIT 1`` applies per group
     under ``GROUP BY *``), matching the ``last()`` semantics of the ICON reader.
@@ -170,7 +209,7 @@ def read_target_state(
         f'SELECT * FROM "{escape_quotes(measurement)}" '
         f"GROUP BY * ORDER BY time DESC LIMIT 1"
     )
-    state: dict[str, tuple[DatabaseValueType, int]] = {}
+    state: ParameterMapping = {}
     for (_measurement, tags), points in session.query(stmt, epoch="ns").items():
         point = next(iter(points), None)
         if point is None:
@@ -179,24 +218,27 @@ def read_target_state(
         if value is None:
             continue
         parameter_id = build_parameter_identifier_from_specifiers(dict(tags))
-        state[parameter_id] = (value, point["time"])
+        state[parameter_id] = (value, point["time"], dict(tags))
     return state
 
 
 def _compare_parameter(
     parameter_id: str,
-    source: tuple[DatabaseValueType, int],
+    source: ParameterValue,
     api_value: DatabaseValueType | None,
-    target_point: tuple[DatabaseValueType, int] | None,
+    target_point: ParameterValue | None,
 ) -> int:
     """Return the number of value/timestamp mismatches for a single parameter."""
-    value, timestamp_ns = source
+    value, timestamp_ns, _ = source
     errors = 0
 
     if api_value != value:
         errors += 1
         logger.error(
-            "value mismatch %s: source=%r target(api)=%r", parameter_id, value, api_value
+            "value mismatch %s: source=%r target(api)=%r",
+            parameter_id,
+            value,
+            api_value,
         )
 
     if target_point is not None and target_point[1] != timestamp_ns:
@@ -214,7 +256,7 @@ def _compare_parameter(
 def verify_migration(
     session: InfluxDBv1Session,
     target_measurement: str,
-    source_data: dict[str, tuple[DatabaseValueType, int]],
+    source_data: ParameterMapping,
 ) -> bool:
     """Check that the migrated data matches the source on value and timestamp.
 
@@ -270,7 +312,7 @@ def run_assert() -> int:
     return 0
 
 
-def run_migration(dry_run: bool) -> int:
+def run_migration(dry_run: bool, confirm: bool | None) -> int:
     """Run the ``migrate`` command."""
     measurement = get_config().databases.influxdbv1.measurement
     target_measurement = v2_measurement_name(measurement)
@@ -281,18 +323,28 @@ def run_migration(dry_run: bool) -> int:
         " (DRY RUN)" if dry_run else "",
     )
 
-    # ``logging_redirect_tqdm`` routes log records through ``tqdm.write`` so the log
-    # output stays intact and the progress bar is not corrupted by interleaved lines.
     with InfluxDBv1Session() as session, logging_redirect_tqdm():
-        parameter_mapping = collect_current_values(session, measurement)
+        parameter_mapping, ignored_params = collect_current_values(session, measurement)
 
     if dry_run:
         logger.info(
-            "Would migrate %d parameter(s) to '%s'.",
+            "Would migrate %d/%d parameter(s) to '%s'.",
             len(parameter_mapping),
+            len(parameter_mapping) + len(ignored_params),
             target_measurement,
         )
-        return 0
+
+    if len(ignored_params) > 0:
+        logger.warning(
+            "%d parameter(s) would not be migrated due to missing values or inconsistent tags."
+            " --confirm argument required to perform migration anyway.",
+            len(ignored_params),
+        )
+        if not confirm:
+            logger.error(
+                "Migration aborted due to inconsistent parameters. Use --confirm to proceed anyway."
+            )
+            return 1
 
     if not parameter_mapping:
         logger.info("Nothing to migrate.")
@@ -367,9 +419,14 @@ def cli(ctx: click.Context, config_path: Path | None, verbose: bool) -> None:
     is_flag=True,
     help="Report what would be migrated without writing anything.",
 )
-def migrate(dry_run: bool) -> None:
+@click.option(
+    "--confirm",
+    is_flag=True,
+    help="Confirm the migration despite detected inconsistencies.",
+)
+def migrate(dry_run: bool, confirm: bool | None) -> None:
     """Read each legacy parameter's current value and rewrite it to the v2 schema."""
-    raise SystemExit(run_migration(dry_run))
+    raise SystemExit(run_migration(dry_run, confirm))
 
 
 @cli.command(name="assert-parameter-db")
