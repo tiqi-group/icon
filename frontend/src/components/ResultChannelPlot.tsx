@@ -188,10 +188,13 @@ const ResultChannelPlot = ({
       xAxisData = tsValues;
       Object.assign(xAxis, { type: "time", name: "Time", ...timeAxisProps(xAxisData) });
 
-      const fullDataSet = xAxisData.map((xVal, index) => [
-        xVal,
-        ...channels.map((ch) => ch.data[index]),
-      ]);
+      // Sort by timestamp so the line connects points in chronological order.
+      // Points are normally already time-ordered (index order == time order), but a
+      // data point re-taken after a mid-scan parameter update carries an earlier index
+      // with a later timestamp, which would otherwise draw a line backwards in time.
+      const fullDataSet = xAxisData
+        .map((xVal, index) => [xVal, ...channels.map((ch) => ch.data[index])])
+        .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
 
       chartSeries = channels.map((channel, index) => ({
         name: channel.name,
