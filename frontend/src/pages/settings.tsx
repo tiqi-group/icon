@@ -44,6 +44,10 @@ export const SettingsPage = () => {
     "separateJobWindows",
     false,
   );
+  const [openExperimentWindows, setOpenExperimentWindows] = useBrowserSetting<boolean>(
+    "openExperimentWindows",
+    true,
+  );
 
   const tabParam = searchParams.get("tab");
   let tab = tabParam ? tabLabels.indexOf(tabParam) : -1;
@@ -259,6 +263,14 @@ export const SettingsPage = () => {
         />
       </TabPanel>
       <TabPanel value={tab} index={7}>
+        <BaseButton
+          label="Open Experiment Windows"
+          description="Automatically open a job window when a new experiment is submitted."
+          color={openExperimentWindows ? "success" : "inherit"}
+          onClick={() => setOpenExperimentWindows(!openExperimentWindows)}
+        >
+          {openExperimentWindows ? "True" : "False"}
+        </BaseButton>
         <BaseButton
           label="Use separate job windows"
           description="Open each job of the same experiment in a separate window."

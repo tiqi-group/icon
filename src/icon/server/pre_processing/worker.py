@@ -35,6 +35,7 @@ from icon.server.data_access.repositories.parameters_repository import (
 )
 from icon.server.fitting.auto_fit import try_auto_fit
 from icon.server.hardware_processing.task import HardwareProcessingTask
+from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
@@ -183,6 +184,7 @@ class PreProcessingWorker(multiprocessing.Process):
         )
         self._experiment_library_client = experiment_library_client
 
+    @handle_keyboard_interrupt(logger)
     def run(self) -> None:
         with self._experiment_library_client.isolated() as isolated_lib_client:
             logger.debug(
@@ -241,6 +243,12 @@ class PreProcessingWorker(multiprocessing.Process):
         isolated_lib_client: ExperimentLibraryClient,
     ) -> None:
         job = pre_processing_task.job
+
+        if job_run_cancelled_or_failed(
+            job_id=job.id,
+        ):
+            return
+
         JobRunRepository.update_run_by_id(
             run_id=pre_processing_task.job_run.id,
             status=JobRunStatus.PROCESSING,
@@ -249,11 +257,6 @@ class PreProcessingWorker(multiprocessing.Process):
         namespace = ExperimentIdentifier.from_str(job.experiment_source.experiment_id)
         # empty update queue
         self._handle_parameter_updates(pre_processing_task, namespace=namespace)
-
-        if job_run_cancelled_or_failed(
-            job_id=job.id,
-        ):
-            return
 
         change_process_priority(pre_processing_task.priority)
 

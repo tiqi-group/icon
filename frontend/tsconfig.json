@@ -17,5 +17,5 @@
     "jsx": "react-jsx",
     "noImplicitReturns": true
   },
-  "include": ["src"]
+  "include": ["src", "tests"]
 }

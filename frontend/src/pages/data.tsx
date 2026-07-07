@@ -1,5 +1,13 @@
-import React, { useContext, useMemo } from "react";
-import { List, ListItemButton, ListItemText, ListSubheader } from "@mui/material";
+import React, { useContext, useEffect, useMemo, useState } from "react";
+import {
+  FormControlLabel,
+  List,
+  ListItemButton,
+  ListItemText,
+  ListSubheader,
+  Switch,
+  Tooltip,
+} from "@mui/material";
 import { JobsContext } from "../contexts/JobsContext";
 import { JobView } from "../components/JobView";
 import { useSearchParams } from "react-router";
@@ -39,12 +47,25 @@ export function DataPage() {
     return Object.values(groupedJobs).some((list) => list.length > 0);
   }, [groupedJobs]);
 
+  const [alwaysShowLatest, setAlwaysShowLatest] = useState(false);
+
+  const latestJobId = useMemo(() => {
+    const ids = Object.keys(jobs).map(Number);
+    return ids.length > 0 ? Math.max(...ids) : null;
+  }, [jobs]);
+
+  useEffect(() => {
+    if (alwaysShowLatest && latestJobId !== null) {
+      setSearchParams({ jobId: String(latestJobId) });
+    }
+  }, [alwaysShowLatest, latestJobId]);
+
   const handleSelectJob = (jobId: number) => {
     setSearchParams({ jobId: String(jobId) });
   };
 
   return (
-    <div style={{ display: "flex", height: "100%" }}>
+    <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
       <div
         style={{
           flexShrink: 0,
@@ -54,6 +75,19 @@ export function DataPage() {
           borderRight: "1px solid var(--mui-palette-divider)",
         }}
       >
+        <Tooltip title="Switch to newest job as it's created">
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={alwaysShowLatest}
+                onChange={(_, v) => setAlwaysShowLatest(v)}
+              />
+            }
+            label="Latest"
+            sx={{ mx: 1, my: 0.5 }}
+          />
+        </Tooltip>
         <List dense disablePadding>
           {(Object.entries(groupedJobs) as [JobStatus, Job[]][]).map(
             ([status, jobList]) =>
@@ -103,7 +137,7 @@ export function DataPage() {
         </List>
       </div>
 
-      <div style={{ width: "100%" }}>
+      <div style={{ flexGrow: 1, height: "100%", overflow: "auto" }}>
         {selectedJobId ? (
           <div style={{ width: "100%" }}>
             {layoutReady ? (

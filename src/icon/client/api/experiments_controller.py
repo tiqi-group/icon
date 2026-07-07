@@ -93,46 +93,75 @@ def get_experiment_identifier_dict(experiments: list[str]) -> dict[str, str]:
     return identifier_dict
 
 
+def _dg_parse(key: str) -> tuple[str, str]:
+    """Split a display-group key into its namespace and instance parts."""
+    namespace, _, instance = key.rpartition(" (")
+    return namespace, instance.rstrip(")")
+
+
+def _dg_short(namespace: str, instance: str) -> str:
+    """Return the short display-group identifier (class name + instance)."""
+    class_part = namespace.rsplit(".", 1)[-1].replace("_", " ").title()
+    return f"{class_part} ({instance})"
+
+
+def _dg_longer(namespace: str, instance: str) -> str:
+    """Return a longer display-group identifier with the parent module prepended."""
+    min_parts = 2
+    parts = namespace.split(".")
+    if len(parts) >= min_parts:
+        prefix = parts[-2].replace("_", " ").title()
+        class_part = parts[-1].replace("_", " ").title()
+        return f"{prefix} {class_part} ({instance})"
+    return f"{namespace} ({instance})"
+
+
 def get_display_group_identifier_dict(display_groups: list[str]) -> dict[str, str]:
     """Map short display-name keys to full display-group keys.
 
     ``'experiment_library.globals.global_parameters (Doppler Cooling)'``
     becomes ``'Global Parameters (Doppler Cooling)'``.  When the short class
-    name collides across namespaces, the parent module is prepended to keep
-    keys unique.
+    name collides across namespaces, the parent module is prepended to produce
+    a longer identifier.  If the longer identifier still collides, a
+    :exc:`ValueError` is raised.
 
     Args:
         display_groups: Full display-group key strings as returned by the server.
 
     Returns:
-        Dict mapping short identifiers to full keys.
+        Dict mapping short (or, on collision, longer) identifiers to full keys.
+
+    Raises:
+        ValueError: If two display groups cannot be disambiguated even with the
+            longer identifier.
     """
+    parsed = [_dg_parse(k) for k in display_groups]
+    short_names = [_dg_short(ns, inst) for ns, inst in parsed]
+    short_counts = Counter(short_names)
 
-    def _parse(key: str) -> tuple[str, str]:
-        namespace, _, instance = key.rpartition(" (")
-        return namespace, instance.rstrip(")")
-
-    def _short(namespace: str, instance: str) -> str:
-        class_part = namespace.rsplit(".", 1)[-1].replace("_", " ").title()
-        return f"{class_part} ({instance})"
-
-    def _longer(namespace: str, instance: str) -> str:
-        min_parts = 2
-        parts = namespace.split(".")
-        if len(parts) >= min_parts:
-            prefix = parts[-2].replace("_", " ").title()
-            class_part = parts[-1].replace("_", " ").title()
-            return f"{prefix} {class_part} ({instance})"
-        return f"{namespace} ({instance})"
-
-    short_names = [_short(*_parse(k)) for k in display_groups]
-    counts = Counter(short_names)
+    # Pre-compute longer names only for keys whose short name is not unique,
+    # then count those to detect remaining collisions.
+    longer_counts: Counter[str] = Counter(
+        _dg_longer(ns, inst)
+        for (ns, inst), short in zip(parsed, short_names, strict=True)
+        if short_counts[short] > 1
+    )
 
     result: dict[str, str] = {}
-    for key in display_groups:
-        namespace, instance = _parse(key)
-        short = _short(namespace, instance)
-        result[short if counts[short] == 1 else _longer(namespace, instance)] = key
+    for key, (namespace, instance), short in zip(
+        display_groups, parsed, short_names, strict=True
+    ):
+        if short_counts[short] == 1:
+            result[short] = key
+        else:
+            longer = _dg_longer(namespace, instance)
+            if longer_counts[longer] > 1:
+                raise ValueError(
+                    f"Cannot create a unique display-group identifier for '{key}': "
+                    f"both the short name '{short}' and the longer name '{longer}' "
+                    f"collide with another display group."
+                )
+            result[longer] = key
 
     return result
 

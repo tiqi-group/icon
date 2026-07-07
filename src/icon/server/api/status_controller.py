@@ -16,9 +16,9 @@ class StatusController(pydase.DataService):
     via the Socket.IO queue.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, hardware_controller: HardwareController) -> None:
         super().__init__()
-        self.__hardware_controller = HardwareController(connect=False)
+        self.__hardware_controller = hardware_controller
         self._influxdb_available = False
         self._hardware_available = False
 
