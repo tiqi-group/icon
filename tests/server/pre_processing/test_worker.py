@@ -45,6 +45,7 @@ class _FakeTask:
         self.pre_processing_task = SimpleNamespace(
             scan_parameters=scan_parameters,
             job=SimpleNamespace(
+                id=1,
                 number_of_shots=100,
                 scan_parameters=scan_parameters,
             ),
@@ -89,12 +90,7 @@ def _run_mock(status: JobRunStatus) -> MagicMock:
     )
 
 
-def _run_regenerate(
-    worker: PreProcessingWorker,
-    status: JobRunStatus,
-    *,
-    realtime: bool = False,
-) -> MagicMock:
+def _run_regenerate(worker: PreProcessingWorker, status: JobRunStatus) -> MagicMock:
     """Run the consumer against a run with the given status; return the generate mock."""
     with (
         patch(
@@ -106,15 +102,6 @@ def _run_regenerate(
         repo.get_run_by_job_id.return_value = _run_mock(status)
         worker._regenerate_outdated_jobs(
             client=cast("Any", object()),
-            pre_processing_task=cast(
-                "Any",
-                SimpleNamespace(
-                    job=SimpleNamespace(
-                        id=1, scan_parameters=_scan_parameters(realtime=realtime)
-                    ),
-                    job_run=SimpleNamespace(id=1),
-                ),
-            ),
             namespace=cast("Any", object()),
         )
     return generate
@@ -152,10 +139,10 @@ def test_regenerate_stops_when_paused() -> None:
 def test_regenerate_does_not_regenerate_realtime_tasks() -> None:
     """Realtime tasks keep their last-generated sequence, never the generic regen."""
     worker, submitted = _make_worker()
-    stale = _fake_task(created=PARAM_UPDATE_TS - timedelta(seconds=10))
+    stale = _fake_task(created=PARAM_UPDATE_TS - timedelta(seconds=10), realtime=True)
     worker._outdated_tasks.put(stale)
 
-    generate = _run_regenerate(worker, JobRunStatus.PROCESSING, realtime=True)
+    generate = _run_regenerate(worker, JobRunStatus.PROCESSING)
 
     assert generate.call_count == 0
     assert submitted == [stale]
@@ -206,7 +193,7 @@ def test_no_tight_loop_on_realtime_resume() -> None:
 
     for _ in range(MAX_ROUNDS):
         submitted.clear()
-        _run_regenerate(worker, JobRunStatus.PROCESSING, realtime=True)
+        _run_regenerate(worker, JobRunStatus.PROCESSING)
         # Model the hardware worker: divert each resubmission it still finds outdated.
         for task in submitted:
             if should_divert_task(task, PARAM_UPDATE_TS, JobRunStatus.PROCESSING):
