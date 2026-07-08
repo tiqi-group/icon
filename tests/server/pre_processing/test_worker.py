@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 
 # Fixed reference point: the parameter-update timestamp the consumer compares against.
 PARAM_UPDATE_TS = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+# The SQLite column is stored without tzinfo (as UTC); mirror that for divert checks.
+NAIVE_TS = PARAM_UPDATE_TS.replace(tzinfo=None)
 NUM_TASKS = 2  # tasks placed in the queue per test
 UPDATED_FREQ = 2.0  # parameter value after a calibration during a pause
 MAX_ROUNDS = 5  # bound on consumer<->hardware round-trips before we call it a loop
@@ -202,3 +204,27 @@ def test_no_tight_loop_on_realtime_resume() -> None:
             break
 
     assert worker._outdated_tasks.empty()
+
+
+def test_should_divert_task_diverts_paused() -> None:
+    """A paused job always diverts, regardless of scan type or staleness."""
+    fresh = _fake_task(created=PARAM_UPDATE_TS + timedelta(seconds=10))
+    assert should_divert_task(fresh, NAIVE_TS, JobRunStatus.PAUSED)
+
+
+def test_should_divert_task_never_diverts_realtime_for_staleness() -> None:
+    """Realtime tasks are exempt from the staleness divert (only pause diverts them)."""
+    stale_realtime = _fake_task(
+        created=PARAM_UPDATE_TS - timedelta(seconds=10), realtime=True
+    )
+    assert not should_divert_task(stale_realtime, NAIVE_TS, JobRunStatus.PROCESSING)
+
+
+def test_should_divert_task_staleness_for_regular_scans() -> None:
+    """Regular tasks divert only when built before the (tz-naive) parameter update."""
+    stale = _fake_task(created=PARAM_UPDATE_TS - timedelta(seconds=10))
+    fresh = _fake_task(created=PARAM_UPDATE_TS + timedelta(seconds=10))
+    assert should_divert_task(stale, NAIVE_TS, JobRunStatus.PROCESSING)
+    assert not should_divert_task(fresh, NAIVE_TS, JobRunStatus.PROCESSING)
+    # No parameter update recorded yet -> nothing is stale.
+    assert not should_divert_task(stale, None, JobRunStatus.PROCESSING)
