@@ -4,7 +4,7 @@ import logging
 import multiprocessing
 import re
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pydase
@@ -13,14 +13,14 @@ import socketio.exceptions
 
 from icon.config.config import get_config
 from icon.server.data_access.models.enums import DeviceStatus, JobRunStatus
+from icon.server.data_access.models.sqlite.scan_parameter import (
+    contains_realtime_parameter,
+)
 from icon.server.data_access.repositories.device_repository import DeviceRepository
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataPoint,
 )
-from icon.server.data_access.repositories.job_run_repository import (
-    JobRunRepository,
-    job_run_cancelled_or_failed,
-)
+from icon.server.data_access.repositories.job_run_repository import JobRunRepository
 from icon.server.hardware_processing.utils import extract_hardware_error_message
 from icon.server.post_processing.task import PostProcessingTask
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
@@ -63,6 +63,31 @@ def parse_parameter_id(param_id: str) -> tuple[str | None, str]:
     if match:
         return match[1], match[2]
     return None, param_id
+
+
+def should_divert_task(
+    task: HardwareProcessingTask,
+    parameter_update_timestamp: datetime | None,
+    job_run_status: JobRunStatus,
+) -> bool:
+    """Whether the hardware worker should divert a task back to pre-processing.
+
+    A paused job always diverts. Otherwise a task is diverted when its parameters
+    went stale (it was built before the last parameter update) -- except for realtime
+    scans, whose sequences the realtime handler regenerates in place, so diverting a
+    stale realtime task would just bounce it back and forth in a tight loop.
+
+    ``parameter_update_timestamp`` is stored without timezone info (as UTC), so it is
+    made timezone-aware before comparing with the task's timezone-aware ``created``.
+    """
+    if job_run_status == JobRunStatus.PAUSED:
+        return True
+    if contains_realtime_parameter(task.pre_processing_task.scan_parameters):
+        return False
+    return (
+        parameter_update_timestamp is not None
+        and task.created < parameter_update_timestamp.replace(tzinfo=UTC)
+    )
 
 
 class HardwareProcessingWorker(multiprocessing.Process):
@@ -158,18 +183,20 @@ class HardwareProcessingWorker(multiprocessing.Process):
         while True:
             task = self._queue.get()
 
-            if job_run_cancelled_or_failed(
+            # One fetch covers both checks: the run carries the current status
+            # (cancel/pause) and the parameter-update timestamp.
+            job_run = JobRunRepository.get_run_by_job_id(
                 job_id=task.pre_processing_task.job.id,
-            ):
+            )
+            if job_run.status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
                 task.processed_data_points.put(task)
                 continue
 
-            parameter_update_timestamp = (
-                JobRunRepository.get_parameter_update_timestamp(
-                    run_id=task.pre_processing_task.job_run.id,
-                )
-            )
-            if task.created < parameter_update_timestamp:
+            if should_divert_task(
+                task,
+                job_run.parameter_update_timestamp,
+                job_run.status,
+            ):
                 task.outdated_tasks.put(task)
                 continue
             try:
