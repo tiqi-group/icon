@@ -239,9 +239,40 @@ class PreProcessingWorker(multiprocessing.Process):
                             log=str(e),
                         )
                 finally:
+                    # Restore scanned device parameters to their pre-scan values. Runs
+                    # on normal completion, failure, and cancellation alike. No-op when
+                    # the scan touched no device parameters.
+                    self._submit_device_restore_task(pre_processing_task)
                     JobRepository.update_job_status(
                         job=pre_processing_task.job, status=JobStatus.PROCESSED
                     )
+
+    def _submit_device_restore_task(
+        self, pre_processing_task: PreProcessingTask
+    ) -> None:
+        """Enqueue a teardown marker so the hardware worker restores device values.
+
+        Device values are written only by the (single) hardware worker, so the restore
+        is routed through it via a marker task rather than written from here — this keeps
+        the hardware worker the sole writer and avoids racing with in-flight scan points.
+        """
+        now = datetime.now(timezone)
+        self._hw_processing_queue.put(
+            HardwareProcessingTask(
+                data_point_index=-1,
+                pre_processing_task=pre_processing_task,
+                priority=pre_processing_task.priority,
+                global_parameter_timestamp=now,
+                scanned_params={},
+                src_dir=None,
+                sequence_json="",
+                processed_data_points=self._processed_data_points,
+                data_points_to_process=self._data_points_to_process,
+                outdated_tasks=self._outdated_tasks,
+                created=now,
+                restore_device_values=True,
+            )
+        )
 
     def _process_task(
         self,
