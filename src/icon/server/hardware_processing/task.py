@@ -22,6 +22,10 @@ class HardwareProcessingTask(pydantic.BaseModel):
     sequence_json: str
     src_dir: str | None
     created: datetime
+    restore_device_values: bool = False
+    """When True, this task is a teardown marker: the hardware worker restores each
+    scanned device parameter to the value it had before the scan started, instead of
+    running a data point."""
     if TYPE_CHECKING:
         processed_data_points: Queue[HardwareProcessingTask]
         data_points_to_process: Queue[tuple[int, dict[str, DatabaseValueType]]]

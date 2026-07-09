@@ -76,6 +76,10 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self._post_processing_queue = post_processing_queue
         self._manager = manager
         self._pydase_clients: dict[str, pydase.Client] = {}
+        # Per-job snapshot of each scanned device parameter's value *before* the scan
+        # touched it, so it can be restored once the job finishes or is cancelled.
+        # Keyed by job_id -> {parameter_id: original_value}.
+        self._original_device_values: dict[int, dict[str, DatabaseValueType]] = {}
 
         self._hardware_controller = HardwareController()
 
@@ -118,7 +122,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
         )
 
     def _set_pydase_service_values(
-        self, scanned_params: dict[str, DatabaseValueType]
+        self, scanned_params: dict[str, DatabaseValueType], job_id: int
     ) -> None:
         for param, value in scanned_params.items():
             device_name, access_path = parse_parameter_id(param_id=param)
@@ -136,11 +140,57 @@ class HardwareProcessingWorker(multiprocessing.Process):
             if device_name not in self._pydase_clients:
                 self._add_device(device=device)
 
+            # Snapshot the pre-scan value the first time this job writes this parameter,
+            # so it can be restored when the job finishes or is cancelled.
+            captured = self._original_device_values.setdefault(job_id, {})
+            if param not in captured:
+                captured[param] = self._pydase_clients[device.name].get_value(
+                    access_path=access_path
+                )
+
             self._update_pydase_service_parameter(
                 device=device,
                 access_path=access_path,
                 new_value=value,
             )
+
+    def _restore_device_values(self, job_id: int) -> None:
+        """Restore each scanned device parameter of a job to its pre-scan value.
+
+        Best-effort: a device that has since become disabled or unreachable is logged
+        and skipped rather than crashing the worker. Runs on both normal completion and
+        cancellation, so devices never remain stuck at a mid-scan value.
+        """
+        for param, value in self._original_device_values.pop(job_id, {}).items():
+            device_name, access_path = parse_parameter_id(param_id=param)
+
+            if device_name is None:
+                continue
+
+            try:
+                device = DeviceRepository.get_device_by_name(name=device_name)
+
+                if device.status != DeviceStatus.ENABLED:
+                    logger.warning(
+                        "Not restoring %r: device %r is disabled.", param, device_name
+                    )
+                    continue
+
+                if device_name not in self._pydase_clients:
+                    self._add_device(device=device)
+
+                self._update_pydase_service_parameter(
+                    device=device,
+                    access_path=access_path,
+                    new_value=value,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to restore %r of device %r to %r.",
+                    access_path,
+                    device_name,
+                    value,
+                )
 
     def run(self) -> None:
         self._pydase_clients = {
@@ -154,6 +204,13 @@ class HardwareProcessingWorker(multiprocessing.Process):
 
         while True:
             task = self._queue.get()
+
+            # Teardown marker submitted once per job: restore scanned device parameters
+            # to their pre-scan values. Handled before the cancel short-circuit below so
+            # it also runs for cancelled jobs.
+            if task.restore_device_values:
+                self._restore_device_values(job_id=task.pre_processing_task.job.id)
+                continue
 
             if job_run_cancelled_or_failed(
                 job_id=task.pre_processing_task.job.id,
@@ -176,7 +233,10 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 task.outdated_tasks.put(task)
                 continue
             try:
-                self._set_pydase_service_values(scanned_params=task.scanned_params)
+                self._set_pydase_service_values(
+                    scanned_params=task.scanned_params,
+                    job_id=task.pre_processing_task.job.id,
+                )
 
                 timestamp = datetime.now(timezone)
                 result = self._hardware_controller.run(sequence=task.sequence_json)
