@@ -32,6 +32,9 @@ class JobRunStatus(enum.Enum):
     """Run was cancelled before completion."""
     DONE = "done"
     """Run completed successfully."""
+    PAUSED = "paused"
+    """Run has been paused by the user; its pre-processing worker is holding its
+    remaining state in memory until the run is resumed or cancelled."""
 
 
 class DeviceStatus(enum.Enum):

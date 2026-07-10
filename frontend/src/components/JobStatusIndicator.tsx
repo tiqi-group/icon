@@ -7,6 +7,7 @@ const statusColorMap: Record<JobRunStatus, string> = {
   [JobRunStatus.DONE]: "grey",
   [JobRunStatus.PROCESSING]: "green",
   [JobRunStatus.FAILED]: "red",
+  [JobRunStatus.PAUSED]: "orange",
 };
 
 const capitalize = (s: string | undefined) =>
