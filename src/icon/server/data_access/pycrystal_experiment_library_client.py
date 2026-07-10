@@ -27,7 +27,9 @@ if TYPE_CHECKING:
     from icon.server.api.models.experiment_dict import (
         ExperimentDict,
     )
-    from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+    from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
+        DatabaseValueType,
+    )
     from icon.server.data_access.experiment_library_client import ParameterMetadataDict
     from icon.server.data_access.repositories.experiment_data_repository import (
         PlotWindowMetadata,

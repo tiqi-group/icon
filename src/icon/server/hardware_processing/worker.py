@@ -28,7 +28,9 @@ from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrup
 if TYPE_CHECKING:
     import queue
 
-    from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+    from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
+        DatabaseValueType,
+    )
     from icon.server.data_access.models.sqlite.device import Device
     from icon.server.hardware_processing.hardware_controller import HardwareController
     from icon.server.hardware_processing.task import HardwareProcessingTask
