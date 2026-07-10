@@ -40,11 +40,11 @@ class ParametersRepository:
     def _get_backend(cls) -> InfluxDBParameterBackend:
         """Return the schema-specific influxDB parameter backend."""
         if cls._backend is None:
-            version = assert_parameter_db(wrap_connection_errors=False)
-            cls._backend = create_parameter_backend(version)
+            schema_revision = assert_parameter_db(wrap_connection_errors=False)
+            cls._backend = create_parameter_backend(schema_revision)
             logger.info(
                 "Detected InfluxDB parameter schema %s; using %s.",
-                version.value,
+                schema_revision.value,
                 type(cls._backend).__name__,
             )
         return cls._backend

@@ -1,11 +1,11 @@
 """Definition and detection of the parameter storage schema in InfluxDB.
 
-Two schemas are supported:
+Two schemas revisions are supported:
 
-- **v1**: one field key per parameter (the full identifier), stored in the
+- **r1**: one field key per parameter (the full identifier), stored in the
   configured measurement.
-- **v2**: type-specific value fields, stored in a measurement derived from the configured
-  one with an ``icon|v2|`` prefix.
+- **r2**: type-specific value fields, stored in a measurement derived from the configured
+  one with an ``icon|2|`` prefix.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 _IDENTIFIER_MARKER = "namespace='"
 
 # Since V2, we prefix the configured measurement name
-V2_MEASUREMENT_PREFIX = "icon|2|"
+_R2_MEASUREMENT_PREFIX = "icon|2|"
 
 
 # Field keys which hold the values inside influxdb. One per data type.
@@ -59,16 +59,16 @@ def field_key_from_value(value: DatabaseValueType) -> str:
 
 
 class ParameterDBSchema(str, Enum):
-    PRISTINE = "pristine"
-    V1 = "v1"
-    V2 = "v2"
+    PRISTINE = "pristine"   # Empty database
+    R1 = "r1"
+    R2 = "r2"
 
 
-def v2_measurement_name(base_measurement: str) -> str:
-    """Return the v2 measurement name derived from a base measurement name."""
-    if base_measurement.startswith(V2_MEASUREMENT_PREFIX):
+def r2_measurement_name(base_measurement: str) -> str:
+    """Return the r2 measurement name derived from a base measurement name."""
+    if base_measurement.startswith(_R2_MEASUREMENT_PREFIX):
         return base_measurement
-    return f"{V2_MEASUREMENT_PREFIX}{base_measurement}"
+    return f"{_R2_MEASUREMENT_PREFIX}{base_measurement}"
 
 
 def detect_schema(field_keys: list[str]) -> ParameterDBSchema | None:
@@ -77,9 +77,9 @@ def detect_schema(field_keys: list[str]) -> ParameterDBSchema | None:
     if not keys:
         return None
     if keys <= set(FIELD_KEY_NAMES):
-        return ParameterDBSchema.V2
+        return ParameterDBSchema.R2
     if any(_IDENTIFIER_MARKER in key for key in keys):
-        return ParameterDBSchema.V1
+        return ParameterDBSchema.R1
     return None
 
 
@@ -104,8 +104,8 @@ def assert_parameter_db(*, wrap_connection_errors: bool = True) -> ParameterDBSc
 
     Determines the schema version from which parameter measurement exists:
 
-       - :attr:`ParameterDBSchema.V2`: the ``icon|v2|`` prefixed measurement exists.
-       - :attr:`ParameterDBSchema.V1`: the configured measurement exists and uses the
+       - :attr:`ParameterDBSchema.R2`: the ``icon|2|`` prefixed measurement exists.
+       - :attr:`ParameterDBSchema.R1`: the configured measurement exists and uses the
          legacy field-per-parameter schema.
        - :attr:`ParameterDBSchema.PRISTINE`: neither exists.
 
@@ -121,7 +121,7 @@ def assert_parameter_db(*, wrap_connection_errors: bool = True) -> ParameterDBSc
     """
     influx = get_config().databases.influxdbv1
     base_measurement = influx.measurement
-    v2_name = v2_measurement_name(base_measurement)
+    v2_name = r2_measurement_name(base_measurement)
 
     with InfluxDBv1Session() as session:
         try:
@@ -139,12 +139,12 @@ def assert_parameter_db(*, wrap_connection_errors: bool = True) -> ParameterDBSc
         measurements = set(session.get_measurements())
 
         if v2_name in measurements:
-            _assert_schema(session, v2_name, ParameterDBSchema.V2)
-            return ParameterDBSchema.V2
+            _assert_schema(session, v2_name, ParameterDBSchema.R2)
+            return ParameterDBSchema.R2
 
         if base_measurement in measurements:
-            _assert_schema(session, base_measurement, ParameterDBSchema.V1)
-            return ParameterDBSchema.V1
+            _assert_schema(session, base_measurement, ParameterDBSchema.R1)
+            return ParameterDBSchema.R1
 
     return ParameterDBSchema.PRISTINE
 
@@ -269,11 +269,11 @@ def value_from_point(point: dict[str, Any]) -> DatabaseValueType | None:
     return None
 
 
-class ParameterBackendV2(InfluxDBParameterBackend):
-    schema = ParameterDBSchema.V2
+class ParameterBackendR2(InfluxDBParameterBackend):
+    schema = ParameterDBSchema.R2
 
     def __init__(self, session_provider: InfluxDBSessionProvider | None = None) -> None:
-        self.measurement = v2_measurement_name(
+        self.measurement = r2_measurement_name(
             get_config().databases.influxdbv1.measurement
         )
         super().__init__(session_provider)
@@ -333,8 +333,8 @@ class ParameterBackendV2(InfluxDBParameterBackend):
         return {field_key_from_value(value): value}
 
 
-class ParameterBackendV1(InfluxDBParameterBackend):
-    schema = ParameterDBSchema.V1
+class ParameterBackendR1(InfluxDBParameterBackend):
+    schema = ParameterDBSchema.R1
 
     def __init__(self, session_provider: InfluxDBSessionProvider | None = None) -> None:
         self.measurement = get_config().databases.influxdbv1.measurement
@@ -387,10 +387,10 @@ class ParameterBackendV1(InfluxDBParameterBackend):
 
 
 _BACKENDS: dict[ParameterDBSchema, type[InfluxDBParameterBackend]] = {
-    ParameterDBSchema.V1: ParameterBackendV1,
-    ParameterDBSchema.V2: ParameterBackendV2,
+    ParameterDBSchema.R1: ParameterBackendR1,
+    ParameterDBSchema.R2: ParameterBackendR2,
     # A pristine database is initialised with the current (v2) schema.
-    ParameterDBSchema.PRISTINE: ParameterBackendV2,
+    ParameterDBSchema.PRISTINE: ParameterBackendR2,
 }
 
 

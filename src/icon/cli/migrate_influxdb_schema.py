@@ -1,64 +1,3 @@
-"""Migrate the InfluxDB parameter measurement to the typed-field schema.
-
-Legacy layout (one field key per parameter)::
-
-    measurement "Experiment Parameters"
-      tags:   namespace, parameter_group, param_type, <extra specifiers...>
-      field:  "<full parameter identifier>" = <value>
-
-New layout (typed value fields)::
-
-    measurement "Experiment Parameters"
-      tags:   namespace, parameter_group, param_type, <extra specifiers...>
-      field:  value_float | value_int | value_str | value_bool = <value>
-
-For every legacy parameter field this script reads the current value and rewrites it
-through ICON's own write path (``ParametersRepository._update_influxdb_parameters``), so
-the tag/typed-field mapping is never reimplemented here. Only the *reading* of the legacy
-field-per-parameter layout is bespoke, because the application no longer knows that
-schema.
-
-The migrated data is written to a **new measurement**, the source measurement with an
-``icon|v2|`` prefix (e.g. ``Experiment Parameters`` -> ``icon|v2|Experiment Parameters``).
-The prefix is a distinctive, collision-resistant marker of the v2 schema. The original
-measurement is left completely untouched, so the migration can be rolled back by simply
-discarding the prefixed measurement. After verifying the result, point the InfluxDB
-``measurement`` config at the prefixed measurement to start using the migrated data.
-
-After writing, the migration verifies the prefixed measurement: it loads all values back
-through the ICON API and checks that value *and* timestamp match the source data still
-held in memory. A mismatch is reported and the script exits non-zero (with the source
-measurement untouched for a clean retry).
-
-Connection and measurement are taken from the ICON config (``get_config``), exactly like
-the running application, so this migrates whatever database the app is pointed at. Pass
-``--config`` to point at a specific config file (otherwise ``$ICON_CONFIG`` / the default
-location is used).
-
-Usage (installed as the ``icon-migrate-influxdb-schema`` console script)::
-
-    icon-migrate-influxdb-schema
-    icon-migrate-influxdb-schema migrate --dry-run
-    icon-migrate-influxdb-schema --config /etc/icon/config.yaml
-    icon-migrate-influxdb-schema profile
-    icon-migrate-influxdb-schema rollback
-
-It can equivalently be run as a module: ``python -m
-icon.cli.migrate_influxdb_schema``. Running the tool with no subcommand is
-equivalent to ``migrate``.
-
-The ``profile`` command only verifies connectivity and reports the detected
-schema version (``pristine`` / ``v1`` / ``v2``) without modifying anything.
-
-The ``rollback`` command undoes a migration by dropping the ``icon|v2|`` measurement, but
-only when **both** the v1 and v2 schemas are present (so v1 remains as a fallback and the
-parameters are never left without a copy); otherwise it warns and changes nothing. Pass
-``--force`` to skip that check and drop the v2 measurement unconditionally.
-
-Note: only the *current* value of each parameter is migrated. Historical points remain in
-the source measurement; the new schema starts from the migrated value.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -80,14 +19,14 @@ from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
 )
 from icon.server.data_access.db_context.influxdb.parameters_backend import (
     FIELD_KEY_NAMES,
-    ParameterBackendV1,
-    ParameterBackendV2,
+    ParameterBackendR1,
+    ParameterBackendR2,
     ParameterDBSchema,
     assert_parameter_db,
     build_parameter_identifier_from_specifiers,
     create_parameter_backend,
     detect_schema,
-    v2_measurement_name,
+    r2_measurement_name,
     value_from_point,
 )
 
@@ -96,6 +35,55 @@ if TYPE_CHECKING:
     from types import TracebackType
 
 logger = logging.getLogger(__name__)
+
+CLI_HELP = """Migration CLI for the InfluxDB parameter store.
+
+Legacy (Rev1) layout (one field key per parameter):
+
+\b
+measurement "<ICON_CONFIG_MEASUREMENT>"
+    tags:   namespace, parameter_group, param_type, <extra specifiers...>
+    field:  "<full parameter identifier>" = <value>
+
+Rev2 layout (typed value fields):
+
+\b
+measurement "icon|2|<ICON_CONFIG_MEASUREMENT>"
+    tags:   namespace, parameter_group, param_type, <extra specifiers...>
+    field:  value_float | value_int | value_str | value_bool = <value>
+
+This migration tool copies the latest values of each parameter from the configured measurement
+to a new measurement which is prefixed with a schema revision marker.
+
+Note: only the *current* value of each parameter is migrated. Historical points remain in
+the source measurement; the new schema starts from the migrated values. Their last timestamps
+are preserved during migration.
+
+Icon can discover and operate with both schemas. When Rev 2 schema is detected, it is preferred.
+Icon must not run while the migration is performed.
+
+Migration steps - the recommended sequence of commands to perform a migration:
+
+\b
+1. `profile`
+        Inspect the current schema and data volume. Provides an estimate of the
+        migration time based on probing parameter reads.
+2. `migrate --dry-run`
+        Read out the database state in check for any inconsistencies.
+3. `migrate`
+        Perform the migration. Pass --confirm-inconsistencies is inconsistencies
+        were detected during dry run
+4. `profile`
+        Detect the new schema and perform query time measurement on the new schema.
+
+Rollback:
+
+\b
+`rollback`
+        The rollback command drops the Rev 2 schema measurement such that upon restart
+        Icon detects the Rev 1 schema in a pre-migration condition. Any parameter updates
+        performed between migration and rollback are lost during rollback.
+"""
 
 # A legacy parameter field key always contains the namespace specifier.
 _IDENTIFIER_MARKER = "namespace='"
@@ -148,7 +136,7 @@ ParameterErrors = dict[
 TIME_EPOCH = "ns"
 
 
-class ParameterMigrationBackendV1(ParameterBackendV1):
+class ParameterMigrationBackendR1(ParameterBackendR1):
     def get_influxdb_last_parameter_by_id(
         self, field_key: str
     ) -> ParameterValue | None:
@@ -173,7 +161,7 @@ class ParameterMigrationBackendV1(ParameterBackendV1):
             )
 
 
-class ParameterMigrationBackendV2(ParameterBackendV2):
+class ParameterMigrationBackendR2(ParameterBackendR2):
     def get_influxdb_parameters_with_tags(self) -> ParameterMapping:
         stmt = (
             f"SELECT {','.join(FIELD_KEY_NAMES)} "
@@ -226,10 +214,10 @@ class ParameterMigrationBackendV2(ParameterBackendV2):
 class InfluxDBSchemaMigrationManager:
     def __init__(self) -> None:
         cached_session_provider = InfluxDBv1CachedSessionProvider()
-        self.source_backend = ParameterMigrationBackendV1(
+        self.source_backend = ParameterMigrationBackendR1(
             session_provider=cached_session_provider
         )
-        self.target_backend = ParameterMigrationBackendV2(
+        self.target_backend = ParameterMigrationBackendR2(
             session_provider=cached_session_provider
         )
 
@@ -369,20 +357,20 @@ def _compare_parameter(
 
 
 def run_profile(  # noqa: C901
-    assumed_version: ParameterDBSchema | None = None, *, do_v1_bulk_read: bool = False
+    assumed_revision: ParameterDBSchema | None = None, *, do_r1_bulk_read: bool = False
 ) -> int:
-    if assumed_version is None:
+    if assumed_revision is None:
         try:
-            detected_version = assert_parameter_db()
+            detected_revision = assert_parameter_db()
         except AssertionError:
             logger.exception("Unable to detect Paramater DB Schema")
             return 1
-    schema_version = assumed_version or detected_version
+    schema_revision = assumed_revision or detected_revision
 
     session_provider = InfluxDBv1CachedSessionProvider()
-    backend = create_parameter_backend(schema_version, session_provider)
+    backend = create_parameter_backend(schema_revision, session_provider)
     logger.info(
-        'Parameter DB schema version: %s (Measurement: "%s")',
+        'Parameter DB schema revision: %s (Measurement: "%s")',
         backend.schema.value,
         backend.measurement,
     )
@@ -413,7 +401,7 @@ def run_profile(  # noqa: C901
             measurements,
         )
 
-    if schema_version == ParameterDBSchema.V2:
+    if schema_revision == ParameterDBSchema.R2:
         t0 = time.perf_counter()
         params = backend.get_influxdb_parameters()
         logger.info(
@@ -422,8 +410,8 @@ def run_profile(  # noqa: C901
             (time.perf_counter() - t0) * 1000,
         )
 
-    if schema_version == ParameterDBSchema.V1:
-        backend = ParameterMigrationBackendV1(session_provider)
+    if schema_revision == ParameterDBSchema.R1:
+        backend = ParameterMigrationBackendR1(session_provider)
         pksample = field_keys[:10]
         t0 = time.perf_counter()
         with logging_redirect_tqdm():
@@ -437,7 +425,7 @@ def run_profile(  # noqa: C901
             (time.perf_counter() - t0) / len(pksample) * len(field_keys),
         )
 
-        if do_v1_bulk_read:
+        if do_r1_bulk_read:
             t0 = time.perf_counter()
             params = backend.get_influxdb_parameters()
             logger.info(
@@ -542,7 +530,7 @@ def run_verify() -> int:
 def run_rollback(dry_run: bool, force: bool) -> int:
     """Run the ``rollback`` command.
 
-    Undoes a migration by dropping the v2 (typed-schema) measurement. By default this only
+    Undoes a migration by dropping the Rev2 (typed-schema) measurement. By default this only
     happens when **both** the v1 legacy measurement and the v2 measurement are present with
     their expected schema: requiring v1 to still exist guarantees a fallback, so a rollback
     can never destroy the only copy of the parameters. If either schema is missing, the v2
@@ -553,7 +541,7 @@ def run_rollback(dry_run: bool, force: bool) -> int:
     """
     influx = get_config().databases.influxdbv1
     base_measurement = influx.measurement
-    v2_name = v2_measurement_name(base_measurement)
+    r2_name = r2_measurement_name(base_measurement)
 
     with InfluxDBv1Session() as session:
         try:
@@ -578,15 +566,15 @@ def run_rollback(dry_run: bool, force: bool) -> int:
         if force:
             logger.warning(
                 "--force given: skipping the v1/v2 existence check before dropping '%s'.",
-                v2_name,
+                r2_name,
             )
         else:
             v1_present = (
                 detect_schema(session.get_field_keys(base_measurement))
-                is ParameterDBSchema.V1
+                is ParameterDBSchema.R1
             )
             v2_present = (
-                detect_schema(session.get_field_keys(v2_name)) is ParameterDBSchema.V2
+                detect_schema(session.get_field_keys(r2_name)) is ParameterDBSchema.R2
             )
             if not (v1_present and v2_present):
                 logger.warning(
@@ -594,29 +582,30 @@ def run_rollback(dry_run: bool, force: bool) -> int:
                     " The v2 measurement was left untouched. Use --force to drop it anyway.",
                     base_measurement,
                     "present" if v1_present else "missing",
-                    v2_name,
+                    r2_name,
                     "present" if v2_present else "missing",
                 )
                 return 1
 
         if dry_run:
-            logger.info("Would drop the v2 measurement '%s' (DRY RUN).", v2_name)
+            logger.info("Would drop the v2 measurement '%s' (DRY RUN).", r2_name)
             return 0
 
-        logger.info("Dropping the v2 measurement '%s'...", v2_name)
-        session.query(f'DROP MEASUREMENT "{escape_quotes(v2_name)}"')
+        logger.info("Dropping the v2 measurement '%s'...", r2_name)
+        session.query(f'DROP MEASUREMENT "{escape_quotes(r2_name)}"')
 
-        if detect_schema(session.get_field_keys(v2_name)) is not None:
-            logger.error("Failed to drop the v2 measurement '%s'.", v2_name)
+        if detect_schema(session.get_field_keys(r2_name)) is not None:
+            logger.error("Failed to drop the v2 measurement '%s'.", r2_name)
             return 1
 
-    logger.info("Rolled back: dropped the v2 measurement '%s'.", v2_name)
+    logger.info("Rolled back: dropped the v2 measurement '%s'.", r2_name)
     return 0
 
 
 @click.group(
     invoke_without_command=True,
     context_settings={"help_option_names": ["-h", "--help"]},
+    help=CLI_HELP,
 )
 @click.option(
     "--config",
@@ -629,10 +618,6 @@ def run_rollback(dry_run: bool, force: bool) -> int:
 @click.option("-v", "--verbose", is_flag=True, help="Enable verbose logging.")
 @click.pass_context
 def cli(ctx: click.Context, config_path: Path | None, verbose: bool) -> None:
-    """Migrate the InfluxDB parameter measurement to the typed-field schema.
-
-    With no subcommand this runs ``migrate``.
-    """
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
         format="%(asctime)s.%(msecs)03d | %(levelname)s | %(name)s:%(funcName)s:%(lineno)d - %(message)s",
@@ -649,13 +634,13 @@ def cli(ctx: click.Context, config_path: Path | None, verbose: bool) -> None:
 @click.option(
     "--dry-run",
     is_flag=True,
-    help="Report what would be migrated without writing anything.",
+    help="Read parameters and report what would be migrated without writing anything.",
 )
 @click.option(
     "--confirm-inconsistencies",
     is_flag=True,
     help="Proceed even if some parameters have missing values or inconsistent tags "
-    "(those parameters are skipped).",
+    "(those parameters are skipped during migration).",
 )
 @click.option(
     "-y",
@@ -664,7 +649,7 @@ def cli(ctx: click.Context, config_path: Path | None, verbose: bool) -> None:
     help="Skip the interactive confirmation prompt.",
 )
 def migrate(dry_run: bool, confirm_inconsistencies: bool, yes: bool) -> None:
-    """Read each legacy parameter's current value and rewrite it to the v2 schema."""
+    """Perform migration: read each parameter and rewrite it to the v2 schema."""
     raise SystemExit(run_migration(dry_run, confirm_inconsistencies, yes))
 
 
@@ -686,37 +671,37 @@ def rollback(dry_run: bool, force: bool) -> None:
 
 @cli.command()
 @click.option(
-    "--assume-schema-version",
+    "--assume-schema-revision",
     type=click.Choice(ParameterDBSchema, case_sensitive=False),
     default=None,
-    help="Skip the schema detection and assume the given schema version",
+    help="Skip the schema detection and assume the given schema revision",
 )
 @click.option(
-    "--do-v1-bulk-read",
+    "--do-r1-bulk-read",
     is_flag=True,
-    help="Perform bulk read in case of v1 schema. Implies --assume-schema-version=v1. WARNING: This may put significant load on the server. Use with caution. ",
+    help="Perform bulk read in case of v1 schema. Implies --assume-schema-revision=r1. WARNING: This may put significant load on the server. Use with caution. ",
 )
 def profile(
-    assume_schema_version: ParameterDBSchema | None = None,
+    assume_schema_revision: ParameterDBSchema | None = None,
     *,
-    do_v1_bulk_read: bool = False,
+    do_r1_bulk_read: bool = False,
 ) -> None:
-    """Run profiling on the parameter database (schema, size, read rate)."""
-    if do_v1_bulk_read and assume_schema_version == ParameterDBSchema.V2:
-        logger.error("--do_v1_bulk_read and --assume_schema_version=v1 is not allowed")
+    """Run profiling on the parameter database (schema discovery, cardinalities, read rate)."""
+    if do_r1_bulk_read and assume_schema_revision == ParameterDBSchema.R2:
+        logger.error("--do_r1_bulk_read and --assume_schema_revision=r1 is not allowed")
         raise SystemExit(1)
 
-    if do_v1_bulk_read:
-        assume_schema_version = ParameterDBSchema.V1
+    if do_r1_bulk_read:
+        assume_schema_revision = ParameterDBSchema.R1
 
     raise SystemExit(
-        run_profile(assume_schema_version, do_v1_bulk_read=do_v1_bulk_read)
+        run_profile(assume_schema_revision, do_r1_bulk_read=do_r1_bulk_read)
     )
 
 
 @cli.command()
 def verify() -> None:
-    """Verify v2 state against v1 state."""
+    """Verify r2 state against r1 state."""
     raise SystemExit(run_verify())
 
 
