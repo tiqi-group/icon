@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 import sys
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-import influxdb
 import requests
+from influxdb import InfluxDBClient
 
 from icon.config.config import get_config
 
@@ -88,7 +90,7 @@ class InfluxDBv1Session:
 
     def __init__(self) -> None:
         self._config = get_config().databases.influxdbv1
-        self._client: influxdb.InfluxDBClient
+        self._client: InfluxDBClient
         self._host = self._config.host
         self._port = self._config.port
         self._username = self._config.username
@@ -116,7 +118,7 @@ class InfluxDBv1Session:
 
     def connect(self) -> None:
         """Establish a new connection to the InfluxDB server using provided credentials."""
-        self._client = influxdb.InfluxDBClient(
+        self._client = InfluxDBClient(
             host=self._host,
             port=self._port,
             username=self._username,
@@ -216,3 +218,15 @@ class InfluxDBv1Session:
     def get_measurements(self) -> list[str]:
         """Return the measurement names in the current database."""
         return [m["name"] for m in self._client.get_list_measurements()]
+
+    def get_series(self, measurement: str | None = None) -> list[str]:
+        return self._client.get_list_series(measurement=measurement)
+
+
+InfluxDBSessionProvider = Callable[
+    [], contextlib.AbstractContextManager[InfluxDBv1Session]
+]
+
+
+def default_session_provider() -> contextlib.AbstractContextManager[InfluxDBv1Session]:
+    return InfluxDBv1Session()

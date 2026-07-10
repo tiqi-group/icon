@@ -1,6 +1,6 @@
 import pytest
 
-from icon.server.data_access.db_context.influxdb_v1 import InfluxDBv1Session
+from icon.server.data_access.db_context.influxdb.influxdb_v1 import InfluxDBv1Session
 
 # ``InfluxDBv1Session`` is a schema-agnostic InfluxDB client: it only writes points and
 # runs raw queries. Parameter-schema behaviour (typed vs. legacy field layouts) is owned

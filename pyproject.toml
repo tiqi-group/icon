@@ -60,6 +60,7 @@ dev = [
     "types-pytz>=2024.2.0.20241003",
     "types-pyyaml>=6.0.12.20250402",
     "types-requests>=2.32.0.20250328",
+    "types-tqdm>=4.68.0.20260608",
 ]
 build = [
     "pyinstaller>=6.15.0",
