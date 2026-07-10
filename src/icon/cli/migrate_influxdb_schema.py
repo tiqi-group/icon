@@ -368,7 +368,7 @@ def _compare_parameter(
     return errors
 
 
-def run_profile(
+def run_profile(  # noqa: C901
     assumed_version: ParameterDBSchema | None = None, *, do_v1_bulk_read: bool = False
 ) -> int:
     if assumed_version is None:
@@ -401,7 +401,7 @@ def run_profile(
     )
 
     logger.info(
-        "%s measurement(s) found. Icon related: %s",
+        "%d measurement(s) found. Icon related: %s",
         len(measurements),
         ", ".join(measurements_by_icon) or "None",
     )
