@@ -1,3 +1,42 @@
+import { GroupsByNamespace } from "../hooks/useParameterDisplayGroups";
+import { ScanParameterInfo } from "../types/ScanParameterInfo";
+
+export interface ScanParameterBounds {
+  min: number | null;
+  max: number | null;
+}
+
+/**
+ * Looks up the allowed value range of a scan parameter from the display group
+ * metadata (as provided by the experiment library).
+ *
+ * Device and realtime parameters carry no range metadata, so their bounds are null.
+ *
+ * @param param - The scan parameter to look up.
+ * @param parameterDisplayGroups - Display group metadata keyed by "namespace (group)".
+ * @returns The parameter's min/max bounds, null when unbounded or unknown.
+ */
+export const getScanParameterBounds = (
+  param: ScanParameterInfo,
+  parameterDisplayGroups: GroupsByNamespace,
+): ScanParameterBounds => {
+  if (
+    !param.namespace ||
+    !param.deviceNameOrDisplayGroup ||
+    param.namespace === "Devices" ||
+    param.namespace === "Real Time"
+  ) {
+    return { min: null, max: null };
+  }
+  const group =
+    parameterDisplayGroups[`${param.namespace} (${param.deviceNameOrDisplayGroup})`];
+  const metadata = group?.[param.id];
+  return {
+    min: metadata?.min_value ?? null,
+    max: metadata?.max_value ?? null,
+  };
+};
+
 /**
  * Constructs a unique key for identifying a scanned parameter.
  *

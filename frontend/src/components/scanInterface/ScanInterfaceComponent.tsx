@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import {
   Select,
   MenuItem,
@@ -10,7 +10,9 @@ import {
   Tooltip,
 } from "@mui/material";
 import { useNotifications } from "@toolpad/core";
+import { ParameterDisplayGroupsContext } from "../../contexts/ParameterDisplayGroupsContext";
 import { useScanContext } from "../../hooks/useScanContext";
+import { getScanParameterBounds } from "../../utils/scanUtils";
 import { submitJob } from "../../utils/submitJob";
 import ScanParameterTable from "./ScanParameterTable";
 
@@ -19,6 +21,7 @@ interface ScanInterfaceProps {
 }
 const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
   const { scanInfoState, dispatchScanInfoStateUpdate } = useScanContext();
+  const { parameterDisplayGroups } = useContext(ParameterDisplayGroupsContext);
   const notifications = useNotifications();
   const [submitDisabled, setSubmitDisabled] = useState(false);
 
@@ -92,7 +95,10 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
     event.preventDefault();
 
     if (validateForm()) {
-      submitJob(experimentId, scanInfoState);
+      const parameterBounds = scanInfoState.parameters.map((param) =>
+        getScanParameterBounds(param, parameterDisplayGroups),
+      );
+      submitJob(experimentId, scanInfoState, parameterBounds);
       notifications.show("Job submitted", {
         severity: "success",
         autoHideDuration: 3000,

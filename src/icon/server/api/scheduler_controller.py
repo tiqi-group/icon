@@ -59,6 +59,50 @@ class SchedulerController(pydase.DataService):
             return metadata["display_name"]
         return parameter_id
 
+    @staticmethod
+    def _clamp_value(
+        *,
+        value: float | bool | str,
+        min_value: float | None,
+        max_value: float | None,
+    ) -> float | bool | str:
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            return value
+        if min_value is not None and value < min_value:
+            return type(value)(min_value)
+        if max_value is not None and value > max_value:
+            return type(value)(max_value)
+        return value
+
+    def _clamp_scan_values_to_bounds(
+        self, *, scan_parameters: list[ScanParameter]
+    ) -> None:
+        """Clamp numeric scan values into their parameter's min/max metadata range.
+
+        Out-of-range values are snapped to the nearest bound so the scan still runs,
+        restricted to the allowed range. Parameters without metadata (e.g. device
+        parameters) or without configured bounds are left untouched, as are
+        non-numeric values (booleans, strings).
+        """
+        for param in scan_parameters:
+            if isinstance(param, RealtimeParameter):
+                continue
+            metadata = self._parameters_controller._all_parameter_metadata.get(
+                param.id
+            )
+            if metadata is None:
+                continue
+            min_value = metadata["min_value"]
+            max_value = metadata["max_value"]
+            if min_value is None and max_value is None:
+                continue
+            param.values = [
+                self._clamp_value(
+                    value=value, min_value=min_value, max_value=max_value
+                )
+                for value in param.values
+            ]
+
     async def submit_job(
         self,
         *,
@@ -133,6 +177,7 @@ class SchedulerController(pydase.DataService):
             )
             for param in scan_parameters
         ]
+        self._clamp_scan_values_to_bounds(scan_parameters=concretized_params)
         realtime_params = [
             param
             for param in concretized_params
