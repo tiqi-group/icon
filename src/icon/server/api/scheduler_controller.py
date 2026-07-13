@@ -87,9 +87,7 @@ class SchedulerController(pydase.DataService):
         for param in scan_parameters:
             if isinstance(param, RealtimeParameter):
                 continue
-            metadata = self._parameters_controller._all_parameter_metadata.get(
-                param.id
-            )
+            metadata = self._parameters_controller._all_parameter_metadata.get(param.id)
             if metadata is None:
                 continue
             min_value = metadata["min_value"]
@@ -97,9 +95,7 @@ class SchedulerController(pydase.DataService):
             if min_value is None and max_value is None:
                 continue
             param.values = [
-                self._clamp_value(
-                    value=value, min_value=min_value, max_value=max_value
-                )
+                self._clamp_value(value=value, min_value=min_value, max_value=max_value)
                 for value in param.values
             ]
 
