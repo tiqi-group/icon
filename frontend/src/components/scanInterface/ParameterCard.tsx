@@ -152,9 +152,13 @@ export const ParameterCard = ({
   const currentNumericValue =
     typeof currentParamValue === "number" ? currentParamValue : null;
 
-  // Derived quantities for span/center mode.
-  const center = (param.generation.start + param.generation.stop) / 2;
-  const span = param.generation.stop - param.generation.start;
+  // Derived quantities for span/center mode. Center and span are reconstructed from
+  // start/stop on every render, so round away the floating-point reconstruction
+  // noise (e.g. 0.015099999999996783 for a typed 0.0151) well above the ~16-digit
+  // float precision but far below any physically meaningful digit.
+  const roundFloatNoise = (value: number) => Number(value.toPrecision(12));
+  const center = roundFloatNoise((param.generation.start + param.generation.stop) / 2);
+  const span = roundFloatNoise(param.generation.stop - param.generation.start);
 
   const handleInputModeChange = (
     _: React.MouseEvent,
