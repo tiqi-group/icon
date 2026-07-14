@@ -2,7 +2,7 @@ import logging
 from enum import Enum, auto
 from typing import Any
 
-from icon.server.data_access.repositories.experiment_data_repository import ResultDict
+from icon.server.data_access.experiment_data import Readouts
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class HardwareController:
     def status(self) -> tuple[StatusFlag, str, Any]:
         raise NotImplementedError("Must be implemented by a derived class")
 
-    def receive(self) -> ResultDict:
+    def receive(self) -> Readouts:
         raise NotImplementedError("Must be implemented by a derived class")
 
 
@@ -53,5 +53,5 @@ class FallbackHardwareController(HardwareController):
     def status(self) -> tuple[StatusFlag, str, Any]:
         return (StatusFlag.SUCCESS, "OK", ...)
 
-    def receive(self) -> ResultDict:
-        return ResultDict(result_channels={}, vector_channels={}, shot_channels={})
+    def receive(self) -> Readouts:
+        return Readouts(result_channels={}, vector_channels={}, shot_channels={})

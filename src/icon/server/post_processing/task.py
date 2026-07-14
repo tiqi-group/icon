@@ -5,9 +5,7 @@ from datetime import datetime
 
 import pydantic
 
-from icon.server.data_access.repositories.experiment_data_repository import (
-    ExperimentDataPoint,
-)
+from icon.server.data_access.experiment_data import ExperimentDataPoint
 from icon.server.pre_processing.task import PreProcessingTask
 
 

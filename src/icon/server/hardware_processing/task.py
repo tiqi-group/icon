@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import pydantic
 
-from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+from icon.server.data_access.experiment_data import DatabaseValueType
 from icon.server.pre_processing.task import PreProcessingTask
 
 

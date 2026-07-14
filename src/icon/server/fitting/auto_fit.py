@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import asdict
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from icon.server.data_access.models.enums import JobStatus
 from icon.server.data_access.repositories.experiment_data_repository import (
-    ExperimentData,
     ExperimentDataRepository,
     get_fit_results_by_job_id,
     write_fit_result_by_job_id,
@@ -18,6 +17,9 @@ from icon.server.data_access.repositories.experiment_data_repository import (
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.fitting.fit_runner import run_curve_fit
 from icon.server.web_server.socketio_emit_queue import emit_queue
+
+if TYPE_CHECKING:
+    from icon.server.data_access.experiment_data import ExperimentData
 
 logger = logging.getLogger(__name__)
 

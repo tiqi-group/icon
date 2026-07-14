@@ -4,134 +4,36 @@ import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, TypedDict, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import h5py  # type: ignore
 import numpy as np
 import numpy.typing as npt
 
 from icon.config.config import get_config
-from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+from icon.server.data_access.experiment_data import (
+    DatabaseValueType,
+    ExperimentData,
+    ExperimentDataPoint,
+    FitResult,
+    ParameterValue,
+    ReadoutMetadata,
+)
 from icon.server.data_access.models.sqlite.scan_parameter import (
     ScanParameter,
     contains_realtime_parameter,
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
-from icon.server.fitting.fit_runner import FitResult
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class ResultDict:
-    """Scalar/vector/shot readouts for a single data point."""
-
-    result_channels: dict[str, float]
-    """Mapping from result channel name to scalar value."""
-    vector_channels: dict[str, list[float]]
-    """Mapping from vector channel name to list of floats."""
-    shot_channels: dict[str, list[int]]
-    """Mapping from shot channel name to per-shot integers."""
-
-
-@dataclass
-class ExperimentDataPoint(ResultDict):
-    """A single data point with its context."""
-
-    index: int
-    """Sequential index of this data point."""
-    scan_params: dict[str, DatabaseValueType]
-    """Parameter values that produced this data point."""
-    timestamp: str
-    """Acquisition timestamp (ISO string)."""
-    sequence_json: str
-    """Serialized sequence JSON used for this data point."""
-
-
-class PlotWindowMetadata(TypedDict):
-    """Metadata describing a single plot window for visualization in the frontend.
-
-    This metadata includes the plot's index within its type, the type of plot (e.g.,
-    vector, histogram, or readout), and the list of channel names that are to be plotted
-    in the respective window.
-    """
-
-    name: str
-    """The name of the plot window"""
-    index: int
-    """The order of the plot window within its type (e.g., 0, 1, 2...)"""
-    type: Literal["vector", "histogram", "readout"]
-    """The type of the plot window"""
-    channel_names: list[str]
-    """A list of channel names to be plotted in this window"""
-
-
-class ReadoutMetadata(TypedDict):
-    """Metadata describing readout/shot/vector channels and their plot windows."""
-
-    readout_channel_names: list[str]
-    """A list of all readout channel names"""
-    shot_channel_names: list[str]
-    """A list of all shot channel names"""
-    vector_channel_names: list[str]
-    """A list of all vector channel names"""
-    readout_channel_windows: list[PlotWindowMetadata]
-    """List of `PlotWindowMetadata` of result channels"""
-    shot_channel_windows: list[PlotWindowMetadata]
-    """List of `PlotWindowMetadata` of shot channels"""
-    vector_channel_windows: list[PlotWindowMetadata]
-    """List of `PlotWindowMetadata` of vector channels"""
-
-
-class PlotWindowsDict(TypedDict):
-    """Grouping of plot window metadata by channel type."""
-
-    result_channels: list[PlotWindowMetadata]
-    """Plot window metadata for result channels."""
-    shot_channels: list[PlotWindowMetadata]
-    """Plot window metadata for shot channels."""
-    vector_channels: list[PlotWindowMetadata]
-    """Plot window metadata for vector channels."""
-
-
-@dataclass
-class ParameterValue:
-    timestamp: str
-    value: DatabaseValueType
-
-
-@dataclass
-class ExperimentData:
-    """Container for all experiment data returned to the API."""
-
-    plot_windows: PlotWindowsDict
-    """Plot window metadata grouped by channel class."""
-    shot_channels: dict[str, dict[int, list[int]]]
-    """Shot channels as channel_name -> {index -> values}."""
-    result_channels: dict[str, dict[int, float]]
-    """Result channels as channel_name -> {index -> value}."""
-    vector_channels: dict[str, dict[int, list[float]]]
-    """Vector channels as channel_name -> {index -> values}."""
-    scan_parameters: dict[str, dict[int, str | float]]
-    """Scan parameters as param_id -> {index -> value/timestamp}."""
-    json_sequences: list[list[int | str]]
-    """List of [index, sequence_json] pairs (list for pydase JSON compatibility)."""
-    realtime_scan: bool
-    """True if the experiment has a realtime scan parameter."""
-    parameters: dict[str, ParameterValue]
-    """Mapping of parameter id to time series (tuple of timestamp str and value)."""
-    total_data_points: int
-    """Total number of data points in the HDF5 file (before truncation)."""
-    fits: dict[str, dict[str, object]]
-    """Fit results keyed by result channel name."""
 
 
 def get_filename_by_job_id(job_id: int) -> str:
