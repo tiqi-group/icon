@@ -69,9 +69,7 @@ class PostProcessingWorker(multiprocessing.Process):
     def run(self) -> None:
         logger.info("Post-processing worker started")
 
-        ParametersRepository.initialize(
-            shared_parameters=self._manager.parameters_dict
-        )
+        ParametersRepository.initialize(shared_parameters=self._manager.parameters_dict)
 
         while True:
             try:
@@ -150,9 +148,7 @@ class PostProcessingWorker(multiprocessing.Process):
 
         state.post_processing_output = result["post_processing_output"]
 
-        updated_parameters: dict[str, DatabaseValueType] = result[
-            "updated_parameters"
-        ]
+        updated_parameters: dict[str, DatabaseValueType] = result["updated_parameters"]
         if not updated_parameters:
             return
 
@@ -179,9 +175,7 @@ class PostProcessingWorker(multiprocessing.Process):
         ):
             self._upload_pending_parameters(state)
 
-    def _upload_pending_parameters(
-        self, state: ExperimentPostProcessingState
-    ) -> None:
+    def _upload_pending_parameters(self, state: ExperimentPostProcessingState) -> None:
         """Upload pending parameter updates to shared state and InfluxDB."""
         if state.pending_parameters:
             ParametersRepository.update_parameters(
