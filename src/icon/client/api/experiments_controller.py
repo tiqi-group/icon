@@ -11,6 +11,7 @@ from icon.server.api.models.experiment_dict import ExperimentMetadata
 from icon.server.data_access.models.sqlite.now import now
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from datetime import datetime
 
     from icon.client.client import Client
@@ -341,7 +342,7 @@ class ExperimentProxy:
 
         return repr
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Any]:
         for name in self._experiment_metadata.parameters:
             yield DisplayGroupProxy(
                 self._client,

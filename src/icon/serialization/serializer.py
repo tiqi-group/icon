@@ -97,7 +97,7 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
     ) -> SerializedPydanticModel:
         doc = get_attribute_doc(obj)
         dumped_model = obj.model_dump_json()
-        return {
+        out: pydantic.BaseModel = {
             "type": "pydantic.BaseModel",
             "name": f"{obj.__module__}.{type(obj).__name__}",
             "value": dumped_model,
@@ -105,6 +105,7 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
             "full_access_path": access_path,
             "readonly": True,
         }
+        return out
 
     @classmethod
     def _serialize_orm(
