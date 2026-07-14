@@ -124,6 +124,72 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         )
 
     @staticmethod
+    def run_experiment_post_processing(
+        *,
+        exp_module_name: str,
+        exp_instance_name: str,
+        parameter_dict: "dict[str, DatabaseValueType]",
+        result_channels: dict[str, float],
+        errors_log: list[float],
+    ) -> dict[str, Any]:
+        """Run an experiment's optional ``post_processing`` method.
+
+        The experiment's parameters are backed by a LocalCache initialised from
+        `parameter_dict`; any values the experiment writes back (e.g. servo
+        feedback via ``Parameter.set_value``) are collected by diffing the cache
+        afterwards.
+
+        Args:
+            exp_module_name: Module name of the experiment.
+            exp_instance_name: Name of the experiment instance.
+            parameter_dict: Mapping of parameter IDs to values.
+            result_channels: Result channel values of the processed data point.
+            errors_log: Post-processing state returned by the previous call for
+                this job (empty list on the first call).
+
+        Returns:
+            Dictionary with keys:
+            - "has_post_processing": whether the experiment defines the method.
+            - "updated_parameters": parameter IDs/values changed by the method.
+            - "errors_log": state to pass into the next call.
+            - "db_upload_interval": database upload interval in microseconds, or
+              None if the experiment does not define the parameter.
+        """
+        cache_dict: dict[str, DatabaseValueType] = dict(parameter_dict)
+        pycrystal.parameters.Parameter.db = pycrystal.database.local_cache.LocalCache(
+            key_val_dict=cache_dict,
+        )
+
+        exp_instance = import_experiment_instance(exp_module_name, exp_instance_name)
+
+        if not hasattr(exp_instance, "post_processing"):
+            return {
+                "has_post_processing": False,
+                "updated_parameters": {},
+                "errors_log": errors_log,
+                "db_upload_interval": None,
+            }
+
+        errors_log = exp_instance.post_processing(result_channels, errors_log)
+
+        updated_parameters = {
+            key: value
+            for key, value in cache_dict.items()
+            if key not in parameter_dict or parameter_dict[key] != value
+        }
+
+        db_upload_interval: float | None = None
+        if hasattr(exp_instance, "db_upload_interval"):
+            db_upload_interval = float(exp_instance.db_upload_interval().value())
+
+        return {
+            "has_post_processing": True,
+            "updated_parameters": updated_parameters,
+            "errors_log": list(errors_log or []),
+            "db_upload_interval": db_upload_interval,
+        }
+
+    @staticmethod
     def get_experiment_readout_metadata(
         exp_module_name: str,
         exp_instance_name: str,
