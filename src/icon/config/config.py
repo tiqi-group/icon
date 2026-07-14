@@ -39,7 +39,7 @@ def get_config() -> latest.ServiceConfig:
 
     schema = VERSIONS.get(config_version)
     if schema is None:
-        raise RuntimeError("Unsupported configuration version: {config_version}")
+        raise RuntimeError(f"Unsupported configuration version: {config_version}")
     config = schema(config_sources=FileSource(source))
     original_config_version = config.version
     while config.version < latest.__version__:
