@@ -32,3 +32,26 @@ class HardwareController:
 
     def receive(self) -> ResultDict:
         raise NotImplementedError("Must be implemented by a derived class")
+
+
+class FallbackHardwareController(HardwareController):
+    """Noop hardware controller."""
+
+    def connect(self) -> None:
+        pass
+
+    @property
+    def connected(self) -> bool:
+        return True
+
+    def send(self, data: bytes) -> None:
+        pass
+
+    def run(self) -> None:
+        pass
+
+    def status(self) -> tuple[StatusFlag, str, Any]:
+        return (StatusFlag.SUCCESS, "OK", ...)
+
+    def receive(self) -> ResultDict:
+        return ResultDict(result_channels={}, vector_channels={}, shot_channels={})
