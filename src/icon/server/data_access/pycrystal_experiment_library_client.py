@@ -174,7 +174,9 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
 
         post_processing_signature = inspect.signature(exp_instance.post_processing)
         if len(post_processing_signature.parameters) >= 2:  # noqa: PLR2004
-            post_processing_output = exp_instance.post_processing(result_channels, post_processing_output)
+            post_processing_output = exp_instance.post_processing(
+                result_channels, post_processing_output
+            )
         else:
             post_processing_output = exp_instance.post_processing(result_channels)
 
