@@ -424,12 +424,6 @@ class ExperimentDataRepository:
                 "data": asdict(data_point),
             }
         )
-        emit_queue.put(
-            {
-                "event": "last_experiment_sequence",
-                "data": data_point.hardware_instructions,
-            }
-        )
 
     @staticmethod
     def write_parameter_update_by_job_id(
