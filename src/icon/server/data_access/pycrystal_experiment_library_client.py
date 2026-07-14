@@ -1,4 +1,5 @@
 import importlib
+import inspect
 import logging
 import tempfile
 from collections.abc import Iterator
@@ -129,7 +130,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         exp_instance_name: str,
         parameter_dict: "dict[str, DatabaseValueType]",
         result_channels: dict[str, float],
-        errors_log: list[float],
+        post_processing_output: list[float],
     ) -> dict[str, Any]:
         """Run an experiment's optional ``post_processing`` method.
 
@@ -143,14 +144,16 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
             result_channels: Result channel values of the processed data point.
-            errors_log: Post-processing state returned by the previous call for
-                this job (empty list on the first call).
+            post_processing_output: Post-processing state returned by the
+                previous call for this job (empty list on the first call).
+                Only passed on to ``post_processing`` if that method actually
+                accepts it -- see below.
 
         Returns:
             Dictionary with keys:
             - "has_post_processing": whether the experiment defines the method.
             - "updated_parameters": parameter IDs/values changed by the method.
-            - "errors_log": state to pass into the next call.
+            - "post_processing_output": state to pass into the next call.
             - "db_upload_interval": database upload interval in microseconds, or
               None if the experiment does not define the parameter.
         """
@@ -165,11 +168,15 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             return {
                 "has_post_processing": False,
                 "updated_parameters": {},
-                "errors_log": errors_log,
+                "post_processing_output": post_processing_output,
                 "db_upload_interval": None,
             }
 
-        errors_log = exp_instance.post_processing(result_channels, errors_log)
+        post_processing_signature = inspect.signature(exp_instance.post_processing)
+        if len(post_processing_signature.parameters) >= 2:  # noqa: PLR2004
+            post_processing_output = exp_instance.post_processing(result_channels, post_processing_output)
+        else:
+            post_processing_output = exp_instance.post_processing(result_channels)
 
         updated_parameters = {
             key: value
@@ -184,7 +191,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         return {
             "has_post_processing": True,
             "updated_parameters": updated_parameters,
-            "errors_log": list(errors_log or []),
+            "post_processing_output": list(post_processing_output or []),
             "db_upload_interval": db_upload_interval,
         }
 

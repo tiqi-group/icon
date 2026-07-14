@@ -41,7 +41,7 @@ QUEUE_POLL_TIMEOUT = 1.0
 class ExperimentPostProcessingState:
     """Per-job state of the experiment-defined post-processing."""
 
-    errors_log: list[float] = field(default_factory=list)
+    post_processing_output: list[float] = field(default_factory=list)
     """State handed back by the experiment's post_processing on the last call."""
     pending_parameters: dict[str, DatabaseValueType] = field(default_factory=dict)
     """Parameters updated by post-processing but not yet uploaded to InfluxDB."""
@@ -138,7 +138,7 @@ class PostProcessingWorker(multiprocessing.Process):
                     "exp_instance_name": namespace.instance_name,
                     "parameter_dict": parameter_dict,
                     "result_channels": task.data_point.result_channels,
-                    "errors_log": state.errors_log,
+                    "post_processing_output": state.post_processing_output,
                 },
                 logger=logger,
             )
@@ -148,7 +148,7 @@ class PostProcessingWorker(multiprocessing.Process):
         if not state.has_post_processing:
             return
 
-        state.errors_log = result["errors_log"]
+        state.post_processing_output = result["post_processing_output"]
 
         updated_parameters: dict[str, DatabaseValueType] = result[
             "updated_parameters"
