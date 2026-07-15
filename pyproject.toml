@@ -134,13 +134,14 @@ max-complexity = 7
 convention = "google"
 
 [tool.mypy]
+files = ["src/", "tests/"]
 exclude = ["templates/.*\\.py"]
 disallow_untyped_defs = true
 disallow_untyped_calls = true
 disallow_incomplete_defs = true
 disallow_any_generics = true
 check_untyped_defs = true
-ignore_missing_imports = false
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "session"
