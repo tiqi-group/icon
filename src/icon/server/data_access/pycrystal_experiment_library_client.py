@@ -1,4 +1,5 @@
 import importlib
+import inspect
 import logging
 import tempfile
 from collections.abc import Iterator
@@ -122,6 +123,80 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             n_shots,
             LOG_LEVEL,
         )
+
+    @staticmethod
+    def run_experiment_post_processing(
+        *,
+        exp_module_name: str,
+        exp_instance_name: str,
+        parameter_dict: "dict[str, DatabaseValueType]",
+        result_channels: dict[str, float],
+        post_processing_output: list[float],
+    ) -> dict[str, Any]:
+        """Run an experiment's optional ``post_processing`` method.
+
+        The experiment's parameters are backed by a LocalCache initialised from
+        `parameter_dict`; any values the experiment writes back (e.g. servo
+        feedback via ``Parameter.set_value``) are collected by diffing the cache
+        afterwards.
+
+        Args:
+            exp_module_name: Module name of the experiment.
+            exp_instance_name: Name of the experiment instance.
+            parameter_dict: Mapping of parameter IDs to values.
+            result_channels: Result channel values of the processed data point.
+            post_processing_output: Post-processing state returned by the
+                previous call for this job (empty list on the first call).
+                Only passed on to ``post_processing`` if that method actually
+                accepts it -- see below.
+
+        Returns:
+            Dictionary with keys:
+            - "has_post_processing": whether the experiment defines the method.
+            - "updated_parameters": parameter IDs/values changed by the method.
+            - "post_processing_output": state to pass into the next call.
+            - "db_upload_interval": database upload interval in microseconds, or
+              None if the experiment does not define the parameter.
+        """
+        cache_dict: dict[str, DatabaseValueType] = dict(parameter_dict)
+        pycrystal.parameters.Parameter.db = pycrystal.database.local_cache.LocalCache(
+            key_val_dict=cache_dict,
+        )
+
+        exp_instance = import_experiment_instance(exp_module_name, exp_instance_name)
+
+        if not hasattr(exp_instance, "post_processing"):
+            return {
+                "has_post_processing": False,
+                "updated_parameters": {},
+                "post_processing_output": post_processing_output,
+                "db_upload_interval": None,
+            }
+
+        post_processing_signature = inspect.signature(exp_instance.post_processing)
+        if len(post_processing_signature.parameters) >= 2:  # noqa: PLR2004
+            post_processing_output = exp_instance.post_processing(
+                result_channels, post_processing_output
+            )
+        else:
+            post_processing_output = exp_instance.post_processing(result_channels)
+
+        updated_parameters = {
+            key: value
+            for key, value in cache_dict.items()
+            if key not in parameter_dict or parameter_dict[key] != value
+        }
+
+        db_upload_interval: float | None = None
+        if hasattr(exp_instance, "db_upload_interval"):
+            db_upload_interval = float(exp_instance.db_upload_interval().value())
+
+        return {
+            "has_post_processing": True,
+            "updated_parameters": updated_parameters,
+            "post_processing_output": list(post_processing_output or []),
+            "db_upload_interval": db_upload_interval,
+        }
 
     @staticmethod
     def get_experiment_readout_metadata(
