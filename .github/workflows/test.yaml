@@ -16,13 +16,11 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v6
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
-        run: |
-          pipx install uv
-          uv sync -p ${{ matrix.python-version }} --extra server --extra client --locked
+        run: uv sync --extra server --extra client --locked
       - name: Full Python tests
         run: uv run pytest -v -m "not container"
