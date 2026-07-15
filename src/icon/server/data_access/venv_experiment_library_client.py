@@ -3,15 +3,13 @@
 import logging
 from typing import TYPE_CHECKING, Any
 
+from icon.server.data_access.experiment_data import ReadoutMetadata
 from icon.server.data_access.experiment_library_client import ExperimentLibraryClient
-from icon.server.data_access.venv_exec import VirtualEnvironment
+from icon.server.data_access.venv_exec import VirtualEnvironment, deep_asdict
 
 if TYPE_CHECKING:
     from icon.server.api.models.experiment_dict import ExperimentDict
-    from icon.server.data_access.experiment_data import (
-        DatabaseValueType,
-        ReadoutMetadata,
-    )
+    from icon.server.data_access.experiment_data import DatabaseValueType
     from icon.server.data_access.experiment_library_client import ParameterMetadataDict
 
 venv_logger = logging.getLogger("venv")
@@ -151,6 +149,8 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
                 "parameter_dict": parameter_dict,
             },
             logger=venv_logger,
+            serialize=deep_asdict,
+            deserialize=ReadoutMetadata.from_dict,
         )
 
     async def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:

@@ -20,6 +20,7 @@ from icon.server.data_access.experiment_data import (
     ExperimentDataPoint,
     FitResult,
     ParameterValue,
+    PlotWindowMetadata,
     ReadoutMetadata,
 )
 from icon.server.data_access.models.sqlite.scan_parameter import (
@@ -310,34 +311,39 @@ class ExperimentDataRepository:
                         f"description={parameter.device.description}"
                     )
 
-            if readout_metadata["readout_channel_names"]:
+            if readout_metadata.readout_channel_names:
                 result_dataset = get_result_channels_dataset(
                     h5file=h5file,
-                    result_channels=readout_metadata["readout_channel_names"],
+                    result_channels=readout_metadata.readout_channel_names,
                 )
                 result_dataset.attrs["Plot window metadata"] = json.dumps(
-                    readout_metadata["readout_channel_windows"]
+                    [asdict(w) for w in readout_metadata.readout_channel_windows]
                 )
 
             shot_group = h5file.require_group("shot_channels")
             shot_group.attrs["Plot window metadata"] = json.dumps(
-                readout_metadata["shot_channel_windows"]
+                [asdict(w) for w in readout_metadata.shot_channel_windows]
             )
 
             vector_group = h5file.require_group("vector_channels")
             vector_group.attrs["Plot window metadata"] = json.dumps(
-                readout_metadata["vector_channel_windows"]
+                [asdict(w) for w in readout_metadata.vector_channel_windows]
             )
 
+        metadata_key_remap = {
+            "readout_channel_windows": "result_channels",
+            "shot_channel_windows": "shot_channels",
+            "vector_channel_windows": "vector_channels",
+        }
         emit_queue.put(
             {
                 "event": f"experiment_{job_id}_metadata",
                 "data": {
                     "readout_metadata": {
-                        "result_channels": readout_metadata["readout_channel_windows"],
-                        "shot_channels": readout_metadata["shot_channel_windows"],
-                        "vector_channels": readout_metadata["vector_channel_windows"],
-                    },
+                        metadata_key_remap[key]: val
+                        for key, val in asdict(readout_metadata).items()
+                        if key in metadata_key_remap
+                    }
                 },
             }
         )
@@ -580,10 +586,10 @@ class ExperimentDataRepository:
 
             if result_channel_dataset is not None:
                 plot_metadata = result_channel_dataset.attrs.get("Plot window metadata")
-                if plot_metadata:
-                    data.plot_windows["result_channels"] = json.loads(
-                        cast("str", plot_metadata)
-                    )
+                data.plot_windows.result_channels = [
+                    PlotWindowMetadata(**d)
+                    for d in (json.loads(plot_metadata) if plot_metadata else [])
+                ]
                 result_channels = cast(
                     "npt.NDArray[Any]", result_channel_dataset[start_index:]
                 )  # type: ignore
@@ -602,10 +608,10 @@ class ExperimentDataRepository:
             # Convert shot channels into dicts with index as key
             if shot_channels_group is not None:
                 plot_metadata = shot_channels_group.attrs.get("Plot window metadata")
-                if plot_metadata:
-                    data.plot_windows["shot_channels"] = json.loads(
-                        cast("str", plot_metadata)
-                    )
+                data.plot_windows.shot_channels = [
+                    PlotWindowMetadata(**d)
+                    for d in (json.loads(plot_metadata) if plot_metadata else [])
+                ]
                 data.readouts.shot_channels = {
                     key: dict(
                         enumerate(value[start_index:].tolist(), start=start_index)
@@ -617,12 +623,12 @@ class ExperimentDataRepository:
                 }
 
             if vector_channels_group is not None:
-                plot_metadata = vector_channels_group.attrs.get(
-                    "Plot window metadata", "[]"
-                )
-                data.plot_windows["vector_channels"] = json.loads(
-                    cast("str", plot_metadata)
-                )
+                plot_metadata = vector_channels_group.attrs.get("Plot window metadata")
+                plot_metadata = vector_channels_group.attrs.get("Plot window metadata")
+                data.plot_windows.vector_channels = [
+                    PlotWindowMetadata(**d)
+                    for d in (json.loads(plot_metadata) if plot_metadata else [])
+                ]
                 data.readouts.vector_channels = {
                     channel_name: {
                         int(data_point): vector_dataset[:].tolist()

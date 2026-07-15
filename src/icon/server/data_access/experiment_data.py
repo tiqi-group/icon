@@ -1,7 +1,10 @@
 """Experiment data related structures."""
 
 from dataclasses import dataclass, field
-from typing import Literal, TypedDict
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from typing import Self
 
 DatabaseValueType = bool | float | int | str
 
@@ -46,7 +49,8 @@ class ExperimentDataPoint:
     """Readouts from the device."""
 
 
-class PlotWindowMetadata(TypedDict):
+@dataclass
+class PlotWindowMetadata:
     """Metadata describing a single plot window for visualization in the frontend.
 
     This metadata includes the plot's index within its type, the type of plot (e.g.,
@@ -64,7 +68,8 @@ class PlotWindowMetadata(TypedDict):
     """A list of channel names to be plotted in this window"""
 
 
-class ReadoutMetadata(TypedDict):
+@dataclass
+class ReadoutMetadata:
     """Metadata describing readout/shot/vector channels and their plot windows."""
 
     readout_channel_names: list[str]
@@ -80,15 +85,31 @@ class ReadoutMetadata(TypedDict):
     vector_channel_windows: list[PlotWindowMetadata]
     """List of `PlotWindowMetadata` of vector channels"""
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Self":
+        return cls(
+            readout_channel_windows=[
+                PlotWindowMetadata(**d) for d in data.pop("readout_channel_windows")
+            ],
+            shot_channel_windows=[
+                PlotWindowMetadata(**d) for d in data.pop("shot_channel_windows")
+            ],
+            vector_channel_windows=[
+                PlotWindowMetadata(**d) for d in data.pop("vector_channel_windows")
+            ],
+            **data,
+        )
 
-class PlotWindows(TypedDict):
+
+@dataclass
+class PlotWindows:
     """Grouping of plot window metadata by channel type."""
 
-    result_channels: list[PlotWindowMetadata]
+    result_channels: list[PlotWindowMetadata] = field(default_factory=list)
     """Plot window metadata for result channels."""
-    shot_channels: list[PlotWindowMetadata]
+    shot_channels: list[PlotWindowMetadata] = field(default_factory=list)
     """Plot window metadata for shot channels."""
-    vector_channels: list[PlotWindowMetadata]
+    vector_channels: list[PlotWindowMetadata] = field(default_factory=list)
     """Plot window metadata for vector channels."""
 
 
@@ -113,15 +134,11 @@ class ParameterValue:
     value: DatabaseValueType
 
 
-def empty_plot_windows() -> PlotWindows:
-    return {"result_channels": [], "shot_channels": [], "vector_channels": []}
-
-
 @dataclass
 class ExperimentData:
     """Container for all experiment data returned to the API."""
 
-    plot_windows: PlotWindows = field(default_factory=empty_plot_windows)
+    plot_windows: PlotWindows = field(default_factory=PlotWindows)
     """Plot window metadata grouped by channel class."""
     readouts: ReadoutSequences = field(default_factory=ReadoutSequences)
     """Readouts from the device."""

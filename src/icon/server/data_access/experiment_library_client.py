@@ -3,6 +3,8 @@
 from contextlib import AbstractContextManager, nullcontext
 from typing import TYPE_CHECKING, Any, TypedDict
 
+from icon.server.data_access.experiment_data import ReadoutMetadata
+
 if TYPE_CHECKING:
     from icon.server.api.models.experiment_dict import (
         ExperimentDict,
@@ -10,10 +12,7 @@ if TYPE_CHECKING:
     from icon.server.api.models.parameter_metadata import (
         ParameterMetadata,
     )
-    from icon.server.data_access.experiment_data import (
-        DatabaseValueType,
-        ReadoutMetadata,
-    )
+    from icon.server.data_access.experiment_data import DatabaseValueType
 
 ParameterMetadataDict = TypedDict(
     "ParameterMetadataDict",
@@ -151,14 +150,14 @@ class FallbackExperimentLibraryClient(ExperimentLibraryClient):
         Returns:
             Dictionary containing readout metadata for the experiment.
         """
-        return {
-            "readout_channel_names": [],
-            "shot_channel_names": [],
-            "vector_channel_names": [],
-            "readout_channel_windows": [],
-            "shot_channel_windows": [],
-            "vector_channel_windows": [],
-        }
+        return ReadoutMetadata(
+            readout_channel_names=[],
+            shot_channel_names=[],
+            vector_channel_names=[],
+            readout_channel_windows=[],
+            shot_channel_windows=[],
+            vector_channel_windows=[],
+        )
 
     async def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:
         """Fetch hardware description from experiment library.

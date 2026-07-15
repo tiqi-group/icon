@@ -15,6 +15,7 @@ from pycrystal.utils.helpers import (
 )
 
 import icon.server.utils.git_helpers
+from icon.server.data_access.experiment_data import PlotWindowMetadata, ReadoutMetadata
 from icon.server.data_access.experiment_library_client import ExperimentLibraryClient
 from icon.server.data_access.venv_experiment_library_client import (
     BlockingExperimentLibraryClient,
@@ -29,8 +30,6 @@ if TYPE_CHECKING:
     )
     from icon.server.data_access.experiment_data import (
         DatabaseValueType,
-        PlotWindowMetadata,
-        ReadoutMetadata,
     )
     from icon.server.data_access.experiment_library_client import ParameterMetadataDict
 
@@ -146,28 +145,28 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         exp_instance = import_experiment_instance(exp_module_name, exp_instance_name)
         readout = exp_instance.get_readout_metadata(parameter_dict, LOG_LEVEL)
 
-        def plot_window_metadata(data: Any) -> "PlotWindowMetadata":
-            return {
-                "name": data.name,
-                "index": data.index,
-                "type": data.type.name.lower(),
-                "channel_names": data.channel_names,
-            }
+        def plot_window_metadata(data: Any) -> PlotWindowMetadata:
+            return PlotWindowMetadata(
+                name=data.name,
+                index=data.index,
+                type=data.type.name.lower(),
+                channel_names=data.channel_names,
+            )
 
-        return {
-            "readout_channel_names": readout.readout_channel_names,
-            "shot_channel_names": readout.shot_channel_names,
-            "vector_channel_names": readout.vector_channel_names,
-            "readout_channel_windows": [
+        return ReadoutMetadata(
+            readout_channel_names=readout.readout_channel_names,
+            shot_channel_names=readout.shot_channel_names,
+            vector_channel_names=readout.vector_channel_names,
+            readout_channel_windows=[
                 plot_window_metadata(m) for m in readout.readout_channel_windows
             ],
-            "shot_channel_windows": [
+            shot_channel_windows=[
                 plot_window_metadata(m) for m in readout.shot_channel_windows
             ],
-            "vector_channel_windows": [
+            vector_channel_windows=[
                 plot_window_metadata(m) for m in readout.vector_channel_windows
             ],
-        }
+        )
 
     def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:
         """Fetch hardware description from experiment library.
