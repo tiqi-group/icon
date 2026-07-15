@@ -270,67 +270,20 @@ class ExperimentDataRepository:
             local_parameter_timestamp: Optional timestamp for local parameters.
             parameters: Scan parameters.
         """
-        if parameters is None:
-            parameters = []
-
         filename = get_filename_by_job_id(job_id)
         h5_path = Path(get_config().data.results_dir) / filename
-
         job = JobRepository.get_job_by_id(job_id=job_id, load_experiment_source=True)
 
         with h5_open(h5_path, "a") as h5file:
-            h5file.attrs["number_of_data_points"] = 0
-            h5file.attrs["number_of_shots"] = number_of_shots
-            h5file.attrs["experiment_id"] = job.experiment_source.experiment_id
-            h5file.attrs["job_id"] = job_id
-            h5file.attrs["repetitions"] = repetitions
-            h5file.attrs["realtime_scan"] = contains_realtime_parameter(parameters)
-
-            if local_parameter_timestamp is not None:
-                h5file.attrs["local_parameter_timestamp"] = local_parameter_timestamp
-
-            scan_parameter_dtype = [
-                ("timestamp", "S26"),
-                *[
-                    (param.variable_id, np.float64)
-                    for param in parameters
-                    if not param.realtime
-                ],
-            ]
-            h5file.create_dataset(
-                "scan_parameters",
-                shape=(0, 1),
-                maxshape=(None, 1),
-                chunks=True,
-                dtype=scan_parameter_dtype,
-                compression="gzip",
-                compression_opts=9,
-            )
-
-            for parameter in parameters:
-                if parameter.device is not None:
-                    h5file["scan_parameters"].attrs[parameter.unique_id()] = (
-                        f"name={parameter.device.name} url={parameter.device.url}"
-                        f"description={parameter.device.description}"
-                    )
-
-            if readout_metadata.readout_channel_names:
-                result_dataset = get_result_channels_dataset(
-                    h5file=h5file,
-                    result_channels=readout_metadata.readout_channel_names,
-                )
-                result_dataset.attrs["Plot window metadata"] = json.dumps(
-                    [asdict(w) for w in readout_metadata.readout_channel_windows]
-                )
-
-            shot_group = h5file.require_group("shot_channels")
-            shot_group.attrs["Plot window metadata"] = json.dumps(
-                [asdict(w) for w in readout_metadata.shot_channel_windows]
-            )
-
-            vector_group = h5file.require_group("vector_channels")
-            vector_group.attrs["Plot window metadata"] = json.dumps(
-                [asdict(w) for w in readout_metadata.vector_channel_windows]
+            prepare_readout_metadata(
+                h5file,
+                job_id=job_id,
+                experiment_id=job.experiment_source.experiment_id,
+                number_of_shots=number_of_shots,
+                repetitions=repetitions,
+                readout_metadata=readout_metadata,
+                local_parameter_timestamp=local_parameter_timestamp,
+                parameters=parameters or [],
             )
 
         metadata_key_remap = {
@@ -369,54 +322,8 @@ class ExperimentDataRepository:
         h5_path = Path(get_config().data.results_dir) / filename
 
         with h5_open(h5_path, "a") as h5file:
-            try:
-                number_of_shots: int = h5file.attrs["number_of_shots"]
-                number_of_data_points: int = h5file.attrs["number_of_data_points"]
-            except KeyError:
-                raise KeyError(
-                    "Metadata does not contain relevant information. Please use "
-                    "ExperimentDataRepository.update_metadata_by_job_id first!"
-                ) from None
-
-            write_scan_parameters_and_timestamp_to_dataset(
-                h5file=h5file,
-                data_point_index=data_point.index,
-                scan_params=data_point.scan_params,
-                timestamp=data_point.timestamp,
-                number_of_data_points=number_of_data_points,
-            )
-
-            write_results_to_dataset(
-                h5file=h5file,
-                data_point_index=data_point.index,
-                result_channels=data_point.readouts.result_channels,
-                number_of_data_points=number_of_data_points,
-            )
-
-            write_shot_channels_to_datasets(
-                h5file=h5file,
-                data_point_index=data_point.index,
-                shot_channels=data_point.readouts.shot_channels,
-                number_of_data_points=number_of_data_points,
-                number_of_shots=number_of_shots,
-            )
-
-            write_vector_channels_to_datasets(
-                h5file=h5file,
-                data_point_index=data_point.index,
-                vector_channels=data_point.readouts.vector_channels,
-            )
-
-            write_hardware_instructions_to_dataset(
-                h5file=h5file,
-                data_point_index=data_point.index,
-                hardware_instructions=data_point.hardware_instructions,
-            )
-
-            if data_point.index >= number_of_data_points:
-                h5file.attrs["number_of_data_points"] = data_point.index + 1
-
-            logger.debug("Appended data to %s", h5_path)
+            write_experiment_data_point(h5file, data_point)
+        logger.debug("Appended data to %s", h5_path)
 
         emit_queue.put(
             {
@@ -491,7 +398,7 @@ class ExperimentDataRepository:
         )
 
     @staticmethod
-    def get_experiment_data_by_job_id(  # noqa: C901
+    def get_experiment_data_by_job_id(
         *,
         job_id: int,
         max_transfer_bytes: int = 50_000_000,
@@ -523,136 +430,259 @@ class ExperimentDataRepository:
             logger.warning("The file %s does not exist.", h5_path)
             return ExperimentData()
 
-        data = ExperimentData()
         with h5_open(h5_path, "r") as h5file:
-            data.realtime_scan = bool(h5file.attrs.get("realtime_scan", False))
-
-            total = int(h5file.attrs.get("number_of_data_points", 0))
-            data.total_data_points = total
-
-            # Estimate bytes per data point from HDF5 metadata
-            shot_channels_group = cast("h5py.Group | None", h5file.get("shot_channels"))
-            result_channel_dataset = h5file.get("result_channels")
-            scan_parameters = cast("h5py.Dataset | None", h5file.get("scan_parameters"))
-
-            bytes_per_point = sum(
-                ds.shape[1] * ds.dtype.itemsize
-                for ds in (shot_channels_group or {}).values()
-            ) + sum(
-                ds.dtype.itemsize
-                for ds in (result_channel_dataset, scan_parameters)
-                if ds is not None
+            return load_experiment_data(
+                h5file,
+                max_transfer_bytes,
+                include_hardware_instructions=include_hardware_instructions,
             )
 
-            # Add vector channel size (average across all data points)
-            vector_channels_group = cast(
-                "h5py.Group | None", h5file.get("vector_channels")
-            )
-            total_vector_bytes = sum(
-                dataset.shape[0] * dataset.dtype.itemsize
-                for channel_group in (vector_channels_group or {}).values()
-                for dataset in cast("h5py.Group", channel_group).values()
-            )
-            if total > 0:
-                bytes_per_point += total_vector_bytes // total
-            # JSON serialisation roughly doubles the raw size
-            bytes_per_point = max(bytes_per_point * 2, 1)
 
-            max_data_points = max_transfer_bytes // bytes_per_point
-            start_index = max(0, total - max_data_points)
-            if start_index > 0:
-                logger.info(
-                    "Loading last %d of %d data points (~%d bytes/point, %d MB budget)",
-                    total - start_index,
-                    total,
-                    bytes_per_point,
-                    max_transfer_bytes // 1_000_000,
+def prepare_readout_metadata(
+    h5file: h5py.File,
+    *,
+    job_id: int,
+    experiment_id: int,
+    number_of_shots: int,
+    repetitions: int,
+    readout_metadata: ReadoutMetadata,
+    local_parameter_timestamp: datetime | None,
+    parameters: list[ScanParameter],
+) -> None:
+    h5file.attrs["number_of_data_points"] = 0
+    h5file.attrs["number_of_shots"] = number_of_shots
+    h5file.attrs["experiment_id"] = experiment_id
+    h5file.attrs["job_id"] = job_id
+    h5file.attrs["repetitions"] = repetitions
+    h5file.attrs["realtime_scan"] = contains_realtime_parameter(parameters)
+
+    if local_parameter_timestamp is not None:
+        h5file.attrs["local_parameter_timestamp"] = local_parameter_timestamp
+
+    scan_parameter_dtype = [
+        ("timestamp", "S26"),
+        *[
+            (param.variable_id, np.float64)
+            for param in parameters
+            if not param.realtime
+        ],
+    ]
+    h5file.create_dataset(
+        "scan_parameters",
+        shape=(0, 1),
+        maxshape=(None, 1),
+        chunks=True,
+        dtype=scan_parameter_dtype,
+        compression="gzip",
+        compression_opts=9,
+    )
+
+    for parameter in parameters:
+        if parameter.device is not None:
+            h5file["scan_parameters"].attrs[parameter.unique_id()] = (
+                f"name={parameter.device.name} url={parameter.device.url}"
+                f"description={parameter.device.description}"
+            )
+
+    if readout_metadata.readout_channel_names:
+        result_dataset = get_result_channels_dataset(
+            h5file=h5file,
+            result_channels=readout_metadata.readout_channel_names,
+        )
+        result_dataset.attrs["Plot window metadata"] = json.dumps(
+            [asdict(w) for w in readout_metadata.readout_channel_windows]
+        )
+
+    shot_group = h5file.require_group("shot_channels")
+    shot_group.attrs["Plot window metadata"] = json.dumps(
+        [asdict(w) for w in readout_metadata.shot_channel_windows]
+    )
+
+    vector_group = h5file.require_group("vector_channels")
+    vector_group.attrs["Plot window metadata"] = json.dumps(
+        [asdict(w) for w in readout_metadata.vector_channel_windows]
+    )
+
+
+def write_experiment_data_point(
+    h5file: h5py.File, data_point: ExperimentDataPoint
+) -> None:
+    try:
+        number_of_shots: int = h5file.attrs["number_of_shots"]
+        number_of_data_points: int = h5file.attrs["number_of_data_points"]
+    except KeyError:
+        raise KeyError(
+            "Metadata does not contain relevant information. Please use "
+            "ExperimentDataRepository.update_metadata_by_job_id first!"
+        ) from None
+
+    write_scan_parameters_and_timestamp_to_dataset(
+        h5file=h5file,
+        data_point_index=data_point.index,
+        scan_params=data_point.scan_params,
+        timestamp=data_point.timestamp,
+        number_of_data_points=number_of_data_points,
+    )
+    write_results_to_dataset(
+        h5file=h5file,
+        data_point_index=data_point.index,
+        result_channels=data_point.readouts.result_channels,
+        number_of_data_points=number_of_data_points,
+    )
+
+    write_shot_channels_to_datasets(
+        h5file=h5file,
+        data_point_index=data_point.index,
+        shot_channels=data_point.readouts.shot_channels,
+        number_of_data_points=number_of_data_points,
+        number_of_shots=number_of_shots,
+    )
+
+    write_vector_channels_to_datasets(
+        h5file=h5file,
+        data_point_index=data_point.index,
+        vector_channels=data_point.readouts.vector_channels,
+    )
+
+    write_hardware_instructions_to_dataset(
+        h5file=h5file,
+        data_point_index=data_point.index,
+        hardware_instructions=data_point.hardware_instructions,
+    )
+
+    if data_point.index >= number_of_data_points:
+        h5file.attrs["number_of_data_points"] = data_point.index + 1
+
+
+def load_experiment_data(
+    h5file: h5py.File,
+    max_transfer_bytes: int = 50_000_000,
+    *,
+    include_hardware_instructions: bool = False,
+) -> ExperimentData:
+    """Load stored data for a job from its HDF5 file.
+
+    When loading all data would exceed *max_transfer_bytes*, only the
+    last N data points that fit within the budget are returned.  The
+    budget is estimated from HDF5 metadata (channel count, shots per
+    channel) without reading actual data.
+
+    Args:
+        h5file: File to load from.
+        max_transfer_bytes: Approximate cap on the serialised payload
+            size in bytes.  Defaults to 50 MB.
+        include_hardware_instructions: Wether to include hardware instructions
+    Returns:
+        Experiment data payload suitable for the API.
+    """
+    total = int(h5file.attrs.get("number_of_data_points", 0))
+    data = ExperimentData(
+        realtime_scan=bool(h5file.attrs.get("realtime_scan", False)),
+        total_data_points=total,
+    )
+    shot_channels_group: h5py.Group | None = h5file.get("shot_channels")
+    result_channel_dataset = h5file.get("result_channels")
+    scan_parameters: h5py.Dataset | None = h5file.get("scan_parameters")
+    vector_channels_group: h5py.Group | None = h5file.get("vector_channels")
+
+    # Estimate bytes per data point from HDF5 metadata
+    bytes_per_point = estimate_bytes_per_data_point(
+        total,
+        shot_channels_group,
+        result_channel_dataset,
+        vector_channels_group,
+        scan_parameters,
+    )
+
+    max_data_points = max_transfer_bytes // bytes_per_point
+    start_index = max(0, total - max_data_points)
+    if start_index > 0:
+        logger.info(
+            "Loading last %d of %d data points (~%d bytes/point, %d MB budget)",
+            total - start_index,
+            total,
+            bytes_per_point,
+            max_transfer_bytes // 1_000_000,
+        )
+
+    if scan_parameters is not None:
+        scan_parameters: npt.NDArray = scan_parameters[start_index:]  # type: ignore
+        data.scan_parameters = {
+            param: {
+                start_index + i: value[0].item().decode()
+                if isinstance(value[0], np.bytes_)
+                else value[0].item()
+                for i, value in enumerate(scan_parameters[param])
+            }
+            for param in cast("tuple[str, ...]", scan_parameters.dtype.names)
+        }
+
+    if result_channel_dataset is not None:
+        plot_metadata: str | None = result_channel_dataset.attrs.get(
+            "Plot window metadata"
+        )
+        data.plot_windows.result_channels = [
+            PlotWindowMetadata(**d)
+            for d in (json.loads(plot_metadata) if plot_metadata else [])
+        ]
+        result_channels = cast("npt.NDArray[Any]", result_channel_dataset[start_index:])  # type: ignore
+        data.readouts.result_channels = {
+            channel_name: dict(
+                enumerate(
+                    cast("list[float]", result_channels[channel_name].tolist()),
+                    start=start_index,
                 )
+            )
+            for channel_name in cast("tuple[str, ...]", result_channels.dtype.names)
+        }
 
-            if scan_parameters is not None:
-                scan_parameters: npt.NDArray = scan_parameters[start_index:]  # type: ignore
-                data.scan_parameters = {
-                    param: {
-                        start_index + i: value[0].item().decode()
-                        if isinstance(value[0], np.bytes_)
-                        else value[0].item()
-                        for i, value in enumerate(scan_parameters[param])
-                    }
-                    for param in cast("tuple[str, ...]", scan_parameters.dtype.names)
-                }
+    # Convert shot channels into dicts with index as key
+    if shot_channels_group is not None:
+        plot_metadata = shot_channels_group.attrs.get("Plot window metadata")
+        data.plot_windows.shot_channels = [
+            PlotWindowMetadata(**d)
+            for d in (json.loads(plot_metadata) if plot_metadata else [])
+        ]
+        data.readouts.shot_channels = {
+            key: dict(enumerate(value[start_index:].tolist(), start=start_index))  # type: ignore
+            for key, value in cast(
+                "Sequence[tuple[str, h5py.Dataset]]",
+                shot_channels_group.items(),
+            )
+        }
 
-            if result_channel_dataset is not None:
-                plot_metadata = result_channel_dataset.attrs.get("Plot window metadata")
-                data.plot_windows.result_channels = [
-                    PlotWindowMetadata(**d)
-                    for d in (json.loads(plot_metadata) if plot_metadata else [])
-                ]
-                result_channels = cast(
-                    "npt.NDArray[Any]", result_channel_dataset[start_index:]
-                )  # type: ignore
-                data.readouts.result_channels = {
-                    channel_name: dict(
-                        enumerate(
-                            cast("list[float]", result_channels[channel_name].tolist()),
-                            start=start_index,
-                        )
-                    )
-                    for channel_name in cast(
-                        "tuple[str, ...]", result_channels.dtype.names
-                    )
-                }
-
-            # Convert shot channels into dicts with index as key
-            if shot_channels_group is not None:
-                plot_metadata = shot_channels_group.attrs.get("Plot window metadata")
-                data.plot_windows.shot_channels = [
-                    PlotWindowMetadata(**d)
-                    for d in (json.loads(plot_metadata) if plot_metadata else [])
-                ]
-                data.readouts.shot_channels = {
-                    key: dict(
-                        enumerate(value[start_index:].tolist(), start=start_index)
-                    )  # type: ignore
-                    for key, value in cast(
-                        "Sequence[tuple[str, h5py.Dataset]]",
-                        shot_channels_group.items(),
-                    )
-                }
-
-            if vector_channels_group is not None:
-                plot_metadata = vector_channels_group.attrs.get("Plot window metadata")
-                plot_metadata = vector_channels_group.attrs.get("Plot window metadata")
-                data.plot_windows.vector_channels = [
-                    PlotWindowMetadata(**d)
-                    for d in (json.loads(plot_metadata) if plot_metadata else [])
-                ]
-                data.readouts.vector_channels = {
-                    channel_name: {
-                        int(data_point): vector_dataset[:].tolist()
-                        for data_point, vector_dataset in cast(
-                            "Sequence[tuple[str, h5py.Dataset]]", vector_group.items()
-                        )
-                    }
-                    for channel_name, vector_group in cast(
-                        "Sequence[tuple[str, h5py.Group]]",
-                        vector_channels_group.items(),
-                    )
-                }
-
-            if include_hardware_instructions:
-                hardware_instructions_dataset = cast(
-                    "h5py.Dataset | tuple[()]", h5file.get("hardware_instructions", ())
+    if vector_channels_group is not None:
+        plot_metadata = vector_channels_group.attrs.get("Plot window metadata")
+        data.plot_windows.vector_channels = [
+            PlotWindowMetadata(**d)
+            for d in (json.loads(plot_metadata) if plot_metadata else [])
+        ]
+        data.readouts.vector_channels = {
+            channel_name: {
+                int(data_point): vector_dataset[:].tolist()
+                for data_point, vector_dataset in cast(
+                    "Sequence[tuple[str, h5py.Dataset]]", vector_group.items()
                 )
-                data.hardware_instructions = [
-                    (
-                        cast("np.int32", entry["index"]).item(),
-                        entry["Sequence"],
-                    )
-                    for entry in hardware_instructions_dataset
-                ]
-            data.parameters = extract_parameter_values(h5file)
-            data.fits = _read_fits_from_hdf5(h5file)
-        return data
+            }
+            for channel_name, vector_group in cast(
+                "Sequence[tuple[str, h5py.Group]]",
+                vector_channels_group.items(),
+            )
+        }
+
+    if include_hardware_instructions:
+        data.hardware_instructions = [
+            (
+                cast("np.int32", entry["index"]).item(),
+                entry["Sequence"].decode(),
+            )
+            for entry in cast(
+                "h5py.Dataset | tuple[()]", h5file.get("hardware_instructions", ())
+            )
+        ]
+    data.parameters = extract_parameter_values(h5file)
+    data.fits = _read_fits_from_hdf5(h5file)
+    return data
 
 
 def extract_parameter_values(
@@ -800,3 +830,34 @@ def delete_fit_result_by_job_id(*, job_id: int, result_channel: str) -> None:
     with h5_open(h5_path, "a") as h5file:
         if "fits" in h5file and result_channel in h5file["fits"]:
             del h5file["fits"][result_channel]
+
+
+def estimate_bytes_per_data_point(
+    total: int,
+    shot_channels_group: h5py.Group | None,
+    result_channel_dataset: h5py.Group | None,
+    vector_channels_group: h5py.Group | None,
+    scan_parameters: h5py.Dataset | None,
+) -> int:
+    """Estimate bytes per data point from HDF5 metadata.
+
+    Return total number of data points in `h5file` and estimated bytes per data point.
+    """
+    bytes_per_point = sum(
+        ds.shape[1] * ds.dtype.itemsize for ds in (shot_channels_group or {}).values()
+    ) + sum(
+        ds.dtype.itemsize
+        for ds in (result_channel_dataset, scan_parameters)
+        if ds is not None
+    )
+
+    # Add vector channel size (average across all data points)
+    total_vector_bytes = sum(
+        dataset.shape[0] * dataset.dtype.itemsize
+        for channel_group in (vector_channels_group or {}).values()
+        for dataset in cast("h5py.Group", channel_group).values()
+    )
+    if total > 0:
+        bytes_per_point += total_vector_bytes // total
+    # JSON serialisation roughly doubles the raw size
+    return max(bytes_per_point * 2, 1)
