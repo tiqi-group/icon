@@ -4,10 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from icon.config.reloader import DictReloader, ReloadError
-from icon.server.hardware_processing.hardware_controller import (
-    FallbackHardwareController,
-    HardwareController,
-)
+from icon.server.hardware_processing.hardware_controller import HardwareController
 
 
 @dataclass
@@ -68,13 +65,6 @@ class Devices:
         self.reload()
         return self.__devices.items()
 
-    def main_device(self) -> HardwareController:
+    def enabled_ids(self) -> list[str]:
         self.reload()
-        try:
-            return next(
-                dev.controller
-                for dev in self.__devices.values()
-                if dev.enabled and isinstance(dev.controller, HardwareController)
-            )
-        except StopIteration:
-            return FallbackHardwareController()
+        return [id for id, dev in self.__devices.items() if dev.enabled]
