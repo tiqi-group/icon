@@ -735,17 +735,17 @@ def h5_open(path: Path, mode: str, **kwargs: Any) -> Iterator[h5py.File]:
 
 def _read_fits_from_hdf5(
     h5file: h5py.File,
-) -> dict[str, dict[str, object]]:
+) -> dict[str, FitResult]:
     """Read all fit results from an HDF5 file."""
     if "fits" not in h5file:
         return {}
 
-    fits: dict[str, dict[str, object]] = {}
+    fits: dict[str, FitResult] = {}
     fits_group = cast("h5py.Group", h5file["fits"])
     for channel_name in fits_group:
         channel_group = cast("h5py.Group", fits_group[channel_name])
         fit_data = json.loads(cast("str", channel_group.attrs["fit_result"]))
-        fits[channel_name] = fit_data
+        fits[channel_name] = FitResult(**fit_data)
     return fits
 
 
@@ -773,7 +773,7 @@ def write_fit_result_by_job_id(
         grp.attrs["fit_result"] = json.dumps(asdict(fit_result))
 
 
-def get_fit_results_by_job_id(*, job_id: int) -> dict[str, dict[str, object]]:
+def get_fit_results_by_job_id(*, job_id: int) -> dict[str, FitResult]:
     """Read all fit results for a job from its HDF5 file.
 
     Args:

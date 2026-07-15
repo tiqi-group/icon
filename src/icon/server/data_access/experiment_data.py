@@ -152,5 +152,5 @@ class ExperimentData:
     """Mapping of parameter id to time series (tuple of timestamp str and value)."""
     total_data_points: int = 0
     """Total number of data points in the HDF5 file (before truncation)."""
-    fits: dict[str, dict[str, object]] = field(default_factory=dict)
+    fits: dict[str, FitResult] = field(default_factory=dict)
     """Fit results keyed by result channel name."""

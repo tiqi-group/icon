@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import asdict
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -19,7 +19,7 @@ from icon.server.fitting.fit_runner import run_curve_fit
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 if TYPE_CHECKING:
-    from icon.server.data_access.experiment_data import ExperimentData
+    from icon.server.data_access.experiment_data import ExperimentData, FitResult
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ def _auto_fit(job_id: int, experiment_source_id: int) -> None:
         return
 
     for channel_name, fit_data in previous_fits.items():
-        if fit_data.get("success") and fit_data.get("func_type"):
+        if fit_data.success and fit_data.func_type:
             _fit_channel(job_id, data, scan_param_name, channel_name, fit_data)
 
 
@@ -71,7 +71,7 @@ def _fit_channel(
     data: ExperimentData,
     scan_param_name: str,
     channel_name: str,
-    fit_data: dict[str, Any],
+    fit_data: FitResult,
 ) -> None:
     """Run a single auto-fit for one channel and persist the result."""
     channel_values = data.readouts.result_channels.get(channel_name, {})
@@ -83,7 +83,7 @@ def _fit_channel(
     x = np.array([float(scan_values[i]) for i in indices])
     y = np.array([float(channel_values[i]) for i in indices])
 
-    func_type = fit_data["func_type"]
+    func_type = fit_data.func_type
     fit_result = run_curve_fit(
         x=x,
         y=y,
