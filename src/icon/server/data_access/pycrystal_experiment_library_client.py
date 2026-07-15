@@ -206,9 +206,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         if hasattr(exp_instance, "db_upload_interval"):
             # Convert explicitly so the interval is independent of the
             # parameter's display unit.
-            db_upload_interval = float(
-                exp_instance.db_upload_interval().value(Units.s)
-            )
+            db_upload_interval = float(exp_instance.db_upload_interval().value(Units.s))
 
         return {
             "has_post_processing": True,
