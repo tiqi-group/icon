@@ -78,7 +78,7 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
             return result
 
         raise pydase.utils.serialization.serializer.SerializationError(
-            f"Could not serialized object of type {type(obj)}."
+            f"Could not serialize object of type {type(obj)}."
         )
 
     @classmethod
