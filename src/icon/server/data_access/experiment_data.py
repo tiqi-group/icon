@@ -1,6 +1,6 @@
 """Experiment data related structures."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal, TypedDict
 
 DatabaseValueType = bool | float | int | str
@@ -19,7 +19,19 @@ class Readouts:
 
 
 @dataclass
-class ExperimentDataPoint(Readouts):
+class ReadoutSequences:
+    """Scalar/vector/shot readouts for multiple single data points from one device."""
+
+    result_channels: dict[str, dict[int, float]] = field(default_factory=dict)
+    """Result channels as channel_name -> {index -> value}."""
+    vector_channels: dict[str, dict[int, list[float]]] = field(default_factory=dict)
+    """Vector channels as channel_name -> {index -> values}."""
+    shot_channels: dict[str, dict[int, list[int]]] = field(default_factory=dict)
+    """Shot channels as channel_name -> {index -> values}."""
+
+
+@dataclass
+class ExperimentDataPoint:
     """A single data point with its context."""
 
     index: int
@@ -30,6 +42,8 @@ class ExperimentDataPoint(Readouts):
     """Acquisition timestamp (ISO string)."""
     sequence_json: str
     """Serialized sequence JSON used for this data point."""
+    readouts: Readouts
+    """Readouts from the device."""
 
 
 class PlotWindowMetadata(TypedDict):
@@ -99,27 +113,27 @@ class ParameterValue:
     value: DatabaseValueType
 
 
+def empty_plot_windows() -> PlotWindows:
+    return {"result_channels": [], "shot_channels": [], "vector_channels": []}
+
+
 @dataclass
 class ExperimentData:
     """Container for all experiment data returned to the API."""
 
-    plot_windows: PlotWindows
+    plot_windows: PlotWindows = field(default_factory=empty_plot_windows)
     """Plot window metadata grouped by channel class."""
-    shot_channels: dict[str, dict[int, list[int]]]
-    """Shot channels as channel_name -> {index -> values}."""
-    result_channels: dict[str, dict[int, float]]
-    """Result channels as channel_name -> {index -> value}."""
-    vector_channels: dict[str, dict[int, list[float]]]
-    """Vector channels as channel_name -> {index -> values}."""
-    scan_parameters: dict[str, dict[int, str | float]]
+    readouts: ReadoutSequences = field(default_factory=ReadoutSequences)
+    """Readouts from the device."""
+    scan_parameters: dict[str, dict[int, str | float]] = field(default_factory=dict)
     """Scan parameters as param_id -> {index -> value/timestamp}."""
-    json_sequences: list[list[int | str]]
-    """List of [index, sequence_json] pairs (list for pydase JSON compatibility)."""
-    realtime_scan: bool
+    realtime_scan: bool = False
     """True if the experiment has a realtime scan parameter."""
-    parameters: dict[str, ParameterValue]
+    json_sequences: list[list[int | str]] = field(default_factory=list)
+    """List of [index, sequence_json] pairs (list for pydase JSON compatibility)."""
+    parameters: dict[str, ParameterValue] = field(default_factory=dict)
     """Mapping of parameter id to time series (tuple of timestamp str and value)."""
-    total_data_points: int
+    total_data_points: int = 0
     """Total number of data points in the HDF5 file (before truncation)."""
-    fits: dict[str, dict[str, object]]
+    fits: dict[str, dict[str, object]] = field(default_factory=dict)
     """Fit results keyed by result channel name."""

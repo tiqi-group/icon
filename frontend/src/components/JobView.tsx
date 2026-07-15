@@ -60,12 +60,12 @@ export const JobView = ({
   const [yMax, setYMax] = useState<number | null>(null);
 
   const autoYBounds = useMemo(() => {
-    if (!experimentData?.result_channels) return { min: 0, max: 0 };
+    if (!experimentData?.readouts?.result_channels) return { min: 0, max: 0 };
 
     let min = Infinity;
     let max = -Infinity;
 
-    for (const channelData of Object.values(experimentData.result_channels)) {
+    for (const channelData of Object.values(experimentData.readouts.result_channels)) {
       let values = Object.values(channelData) as number[];
       if (windowSize != null && values.length > windowSize) {
         values = values.slice(-windowSize);
@@ -83,13 +83,13 @@ export const JobView = ({
   }, [experimentData, windowSize]);
 
   const dataLength = useMemo(() => {
-    if (!experimentData?.result_channels) return 0;
-    const firstChannel = Object.values(experimentData.result_channels)[0];
+    if (!experimentData?.readouts?.result_channels) return 0;
+    const firstChannel = Object.values(experimentData.readouts.result_channels)[0];
     return firstChannel ? Object.values(firstChannel).length : 0;
   }, [experimentData]);
 
   const loadedDataPoints = Object.keys(
-    Object.values(experimentData.result_channels)[0] ?? {},
+    Object.values(experimentData.readouts.result_channels)[0] ?? {},
   ).length;
   const isTruncated =
     experimentData.total_data_points > 0 &&

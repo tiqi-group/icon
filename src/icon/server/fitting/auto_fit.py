@@ -74,7 +74,7 @@ def _fit_channel(
     fit_data: dict[str, Any],
 ) -> None:
     """Run a single auto-fit for one channel and persist the result."""
-    channel_values = data.result_channels.get(channel_name, {})
+    channel_values = data.readouts.result_channels.get(channel_name, {})
     if not channel_values:
         return
 

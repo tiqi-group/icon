@@ -1,15 +1,23 @@
-interface ResultDict {
+interface Readouts {
   result_channels: Record<string, number>;
   vector_channels: Record<string, number[]>;
   shot_channels: Record<string, number[]>;
 }
 
-export type ExperimentDataPoint = ResultDict & {
+interface ReadoutSequences {
+  result_channels: Record<string, Record<string, number>>;
+  vector_channels: Record<string, Record<string, number[]>>;
+  shot_channels: Record<string, Record<string, number[]>>;
+}
+
+export interface ExperimentDataPoint {
   index: number;
   scan_params: Record<string, number | boolean | string>;
   timestamp: string;
+  readouts: Readouts;
   sequence_json: string;
-};
+}
+
 interface PlotWindowMetadata {
   name: string;
   index: number;
@@ -17,7 +25,7 @@ interface PlotWindowMetadata {
   channel_names: string[];
 }
 
-interface PlotWindows {
+export interface PlotWindows {
   result_channels: PlotWindowMetadata[];
   shot_channels: PlotWindowMetadata[];
   vector_channels: PlotWindowMetadata[];
@@ -42,9 +50,7 @@ export interface FitResult {
 
 export interface ExperimentData {
   plot_windows: PlotWindows;
-  shot_channels: Record<string, Record<string, number[]>>;
-  result_channels: Record<string, Record<string, number>>;
-  vector_channels: Record<string, Record<string, number[]>>;
+  readouts: ReadoutSequences;
   scan_parameters: Record<string, Record<string, number | boolean | string>>;
   json_sequences: [number, string][];
   parameters: Record<string, ParameterValue>;

@@ -97,7 +97,7 @@ class ExperimentDataController(pydase.DataService):
             )
 
         scan_values = data.scan_parameters[scan_param_name]
-        channel_values = data.result_channels.get(result_channel, {})
+        channel_values = data.readouts.result_channels.get(result_channel, {})
 
         # Build aligned x, y arrays sorted by index
         indices = sorted(set(scan_values.keys()) & set(channel_values.keys()))

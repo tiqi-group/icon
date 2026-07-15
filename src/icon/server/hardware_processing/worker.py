@@ -210,9 +210,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 experiment_data_point = ExperimentDataPoint(
                     index=task.data_point_index,
                     scan_params=task.scanned_params,
-                    result_channels=readouts.result_channels,
-                    shot_channels=readouts.shot_channels,
-                    vector_channels=readouts.vector_channels,
+                    readouts=readouts,
                     timestamp=timestamp.isoformat(),
                     sequence_json=task.sequence_json,
                 )

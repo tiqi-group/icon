@@ -380,14 +380,14 @@ class ExperimentDataRepository:
             write_results_to_dataset(
                 h5file=h5file,
                 data_point_index=data_point.index,
-                result_channels=data_point.result_channels,
+                result_channels=data_point.readouts.result_channels,
                 number_of_data_points=number_of_data_points,
             )
 
             write_shot_channels_to_datasets(
                 h5file=h5file,
                 data_point_index=data_point.index,
-                shot_channels=data_point.shot_channels,
+                shot_channels=data_point.readouts.shot_channels,
                 number_of_data_points=number_of_data_points,
                 number_of_shots=number_of_shots,
             )
@@ -395,7 +395,7 @@ class ExperimentDataRepository:
             write_vector_channels_to_datasets(
                 h5file=h5file,
                 data_point_index=data_point.index,
-                vector_channels=data_point.vector_channels,
+                vector_channels=data_point.readouts.vector_channels,
             )
 
             write_sequence_json_to_dataset(
@@ -513,30 +513,14 @@ class ExperimentDataRepository:
         Returns:
             Experiment data payload suitable for the API.
         """
-        data = ExperimentData(
-            plot_windows={
-                "result_channels": [],
-                "shot_channels": [],
-                "vector_channels": [],
-            },
-            shot_channels={},
-            result_channels={},
-            vector_channels={},
-            scan_parameters={},
-            json_sequences=[],
-            realtime_scan=False,
-            parameters={},
-            total_data_points=0,
-            fits={},
-        )
-
         filename = get_filename_by_job_id(job_id)
         h5_path = Path(get_config().data.results_dir) / filename
 
         if not Path(h5_path).exists():
             logger.warning("The file %s does not exist.", h5_path)
-            return data
+            return ExperimentData()
 
+        data = ExperimentData()
         with h5_open(h5_path, "r") as h5file:
             data.realtime_scan = bool(h5file.attrs.get("realtime_scan", False))
 
@@ -603,7 +587,7 @@ class ExperimentDataRepository:
                 result_channels = cast(
                     "npt.NDArray[Any]", result_channel_dataset[start_index:]
                 )  # type: ignore
-                data.result_channels = {
+                data.readouts.result_channels = {
                     channel_name: dict(
                         enumerate(
                             cast("list[float]", result_channels[channel_name].tolist()),
@@ -622,7 +606,7 @@ class ExperimentDataRepository:
                     data.plot_windows["shot_channels"] = json.loads(
                         cast("str", plot_metadata)
                     )
-                data.shot_channels = {
+                data.readouts.shot_channels = {
                     key: dict(
                         enumerate(value[start_index:].tolist(), start=start_index)
                     )  # type: ignore
@@ -639,7 +623,7 @@ class ExperimentDataRepository:
                 data.plot_windows["vector_channels"] = json.loads(
                     cast("str", plot_metadata)
                 )
-                data.vector_channels = {
+                data.readouts.vector_channels = {
                     channel_name: {
                         int(data_point): vector_dataset[:].tolist()
                         for data_point, vector_dataset in cast(
