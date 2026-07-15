@@ -81,11 +81,9 @@ class PostProcessingWorker(multiprocessing.Process):
             if not job_run_cancelled_or_failed(
                 job_id=task.pre_processing_task.job.id,
             ):
-                ExperimentDataRepository.write_experiment_data_by_job_id(
-                    job_id=task.pre_processing_task.job.id,
-                    data_point=task.data_point,
-                )
-
+                # Post-processing runs first so that result channels it fills in
+                # are part of the stored data point; on failure the data point is
+                #  still written as received.
                 try:
                     self._run_experiment_post_processing(task)
                 except Exception:
@@ -93,6 +91,11 @@ class PostProcessingWorker(multiprocessing.Process):
                         "Experiment post-processing failed for job %s",
                         task.pre_processing_task.job.id,
                     )
+
+                ExperimentDataRepository.write_experiment_data_by_job_id(
+                    job_id=task.pre_processing_task.job.id,
+                    data_point=task.data_point,
+                )
 
             self._flush_finished_jobs()
 
@@ -104,7 +107,9 @@ class PostProcessingWorker(multiprocessing.Process):
         experiment updates are pushed to running jobs immediately via
         "calibration" events and uploaded to InfluxDB at most every
         `db_upload_interval`; `_flush_finished_jobs` performs a final upload when
-        the job ends.
+        the job ends. Result channels updated by the experiment are merged into
+        `task.data_point` so they end up in the stored data (the caller writes
+        the data point after this method returns).
         """
         job = task.pre_processing_task.job
         state = self._job_states.setdefault(job.id, ExperimentPostProcessingState())
@@ -147,6 +152,20 @@ class PostProcessingWorker(multiprocessing.Process):
             return
 
         state.post_processing_output = result["post_processing_output"]
+
+        # Merge result channels the experiment filled in into the data point before 
+        # it is written. Only channels that the hardware already reported can be updated.
+        updated_result_channels: dict[str, float] = result["updated_result_channels"]
+        for channel_name, value in updated_result_channels.items():
+            if channel_name in task.data_point.result_channels:
+                task.data_point.result_channels[channel_name] = value
+            else:
+                logger.warning(
+                    "Post-processing of job %s set unknown result channel %r; "
+                    "ignoring it",
+                    job.id,
+                    channel_name,
+                )
 
         updated_parameters: dict[str, DatabaseValueType] = result["updated_parameters"]
         if not updated_parameters:
