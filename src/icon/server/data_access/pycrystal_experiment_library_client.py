@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import pycrystal.database.local_cache
 import pycrystal.parameters
+from ionpulse_sequence_generator import Units
 from pycrystal.parameters import Parameter
 from pycrystal.utils.helpers import (
     collect_experiment_metadata,
@@ -155,7 +156,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             - "has_post_processing": whether the experiment defines the method.
             - "updated_parameters": parameter IDs/values changed by the method.
             - "post_processing_output": state to pass into the next call.
-            - "db_upload_interval": database upload interval in microseconds, or
+            - "db_upload_interval": database upload interval in seconds, or
               None if the experiment does not define the parameter.
         """
         cache_dict: dict[str, DatabaseValueType] = dict(parameter_dict)
@@ -189,7 +190,11 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
 
         db_upload_interval: float | None = None
         if hasattr(exp_instance, "db_upload_interval"):
-            db_upload_interval = float(exp_instance.db_upload_interval().value())
+            # Convert explicitly so the interval is independent of the
+            # parameter's display unit.
+            db_upload_interval = float(
+                exp_instance.db_upload_interval().value(Units.s)
+            )
 
         return {
             "has_post_processing": True,
