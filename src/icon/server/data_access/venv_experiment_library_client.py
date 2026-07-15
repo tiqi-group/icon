@@ -22,6 +22,8 @@ class BlockingExperimentLibraryClient:
     """Dictionary mapping the unique experiment identifier to its metadata."""
     parameter_metadata: "ParameterMetadataDict"
     """Dictionary of parameter metadata."""
+    device_order: list[str]
+    """List of devices ids in the order the devices should be handled by the hardware processor."""
 
     def reload_metadata(self) -> "tuple[ExperimentDict, ParameterMetadataDict]":
         """Reload the experiment and parameter metadata.
@@ -30,12 +32,17 @@ class BlockingExperimentLibraryClient:
         """
         return self.experiment_metadata, self.parameter_metadata
 
+    def load_device_order(self) -> list[str]:
+        """Return the device ids in the order the devices should be handled by the hardware processor."""
+        return self.device_order
+
     def create_hardware_instructions(
         self,
         *,
         exp_module_name: str,
         exp_instance_name: str,
         parameter_dict: "dict[str, DatabaseValueType]",
+        device_id: str,
         n_shots: int,
     ) -> str:
         """Generate hardware instructions for an experiment.
@@ -44,6 +51,7 @@ class BlockingExperimentLibraryClient:
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
+            device_id: Id of the hardware for which to create the instructions
             n_shots: Number of shots.
 
         Returns:
@@ -57,8 +65,8 @@ class BlockingExperimentLibraryClient:
         exp_module_name: str,
         exp_instance_name: str,
         parameter_dict: "dict[str, DatabaseValueType]",
-    ) -> "ReadoutMetadata":
-        """Fetch readout metadata for an experiment.
+    ) -> "list[tuple[str, ReadoutMetadata]]":
+        """Fetch metadata about the readout data an experiment will yield.
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -66,7 +74,7 @@ class BlockingExperimentLibraryClient:
             parameter_dict: Mapping of parameter IDs to values.
 
         Returns:
-            Dictionary containing readout metadata for the experiment.
+            Device ID, readout metadata pairs for the experiment.
         """
         raise NotImplementedError("Must be implemented by a subclass")
 
@@ -94,12 +102,17 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
         """Load the experiment and parameter metadata."""
         return await self.venv.run(self.client.reload_metadata, logger=venv_logger)
 
+    async def load_device_order(self) -> list[str]:
+        """Return the device ids in the order the devices should be handled by the hardware processor."""
+        return await self.venv.run(self.client.load_device_order, logger=venv_logger)
+
     async def create_hardware_instructions(
         self,
         *,
         exp_module_name: str,
         exp_instance_name: str,
         parameter_dict: "dict[str, DatabaseValueType]",
+        device_id: str,
         n_shots: int,
     ) -> str:
         """Generate hardware instructions for an experiment.
@@ -108,7 +121,8 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
-            n_shots: Number of shots
+            device_id: Id of the hardware for which to create the instructions.
+            n_shots: Number of shots.
 
         Returns:
             JSON string containing the generated sequence.
@@ -119,6 +133,7 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
                 "exp_module_name": exp_module_name,
                 "exp_instance_name": exp_instance_name,
                 "parameter_dict": parameter_dict,
+                "device_id": device_id,
                 "n_shots": n_shots,
             },
             logger=venv_logger,
@@ -130,8 +145,8 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
         exp_module_name: str,
         exp_instance_name: str,
         parameter_dict: "dict[str, DatabaseValueType]",
-    ) -> "ReadoutMetadata":
-        """Fetch readout metadata for an experiment.
+    ) -> "list[tuple[str, ReadoutMetadata]]":
+        """Fetch metadata about the readout data an experiment will yield.
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -139,7 +154,7 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
             parameter_dict: Mapping of parameter IDs to values.
 
         Returns:
-            Dictionary containing readout metadata for the experiment.
+            Device ID, readout metadata pairs for the experiment.
         """
         return await self.venv.run(
             self.client.get_experiment_readout_metadata,
@@ -150,7 +165,9 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
             },
             logger=venv_logger,
             serialize=deep_asdict,
-            deserialize=ReadoutMetadata.from_dict,
+            deserialize=lambda meta: [
+                (dev_id, ReadoutMetadata.from_dict(dev)) for (dev_id, dev) in meta
+            ],
         )
 
     async def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:
