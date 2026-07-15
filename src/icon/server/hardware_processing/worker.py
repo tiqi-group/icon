@@ -15,6 +15,7 @@ from pydase.utils.serialization.serializer import dump
 from icon.config.config import get_config
 from icon.server.data_access.experiment_data import (
     ExperimentDataPoint,
+    ExperimentDeviceDataPoint,
 )
 from icon.server.data_access.models.enums import DeviceStatus, JobRunStatus
 from icon.server.data_access.models.sqlite.scan_parameter import (
@@ -25,6 +26,7 @@ from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
     try_update_run_by_id,
 )
+from icon.server.hardware_processing.hardware_controller import HardwareController
 from icon.server.hardware_processing.utils import extract_hardware_error_message
 from icon.server.post_processing.task import PostProcessingTask
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
@@ -35,7 +37,7 @@ if TYPE_CHECKING:
 
     from icon.server.data_access.experiment_data import DatabaseValueType
     from icon.server.data_access.models.sqlite.device import Device
-    from icon.server.hardware_processing.devices import Devices
+    from icon.server.hardware_processing.devices import Devices, Hardware
     from icon.server.hardware_processing.task import HardwareProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
 
@@ -110,6 +112,14 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self._pydase_clients: dict[str, pydase.Client] = {}
 
         self._devices = devices
+
+    def get_device(self, device_id: str) -> Hardware:
+        try:
+            return self._devices[device_id]
+        except KeyError as e:
+            raise RuntimeError(
+                f"No such device: {e} (the device might have been disabled)"
+            ) from None
 
     def _update_pydase_service_parameter(
         self, device: Device, access_path: str, new_value: DatabaseValueType
@@ -224,17 +234,33 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 self._set_pydase_service_values(scanned_params=task.scanned_params)
 
                 timestamp = datetime.now(timezone)
-                hardware_controller = self._devices.main_device()
-                hardware_controller.send(data=task.hardware_instructions)
-                hardware_controller.run()
-                readouts = hardware_controller.receive()
+                all_hardware_instructions = [
+                    (device_id, self.get_device(device_id).controller, instructions)
+                    for device_id, instructions in task.hardware_instructions
+                ]
+                hardware_instructions = [
+                    (device_id, device, instructions)
+                    for device_id, device, instructions in all_hardware_instructions
+                    if isinstance(device, HardwareController)
+                ]
+                for _, device, instructions in hardware_instructions:
+                    device.send(data=instructions)
+                device_data = []
+                for device_id, device, instructions in hardware_instructions:
+                    device.run()
+                    device_data.append(
+                        ExperimentDeviceDataPoint(
+                            device_id,
+                            readouts=device.receive(),
+                            hardware_instructions=instructions,
+                        )
+                    )
 
                 experiment_data_point = ExperimentDataPoint(
                     index=task.data_point_index,
                     scan_params=task.scanned_params,
-                    readouts=readouts,
+                    device_data=device_data,
                     timestamp=timestamp.isoformat(),
-                    hardware_instructions=task.hardware_instructions,
                 )
 
                 post_processing_task = PostProcessingTask(

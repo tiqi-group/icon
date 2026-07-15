@@ -4,18 +4,17 @@ interface Readouts {
   shot_channels: Record<string, number[]>;
 }
 
-interface ReadoutSequences {
-  result_channels: Record<string, Record<string, number>>;
-  vector_channels: Record<string, Record<string, number[]>>;
-  shot_channels: Record<string, Record<string, number[]>>;
+export interface ExperimentDeviceDataPoint {
+  device_id: string;
+  readouts: Readouts;
+  hardware_instructions: string;
 }
 
 export interface ExperimentDataPoint {
   index: number;
   scan_params: Record<string, number | boolean | string>;
   timestamp: string;
-  readouts: Readouts;
-  hardware_instructions: string;
+  device_data: ExperimentDeviceDataPoint[];
 }
 
 interface PlotWindowMetadata {
@@ -48,12 +47,23 @@ export interface FitResult {
   fit_curve?: { x: number[]; y: number[] };
 }
 
-export interface ExperimentData {
-  plot_windows: PlotWindows;
+export interface ReadoutSequences {
+  result_channels: Record<string, Record<string, number>>;
+  vector_channels: Record<string, Record<string, number[]>>;
+  shot_channels: Record<string, Record<string, number[]>>;
+}
+
+export interface ExperimentDeviceData {
+  device_id: string;
   readouts: ReadoutSequences;
-  scan_parameters: Record<string, Record<string, number | boolean | string>>;
+  plot_windows: PlotWindows;
   hardware_instructions: [number, string][];
+  fits: Record<string, FitResult>;
+}
+
+export interface ExperimentData {
+  device_data: ExperimentDeviceData[];
+  scan_parameters: Record<string, Record<string, number | boolean | string>>;
   parameters: Record<string, ParameterValue>;
   total_data_points: number;
-  fits: Record<string, FitResult>;
 }
