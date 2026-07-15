@@ -16,32 +16,27 @@ interface HardwareStatusCardProps {
 export const HardwareStatusCard = ({
   hardwareStatus,
   configuration,
-}: HardwareStatusCardProps) => {
-  return (
-    <Stack spacing={1}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <ReachabilityIndicator
-          enabled={configuration.enabled}
-          status={hardwareStatus}
-        />
-        <Typography variant="h6">{configuration.id}</Typography>
+}: HardwareStatusCardProps) => (
+  <Stack spacing={1}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <ReachabilityIndicator enabled={configuration.enabled} status={hardwareStatus} />
+      <Typography variant="h6">{configuration.id}</Typography>
 
-        <IconButton
-          component={RouterLink}
-          to="/settings?tab=hardware"
-          sx={{ position: "relative" }}
-          size="small"
-          title="Open Hardware Settings"
-          aria-label="Open Hardware Settings"
-        >
-          <EditIcon fontSize="small" />
-        </IconButton>
-      </div>
-      {Object.entries(configuration.args).map(([key, val]) => (
-        <Typography variant="body2" key={key}>
-          {key}: {val}
-        </Typography>
-      ))}
-    </Stack>
-  );
-};
+      <IconButton
+        component={RouterLink}
+        to="/settings?tab=hardware"
+        sx={{ position: "relative" }}
+        size="small"
+        title="Open Hardware Settings"
+        aria-label="Open Hardware Settings"
+      >
+        <EditIcon fontSize="small" />
+      </IconButton>
+    </div>
+    {Object.entries(configuration.args).map(([key, val]) => (
+      <Typography variant="body2" key={key}>
+        {key}: {val}
+      </Typography>
+    ))}
+  </Stack>
+);

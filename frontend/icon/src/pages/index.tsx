@@ -22,18 +22,18 @@ export default function DashboardPage() {
   const configuration = useConfiguration();
 
   const [influxReachable, setInfluxReachable] = useState<boolean>(false);
-  const [hardwareStatus, setSHardwaretatus] = useState<HardwareStatus>({});
+  const [hardwareStatus, setHardwaretatus] = useState<HardwareStatus>({});
 
   useEffect(() => {
     runMethod("status.get_status", [], {}, (response) => {
       const status = deserialize(response as SerializedDict) as Status;
       setInfluxReachable(status.influxdb);
-      setSHardwaretatus(status.hardware);
+      setHardwaretatus(status.hardware);
     });
 
     socket.on("status.influxdb", (status: boolean) => setInfluxReachable(status));
     socket.on("status.hardware", (status: Record<string, boolean>) =>
-      setSHardwaretatus(status),
+      setHardwaretatus(status),
     );
     return () => {
       socket.off("status.influxdb");
@@ -71,15 +71,13 @@ export default function DashboardPage() {
                 gap: "1.5em",
               }}
             >
-              {configuration?.hardware?.devices.map((dev) => {
-                return (
-                  <HardwareStatusCard
-                    key={dev.id}
-                    hardwareStatus={hardwareStatus[dev.id]}
-                    configuration={dev}
-                  />
-                );
-              })}
+              {(configuration?.hardware?.devices ?? []).map((dev) => (
+                <HardwareStatusCard
+                  key={dev.id}
+                  hardwareStatus={hardwareStatus[dev.id]}
+                  configuration={dev}
+                />
+              ))}
             </CardContent>
           </Card>
         </Grid>
