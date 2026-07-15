@@ -139,7 +139,9 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         The experiment's parameters are backed by a LocalCache initialised from
         `parameter_dict`; any values the experiment writes back (e.g. servo
         feedback via ``Parameter.set_value``) are collected by diffing the cache
-        afterwards.
+        afterwards. Result channels the experiment adds or modifies in
+        `result_channels` (e.g. a servo's tracked value) are collected the same
+        way and returned under "updated_result_channels".
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -155,6 +157,8 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             Dictionary with keys:
             - "has_post_processing": whether the experiment defines the method.
             - "updated_parameters": parameter IDs/values changed by the method.
+            - "updated_result_channels": result channels added or modified by
+              the method.
             - "post_processing_output": state to pass into the next call.
             - "db_upload_interval": database upload interval in seconds, or
               None if the experiment does not define the parameter.
@@ -170,9 +174,12 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             return {
                 "has_post_processing": False,
                 "updated_parameters": {},
+                "updated_result_channels": {},
                 "post_processing_output": post_processing_output,
                 "db_upload_interval": None,
             }
+
+        original_result_channels = dict(result_channels)
 
         post_processing_signature = inspect.signature(exp_instance.post_processing)
         if len(post_processing_signature.parameters) >= 2:  # noqa: PLR2004
@@ -188,6 +195,13 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             if key not in parameter_dict or parameter_dict[key] != value
         }
 
+        updated_result_channels = {
+            key: value
+            for key, value in result_channels.items()
+            if key not in original_result_channels
+            or original_result_channels[key] != value
+        }
+
         db_upload_interval: float | None = None
         if hasattr(exp_instance, "db_upload_interval"):
             # Convert explicitly so the interval is independent of the
@@ -199,6 +213,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         return {
             "has_post_processing": True,
             "updated_parameters": updated_parameters,
+            "updated_result_channels": updated_result_channels,
             "post_processing_output": list(post_processing_output or []),
             "db_upload_interval": db_upload_interval,
         }
