@@ -153,9 +153,26 @@ class PostProcessingWorker(multiprocessing.Process):
 
         state.post_processing_output = result["post_processing_output"]
 
-        # Merge result channels the experiment filled in into the data point before 
-        # it is written. Only channels that the hardware already reported can be updated.
-        updated_result_channels: dict[str, float] = result["updated_result_channels"]
+        self._merge_result_channels(
+            task=task,
+            updated_result_channels=result["updated_result_channels"],
+        )
+        self._propagate_updated_parameters(
+            job_id=job.id,
+            state=state,
+            updated_parameters=result["updated_parameters"],
+            db_upload_interval=result["db_upload_interval"],
+        )
+
+    @staticmethod
+    def _merge_result_channels(
+        task: PostProcessingTask,
+        updated_result_channels: dict[str, float],
+    ) -> None:
+        """Merge result channels the experiment filled in into the data point.
+
+        Only channels that the hardware already reported can be updated.
+        """
         for channel_name, value in updated_result_channels.items():
             if channel_name in task.data_point.result_channels:
                 task.data_point.result_channels[channel_name] = value
@@ -163,17 +180,24 @@ class PostProcessingWorker(multiprocessing.Process):
                 logger.warning(
                     "Post-processing of job %s set unknown result channel %r; "
                     "ignoring it",
-                    job.id,
+                    task.pre_processing_task.job.id,
                     channel_name,
                 )
 
-        updated_parameters: dict[str, DatabaseValueType] = result["updated_parameters"]
+    def _propagate_updated_parameters(
+        self,
+        job_id: int,
+        state: ExperimentPostProcessingState,
+        updated_parameters: dict[str, DatabaseValueType],
+        db_upload_interval: float | None,
+    ) -> None:
+        """Push updated parameters to running jobs and periodically to InfluxDB."""
         if not updated_parameters:
             return
 
         logger.debug(
             "Post-processing of job %s updated parameters %s",
-            job.id,
+            job_id,
             updated_parameters,
         )
         state.pending_parameters.update(updated_parameters)
@@ -188,7 +212,7 @@ class PostProcessingWorker(multiprocessing.Process):
                 }
             )
 
-        db_upload_interval = result["db_upload_interval"]  # seconds
+        # db_upload_interval is in seconds.
         if db_upload_interval is not None and (
             time.monotonic() - state.last_upload_time >= db_upload_interval
         ):
