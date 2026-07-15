@@ -51,12 +51,12 @@ class ZedboardController(HardwareController):
         if self._zedboard is not None:
             self._zedboard.sequence_JSON_parser.Sequence_JSON = sequence  # type: ignore
 
-    def send(self, data: bytes) -> None:
+    def send(self, data: str) -> None:
         if not self.connected:
             self.connect()
         if not self.connected:
             raise RuntimeError("Could not connect to the Zedboard")
-        self._update_zedboard_sequence(sequence=data.decode())
+        self._update_zedboard_sequence(sequence=data)
 
     def run(self) -> None:
         self._zedboard.sequence_JSON_parser.Parse_JSON_Header()  # type: ignore

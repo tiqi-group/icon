@@ -21,7 +21,7 @@ class HardwareController:
     def connected(self) -> bool:
         raise NotImplementedError("Must be implemented by a derived class")
 
-    def send(self, data: Any) -> None:
+    def send(self, data: str) -> None:
         raise NotImplementedError("Must be implemented by a derived class")
 
     def run(self) -> None:
@@ -44,7 +44,7 @@ class FallbackHardwareController(HardwareController):
     def connected(self) -> bool:
         return True
 
-    def send(self, data: bytes) -> None:
+    def send(self, data: str) -> None:
         pass
 
     def run(self) -> None:

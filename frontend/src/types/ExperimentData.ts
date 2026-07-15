@@ -15,7 +15,7 @@ export interface ExperimentDataPoint {
   scan_params: Record<string, number | boolean | string>;
   timestamp: string;
   readouts: Readouts;
-  sequence_json: string;
+  hardware_instructions: string;
 }
 
 interface PlotWindowMetadata {
@@ -52,7 +52,7 @@ export interface ExperimentData {
   plot_windows: PlotWindows;
   readouts: ReadoutSequences;
   scan_parameters: Record<string, Record<string, number | boolean | string>>;
-  json_sequences: [number, string][];
+  hardware_instructions: [number, string][];
   parameters: Record<string, ParameterValue>;
   total_data_points: number;
   fits: Record<string, FitResult>;

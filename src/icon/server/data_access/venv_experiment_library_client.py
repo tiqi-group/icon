@@ -30,7 +30,7 @@ class BlockingExperimentLibraryClient:
         """
         return self.experiment_metadata, self.parameter_metadata
 
-    def generate_json_sequence(
+    def create_hardware_instructions(
         self,
         *,
         exp_module_name: str,
@@ -38,7 +38,7 @@ class BlockingExperimentLibraryClient:
         parameter_dict: "dict[str, DatabaseValueType]",
         n_shots: int,
     ) -> str:
-        """Generate a JSON sequence for an experiment.
+        """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -94,7 +94,7 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
         """Load the experiment and parameter metadata."""
         return await self.venv.run(self.client.reload_metadata, logger=venv_logger)
 
-    async def generate_json_sequence(
+    async def create_hardware_instructions(
         self,
         *,
         exp_module_name: str,
@@ -102,7 +102,7 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
         parameter_dict: "dict[str, DatabaseValueType]",
         n_shots: int,
     ) -> str:
-        """Generate a JSON sequence for an experiment.
+        """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -114,7 +114,7 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
             JSON string containing the generated sequence.
         """
         return await self.venv.run(
-            self.client.generate_json_sequence,
+            self.client.create_hardware_instructions,
             args={
                 "exp_module_name": exp_module_name,
                 "exp_instance_name": exp_instance_name,

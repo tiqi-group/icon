@@ -96,14 +96,14 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         raise RuntimeError("Read only attribute")
 
     @staticmethod
-    def generate_json_sequence(
+    def create_hardware_instructions(
         *,
         exp_module_name: str,
         exp_instance_name: str,
         parameter_dict: "dict[str, DatabaseValueType]",
         n_shots: int,
     ) -> str:
-        """Generate a JSON sequence for an experiment.
+        """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.

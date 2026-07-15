@@ -53,7 +53,7 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
         elif isinstance(obj, AbstractDataService):
             result = cls._serialize_data_service(obj, access_path=access_path)
 
-        elif isinstance(obj, list):
+        elif isinstance(obj, (list, tuple)):
             result = cls._serialize_list(obj, access_path=access_path)
 
         elif isinstance(obj, dict):

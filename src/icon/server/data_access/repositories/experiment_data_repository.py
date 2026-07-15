@@ -61,44 +61,47 @@ def resize_dataset(dataset: h5py.Dataset, next_index: int, axis: int) -> None:
     dataset.resize(next_index + 1, axis)
 
 
-def write_sequence_json_to_dataset(
+def write_hardware_instructions_to_dataset(
     h5file: h5py.File,
     data_point_index: int,
-    sequence_json: str,
+    hardware_instructions: str,
 ) -> None:
-    """Append sequence JSON if it changed since the last entry.
+    """Append hardware instructions if it changed since the last entry.
 
     Args:
         h5file: Open HDF5 file handle.
         data_point_index: Index of the current data point.
-        sequence_json: Serialized sequence JSON to append.
+        hardware_instructions: Serialized hardware instructions to append.
     """
-    sequence_json_dtype = [
+    hw_instructions_dtype = [
         ("index", np.int32),
         ("Sequence", h5py.string_dtype()),
     ]
-    sequence_json_dataset = h5file.require_dataset(
-        "sequence_json",
+    hw_instructions_dataset = h5file.require_dataset(
+        "hardware_instructions",
         shape=(0,),
         maxshape=(None,),
         chunks=True,
-        dtype=sequence_json_dtype,
+        dtype=hw_instructions_dtype,
         compression="gzip",
         compression_opts=9,
     )
 
-    index = sequence_json_dataset.shape[0]
+    index = hw_instructions_dataset.shape[0]
     if index > 0:
-        _, sequence_json_old = cast(
-            "tuple[int, bytes]", sequence_json_dataset[index - 1]
+        _, hw_instructions_old = cast(
+            "tuple[int, bytes]", hw_instructions_dataset[index - 1]
         )
-        if sequence_json_old.decode() == sequence_json:
-            logger.debug("Sequence JSON didn't change.")
+        if hw_instructions_old.decode() == hardware_instructions:
+            logger.debug("Hardware instructions didn't change.")
             return
 
-    resize_dataset(sequence_json_dataset, next_index=index, axis=0)
+    resize_dataset(hw_instructions_dataset, next_index=index, axis=0)
 
-    sequence_json_dataset[index] = (data_point_index, sequence_json)
+    hw_instructions_dataset[index] = (
+        data_point_index,
+        hardware_instructions,
+    )
 
 
 def write_scan_parameters_and_timestamp_to_dataset(
@@ -356,7 +359,7 @@ class ExperimentDataRepository:
     ) -> None:
         """Append a complete data point to the HDF5 file and emit an event.
 
-        Writes scan parameters, result/shot/vector channels, and sequence JSON.
+        Writes scan parameters, result/shot/vector channels, and hardware instructions.
 
         Args:
             job_id: Job identifier.
@@ -404,10 +407,10 @@ class ExperimentDataRepository:
                 vector_channels=data_point.readouts.vector_channels,
             )
 
-            write_sequence_json_to_dataset(
+            write_hardware_instructions_to_dataset(
                 h5file=h5file,
                 data_point_index=data_point.index,
-                sequence_json=data_point.sequence_json,
+                hardware_instructions=data_point.hardware_instructions,
             )
 
             if data_point.index >= number_of_data_points:
@@ -424,7 +427,7 @@ class ExperimentDataRepository:
         emit_queue.put(
             {
                 "event": "last_experiment_sequence",
-                "data": data_point.sequence_json,
+                "data": data_point.hardware_instructions,
             }
         )
 
@@ -498,7 +501,7 @@ class ExperimentDataRepository:
         *,
         job_id: int,
         max_transfer_bytes: int = 50_000_000,
-        include_json_sequences: bool = False,
+        include_hardware_instructions: bool = False,
     ) -> ExperimentData:
         """Load stored data for a job from its HDF5 file.
 
@@ -511,8 +514,8 @@ class ExperimentDataRepository:
             job_id: Job identifier.
             max_transfer_bytes: Approximate cap on the serialised payload
                 size in bytes.  Defaults to 50 MB.
-            include_json_sequences: If True, load ``sequence_json`` entries
-                into ``json_sequences``.  Defaults to False — those blobs are
+            include_hardware_instructions: If True, load ``hardware_instructions`` entries
+                into ``hardware_instructions``.  Defaults to False — those blobs are
                 large (~27 KB each, one per changed point) and are omitted
                 from the default RPC response.
 
@@ -642,16 +645,16 @@ class ExperimentDataRepository:
                     )
                 }
 
-            if include_json_sequences:
-                sequence_json_dataset = cast(
-                    "h5py.Dataset | tuple[()]", h5file.get("sequence_json", ())
+            if include_hardware_instructions:
+                hardware_instructions_dataset = cast(
+                    "h5py.Dataset | tuple[()]", h5file.get("hardware_instructions", ())
                 )
-                data.json_sequences = [
-                    [
+                data.hardware_instructions = [
+                    (
                         cast("np.int32", entry["index"]).item(),
-                        entry["Sequence"].decode(),
-                    ]
-                    for entry in sequence_json_dataset
+                        entry["Sequence"],
+                    )
+                    for entry in hardware_instructions_dataset
                 ]
             data.parameters = extract_parameter_values(h5file)
             data.fits = _read_fits_from_hdf5(h5file)

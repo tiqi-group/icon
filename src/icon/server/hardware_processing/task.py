@@ -19,7 +19,7 @@ class HardwareProcessingTask(pydantic.BaseModel):
     priority: int
     scanned_params: dict[str, DatabaseValueType]
     global_parameter_timestamp: datetime
-    sequence_json: str
+    hardware_instructions: str
     src_dir: str | None
     created: datetime
     if TYPE_CHECKING:

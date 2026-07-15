@@ -52,7 +52,7 @@ class ExperimentLibraryClient:
         """
         raise NotImplementedError("Must be implemented by a subclass")
 
-    async def generate_json_sequence(
+    async def create_hardware_instructions(
         self,
         *,
         exp_module_name: str,
@@ -60,7 +60,7 @@ class ExperimentLibraryClient:
         parameter_dict: "dict[str, DatabaseValueType]",
         n_shots: int,
     ) -> str:
-        """Generate a JSON sequence for an experiment.
+        """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -112,7 +112,7 @@ class FallbackExperimentLibraryClient(ExperimentLibraryClient):
         """
         return ({}, {"all parameters": {}, "display groups": {}})
 
-    async def generate_json_sequence(
+    async def create_hardware_instructions(
         self,
         *,
         exp_module_name: str,  # noqa: ARG002
@@ -120,7 +120,7 @@ class FallbackExperimentLibraryClient(ExperimentLibraryClient):
         parameter_dict: "dict[str, DatabaseValueType]",  # noqa: ARG002
         n_shots: int,  # noqa: ARG002
     ) -> str:
-        """Generate a JSON sequence for an experiment.
+        """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.

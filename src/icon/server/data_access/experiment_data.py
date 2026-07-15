@@ -43,7 +43,7 @@ class ExperimentDataPoint:
     """Parameter values that produced this data point."""
     timestamp: str
     """Acquisition timestamp (ISO string)."""
-    sequence_json: str
+    hardware_instructions: str
     """Serialized sequence JSON used for this data point."""
     readouts: Readouts
     """Readouts from the device."""
@@ -146,8 +146,8 @@ class ExperimentData:
     """Scan parameters as param_id -> {index -> value/timestamp}."""
     realtime_scan: bool = False
     """True if the experiment has a realtime scan parameter."""
-    json_sequences: list[list[int | str]] = field(default_factory=list)
-    """List of [index, sequence_json] pairs (list for pydase JSON compatibility)."""
+    hardware_instructions: list[tuple[int, str]] = field(default_factory=list)
+    """List of (index, hardware_instructions) pairs."""
     parameters: dict[str, ParameterValue] = field(default_factory=dict)
     """Mapping of parameter id to time series (tuple of timestamp str and value)."""
     total_data_points: int = 0

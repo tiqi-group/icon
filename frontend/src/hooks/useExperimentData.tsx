@@ -21,7 +21,7 @@ const emptyExperimentData: ExperimentData = {
     vector_channels: {},
   },
   scan_parameters: {},
-  json_sequences: [],
+  hardware_instructions: [],
   parameters: {},
   total_data_points: 0,
   fits: {},
@@ -32,7 +32,7 @@ const emptyExperimentData: ExperimentData = {
  *
  * - Fetches initial experiment data via RPC.
  * - Subscribes to live updates via WebSocket and merges new data.
- * - Updates json_sequences only when the sequence changes.
+ * - Updates hardware_instructions only when the sequence changes.
  * - Captures any fetch error in `experimentDataError`.
  *
  * @param jobId - The job ID to fetch and subscribe to.
@@ -76,10 +76,10 @@ export function useExperimentData(jobId: string | undefined) {
         }
         (scan_parameters["timestamp"] ??= {})[data.index] = data.timestamp;
 
-        const json_sequences = [...prev.json_sequences];
-        const lastEntry = json_sequences.at(-1);
-        if (!lastEntry || lastEntry[1] !== data.sequence_json) {
-          json_sequences.push([data.index, data.sequence_json]);
+        const hardware_instructions = [...prev.hardware_instructions];
+        const lastEntry = hardware_instructions.at(-1);
+        if (!lastEntry || lastEntry[1] !== data.hardware_instructions) {
+          hardware_instructions.push([data.index, data.hardware_instructions]);
         }
 
         return {
@@ -90,7 +90,7 @@ export function useExperimentData(jobId: string | undefined) {
             vector_channels,
           },
           scan_parameters,
-          json_sequences,
+          hardware_instructions,
           total_data_points: prev.total_data_points + 1,
         };
       });

@@ -203,7 +203,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 self._set_pydase_service_values(scanned_params=task.scanned_params)
 
                 timestamp = datetime.now(timezone)
-                self._hardware_controller.send(data=task.sequence_json.encode("utf-8"))
+                self._hardware_controller.send(data=task.hardware_instructions)
                 self._hardware_controller.run()
                 readouts = self._hardware_controller.receive()
 
@@ -212,7 +212,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                     scan_params=task.scanned_params,
                     readouts=readouts,
                     timestamp=timestamp.isoformat(),
-                    sequence_json=task.sequence_json,
+                    hardware_instructions=task.hardware_instructions,
                 )
 
                 post_processing_task = PostProcessingTask(
