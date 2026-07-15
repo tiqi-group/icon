@@ -169,9 +169,9 @@ class PostProcessingWorker(multiprocessing.Process):
                 }
             )
 
-        db_upload_interval = result["db_upload_interval"]
+        db_upload_interval = result["db_upload_interval"]  # seconds
         if db_upload_interval is not None and (
-            time.monotonic() - state.last_upload_time >= db_upload_interval * 1e-6
+            time.monotonic() - state.last_upload_time >= db_upload_interval
         ):
             self._upload_pending_parameters(state)
 
