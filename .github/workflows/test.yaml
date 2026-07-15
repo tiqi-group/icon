@@ -23,6 +23,6 @@ jobs:
       - name: Install dependencies
         run: |
           pipx install uv
-          uv sync --extra server --extra client
+          uv sync -p ${{ matrix.python-version }} --extra server --extra client --locked
       - name: Full Python tests
         run: uv run pytest -v -m "not container"
