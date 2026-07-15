@@ -1,6 +1,6 @@
 """Definition and detection of the parameter storage schema in InfluxDB.
 
-Two schemas revisions are supported:
+Two schema revisions are supported:
 
 - **r1**: one field key per parameter (the full identifier), stored in the
   configured measurement.
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 # A legacy parameter field key always contains the namespace specifier.
 _IDENTIFIER_MARKER = "namespace='"
 
-# Since V2, we prefix the configured measurement name
+# Since r2, we prefix the configured measurement name
 _R2_MEASUREMENT_PREFIX = "icon|2|"
 
 
@@ -48,7 +48,7 @@ FIELD_KEY_NAMES = tuple(field.value for field in FieldKey)
 
 
 def field_key_from_value(value: DatabaseValueType) -> str:
-    """Return the type-specific v2 field key for a given value."""
+    """Return the per-type r2 field key for a given value."""
     if isinstance(value, bool):
         return FieldKey.BOOL.value
     if isinstance(value, int):
@@ -59,7 +59,7 @@ def field_key_from_value(value: DatabaseValueType) -> str:
 
 
 class ParameterDBSchema(str, Enum):
-    PRISTINE = "pristine"   # Empty database
+    PRISTINE = "pristine"  # Empty database
     R1 = "r1"
     R2 = "r2"
 
@@ -117,11 +117,11 @@ def assert_parameter_db(*, wrap_connection_errors: bool = True) -> ParameterDBSc
 
     Raises:
         AssertionError: if the database is missing or a parameter measurement exists with
-            an unexpected schema (and, when wrapping is enabled, on connection failure).
+            an unexpected schema.
     """
     influx = get_config().databases.influxdbv1
     base_measurement = influx.measurement
-    v2_name = r2_measurement_name(base_measurement)
+    r2_name = r2_measurement_name(base_measurement)
 
     with InfluxDBv1Session() as session:
         try:
@@ -138,8 +138,8 @@ def assert_parameter_db(*, wrap_connection_errors: bool = True) -> ParameterDBSc
 
         measurements = set(session.get_measurements())
 
-        if v2_name in measurements:
-            _assert_schema(session, v2_name, ParameterDBSchema.R2)
+        if r2_name in measurements:
+            _assert_schema(session, r2_name, ParameterDBSchema.R2)
             return ParameterDBSchema.R2
 
         if base_measurement in measurements:
@@ -389,7 +389,7 @@ class ParameterBackendR1(InfluxDBParameterBackend):
 _BACKENDS: dict[ParameterDBSchema, type[InfluxDBParameterBackend]] = {
     ParameterDBSchema.R1: ParameterBackendR1,
     ParameterDBSchema.R2: ParameterBackendR2,
-    # A pristine database is initialised with the current (v2) schema.
+    # A pristine database is initialised with the current (r2) schema.
     ParameterDBSchema.PRISTINE: ParameterBackendR2,
 }
 

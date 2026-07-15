@@ -36,16 +36,16 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-CLI_HELP = """Migration CLI for the InfluxDB parameter store.
+CLI_HELP = """Tool for migrating the InfluxDB parameter store from Revision 1 (r1) to Revision 2 (r2).
 
-Legacy (Rev1) layout (one field key per parameter):
+Legacy (Revision 1) layout (one field key per parameter):
 
 \b
 measurement "<ICON_CONFIG_MEASUREMENT>"
     tags:   namespace, parameter_group, param_type, <extra specifiers...>
     field:  "<full parameter identifier>" = <value>
 
-Rev2 layout (typed value fields):
+Revision 2 layout (typed value fields):
 
 \b
 measurement "icon|2|<ICON_CONFIG_MEASUREMENT>"
@@ -59,7 +59,7 @@ Note: only the *current* value of each parameter is migrated. Historical points 
 the source measurement; the new schema starts from the migrated values. Their last timestamps
 are preserved during migration.
 
-Icon can discover and operate with both schemas. When Rev 2 schema is detected, it is preferred.
+Icon can discover and operate with both schemas. When r2 schema is detected, it is preferred.
 Icon must not run while the migration is performed.
 
 Migration steps - the recommended sequence of commands to perform a migration:
@@ -221,7 +221,7 @@ class InfluxDBSchemaMigrationManager:
             session_provider=cached_session_provider
         )
 
-    def collect_v1_values(self) -> tuple[ParameterMapping, ParameterErrors]:
+    def collect_r1_values(self) -> tuple[ParameterMapping, ParameterErrors]:
         """Read the latest value, time and tags of every legacy parameter. We read individual parameters sequentually. This should be more gentile on the database."""
         with logging_redirect_tqdm():
             field_keys = self.source_backend.get_influxdb_parameter_keys()
@@ -285,7 +285,7 @@ class InfluxDBSchemaMigrationManager:
 
         return parameter_mapping, ignored_params
 
-    def write_v2_parameters(self, parameter_mapping: ParameterMapping) -> None:
+    def write_r2_parameters(self, parameter_mapping: ParameterMapping) -> None:
         """Write migrated parameters into the target measurement, preserving timestamps.
 
         The tag/typed-field mapping is delegated to ``update_influxdb_parameters`` (so the
@@ -451,7 +451,7 @@ def run_migration(dry_run: bool, confirm_inconsistencies: bool, yes: bool) -> in
         " (DRY RUN)" if dry_run else "",
     )
 
-    parameter_mapping, ignored_params = mm.collect_v1_values()
+    parameter_mapping, ignored_params = mm.collect_r1_values()
 
     if len(ignored_params) > 0:
         logger.warning(
@@ -492,7 +492,7 @@ def run_migration(dry_run: bool, confirm_inconsistencies: bool, yes: bool) -> in
         len(parameter_mapping),
         mm.target_backend.measurement,
     )
-    mm.write_v2_parameters(parameter_mapping)
+    mm.write_r2_parameters(parameter_mapping)
 
     if not mm.verify_target_values(parameter_mapping):
         logger.error(
@@ -512,7 +512,7 @@ def run_migration(dry_run: bool, confirm_inconsistencies: bool, yes: bool) -> in
 
 def run_verify() -> int:
     mm = InfluxDBSchemaMigrationManager()
-    parameter_mapping, ignored_params = mm.collect_v1_values()
+    parameter_mapping, ignored_params = mm.collect_r1_values()
 
     if not mm.verify_target_values(parameter_mapping):
         logger.error("Migrated data does not match the source.")
@@ -530,14 +530,10 @@ def run_verify() -> int:
 def run_rollback(dry_run: bool, force: bool) -> int:
     """Run the ``rollback`` command.
 
-    Undoes a migration by dropping the Rev2 (typed-schema) measurement. By default this only
-    happens when **both** the v1 legacy measurement and the v2 measurement are present with
-    their expected schema: requiring v1 to still exist guarantees a fallback, so a rollback
-    can never destroy the only copy of the parameters. If either schema is missing, the v2
-    measurement is left untouched and a warning is emitted.
+    Undoes a migration by dropping the r2 measurement.
+    This destructive operation is guarded by check for existance of the r1 state.
 
-    With ``force`` the v1/v2 existence check is skipped and the v2 measurement is dropped
-    unconditionally (dropping a non-existent measurement is a harmless no-op).
+    With ``force`` the r1 existence check is skipped and the r2 measurement is dropped.
     """
     influx = get_config().databases.influxdbv1
     base_measurement = influx.measurement
@@ -565,40 +561,40 @@ def run_rollback(dry_run: bool, force: bool) -> int:
 
         if force:
             logger.warning(
-                "--force given: skipping the v1/v2 existence check before dropping '%s'.",
+                "--force given: skipping the r1/r2 state existence check before dropping '%s'.",
                 r2_name,
             )
         else:
-            v1_present = (
+            r1_present = (
                 detect_schema(session.get_field_keys(base_measurement))
                 is ParameterDBSchema.R1
             )
-            v2_present = (
+            r2_present = (
                 detect_schema(session.get_field_keys(r2_name)) is ParameterDBSchema.R2
             )
-            if not (v1_present and v2_present):
+            if not (r1_present and r2_present):
                 logger.warning(
-                    "Cannot roll back: both schemas must exist (v1 '%s': %s, v2 '%s': %s)."
-                    " The v2 measurement was left untouched. Use --force to drop it anyway.",
+                    "Cannot roll back: both schemas must exist (r1 '%s': %s, r2 '%s': %s)."
+                    " The r2 measurement was left untouched. Use --force to drop it anyway.",
                     base_measurement,
-                    "present" if v1_present else "missing",
+                    "present" if r1_present else "missing",
                     r2_name,
-                    "present" if v2_present else "missing",
+                    "present" if r2_present else "missing",
                 )
                 return 1
 
         if dry_run:
-            logger.info("Would drop the v2 measurement '%s' (DRY RUN).", r2_name)
+            logger.info("Would drop the r2 measurement '%s' (DRY RUN).", r2_name)
             return 0
 
-        logger.info("Dropping the v2 measurement '%s'...", r2_name)
+        logger.info("Dropping the r2 measurement '%s'...", r2_name)
         session.query(f'DROP MEASUREMENT "{escape_quotes(r2_name)}"')
 
         if detect_schema(session.get_field_keys(r2_name)) is not None:
-            logger.error("Failed to drop the v2 measurement '%s'.", r2_name)
+            logger.error("Failed to drop the r2 measurement '%s'.", r2_name)
             return 1
 
-    logger.info("Rolled back: dropped the v2 measurement '%s'.", r2_name)
+    logger.info("Rolled back: dropped the r2 measurement '%s'.", r2_name)
     return 0
 
 
@@ -649,7 +645,7 @@ def cli(ctx: click.Context, config_path: Path | None, verbose: bool) -> None:
     help="Skip the interactive confirmation prompt.",
 )
 def migrate(dry_run: bool, confirm_inconsistencies: bool, yes: bool) -> None:
-    """Perform migration: read each parameter and rewrite it to the v2 schema."""
+    """Perform migration: read each parameter and rewrite it to the r2 schema."""
     raise SystemExit(run_migration(dry_run, confirm_inconsistencies, yes))
 
 
@@ -662,7 +658,7 @@ def migrate(dry_run: bool, confirm_inconsistencies: bool, yes: bool) -> None:
 @click.option(
     "--force",
     is_flag=True,
-    help="Skip the v1/v2 existence check and drop the v2 measurement unconditionally.",
+    help="Skip the v1/v2 existence check and drop the r2 measurement unconditionally.",
 )
 def rollback(dry_run: bool, force: bool) -> None:
     """Undo a migration: drop the v2 measurement (only if both schemas exist, unless --force)."""
@@ -679,7 +675,7 @@ def rollback(dry_run: bool, force: bool) -> None:
 @click.option(
     "--do-r1-bulk-read",
     is_flag=True,
-    help="Perform bulk read in case of v1 schema. Implies --assume-schema-revision=r1. WARNING: This may put significant load on the server. Use with caution. ",
+    help="Perform bulk read in case of r1 schema. Implies --assume-schema-revision=r1. WARNING: This may put significant load on the server. Use with caution. ",
 )
 def profile(
     assume_schema_revision: ParameterDBSchema | None = None,
