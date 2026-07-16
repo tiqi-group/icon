@@ -36,6 +36,7 @@ from icon.server.data_access.repositories.parameters_repository import (
 from icon.server.fitting.auto_fit import try_auto_fit
 from icon.server.hardware_processing.task import HardwareProcessingTask
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
+from icon.server.utils.types import DataPointToProcess
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
@@ -174,9 +175,7 @@ class PreProcessingWorker(multiprocessing.Process):
         self._worker_number = worker_number
         self._manager = manager
         # Queues to communicate with the hardware worker:
-        self._data_points_to_process: queue.Queue[
-            tuple[int, dict[str, DatabaseValueType]]
-        ]
+        self._data_points_to_process: queue.PriorityQueue[DataPointToProcess]
         self._processed_data_points: queue.Queue[HardwareProcessingTask]
         self._parameter_dict: dict[str, DatabaseValueType] = {}
         self._outdated_tasks: queue.PriorityQueue[HardwareProcessingTask] = (
@@ -195,7 +194,7 @@ class PreProcessingWorker(multiprocessing.Process):
             while True:
                 pre_processing_task = self._queue.get()
 
-                self._data_points_to_process = self._manager.Queue()
+                self._data_points_to_process = self._manager.PriorityQueue()
                 self._processed_data_points = self._manager.Queue()
 
                 try:
@@ -436,8 +435,10 @@ class PreProcessingWorker(multiprocessing.Process):
                 "No scan combinations to process: check that 'repetitions' >= 1 "
                 "and all scan parameters have at least one scan value."
             )
-        for combination in enumerate(scan_parameter_value_combinations):
-            self._data_points_to_process.put(combination)
+        for index, combination in enumerate(scan_parameter_value_combinations):
+            self._data_points_to_process.put(
+                DataPointToProcess(index=index, scan_params=combination)
+            )
 
         while self._processed_data_points.qsize() != len(
             scan_parameter_value_combinations
@@ -448,7 +449,7 @@ class PreProcessingWorker(multiprocessing.Process):
             # TODO: this should probably be done with multiple workers to
             # speed up the preparation of JSONs
             try:
-                index, data_point = self._data_points_to_process.get(block=False)
+                next_data_point = self._data_points_to_process.get(block=False)
             except queue.Empty:
                 time.sleep(0.001)
                 continue
@@ -459,6 +460,8 @@ class PreProcessingWorker(multiprocessing.Process):
 
             if should_exit:
                 break
+
+            index, data_point = next_data_point.index, next_data_point.scan_params
 
             yield
             self._submit_task_to_hw_worker(
@@ -564,11 +567,18 @@ class PreProcessingWorker(multiprocessing.Process):
         for _ in itertools.repeat(None, *times):
             for combination in get_scan_combinations(pre_processing_task.job):
                 self._data_points_to_process.put(
-                    (next(realtime_scan_counter), combination)
+                    DataPointToProcess(
+                        index=next(realtime_scan_counter), scan_params=combination
+                    )
                 )
             if self._data_points_to_process.qsize() == 0:
-                self._data_points_to_process.put((next(realtime_scan_counter), {}))
-            for index, data_point in consume_queue(self._data_points_to_process):
+                self._data_points_to_process.put(
+                    DataPointToProcess(
+                        index=next(realtime_scan_counter), scan_params={}
+                    )
+                )
+            for next_data_point in consume_queue(self._data_points_to_process):
+                index, data_point = next_data_point.index, next_data_point.scan_params
                 if job_run_cancelled_or_failed(
                     job_id=pre_processing_task.job.id,
                 ):

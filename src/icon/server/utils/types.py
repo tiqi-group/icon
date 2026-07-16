@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Literal, NotRequired, TypedDict
 
 from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
@@ -21,3 +22,21 @@ class RetakeDataPointsEvent(TypedDict):
 
 UpdateQueue = UpdateParametersEvent | CalibrationEvent | RetakeDataPointsEvent
 """Event placed on a pre-processing worker's update queue."""
+
+
+@dataclass
+class DataPointToProcess:
+    """A data point queued for pre-processing.
+
+    Orders by ``index`` only, so a priority queue of data points dispenses them
+    in data-point order regardless of insertion order. Restricting the
+    comparison to the index (instead of comparing whole tuples) keeps the heap
+    from ever falling back to comparing the ``scan_params`` dicts, which do not
+    support ``<``.
+    """
+
+    index: int
+    scan_params: dict[str, DatabaseValueType]
+
+    def __lt__(self, other: "DataPointToProcess") -> bool:
+        return self.index < other.index
