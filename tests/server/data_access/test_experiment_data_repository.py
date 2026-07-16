@@ -118,6 +118,55 @@ def test_move_last_n_data_points_noop_when_zero(tmp_path: Path) -> None:
         assert "invalid" not in h5file
 
 
+def test_freed_indices_accept_reacquired_data(tmp_path: Path) -> None:
+    """Re-acquisition at the freed indices must store the new values.
+
+    The vector write silently skips dataset names that already exist, so this
+    fails if invalidation leaves the live per-index vector datasets behind.
+    """
+    with h5py.File(tmp_path / "results.h5", "w") as h5file:
+        _write_data_points(h5file, count=5)
+        _move_last_n_data_points_to_invalid(h5file, no_data_points=2)
+
+        # Re-acquire the freed indices (3, 4) with new values, as a retake will.
+        for offset, index in enumerate((3, 4)):
+            number_of_data_points = 3 + offset
+            write_scan_parameters_and_timestamp_to_dataset(
+                h5file=h5file,
+                data_point_index=index,
+                scan_params={"freq": float(index)},
+                timestamp=f"2024-01-01T00:01:{index:02d}.000000",
+                number_of_data_points=number_of_data_points,
+            )
+            write_results_to_dataset(
+                h5file=h5file,
+                data_point_index=index,
+                result_channels={"counts": 100.0 + index},
+                number_of_data_points=number_of_data_points,
+            )
+            write_shot_channels_to_datasets(
+                h5file=h5file,
+                data_point_index=index,
+                shot_channels={"shots": [9] * NUMBER_OF_SHOTS},
+                number_of_data_points=number_of_data_points,
+                number_of_shots=NUMBER_OF_SHOTS,
+            )
+            write_vector_channels_to_datasets(
+                h5file=h5file,
+                data_point_index=index,
+                vector_channels={"trace": [100.0 + index]},
+            )
+
+        assert h5file["scan_parameters"].shape == (5, 1)
+        assert h5file["result_channels"]["counts"][3:].tolist() == [103.0, 104.0]
+        assert h5file["shot_channels/shots"][3:].tolist() == [
+            [9.0] * NUMBER_OF_SHOTS,
+            [9.0] * NUMBER_OF_SHOTS,
+        ]
+        assert h5file["vector_channels/trace/3"][:].tolist() == [103.0]
+        assert h5file["vector_channels/trace/4"][:].tolist() == [104.0]
+
+
 def test_mark_data_points_as_invalid_emits_invalidated_event(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
