@@ -366,21 +366,19 @@ class PreProcessingWorker(multiprocessing.Process):
         self, pre_processing_task: PreProcessingTask, namespace: ExperimentIdentifier
     ) -> None:
         for parameter_update in consume_queue(self._update_queue):
-            event = parameter_update["event"]
-            job_id = parameter_update.get("job_id", None)
-            new_parameters = parameter_update.get("new_parameters", None)
-
-            if event == "update_parameters" and (
-                job_id is None or job_id == pre_processing_task.job.id
-            ):
-                self._update_parameter_dict(
-                    pre_processing_task, namespace, mode=ParamUpdateMode.ALL_UP_TO_DATE
-                )
-            elif event == "calibration" and new_parameters is not None:
+            if parameter_update["event"] == "update_parameters":
+                job_id = parameter_update.get("job_id", None)
+                if job_id is None or job_id == pre_processing_task.job.id:
+                    self._update_parameter_dict(
+                        pre_processing_task,
+                        namespace,
+                        mode=ParamUpdateMode.ALL_UP_TO_DATE,
+                    )
+            elif parameter_update["event"] == "calibration":
                 self._update_parameter_dict(
                     pre_processing_task,
                     namespace,
-                    new_parameters=new_parameters,
+                    new_parameters=parameter_update["new_parameters"],
                     mode=ParamUpdateMode.ONLY_NEW_PARAMETERS,
                 )
 
