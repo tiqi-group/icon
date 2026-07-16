@@ -754,7 +754,9 @@ class ExperimentDataRepository:
 
         The bad data is preserved under the ``invalid/`` group (tagged with the
         original data-point index in ``invalid/indices``) and removed from the live
-        datasets so the points can be re-acquired at their original indices.
+        datasets so the points can be re-acquired at their original indices. Emits
+        an ``experiment_<job_id>_invalidated`` event with the moved indices so the
+        frontend can drop those points immediately.
 
         Args:
             job_id: Job identifier.
@@ -767,7 +769,16 @@ class ExperimentDataRepository:
         filename = get_filename_by_job_id(job_id)
         h5_path = Path(get_config().data.results_dir) / filename
         with h5_open(h5_path, "a") as h5file:
-            return _move_last_n_data_points_to_invalid(h5file, no_data_points)
+            moved_indices = _move_last_n_data_points_to_invalid(h5file, no_data_points)
+
+        if moved_indices:
+            emit_queue.put(
+                {
+                    "event": f"experiment_{job_id}_invalidated",
+                    "data": {"indices": moved_indices},
+                }
+            )
+        return moved_indices
 
     @staticmethod
     def get_experiment_data_by_job_id(  # noqa: C901

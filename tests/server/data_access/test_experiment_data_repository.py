@@ -1,9 +1,13 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import h5py  # type: ignore
 import numpy as np
+import pytest
 
+from icon.server.data_access.repositories import experiment_data_repository
 from icon.server.data_access.repositories.experiment_data_repository import (
+    ExperimentDataRepository,
     _move_last_n_data_points_to_invalid,
     write_results_to_dataset,
     write_scan_parameters_and_timestamp_to_dataset,
@@ -112,3 +116,41 @@ def test_move_last_n_data_points_noop_when_zero(tmp_path: Path) -> None:
         assert _move_last_n_data_points_to_invalid(h5file, no_data_points=0) == []
         assert h5file.attrs["number_of_data_points"] == 3
         assert "invalid" not in h5file
+
+
+def test_mark_data_points_as_invalid_emits_invalidated_event(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with h5py.File(tmp_path / "results.h5", "w") as h5file:
+        _write_data_points(h5file, count=5)
+
+    monkeypatch.setattr(
+        experiment_data_repository,
+        "get_filename_by_job_id",
+        lambda _job_id: "results.h5",
+    )
+    monkeypatch.setattr(
+        experiment_data_repository,
+        "get_config",
+        lambda: SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path))),
+    )
+    emitted: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        experiment_data_repository, "emit_queue", SimpleNamespace(put=emitted.append)
+    )
+
+    moved = ExperimentDataRepository.mark_data_points_as_invalid(
+        job_id=7, no_data_points=2
+    )
+
+    assert moved == [3, 4]
+    assert emitted == [
+        {"event": "experiment_7_invalidated", "data": {"indices": [3, 4]}}
+    ]
+
+    # A call that invalidates nothing emits nothing.
+    assert (
+        ExperimentDataRepository.mark_data_points_as_invalid(job_id=7, no_data_points=0)
+        == []
+    )
+    assert len(emitted) == 1
