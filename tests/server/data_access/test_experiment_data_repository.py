@@ -63,20 +63,20 @@ def test_move_last_n_data_points_to_invalid(tmp_path: Path) -> None:
         assert set(h5file["vector_channels/trace"].keys()) == {"0", "1", "2"}
 
         # Invalid datasets hold the moved rows, tagged with their original index.
-        assert h5file["invalid_indices"][:].tolist() == [3, 4]
-        assert h5file["invalid_scan_parameters"]["freq"].flatten().tolist() == [
+        assert h5file["invalid/indices"][:].tolist() == [3, 4]
+        assert h5file["invalid/scan_parameters"]["freq"].flatten().tolist() == [
             3.0,
             4.0,
         ]
-        assert h5file["invalid_result_channels"]["counts"].tolist() == [30.0, 40.0]
+        assert h5file["invalid/result_channels"]["counts"].tolist() == [30.0, 40.0]
         np.testing.assert_array_equal(
-            h5file["invalid_shot_channels/shots"][:],
+            h5file["invalid/shot_channels/shots"][:],
             np.array([[3] * NUMBER_OF_SHOTS, [4] * NUMBER_OF_SHOTS], dtype=np.float64),
         )
         # Vector datasets are renamed to their append position (aligned to indices).
-        assert set(h5file["invalid_vector_channels/trace"].keys()) == {"0", "1"}
-        assert h5file["invalid_vector_channels/trace/0"][:].tolist() == [3.0, 4.0]
-        assert h5file["invalid_vector_channels/trace/1"][:].tolist() == [4.0, 5.0]
+        assert set(h5file["invalid/vector_channels/trace"].keys()) == {"0", "1"}
+        assert h5file["invalid/vector_channels/trace/0"][:].tolist() == [3.0, 4.0]
+        assert h5file["invalid/vector_channels/trace/1"][:].tolist() == [4.0, 5.0]
 
 
 def test_move_last_n_data_points_appends_across_retakes(tmp_path: Path) -> None:
@@ -92,17 +92,17 @@ def test_move_last_n_data_points_appends_across_retakes(tmp_path: Path) -> None:
         assert h5file["scan_parameters"].shape == (0, 1)
 
         # Invalid datasets accumulate both batches.
-        assert h5file["invalid_indices"][:].tolist() == [3, 4, 0, 1, 2]
-        assert h5file["invalid_scan_parameters"].shape == (5, 1)
+        assert h5file["invalid/indices"][:].tolist() == [3, 4, 0, 1, 2]
+        assert h5file["invalid/scan_parameters"].shape == (5, 1)
         # Vector datasets from the second batch use append positions 2, 3, 4.
-        assert set(h5file["invalid_vector_channels/trace"].keys()) == {
+        assert set(h5file["invalid/vector_channels/trace"].keys()) == {
             "0",
             "1",
             "2",
             "3",
             "4",
         }
-        assert h5file["invalid_vector_channels/trace/2"][:].tolist() == [0.0, 1.0]
+        assert h5file["invalid/vector_channels/trace/2"][:].tolist() == [0.0, 1.0]
 
 
 def test_move_last_n_data_points_noop_when_zero(tmp_path: Path) -> None:
@@ -111,4 +111,4 @@ def test_move_last_n_data_points_noop_when_zero(tmp_path: Path) -> None:
 
         assert _move_last_n_data_points_to_invalid(h5file, no_data_points=0) == []
         assert h5file.attrs["number_of_data_points"] == 3
-        assert "invalid_indices" not in h5file
+        assert "invalid" not in h5file
