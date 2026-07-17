@@ -9,7 +9,6 @@ except ImportError:
     ) from None
 
 
-from icon.config.config import get_config
 from icon.server.data_access.experiment_data import Readouts
 from icon.server.hardware_processing.hardware_controller import (
     HardwareController,
@@ -21,17 +20,13 @@ logger = logging.getLogger(__name__)
 
 
 class ZedboardController(HardwareController):
-    def __init__(self, *, connect: bool = True) -> None:
-        self._host = get_config().hardware.host
-        self._port = get_config().hardware.port
+    def __init__(self, *, host: str, port: int) -> None:
+        self._host = host
+        self._port = port
         self._zedboard: tiqi_zedboard.zedboard.Zedboard | None = None
-        if connect:
-            self.connect()
 
     def connect(self) -> None:
         logger.info("Connecting to the Zedboard")
-        self._host = get_config().hardware.host
-        self._port = get_config().hardware.port
         self._zedboard = tiqi_zedboard.zedboard.Zedboard(
             hostname=self._host, port=self._port
         )
@@ -42,8 +37,7 @@ class ZedboardController(HardwareController):
     def connected(self) -> bool:
         return (
             self._zedboard is not None
-            and hasattr(self._zedboard, "_client")
-            and self._zedboard._client is not None
+            and getattr(self._zedboard, "_client", None) is not None
             and not is_socket_closed(self._zedboard._client._socket)
         )
 

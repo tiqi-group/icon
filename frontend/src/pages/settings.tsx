@@ -200,18 +200,46 @@ export const SettingsPage = () => {
       </TabPanel>
       <TabPanel value={tab} index={4}>
         <Typography variant="h6">Hardware</Typography>
-        <EditableSettingField
-          configKey="hardware.host"
-          label="Host"
-          value={config.hardware.host}
-          description="Hostname or IP address for the hardware server."
-        />
-        <EditableSettingField
-          configKey="hardware.port"
-          label="Port"
-          value={config.hardware.port}
-          description="Port number used to communicate with the hardware server."
-        />
+        {config.hardware.devices.map((cfg, index) => (
+          <Paper key={index} elevation={1}>
+            <Typography variant="h6">{cfg.id}</Typography>
+            <BaseButton
+              label="Enabled"
+              description="Enable / Disable device."
+              color={cfg.enabled ? "success" : "inherit"}
+              onClick={() =>
+                updateConfiguration(`hardware.devices[${index}].enabled`, !cfg.enabled)
+              }
+            >
+              {cfg.enabled ? "Enabled" : "Disabled"}
+            </BaseButton>
+            <EditableSettingField
+              configKey={`hardware.devices[${index}].id`}
+              label="Hardware ID (e.g. 'zedboard')"
+              value={cfg.id}
+              description="Unique identifier shared with the experiment library."
+            />
+            <EditableSettingField
+              configKey={`hardware.devices[${index}].controller_class`}
+              label="Hardware controller class (e.g. ZedboardHardwareController)"
+              value={cfg.controller_class}
+              description="Specifies the type of the hardware."
+            />
+            <EditableSettingField
+              configKey={`hardware.devices[${index}].controller_module`}
+              label="Hardware controller module (e.g. icon.server.hardware_processing.zedboard_controller)"
+              value={cfg.controller_module}
+              description="Python module which defines the hardware controller class."
+            />
+            <Paper elevation={1}>
+              <EditableDictField
+                configKey={`hardware.devices[${index}].args`}
+                label="Hardware Device Configuration (device specific)"
+                value={cfg.args}
+              />
+            </Paper>
+          </Paper>
+        ))}
       </TabPanel>
       <TabPanel value={tab} index={5}>
         <Typography variant="h6">Health Check</Typography>

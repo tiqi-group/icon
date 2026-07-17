@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
     from icon.server.data_access.experiment_data import DatabaseValueType
     from icon.server.data_access.models.sqlite.device import Device
-    from icon.server.hardware_processing.hardware_controller import HardwareController
+    from icon.server.hardware_processing.devices import Devices
     from icon.server.hardware_processing.task import HardwareProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
 
@@ -96,7 +96,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
         hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask],
         post_processing_queue: multiprocessing.Queue[PostProcessingTask],
         manager: SharedResourceManager,
-        hardware_controller: HardwareController,
+        devices: Devices,
     ) -> None:
         super().__init__()
         self._queue = hardware_processing_queue
@@ -104,7 +104,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self._manager = manager
         self._pydase_clients: dict[str, pydase.Client] = {}
 
-        self._hardware_controller = hardware_controller
+        self._devices = devices
 
     def _update_pydase_service_parameter(
         self, device: Device, access_path: str, new_value: DatabaseValueType
@@ -203,9 +203,10 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 self._set_pydase_service_values(scanned_params=task.scanned_params)
 
                 timestamp = datetime.now(timezone)
-                self._hardware_controller.send(data=task.hardware_instructions)
-                self._hardware_controller.run()
-                readouts = self._hardware_controller.receive()
+                hardware_controller = self._devices.main_device()
+                hardware_controller.send(data=task.hardware_instructions)
+                hardware_controller.run()
+                readouts = hardware_controller.receive()
 
                 experiment_data_point = ExperimentDataPoint(
                     index=task.data_point_index,
