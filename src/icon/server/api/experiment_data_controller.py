@@ -26,6 +26,7 @@ class ExperimentDataController(pydase.DataService):
         self,
         job_id: int,
         max_transfer_bytes: int = 50_000_000,
+        *,
         include_json_sequences: bool = False,
     ) -> dict[str, Any]:
         """Return experiment data for a given job.
