@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import multiprocessing
 import re
 import time
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import pydase
 import pytz
 import socketio.exceptions
+from pydase.client.proxy_loader import ProxyLoader
+from pydase.utils.serialization.serializer import dump
 
 from icon.config.config import get_config
 from icon.server.data_access.experiment_data import (
@@ -36,6 +39,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 timezone = pytz.timezone(get_config().date.timezone)
+
+DEVICE_SNAPSHOT_TIMEOUT_SECONDS = 30
+"""Timeout for fetching the full state of a device for the HDF5 snapshot."""
 
 
 def parse_parameter_id(param_id: str) -> tuple[str | None, str]:
@@ -106,19 +112,70 @@ class HardwareProcessingWorker(multiprocessing.Process):
 
         self._devices = devices
 
+    @staticmethod
+    def _raw_client_call(
+        client: pydase.Client, event: str, data: Any, timeout: int
+    ) -> Any:
+        """Perform a socket.io call on a pydase client with a custom timeout.
+
+        pydase's ``Client.update_value`` / ``get_value`` are hard-wired to
+        python-socketio's default 60 s call timeout, which is too short for slow
+        device setters, so this replicates them with a configurable timeout.
+        Returns the raw (still serialized) response.
+        """
+        loop = client._loop
+        if loop is None:
+            raise RuntimeError("pydase client is not connected")
+
+        async def _call() -> Any:
+            return await client._sio.call(event, data, timeout=timeout)
+
+        return asyncio.run_coroutine_threadsafe(_call(), loop=loop).result()
+
+    @classmethod
+    def _client_call_with_timeout(
+        cls, client: pydase.Client, event: str, data: Any, timeout: int
+    ) -> Any:
+        result = cls._raw_client_call(client, event, data, timeout)
+        if result is not None:
+            # Deserializes the response; re-raises exceptions reported by the
+            # device service.
+            return ProxyLoader.loads_proxy(
+                serialized_object=result,
+                sio_client=client._sio,
+                loop=cast("asyncio.AbstractEventLoop", client._loop),
+            )
+        return None
+
     def _update_pydase_service_parameter(
         self, device: Device, access_path: str, new_value: DatabaseValueType
     ) -> None:
         client = self._pydase_clients[device.name]
+        timeout = get_config().devices.set_value_timeout_seconds
         try:
-            client.update_value(access_path=access_path, new_value=new_value)
+            self._client_call_with_timeout(
+                client=client,
+                event="update_value",
+                data={"access_path": access_path, "value": dump(new_value)},
+                timeout=timeout,
+            )
         except socketio.exceptions.BadNamespaceError as e:
             raise RuntimeError(
                 f"Failed to connect to device {device.name!r} as {device.url!r}."
             ) from e
+        except socketio.exceptions.TimeoutError as e:
+            raise RuntimeError(
+                f"Timed out after {timeout} s while setting {access_path!r} of "
+                f"device {device.name!r}."
+            ) from e
 
         for attempt in range(1, device.retry_attempts + 1):
-            value_on_device = client.get_value(access_path=access_path)
+            value_on_device = self._client_call_with_timeout(
+                client=client,
+                event="get_value",
+                data=access_path,
+                timeout=timeout,
+            )
             # TODO: check for rounding errors
             if value_on_device == new_value:
                 return
