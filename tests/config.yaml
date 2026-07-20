@@ -13,6 +13,7 @@ databases:
     verify_ssl: false
 date:
   timezone: Europe/Zurich
+  set_value_timeout_seconds: 300
 experiment_library:
   client_args:
     checkout_path: ../wiqr_experiment_library/
