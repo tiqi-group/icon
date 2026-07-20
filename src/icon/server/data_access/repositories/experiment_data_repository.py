@@ -590,6 +590,7 @@ class ExperimentDataRepository:
         *,
         job_id: int,
         max_transfer_bytes: int = 50_000_000,
+        include_json_sequences: bool = False,
     ) -> ExperimentData:
         """Load stored data for a job from its HDF5 file.
 
@@ -602,6 +603,10 @@ class ExperimentDataRepository:
             job_id: Job identifier.
             max_transfer_bytes: Approximate cap on the serialised payload
                 size in bytes.  Defaults to 50 MB.
+            include_json_sequences: If True, load ``sequence_json`` entries
+                into ``json_sequences``.  Defaults to False — those blobs are
+                large (~27 KB each, one per changed point) and are omitted
+                from the default RPC response.
 
         Returns:
             Experiment data payload suitable for the API.
@@ -745,16 +750,17 @@ class ExperimentDataRepository:
                     )
                 }
 
-            sequence_json_dataset = cast(
-                "h5py.Dataset | tuple[()]", h5file.get("sequence_json", ())
-            )
-            data.json_sequences = [
-                [
-                    cast("np.int32", entry["index"]).item(),
-                    entry["Sequence"].decode(),
+            if include_json_sequences:
+                sequence_json_dataset = cast(
+                    "h5py.Dataset | tuple[()]", h5file.get("sequence_json", ())
+                )
+                data.json_sequences = [
+                    [
+                        cast("np.int32", entry["index"]).item(),
+                        entry["Sequence"].decode(),
+                    ]
+                    for entry in sequence_json_dataset
                 ]
-                for entry in sequence_json_dataset
-            ]
             data.parameters = extract_parameter_values(h5file)
             data.fits = _read_fits_from_hdf5(h5file)
         return data
