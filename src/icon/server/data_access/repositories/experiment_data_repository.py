@@ -109,6 +109,22 @@ class ParameterValue:
 
 
 @dataclass
+class DeviceSnapshot:
+    """Full state of a connected device at the time of a measurement."""
+
+    name: str
+    """Device name (as registered in the devices table)."""
+    url: str
+    """pydase service URL of the device."""
+    timestamp: str
+    """Snapshot timestamp (ISO string)."""
+    state_json: str | None
+    """JSON-serialized pydase state of the device, or None if unreachable."""
+    error: str | None = None
+    """Error message if the device state could not be fetched."""
+
+
+@dataclass
 class ExperimentData:
     """Container for all experiment data returned to the API."""
 
@@ -519,6 +535,44 @@ class ExperimentDataRepository:
                 "data": data_point.sequence_json,
             }
         )
+
+    @staticmethod
+    def write_device_snapshots_by_job_id(
+        *,
+        job_id: int,
+        snapshots: list[DeviceSnapshot],
+    ) -> None:
+        """Write the state of the connected devices under the 'devices' group.
+
+        Creates one subgroup per device holding its full pydase state as a JSON
+        string dataset. Repeated calls for the same device overwrite its snapshot.
+
+        Args:
+            job_id: Job identifier.
+            snapshots: Device snapshots to persist.
+        """
+        filename = get_filename_by_job_id(job_id)
+        h5_path = Path(get_config().data.results_dir) / filename
+
+        with h5_open(h5_path, "a") as h5file:
+            devices_group = h5file.require_group("devices")
+            for snapshot in snapshots:
+                device_group = devices_group.require_group(snapshot.name)
+                device_group.attrs["url"] = snapshot.url
+                device_group.attrs["timestamp"] = snapshot.timestamp
+                if snapshot.error is not None:
+                    device_group.attrs["error"] = snapshot.error
+                elif "error" in device_group.attrs:
+                    del device_group.attrs["error"]
+                if snapshot.state_json is not None:
+                    if "state" in device_group:
+                        del device_group["state"]
+                    device_group.create_dataset(
+                        "state",
+                        data=snapshot.state_json,
+                        dtype=h5py.string_dtype(),
+                    )
+            logger.debug("Wrote %d device snapshots for job %d", len(snapshots), job_id)
 
     @staticmethod
     def write_parameter_update_by_job_id(
