@@ -58,6 +58,11 @@ class DateConfig(BaseModel):
     timezone: str = "Europe/Zurich"
 
 
+class DevicesConfig(BaseModel):
+    set_value_timeout_seconds: int = 300
+    """Timeout for setting and verifying a device parameter during a scan."""
+
+
 class PreProcessingConfig(BaseModel):
     workers: int = 2
 
@@ -78,6 +83,7 @@ class ServiceConfig(BaseConfig):  # type: ignore[misc]
     experiment_library: ExperimentLibraryConfig = ExperimentLibraryConfig()
     databases: DatabaseConfig = DatabaseConfig()
     date: DateConfig = DateConfig()
+    devices: DevicesConfig = DevicesConfig()
     server: ServerConfig = ServerConfig()
     hardware: HardwareConfig = HardwareConfig()
     health_check: HealthCheckConfig = HealthCheckConfig()
