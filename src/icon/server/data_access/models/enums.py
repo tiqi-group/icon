@@ -44,3 +44,17 @@ class DeviceStatus(enum.Enum):
     """Device is enabled and may be connected."""
     DISABLED = "disabled"
     """Device is disabled and should not be used."""
+
+
+class ScanMode(enum.Enum):
+    """How the values of multiple scan parameters are combined into data points."""
+
+    MESH = "mesh"
+    """Scan the cartesian product of all scan parameters.
+
+    A scan over parameters with n and m values yields n * m data points."""
+    CORRELATED = "correlated"
+    """Step through all scan parameters simultaneously.
+
+    All scan parameters must define the same number of values n, and the scan yields
+    n data points: the i-th data point sets every parameter to its i-th value."""
