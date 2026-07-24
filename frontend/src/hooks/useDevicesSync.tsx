@@ -103,8 +103,20 @@ export function useDevicesSync(
     };
   }, [stateDispatch, infoDispatch]);
 
+  // The server only sends high-rate device notify events to clients subscribed to
+  // the device-updates room. Join it while the Devices page is open (re-joining
+  // after reconnects) and leave it when navigating away.
   useEffect(() => {
     if (!isDevicesRoute(pathname)) return;
+
+    const subscribe = () => socket.emit("subscribe_device_updates");
+    subscribe();
+    socket.on("connect", subscribe);
     refreshDeviceState(stateDispatch);
+
+    return () => {
+      socket.off("connect", subscribe);
+      socket.emit("unsubscribe_device_updates");
+    };
   }, [pathname, stateDispatch]);
 }

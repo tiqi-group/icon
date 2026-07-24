@@ -11,6 +11,13 @@ logger = logging.getLogger(__name__)
 
 pydase_setup_sio_events = pydase.server.web_server.sio_setup.setup_sio_events
 
+DEVICE_UPDATES_ROOM = "device-proxy-updates"
+"""Socket.IO room receiving high-rate `devices.device_proxies.*` notify events.
+
+Clients must explicitly subscribe (the frontend does so while the Devices page is
+open). Broadcasting these to everyone lets chatty devices freeze all connected UIs.
+"""
+
 
 class AsyncServer(socketio.AsyncServer):
     controlling_sid: str | None = None
@@ -55,6 +62,18 @@ def setup_sio_events(
         if sio.controlling_sid == sid:
             sio.controlling_sid = None
             await sio.emit("control_state", {"controlling_sid": None})
+
+    _setup_device_update_room_events(sio)
+
+
+def _setup_device_update_room_events(sio: AsyncServer) -> None:
+    @sio.event
+    async def subscribe_device_updates(sid: str) -> None:
+        await sio.enter_room(sid, DEVICE_UPDATES_ROOM)
+
+    @sio.event
+    async def unsubscribe_device_updates(sid: str) -> None:
+        await sio.leave_room(sid, DEVICE_UPDATES_ROOM)
 
 
 def log_id(headers: Any, sid: str) -> str:
