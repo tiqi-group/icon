@@ -12,7 +12,7 @@ from icon.server.api.models.scan_parameter import (
     scan_parameter_from_dict,
 )
 from icon.server.api.parameters_controller import ParametersController
-from icon.server.data_access.models.enums import JobRunStatus, JobStatus
+from icon.server.data_access.models.enums import JobRunStatus, JobStatus, ScanMode
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
 from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.models.sqlite.job_run import JobRun
@@ -59,6 +59,30 @@ class SchedulerController(pydase.DataService):
             return metadata["display_name"]
         return parameter_id
 
+    def _to_sqlite_model(
+        self, param: ScanParameter
+    ) -> sqlite_scan_parameter.ScanParameter:
+        """Convert an API scan parameter into its persistable SQLAlchemy model."""
+        if isinstance(param, RealtimeParameter):
+            return sqlite_scan_parameter.ScanParameter(
+                name="Real Time",
+                variable_id="Real Time",
+                scan_values=[1] * param.n_scan_points,
+                realtime=True,
+            )
+        if isinstance(param, DatabaseParameter):
+            return sqlite_scan_parameter.ScanParameter(
+                name=self._resolve_display_name(param.id),
+                variable_id=param.id,
+                scan_values=param.values,
+            )
+        return sqlite_scan_parameter.ScanParameter(
+            name=self._resolve_display_name(param.id),
+            variable_id=param.id,
+            scan_values=param.values,
+            device_id=DeviceRepository.get_device_by_name(name=param.device_name).id,
+        )
+
     async def submit_job(
         self,
         *,
@@ -70,6 +94,7 @@ class SchedulerController(pydase.DataService):
         number_of_shots: int = 50,
         git_commit_hash: str | None = None,
         auto_calibration: bool = False,
+        scan_mode: ScanMode | str = ScanMode.MESH,
     ) -> int:
         """Create and submit a job with typed scan parameters.
 
@@ -89,43 +114,31 @@ class SchedulerController(pydase.DataService):
             git_commit_hash: Git commit to associate with the job; if `None`, job is
                 marked `debug_mode=True`.
             auto_calibration: Whether to run auto-calibration for the job.
+            scan_mode: How multiple scan parameters are combined into data points.
+                `ScanMode.MESH` (default) scans the cartesian product of all scan
+                parameters; `ScanMode.CORRELATED` steps through them simultaneously
+                and requires all of them to define the same number of scan values.
 
         Returns:
             The persisted job ID.
+
+        Raises:
+            ValueError: If more than one realtime parameter is given, if a continuous
+                realtime scan is combined with multiple repetitions, or if a correlated
+                scan's parameters do not all define the same number of scan values.
         """
         if local_parameters_timestamp is None:
             local_parameters_timestamp = now()
+
+        # The frontend sends the mode as a plain string; ScanMode(...) is a no-op for
+        # clients that already pass the enum.
+        scan_mode = ScanMode(scan_mode)
 
         experiment_source = ExperimentSource(experiment_id=experiment_id)
 
         experiment_source = ExperimentSourceRepository.get_or_create_experiment(
             experiment_source=experiment_source
         )
-
-        def to_sqlite_model(
-            param: ScanParameter,
-        ) -> sqlite_scan_parameter.ScanParameter:
-            if isinstance(param, RealtimeParameter):
-                return sqlite_scan_parameter.ScanParameter(
-                    name="Real Time",
-                    variable_id="Real Time",
-                    scan_values=[1] * param.n_scan_points,
-                    realtime=True,
-                )
-            if isinstance(param, DatabaseParameter):
-                return sqlite_scan_parameter.ScanParameter(
-                    name=self._resolve_display_name(param.id),
-                    variable_id=param.id,
-                    scan_values=param.values,
-                )
-            return sqlite_scan_parameter.ScanParameter(
-                name=self._resolve_display_name(param.id),
-                variable_id=param.id,
-                scan_values=param.values,
-                device_id=DeviceRepository.get_device_by_name(
-                    name=param.device_name
-                ).id,
-            )
 
         concretized_params = [
             scan_parameter_from_dict(
@@ -149,8 +162,15 @@ class SchedulerController(pydase.DataService):
                 "Only 1 repetition possible if continuous realtime is present"
             )
         sqlite_scan_parameters = [
-            to_sqlite_model(param) for param in concretized_params
+            self._to_sqlite_model(param) for param in concretized_params
         ]
+
+        if scan_mode == ScanMode.CORRELATED:
+            # Fail here rather than in the pre-processing worker, so the user gets the
+            # error while submitting instead of on a job that is already queued.
+            sqlite_scan_parameter.validate_correlated_scan_values(
+                sqlite_scan_parameters
+            )
 
         job = Job(
             experiment_source=experiment_source,
@@ -162,6 +182,7 @@ class SchedulerController(pydase.DataService):
             number_of_shots=number_of_shots,
             auto_calibration=auto_calibration,
             debug_mode=git_commit_hash is None,
+            scan_mode=scan_mode,
         )
         job = JobRepository.submit_job(job=job)
 

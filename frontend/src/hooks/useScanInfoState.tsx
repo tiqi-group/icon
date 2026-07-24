@@ -1,4 +1,5 @@
 import { useEffect, useReducer } from "react";
+import { ScanMode } from "../types/enums";
 import { ScanParameterInfo } from "../types/ScanParameterInfo";
 import { ScanParameterGenerationSpec } from "../types/ScanParameterGenerationSpec";
 import {
@@ -11,6 +12,7 @@ export interface ScanInfoState {
   priority: number;
   shots: number;
   repetitions: number;
+  scanMode: ScanMode;
   parameters: ScanParameterInfo[];
   history: SerializedScanInfoSelectionHistory;
 }
@@ -18,6 +20,7 @@ export interface ScanInfoState {
 export type ScanInfoAction =
   | { type: "RESET"; payload: ScanInfoState }
   | { type: "SET_PRIORITY" | "SET_SHOTS" | "SET_REPETITIONS"; payload: number }
+  | { type: "SET_SCAN_MODE"; payload: ScanMode }
   | { type: "ADD_PARAMETER" }
   | { type: "REMOVE_PARAMETER"; index: number }
   | { type: "UPDATE_PARAMETER"; index: number; payload: Partial<ScanParameterInfo> };
@@ -39,6 +42,7 @@ export const defaultScanInfoState: ScanInfoState = {
   priority: 20,
   shots: 50,
   repetitions: 1,
+  scanMode: ScanMode.MESH,
   parameters: [defaultParameter],
   history: emptyScanInfoHistory,
 };
@@ -63,6 +67,7 @@ const getScanInfoStateFromLocalStorage = (experimentId: string): ScanInfoState =
     return {
       ...restored,
       history: restored.history ?? emptyScanInfoHistory,
+      scanMode: restored.scanMode ?? ScanMode.MESH,
     };
   } else {
     saveScanInfoStateToLocalStorage(experimentId, defaultScanInfoState);
@@ -76,6 +81,9 @@ export const reducer =
 
     if (action.type === "RESET") {
       return action.payload;
+    } else if (action.type === "SET_SCAN_MODE") {
+      // Handled explicitly: the generic branch below would derive the key "scan_mode".
+      newState = { ...state, scanMode: action.payload };
     } else if (action.type === "ADD_PARAMETER") {
       newState = { ...state, parameters: [...state.parameters, defaultParameter] };
     } else if (action.type === "REMOVE_PARAMETER") {

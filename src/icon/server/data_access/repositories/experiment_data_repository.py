@@ -23,6 +23,7 @@ from icon.server.data_access.experiment_data import (
     PlotWindowMetadata,
     ReadoutMetadata,
 )
+from icon.server.data_access.models.enums import ScanMode
 from icon.server.data_access.models.sqlite.scan_parameter import (
     ScanParameter,
     contains_realtime_parameter,
@@ -284,6 +285,7 @@ class ExperimentDataRepository:
                 readout_metadata=readout_metadata,
                 local_parameter_timestamp=local_parameter_timestamp,
                 parameters=parameters or [],
+                scan_mode=job.scan_mode,
             )
 
         metadata_key_remap = {
@@ -448,6 +450,7 @@ def prepare_readout_metadata(
     readout_metadata: ReadoutMetadata,
     local_parameter_timestamp: datetime | None,
     parameters: list[ScanParameter],
+    scan_mode: ScanMode,
 ) -> None:
     h5file.attrs["number_of_data_points"] = 0
     h5file.attrs["number_of_shots"] = number_of_shots
@@ -455,6 +458,7 @@ def prepare_readout_metadata(
     h5file.attrs["job_id"] = job_id
     h5file.attrs["repetitions"] = repetitions
     h5file.attrs["realtime_scan"] = contains_realtime_parameter(parameters)
+    h5file.attrs["scan_mode"] = scan_mode.value
 
     if local_parameter_timestamp is not None:
         h5file.attrs["local_parameter_timestamp"] = local_parameter_timestamp
