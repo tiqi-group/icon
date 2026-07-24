@@ -7,7 +7,7 @@ import sqlalchemy.event
 import sqlalchemy.orm
 
 from icon.config.config import get_config
-from icon.server.data_access.models.enums import JobStatus
+from icon.server.data_access.models.enums import JobStatus, ScanMode
 from icon.server.data_access.models.sqlite.base import Base
 
 if TYPE_CHECKING:
@@ -110,6 +110,12 @@ class Job(Base):
         sqlalchemy.orm.relationship(back_populates="job")
     )
     """List of scan parameters associated with this job."""
+
+    scan_mode: sqlalchemy.orm.Mapped[ScanMode] = sqlalchemy.orm.mapped_column(
+        default=ScanMode.MESH
+    )
+    """How multiple scan parameters are combined into data points (mesh or
+    correlated)."""
 
     parent_job_id: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column(
         sqlalchemy.ForeignKey("job_submissions.id"), nullable=True

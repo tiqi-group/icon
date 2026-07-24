@@ -22,7 +22,7 @@ import { useJobInfo } from "../hooks/useJobInfo";
 import { runMethod } from "../socket";
 import { ExperimentMetadata } from "../types/ExperimentMetadata";
 import { SerializedObject } from "../types/SerializedObject";
-import { JobRunStatus, JobStatus } from "../types/enums";
+import { JobRunStatus, JobStatus, ScanMode } from "../types/enums";
 import { deserialize } from "../utils/deserializer";
 import { updateJobParams } from "../utils/updateJobParams";
 import { cancelJob } from "../utils/cancelJob";
@@ -52,8 +52,13 @@ export const JobView = ({
   const jobInfo = useJobInfo(jobId);
   const jobRunInfo = useJobRunInfo(jobId);
   const { experimentData, experimentDataError, loading } = useExperimentData(jobId);
-  const is1D = jobInfo?.scan_parameters.length === 1;
-  const is2D = (jobInfo?.scan_parameters.length ?? 0) >= 2;
+  // A correlated scan steps through all of its parameters at once and yields a
+  // one-dimensional list of data points, so it is presented like a 1D scan.
+  const isCorrelated =
+    jobInfo?.scan_mode === ScanMode.CORRELATED &&
+    !jobInfo.scan_parameters.some((param) => param.realtime);
+  const is1D = jobInfo?.scan_parameters.length === 1 || isCorrelated;
+  const is2D = (jobInfo?.scan_parameters.length ?? 0) >= 2 && !isCorrelated;
 
   const [windowSize, setWindowSize] = useState<number | null>(null);
   const [yMin, setYMin] = useState<number | null>(null);
@@ -475,6 +480,7 @@ export const JobView = ({
                     repetitions={jobInfo?.repetitions}
                     showRepetitions={showRepetitions}
                     scanParameters={jobInfo?.scan_parameters}
+                    scanMode={jobInfo?.scan_mode}
                     windowSize={windowSize}
                     yRange={{ min: yMin, max: yMax }}
                     fits={showFitPanel && is1D ? experimentData.fits : undefined}

@@ -395,6 +395,7 @@ class ExperimentDataRepository:
             h5file.attrs["job_id"] = job_id
             h5file.attrs["repetitions"] = repetitions
             h5file.attrs["realtime_scan"] = contains_realtime_parameter(parameters)
+            h5file.attrs["scan_mode"] = job.scan_mode.value
 
             if local_parameter_timestamp is not None:
                 h5file.attrs["local_parameter_timestamp"] = local_parameter_timestamp
