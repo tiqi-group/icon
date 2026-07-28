@@ -25,7 +25,7 @@ export const HistogramPlot = ({
   const notifications = useNotifications();
 
   const latestPerChannel: Record<string, number[]> = {};
-  const sc = experimentData?.shot_channels ?? {};
+  const sc = experimentData?.readouts?.shot_channels ?? {};
 
   for (const [channelName, groups] of Object.entries(sc)) {
     if (!groups || !channelNames.includes(channelName)) continue;

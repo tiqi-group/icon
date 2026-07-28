@@ -6,7 +6,7 @@ from typing import Any
 from icon.config import latest as v2
 from icon.config import v1
 
-migration_by_version = {}
+migration_by_version: dict[int, Callable[[Any], Any]] = {}
 
 
 def migration(*, version: int) -> Callable[[Any], Any]:

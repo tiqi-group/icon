@@ -14,8 +14,9 @@ from icon.server.api.models.scan_parameter import (
 from icon.server.api.parameters_controller import ParametersController
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
-from icon.server.data_access.models.sqlite.job import Job, timezone
+from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.models.sqlite.job_run import JobRun
+from icon.server.data_access.models.sqlite.now import now
 from icon.server.data_access.repositories.device_repository import DeviceRepository
 from icon.server.data_access.repositories.experiment_source_repository import (
     ExperimentSourceRepository,
@@ -93,7 +94,7 @@ class SchedulerController(pydase.DataService):
             The persisted job ID.
         """
         if local_parameters_timestamp is None:
-            local_parameters_timestamp = datetime.now(tz=timezone)
+            local_parameters_timestamp = now()
 
         experiment_source = ExperimentSource(experiment_id=experiment_id)
 

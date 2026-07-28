@@ -5,7 +5,7 @@ import pydase
 
 import icon.server.shared_resource_manager
 from icon.server.api.models.parameter_metadata import ParameterMetadata
-from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+from icon.server.data_access.experiment_data import DatabaseValueType
 from icon.server.data_access.experiment_library_client import (
     ParameterMetadataDict,
 )

@@ -59,6 +59,7 @@ export const ParameterGroupDisplay = ({
           return (
             <Output
               id={paramId}
+              key={paramId}
               label={paramMetadata.display_name}
               value={value}
               defaultValue={paramMetadata.default_value}

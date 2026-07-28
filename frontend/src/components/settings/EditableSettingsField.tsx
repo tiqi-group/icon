@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { updateConfiguration } from "../../utils/updateConfiguration";
 import { Input } from "../parameterComponents/Input";
 import { useNotifications } from "@toolpad/core";
@@ -22,6 +22,11 @@ export const EditableSettingField = ({
 }: EditableSettingFieldProps) => {
   const notifications = useNotifications();
   const [inputValue, setInputValue] = useState(value === null ? "" : String(value));
+
+  // Reset inputValue whenever value changes
+  useEffect(() => {
+    setInputValue(value === null ? "" : String(value));
+  }, [value]);
   const type = typeof value as "number" | "string";
 
   const handleUpdate = async (val: string) => {

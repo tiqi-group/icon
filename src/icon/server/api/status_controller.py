@@ -5,7 +5,7 @@ from pydase.task.decorator import task
 
 from icon.config.config import get_config
 from icon.server.data_access.db_context import influxdb_v1
-from icon.server.hardware_processing.hardware_controller import HardwareController
+from icon.server.hardware_processing.zedboard_controller import ZedboardController
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 
@@ -16,7 +16,7 @@ class StatusController(pydase.DataService):
     via the Socket.IO queue.
     """
 
-    def __init__(self, hardware_controller: HardwareController) -> None:
+    def __init__(self, hardware_controller: ZedboardController) -> None:
         super().__init__()
         self.__hardware_controller = hardware_controller
         self._influxdb_available = False

@@ -12,15 +12,14 @@ from icon.config.config import get_config
 if TYPE_CHECKING:
     from types import TracebackType
 
+    from icon.server.data_access.experiment_data import DatabaseValueType
+
 if sys.version_info < (3, 11):
     from typing_extensions import Self
 else:
     from typing import Self
 
 logger = logging.getLogger(__name__)
-
-
-DatabaseValueType = bool | float | int | str
 
 
 def escape_quotes(value: str) -> str:

@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from icon.server.data_access.reconfigurable_experiment_library_client import (
         ReconfigurableExperimentLibraryClient,
     )
-    from icon.server.hardware_processing.hardware_controller import HardwareController
+    from icon.server.hardware_processing.zedboard_controller import ZedboardController
     from icon.server.utils.types import UpdateQueue
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ class APIService(pydase.DataService):
         self,
         pre_processing_event_queues: list[multiprocessing.Queue[UpdateQueue]],
         experiment_library_client: ReconfigurableExperimentLibraryClient,
-        hardware_controller: HardwareController,
+        hardware_controller: ZedboardController,
     ) -> None:
         """Create a new APIService.
 

@@ -10,7 +10,7 @@ except ImportError:
 
 
 from icon.config.config import get_config
-from icon.server.data_access.repositories.experiment_data_repository import ResultDict
+from icon.server.data_access.experiment_data import Readouts
 from icon.server.hardware_processing.hardware_controller import (
     HardwareController,
     StatusFlag,
@@ -51,20 +51,20 @@ class ZedboardController(HardwareController):
         if self._zedboard is not None:
             self._zedboard.sequence_JSON_parser.Sequence_JSON = sequence  # type: ignore
 
-    def send(self, data: bytes) -> None:
+    def send(self, data: str) -> None:
         if not self.connected:
             self.connect()
         if not self.connected:
             raise RuntimeError("Could not connect to the Zedboard")
-        self._update_zedboard_sequence(sequence=data.decode())
+        self._update_zedboard_sequence(sequence=data)
 
     def run(self) -> None:
         self._zedboard.sequence_JSON_parser.Parse_JSON_Header()  # type: ignore
 
-    def receive(self) -> ResultDict:
+    def receive(self) -> Readouts:
         results: tiqi_zedboard.zedboard.Result = self._zedboard.sequence_JSON_parser()  # type: ignore
 
-        return ResultDict(
+        return Readouts(
             result_channels=results.result_channels,
             vector_channels=results.vector_channels
             if results.vector_channels is not None
