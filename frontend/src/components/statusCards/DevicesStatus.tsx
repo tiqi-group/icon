@@ -53,7 +53,7 @@ export const DevicesStatusCard = ({
                 <TableCell>
                   <ReachabilityIndicator
                     enabled={info.status === DeviceStatus.ENABLED}
-                    reachable={info.reachable}
+                    status={info.reachable}
                   />
                 </TableCell>
                 <TableCell>{name}</TableCell>

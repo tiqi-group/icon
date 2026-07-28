@@ -88,6 +88,7 @@ select = ["ALL"]
 ignore = [
     "ANN",      # flake8-annotations (mypy's job)
     "BLE001",   # blind-except
+    "CPY001",   # missing-copyright-notice
     "COM812",   # missing-trailing-comma (conflicts with formatter)
     "D105",     # undocumented-magic-method
     "E501",     # line too long - formatters job
@@ -97,6 +98,7 @@ ignore = [
     "ISC001",   # single-line-implicit-string-concatenation (conflicts with formatter)
     "PGH003",   # blanket-type-ignore
     "PLR0913",  # too-many-arguments
+    "PLR0917",  # too-many-positional-arguments
     "RUF006",   # asyncio-dangling-task
     "PERF203",  # try-except-in-loop
     "PTH",      # pathlib

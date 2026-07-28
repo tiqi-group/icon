@@ -69,7 +69,7 @@ const DevicesPage = () => {
                 <div style={{ display: "flex", alignItems: "center" }}>
                   <ReachabilityIndicator
                     enabled={info.status === DeviceStatus.ENABLED}
-                    reachable={info.reachable}
+                    status={info.reachable}
                   />
                   <ListItemText primary={name} />
                 </div>
@@ -91,7 +91,7 @@ const DevicesPage = () => {
                 <div style={{ display: "flex", alignItems: "center" }}>
                   <ReachabilityIndicator
                     enabled={info.status === DeviceStatus.ENABLED}
-                    reachable={info.reachable}
+                    status={info.reachable}
                   />
                   <ListItemText primary={name} />
                 </div>
