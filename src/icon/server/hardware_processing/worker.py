@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import multiprocessing
 import re
 import time
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING
 
 import pydase
 import pytz
 import socketio.exceptions
-from pydase.client.proxy_loader import ProxyLoader
 from pydase.utils.serialization.serializer import dump
 
 from icon.config.config import get_config
@@ -30,6 +28,7 @@ from icon.server.data_access.repositories.job_run_repository import JobRunReposi
 from icon.server.hardware_processing.utils import extract_hardware_error_message
 from icon.server.post_processing.task import PostProcessingTask
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
+from icon.server.utils.pydase_client import client_call_with_timeout, raw_client_call
 
 if TYPE_CHECKING:
     import queue
@@ -116,48 +115,13 @@ class HardwareProcessingWorker(multiprocessing.Process):
 
         self._hardware_controller = hardware_controller
 
-    @staticmethod
-    def _raw_client_call(
-        client: pydase.Client, event: str, data: Any, timeout: int
-    ) -> Any:
-        """Perform a socket.io call on a pydase client with a custom timeout.
-
-        pydase's ``Client.update_value`` / ``get_value`` are hard-wired to
-        python-socketio's default 60 s call timeout, which is too short for slow
-        device setters, so this replicates them with a configurable timeout.
-        Returns the raw (still serialized) response.
-        """
-        loop = client._loop
-        if loop is None:
-            raise RuntimeError("pydase client is not connected")
-
-        async def _call() -> Any:
-            return await client._sio.call(event, data, timeout=timeout)
-
-        return asyncio.run_coroutine_threadsafe(_call(), loop=loop).result()
-
-    @classmethod
-    def _client_call_with_timeout(
-        cls, client: pydase.Client, event: str, data: Any, timeout: int
-    ) -> Any:
-        result = cls._raw_client_call(client, event, data, timeout)
-        if result is not None:
-            # Deserializes the response; re-raises exceptions reported by the
-            # device service.
-            return ProxyLoader.loads_proxy(
-                serialized_object=result,
-                sio_client=client._sio,
-                loop=cast("asyncio.AbstractEventLoop", client._loop),
-            )
-        return None
-
     def _update_pydase_service_parameter(
         self, device: Device, access_path: str, new_value: DatabaseValueType
     ) -> None:
         client = self._pydase_clients[device.name]
         timeout = get_config().devices.set_value_timeout_seconds
         try:
-            self._client_call_with_timeout(
+            client_call_with_timeout(
                 client=client,
                 event="update_value",
                 data={"access_path": access_path, "value": dump(new_value)},
@@ -174,7 +138,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
             ) from e
 
         for attempt in range(1, device.retry_attempts + 1):
-            value_on_device = self._client_call_with_timeout(
+            value_on_device = client_call_with_timeout(
                 client=client,
                 event="get_value",
                 data=access_path,
@@ -221,7 +185,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
             client = self._pydase_clients[device.name]
             timestamp = datetime.now(timezone).isoformat()
             try:
-                state = self._raw_client_call(
+                state = raw_client_call(
                     client,
                     "service_serialization",
                     None,
