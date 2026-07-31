@@ -24,6 +24,7 @@ class ZedboardController(HardwareController):
     def __init__(self, *, connect: bool = True) -> None:
         self._host = get_config().hardware.host
         self._port = get_config().hardware.port
+        self._timeout = get_config().hardware.timeout_seconds
         self._zedboard: tiqi_zedboard.zedboard.Zedboard | None = None
         if connect:
             self.connect()
@@ -32,8 +33,9 @@ class ZedboardController(HardwareController):
         logger.info("Connecting to the Zedboard")
         self._host = get_config().hardware.host
         self._port = get_config().hardware.port
+        self._timeout = get_config().hardware.timeout_seconds
         self._zedboard = tiqi_zedboard.zedboard.Zedboard(
-            hostname=self._host, port=self._port
+            hostname=self._host, port=self._port, timeout=self._timeout
         )
         if not self.connected:
             logger.warning("Failed to connect to the Zedboard")

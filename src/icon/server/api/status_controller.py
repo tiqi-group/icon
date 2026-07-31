@@ -60,6 +60,8 @@ class StatusController(pydase.DataService):
             not status
             or self.__hardware_controller._host != get_config().hardware.host
             or self.__hardware_controller._port != get_config().hardware.port
+            or getattr(self.__hardware_controller, "_timeout", None)
+            != get_config().hardware.timeout_seconds
         ):
             await asyncio.to_thread(self.__hardware_controller.connect)
 

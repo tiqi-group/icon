@@ -76,6 +76,8 @@ class ServerConfig(BaseModel):
 class HardwareConfig(BaseModel):
     host: str = "localhost"
     port: int = 6007
+    timeout_seconds: int = 60
+    """RPC timeout for Zedboard calls such as runExperiment (tiqi_zedboard default is 5)."""
 
 
 class ServiceConfig(BaseConfig):  # type: ignore[misc]
