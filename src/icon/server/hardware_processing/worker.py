@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import multiprocessing
 import re
@@ -196,7 +195,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                         name=device.name,
                         url=device.url,
                         timestamp=timestamp,
-                        state_json=json.dumps(state),
+                        state=state,
                     )
                 )
             except Exception as e:
@@ -212,7 +211,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                         name=device.name,
                         url=device.url,
                         timestamp=timestamp,
-                        state_json=None,
+                        state=None,
                         error=str(e),
                     )
                 )

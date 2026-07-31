@@ -118,8 +118,8 @@ class DeviceSnapshot:
     """pydase service URL of the device."""
     timestamp: str
     """Snapshot timestamp (ISO string)."""
-    state_json: str | None
-    """JSON-serialized pydase state of the device, or None if unreachable."""
+    state: dict[str, Any] | None
+    """Raw pydase ``SerializedObject`` tree for the device, or None if unreachable."""
     error: str | None = None
     """Error message if the device state could not be fetched."""
 
@@ -350,6 +350,163 @@ def write_vector_channels_to_datasets(
             )
 
 
+_MAX_ATTR_LIST_LEN = 1000
+"""Above this length, a list of scalars is written as a dataset instead of an
+attribute, since HDF5 attributes aren't meant to hold large payloads."""
+
+
+def _sanitize_hdf5_name(name: str) -> str:
+    """Replace '/', which HDF5 treats as a path separator, in group/attr names."""
+    return name.replace("/", "_")
+
+
+def _try_parse_json_container(text: str) -> dict[str, Any] | list[Any] | None:
+    """Parse `text` as JSON if -- and only if -- it decodes to a dict or list.
+
+    Some device plugins expose composite state as one JSON-encoded string field
+    (rather than modeling it as nested pydase properties). Detecting that lets
+    such fields be expanded into the same browsable group/attribute structure
+    as native nested fields, instead of sitting there as opaque text.
+    """
+    stripped = text.strip()
+    if not stripped or stripped[0] not in "{[":
+        return None
+    try:
+        parsed = json.loads(stripped)
+    except ValueError:
+        return None
+    return parsed if isinstance(parsed, (dict, list)) else None
+
+
+def _is_expandable_json_string(value: Any) -> bool:
+    return isinstance(value, str) and _try_parse_json_container(value) is not None
+
+
+def _write_scalar_list_attr(group: h5py.Group, name: str, values: list[Any]) -> bool:
+    """Try writing `values` as one attribute (or dataset, if large). True on success."""
+    try:
+        if len(values) > _MAX_ATTR_LIST_LEN:
+            if name in group:
+                del group[name]
+            group.create_dataset(name, data=values)
+        else:
+            group.attrs[name] = values
+    except (TypeError, ValueError):
+        logger.debug("Could not write %r as a single attribute/dataset", name)
+        return False
+    return True
+
+
+def _serialized_leaf_value(node: dict[str, Any]) -> Any:
+    """Return a human-readable scalar for a pydase ``SerializedObject`` leaf node."""
+    node_type = node.get("type")
+    value = node.get("value")
+    if node_type == "Quantity" and isinstance(value, dict):
+        return f"{value.get('magnitude')} {value.get('unit')}"
+    if node_type == "Exception":
+        return f"ERROR: {value}"
+    if value is None:
+        return "None"
+    return value
+
+
+def _write_serialized_list(
+    group: h5py.Group, key: str, items: list[dict[str, Any]]
+) -> None:
+    """Write a pydase 'list' node: as one attribute if all elements are scalar."""
+    name = _sanitize_hdf5_name(key)
+    is_scalar_list = all(
+        item.get("type") not in ("method", "Quantity", "Exception")
+        and not isinstance(item.get("value"), (dict, list))
+        and not _is_expandable_json_string(item.get("value"))
+        for item in items
+    )
+    if is_scalar_list:
+        values = [_serialized_leaf_value(item) for item in items]
+        if _write_scalar_list_attr(group, name, values):
+            return
+
+    list_group = group.require_group(name)
+    for index, item in enumerate(items):
+        _write_serialized_node(list_group, str(index), item)
+
+
+def _write_json_value(group: h5py.Group, key: str, value: Any) -> None:
+    """Mirror a plain (non-pydase) JSON-shaped value into HDF5 groups/attrs.
+
+    Used to expand a device field whose value is a JSON-encoded string, once
+    decoded -- the raw dict/list has no pydase 'type'/'value' wrapping, unlike
+    ``_write_serialized_node``'s input.
+    """
+    name = _sanitize_hdf5_name(key)
+    if isinstance(value, dict):
+        child_group = group.require_group(name)
+        for child_key, child_value in value.items():
+            _write_json_value(child_group, str(child_key), child_value)
+    elif isinstance(value, list):
+        is_scalar_list = all(not isinstance(item, (dict, list)) for item in value)
+        if is_scalar_list and _write_scalar_list_attr(
+            group, name, ["None" if item is None else item for item in value]
+        ):
+            return
+        list_group = group.require_group(name)
+        for index, item in enumerate(value):
+            _write_json_value(list_group, str(index), item)
+    else:
+        group.attrs[name] = "None" if value is None else value
+
+
+def _write_serialized_string(group: h5py.Group, key: str, value: str) -> None:
+    """Write a string leaf, expanding it first if it's itself JSON-encoded."""
+    parsed = _try_parse_json_container(value)
+    if parsed is not None:
+        _write_json_value(group, key, parsed)
+    else:
+        group.attrs[_sanitize_hdf5_name(key)] = value
+
+
+def _write_serialized_node(group: h5py.Group, key: str, node: dict[str, Any]) -> None:
+    """Recursively mirror one pydase ``SerializedObject`` node into HDF5.
+
+    Container nodes (a device, a sub-component, a plain dict) become nested
+    HDF5 groups; scalar leaves (numbers, strings, enums, quantities, ...) become
+    attributes on their parent group, so the result is browsable field-by-field
+    in any HDF5 viewer. Methods are skipped -- they're actions, not state. A
+    string leaf that is itself JSON-encoded (e.g. a config blob some device
+    plugins report as one field) is expanded the same way instead of being left
+    as opaque text.
+    """
+    if node.get("type") == "method":
+        return
+    if node.get("type") in ("Quantity", "Exception"):
+        group.attrs[_sanitize_hdf5_name(key)] = _serialized_leaf_value(node)
+        return
+
+    value = node.get("value")
+    if isinstance(value, dict):
+        child_group = group.require_group(_sanitize_hdf5_name(key))
+        for child_key, child_node in value.items():
+            _write_serialized_node(child_group, child_key, child_node)
+    elif isinstance(value, list):
+        _write_serialized_list(group, key, value)
+    elif node.get("type") == "str" and isinstance(value, str):
+        _write_serialized_string(group, key, value)
+    else:
+        group.attrs[_sanitize_hdf5_name(key)] = _serialized_leaf_value(node)
+
+
+def write_device_state_to_group(group: h5py.Group, state: dict[str, Any]) -> None:
+    """Write a device's full pydase state tree into an HDF5 group, human-readably.
+
+    Args:
+        group: HDF5 group to populate (its existing content is not cleared).
+        state: Root ``SerializedObject`` for the device, as returned by pydase's
+            ``service_serialization`` event.
+    """
+    for key, child_node in cast("dict[str, Any]", state.get("value") or {}).items():
+        _write_serialized_node(group, key, child_node)
+
+
 class ExperimentDataRepository:
     """Repository for HDF5-based experiment data.
 
@@ -545,8 +702,10 @@ class ExperimentDataRepository:
     ) -> None:
         """Write the state of the connected devices under the 'devices' group.
 
-        Creates one subgroup per device holding its full pydase state as a JSON
-        string dataset. Repeated calls for the same device overwrite its snapshot.
+        Creates one subgroup per device, holding every field the device's pydase
+        service exposes -- mirrored as nested HDF5 groups/attributes (not a JSON
+        blob) so the state is browsable field-by-field in any HDF5 viewer. Repeated
+        calls for the same device overwrite its snapshot.
 
         Args:
             job_id: Job identifier.
@@ -565,14 +724,11 @@ class ExperimentDataRepository:
                     device_group.attrs["error"] = snapshot.error
                 elif "error" in device_group.attrs:
                     del device_group.attrs["error"]
-                if snapshot.state_json is not None:
-                    if "state" in device_group:
-                        del device_group["state"]
-                    device_group.create_dataset(
-                        "state",
-                        data=snapshot.state_json,
-                        dtype=h5py.string_dtype(),
-                    )
+                if "parameters" in device_group:
+                    del device_group["parameters"]
+                if snapshot.state is not None:
+                    parameters_group = device_group.create_group("parameters")
+                    write_device_state_to_group(parameters_group, snapshot.state)
             logger.debug("Wrote %d device snapshots for job %d", len(snapshots), job_id)
 
     @staticmethod
