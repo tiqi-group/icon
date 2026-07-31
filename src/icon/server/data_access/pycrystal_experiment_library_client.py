@@ -132,6 +132,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         parameter_dict: "dict[str, DatabaseValueType]",
         result_channels: dict[str, float],
         post_processing_output: list[float],
+        shot_channels: dict[str, list[int]] | None = None,
     ) -> dict[str, Any]:
         """Run an experiment's optional ``post_processing`` method.
 
@@ -151,6 +152,12 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
                 previous call for this job (empty list on the first call).
                 Only passed on to ``post_processing`` if that method actually
                 accepts it -- see below.
+            shot_channels: Per-shot counts of the processed data point. Only
+                passed on to ``post_processing`` if that method declares a
+                ``shot_channels`` parameter -- see below. Needed by experiments
+                that derive result channels from individual shots (e.g. sorting
+                one detection's shots by another detection's outcome), which the
+                averaged/summed `result_channels` cannot express.
 
         Returns:
             Dictionary with keys:
@@ -180,13 +187,28 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
 
         original_result_channels = dict(result_channels)
 
+        # Optional arguments are passed by keyword only to experiments that name
+        # them, and are not counted towards the positional arguments below, so
+        # adding one here cannot change how existing post_processing methods are
+        # called.
         post_processing_signature = inspect.signature(exp_instance.post_processing)
-        if len(post_processing_signature.parameters) >= 2:  # noqa: PLR2004
+        keyword_args: dict[str, Any] = {}
+        if "shot_channels" in post_processing_signature.parameters:
+            keyword_args["shot_channels"] = shot_channels or {}
+
+        positional_parameters = [
+            name
+            for name in post_processing_signature.parameters
+            if name not in keyword_args
+        ]
+        if len(positional_parameters) >= 2:  # noqa: PLR2004
             post_processing_output = exp_instance.post_processing(
-                result_channels, post_processing_output
+                result_channels, post_processing_output, **keyword_args
             )
         else:
-            post_processing_output = exp_instance.post_processing(result_channels)
+            post_processing_output = exp_instance.post_processing(
+                result_channels, **keyword_args
+            )
 
         updated_parameters = {
             key: value
