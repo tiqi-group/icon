@@ -183,7 +183,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
             client = self._pydase_clients[device.name]
             timestamp = datetime.now(timezone).isoformat()
             try:
-                state = self._raw_client_call(
+                state = raw_client_call(
                     client,
                     "service_serialization",
                     None,
