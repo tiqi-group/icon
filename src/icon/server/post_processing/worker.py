@@ -142,6 +142,7 @@ class PostProcessingWorker(multiprocessing.Process):
                     "parameter_dict": parameter_dict,
                     "result_channels": task.data_point.result_channels,
                     "post_processing_output": state.post_processing_output,
+                    "shot_channels": task.data_point.shot_channels,
                 },
                 logger=logger,
             )
