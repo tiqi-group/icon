@@ -5,7 +5,7 @@ import sqlalchemy
 import sqlalchemy.event
 import sqlalchemy.orm
 
-from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+from icon.server.data_access.experiment_data import DatabaseValueType
 from icon.server.data_access.models.sqlite.base import Base
 
 if TYPE_CHECKING:

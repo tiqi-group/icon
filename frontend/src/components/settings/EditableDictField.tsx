@@ -1,6 +1,8 @@
 import { IconButton, Stack, TextField, Typography } from "@mui/material";
 import { useState } from "react";
 import DeleteIcon from "@mui/icons-material/Delete";
+import PinIcon from "@mui/icons-material/Pin";
+import AbcIcon from "@mui/icons-material/Abc";
 import AddIcon from "@mui/icons-material/Add";
 import { updateConfiguration } from "../../utils/updateConfiguration";
 import { EditableSettingField } from "./EditableSettingsField";
@@ -8,7 +10,7 @@ import { EditableSettingField } from "./EditableSettingsField";
 interface EditableDictFieldProps {
   configKey: string;
   label: string;
-  value: Record<string, string>;
+  value: Record<string, string | number>;
 }
 
 export const EditableDictField = ({
@@ -16,17 +18,17 @@ export const EditableDictField = ({
   label,
   value,
 }: EditableDictFieldProps) => {
-  const [dict, setDict] = useState<Record<string, string>>({ ...value });
+  const [dict, setDict] = useState<Record<string, string | number>>({ ...value });
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
 
-  const handleUpdate = async (updated: Record<string, string>) => {
+  const handleUpdate = async (updated: Record<string, string | number>) => {
     setDict(updated);
     await updateConfiguration(configKey, updated);
   };
 
   const handleChange = async (key: string, val: string | number | null) => {
-    const updated = { ...dict, [key]: String(val) };
+    const updated = { ...dict, [key]: val ?? "" };
     setDict(updated);
     await handleUpdate(updated);
   };
@@ -45,6 +47,17 @@ export const EditableDictField = ({
     setNewValue("");
   };
 
+  const toNumber = (value: string) => {
+    const num = Number(value);
+    return isNaN(num) ? 0 : num;
+  };
+
+  const handleToggleType = async (key: string) => {
+    const value = dict[key];
+    const newValue = typeof value === "string" ? toNumber(value) : value.toString();
+    await handleChange(key, newValue);
+  };
+
   return (
     <div>
       <Typography variant="subtitle2" gutterBottom>
@@ -53,6 +66,21 @@ export const EditableDictField = ({
       <Stack spacing={1}>
         {Object.entries(dict).map(([key, value]) => (
           <Stack key={key} direction="row" spacing={1} alignItems="center">
+            <IconButton
+              onClick={async () => await handleToggleType(key)}
+              title={
+                typeof value === "string"
+                  ? "Click to change value type to a number"
+                  : "Click to change value type to a string"
+              }
+              size="small"
+            >
+              {typeof value === "string" ? (
+                <AbcIcon fontSize="small" />
+              ) : (
+                <PinIcon fontSize="small" />
+              )}
+            </IconButton>
             <EditableSettingField
               configKey={`${configKey}.${key}`}
               label={key}

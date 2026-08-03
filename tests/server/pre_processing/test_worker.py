@@ -33,14 +33,14 @@ class _FakeTask:
     def __init__(
         self,
         created: datetime,
-        sequence_json: str = "ORIGINAL",
+        hardware_instructions: bytes = b"ORIGINAL",
         *,
         realtime: bool = False,
     ) -> None:
         self.created = created
         self.priority = 0
         self.scanned_params: dict[str, Any] = {}
-        self.sequence_json = sequence_json
+        self.hardware_instructions = hardware_instructions
         # Mirror PreProcessingTask, which exposes scan_parameters both as its own field
         # and via .job (the scheduler sets the field to job.scan_parameters).
         scan_parameters = _scan_parameters(realtime=realtime)
@@ -59,14 +59,14 @@ class _FakeTask:
 
 def _fake_task(
     created: datetime,
-    sequence_json: str = "ORIGINAL",
+    hardware_instructions: bytes = b"ORIGINAL",
     *,
     realtime: bool = False,
 ) -> HardwareProcessingTask:
     """A _FakeTask typed as the real task, so the strongly-typed queues accept it."""
     return cast(
         "HardwareProcessingTask",
-        _FakeTask(created, sequence_json, realtime=realtime),
+        _FakeTask(created, hardware_instructions, realtime=realtime),
     )
 
 
@@ -96,8 +96,8 @@ def _run_regenerate(worker: PreProcessingWorker, status: JobRunStatus) -> MagicM
     """Run the consumer against a run with the given status; return the generate mock."""
     with (
         patch(
-            "icon.server.pre_processing.worker.generate_sequence_json",
-            return_value="REGENERATED",
+            "icon.server.pre_processing.worker.create_hardware_instructions",
+            return_value=b"REGENERATED",
         ) as generate,
         patch("icon.server.pre_processing.worker.JobRunRepository") as repo,
     ):
@@ -121,8 +121,8 @@ def test_regenerate_only_regenerates_stale_tasks() -> None:
 
     assert generate.call_count == 1
     assert len(submitted) == NUM_TASKS
-    assert stale.sequence_json == "REGENERATED"
-    assert fresh.sequence_json == "ORIGINAL"
+    assert stale.hardware_instructions == b"REGENERATED"
+    assert fresh.hardware_instructions == b"ORIGINAL"
 
 
 def test_regenerate_stops_when_paused() -> None:
@@ -139,7 +139,7 @@ def test_regenerate_stops_when_paused() -> None:
 
 
 def test_regenerate_does_not_regenerate_realtime_tasks() -> None:
-    """Realtime tasks keep their last-generated sequence, never the generic regen."""
+    """Realtime tasks keep their last-generated hardware instructions, never the generic regen."""
     worker, submitted = _make_worker()
     stale = _fake_task(created=PARAM_UPDATE_TS - timedelta(seconds=10), realtime=True)
     worker._outdated_tasks.put(stale)
@@ -148,7 +148,7 @@ def test_regenerate_does_not_regenerate_realtime_tasks() -> None:
 
     assert generate.call_count == 0
     assert submitted == [stale]
-    assert stale.sequence_json == "ORIGINAL"
+    assert stale.hardware_instructions == b"ORIGINAL"
 
 
 def test_regenerate_drops_cancelled_tasks() -> None:
@@ -175,7 +175,7 @@ def test_regenerate_uses_updated_parameters_after_pause() -> None:
     generate = _run_regenerate(worker, JobRunStatus.PROCESSING)
 
     assert submitted == [stale]
-    assert stale.sequence_json == "REGENERATED"
+    assert stale.hardware_instructions == b"REGENERATED"
     assert generate.call_args.kwargs["parameter_dict"]["freq"] == UPDATED_FREQ
 
 

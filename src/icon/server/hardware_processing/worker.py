@@ -12,14 +12,14 @@ import pytz
 import socketio.exceptions
 
 from icon.config.config import get_config
+from icon.server.data_access.experiment_data import (
+    ExperimentDataPoint,
+)
 from icon.server.data_access.models.enums import DeviceStatus, JobRunStatus
 from icon.server.data_access.models.sqlite.scan_parameter import (
     contains_realtime_parameter,
 )
 from icon.server.data_access.repositories.device_repository import DeviceRepository
-from icon.server.data_access.repositories.experiment_data_repository import (
-    ExperimentDataPoint,
-)
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
 from icon.server.hardware_processing.utils import extract_hardware_error_message
 from icon.server.post_processing.task import PostProcessingTask
@@ -28,9 +28,9 @@ from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrup
 if TYPE_CHECKING:
     import queue
 
-    from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+    from icon.server.data_access.experiment_data import DatabaseValueType
     from icon.server.data_access.models.sqlite.device import Device
-    from icon.server.hardware_processing.hardware_controller import HardwareController
+    from icon.server.hardware_processing.devices import Devices
     from icon.server.hardware_processing.task import HardwareProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
 
@@ -96,7 +96,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
         hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask],
         post_processing_queue: multiprocessing.Queue[PostProcessingTask],
         manager: SharedResourceManager,
-        hardware_controller: HardwareController,
+        devices: Devices,
     ) -> None:
         super().__init__()
         self._queue = hardware_processing_queue
@@ -104,7 +104,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self._manager = manager
         self._pydase_clients: dict[str, pydase.Client] = {}
 
-        self._hardware_controller = hardware_controller
+        self._devices = devices
 
     def _update_pydase_service_parameter(
         self, device: Device, access_path: str, new_value: DatabaseValueType
@@ -203,18 +203,17 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 self._set_pydase_service_values(scanned_params=task.scanned_params)
 
                 timestamp = datetime.now(timezone)
-                self._hardware_controller.send(data=task.sequence_json.encode("utf-8"))
-                self._hardware_controller.run()
-                result = self._hardware_controller.receive()
+                hardware_controller = self._devices.main_device()
+                hardware_controller.send(data=task.hardware_instructions)
+                hardware_controller.run()
+                readouts = hardware_controller.receive()
 
                 experiment_data_point = ExperimentDataPoint(
                     index=task.data_point_index,
                     scan_params=task.scanned_params,
-                    result_channels=result.result_channels,
-                    shot_channels=result.shot_channels,
-                    vector_channels=result.vector_channels,
+                    readouts=readouts,
                     timestamp=timestamp.isoformat(),
-                    sequence_json=task.sequence_json,
+                    hardware_instructions=task.hardware_instructions,
                 )
 
                 post_processing_task = PostProcessingTask(

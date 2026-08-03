@@ -6,13 +6,14 @@ from typing import TYPE_CHECKING, Any
 
 from icon.config.config import get_config
 from icon.server.data_access.db_context.influxdb_v1 import (
-    DatabaseValueType,
     InfluxDBv1Session,
 )
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 if TYPE_CHECKING:
     from multiprocessing.managers import DictProxy
+
+    from icon.server.data_access.experiment_data import DatabaseValueType
 
 logger = logging.getLogger(__name__)
 

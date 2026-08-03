@@ -1,6 +1,6 @@
 from typing import Literal, NotRequired, TypedDict
 
-from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+from icon.server.data_access.experiment_data import DatabaseValueType
 
 
 class UpdateQueue(TypedDict):

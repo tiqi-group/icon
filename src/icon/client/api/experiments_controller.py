@@ -5,13 +5,15 @@ import logging
 import time
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from icon.server.api.models.experiment_dict import ExperimentMetadata
-from icon.server.data_access.models.sqlite.job import timezone
+from icon.server.data_access.models.sqlite.now import now
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from datetime import datetime
+
     from icon.client.client import Client
     from icon.server.api.models.experiment_dict import (
         ExperimentDict,
@@ -340,7 +342,7 @@ class ExperimentProxy:
 
         return repr
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Any]:
         for name in self._experiment_metadata.parameters:
             yield DisplayGroupProxy(
                 self._client,
@@ -399,7 +401,7 @@ class ExperimentProxy:
         if scan_parameters is None:
             scan_parameters = []
         if local_parameters_timestamp is None:
-            local_parameters_timestamp = datetime.now(tz=timezone)
+            local_parameters_timestamp = now()
         job_id: int = self._client.trigger_method(
             "scheduler.submit_job",
             kwargs={

@@ -45,7 +45,7 @@ export default function FitPanel({
   scanParameters = [],
 }: FitPanelProps) {
   const notifications = useNotifications();
-  const channelNames = Object.keys(experimentData.result_channels);
+  const channelNames = Object.keys(experimentData.readouts.result_channels);
   const [selectedChannel, setSelectedChannel] = useState<string>(channelNames[0] ?? "");
   const [funcType, setFuncType] = useState<string>("lorentzian");
   const [xMin, setXMin] = useState<string>("");

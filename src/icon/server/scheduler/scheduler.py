@@ -2,14 +2,11 @@ import logging
 import multiprocessing
 import queue
 import time
-from datetime import datetime
 from typing import Any
 
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
-from icon.server.data_access.models.sqlite.job_run import (
-    JobRun,
-    timezone,
-)
+from icon.server.data_access.models.sqlite.job_run import JobRun
+from icon.server.data_access.models.sqlite.now import now
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
@@ -74,9 +71,9 @@ class Scheduler(multiprocessing.Process):
                         job = JobRepository.update_job_status(
                             job=job_, status=JobStatus.PROCESSING
                         )
-                        run = JobRun(
-                            job_id=job.id, scheduled_time=datetime.now(tz=timezone)
-                        )
+                        timestamp = now()
+                        timezone = timestamp.tzinfo
+                        run = JobRun(job_id=job.id, scheduled_time=timestamp)
                         run = JobRunRepository.insert_run(run=run)
 
                         self._pre_processing_queue.put(

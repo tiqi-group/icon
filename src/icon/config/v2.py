@@ -5,18 +5,17 @@ from icon.config.latest import (
     DatabaseConfig,
     DataConfiguration,
     DateConfig,
+    ExperimentLibraryConfig,
     HealthCheckConfig,
     ServerConfig,
 )
-from icon.config.v2 import HardwareConfig
 
-__version__ = 1
+__version__ = 2
 
 
-class ExperimentLibraryConfig(BaseModel):
-    dir: str | None = None
-    git_repository: str = "https://..."
-    update_interval: int = 30
+class HardwareConfig(BaseModel):
+    host: str = "localhost"
+    port: int = 6007
 
 
 class ServiceConfig(BaseConfig):  # type: ignore[misc]

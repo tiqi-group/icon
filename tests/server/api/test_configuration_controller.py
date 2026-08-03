@@ -2,15 +2,17 @@ from icon.server.api.configuration_controller import (
     ConfigurationController,
     parse_config_key,
 )
+from tests.mock_config import mock_config
 
 
 def test_update_config_option() -> None:
-    controller = ConfigurationController()
-    original_port = controller.get_config()["server"]["port"]
-    target_port = original_port + 1
-    controller.update_config_option("server.port", target_port)
-    updated_port = controller.get_config()["server"]["port"]
-    assert updated_port == target_port
+    with mock_config():
+        controller = ConfigurationController()
+        original_port = controller.get_config()["server"]["port"]
+        target_port = original_port + 1
+        controller.update_config_option("server.port", target_port)
+        updated_port = controller.get_config()["server"]["port"]
+        assert updated_port == target_port
 
 
 def test_parse_config_key() -> None:

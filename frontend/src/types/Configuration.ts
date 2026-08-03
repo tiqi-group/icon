@@ -24,8 +24,13 @@ export interface Configuration {
     update_interval: number;
   };
   hardware: {
-    host: string;
-    port: number;
+    devices: {
+      id: string;
+      controller_class: string;
+      controller_module: string;
+      args: Record<string, string | number>;
+      enabled: boolean;
+    }[];
   };
   health_check: {
     interval_seconds: number;

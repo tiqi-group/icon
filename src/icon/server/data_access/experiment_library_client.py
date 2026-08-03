@@ -3,6 +3,8 @@
 from contextlib import AbstractContextManager, nullcontext
 from typing import TYPE_CHECKING, Any, TypedDict
 
+from icon.server.data_access.experiment_data import ReadoutMetadata
+
 if TYPE_CHECKING:
     from icon.server.api.models.experiment_dict import (
         ExperimentDict,
@@ -10,10 +12,7 @@ if TYPE_CHECKING:
     from icon.server.api.models.parameter_metadata import (
         ParameterMetadata,
     )
-    from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
-    from icon.server.data_access.repositories.experiment_data_repository import (
-        ReadoutMetadata,
-    )
+    from icon.server.data_access.experiment_data import DatabaseValueType
 
 ParameterMetadataDict = TypedDict(
     "ParameterMetadataDict",
@@ -53,7 +52,7 @@ class ExperimentLibraryClient:
         """
         raise NotImplementedError("Must be implemented by a subclass")
 
-    async def generate_json_sequence(
+    async def create_hardware_instructions(
         self,
         *,
         exp_module_name: str,
@@ -61,7 +60,7 @@ class ExperimentLibraryClient:
         parameter_dict: "dict[str, DatabaseValueType]",
         n_shots: int,
     ) -> str:
-        """Generate a JSON sequence for an experiment.
+        """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -113,7 +112,7 @@ class FallbackExperimentLibraryClient(ExperimentLibraryClient):
         """
         return ({}, {"all parameters": {}, "display groups": {}})
 
-    async def generate_json_sequence(
+    async def create_hardware_instructions(
         self,
         *,
         exp_module_name: str,  # noqa: ARG002
@@ -121,7 +120,7 @@ class FallbackExperimentLibraryClient(ExperimentLibraryClient):
         parameter_dict: "dict[str, DatabaseValueType]",  # noqa: ARG002
         n_shots: int,  # noqa: ARG002
     ) -> str:
-        """Generate a JSON sequence for an experiment.
+        """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -151,14 +150,14 @@ class FallbackExperimentLibraryClient(ExperimentLibraryClient):
         Returns:
             Dictionary containing readout metadata for the experiment.
         """
-        return {
-            "readout_channel_names": [],
-            "shot_channel_names": [],
-            "vector_channel_names": [],
-            "readout_channel_windows": [],
-            "shot_channel_windows": [],
-            "vector_channel_windows": [],
-        }
+        return ReadoutMetadata(
+            readout_channel_names=[],
+            shot_channel_names=[],
+            vector_channel_names=[],
+            readout_channel_windows=[],
+            shot_channel_windows=[],
+            vector_channel_windows=[],
+        )
 
     async def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:
         """Fetch hardware description from experiment library.
