@@ -8,7 +8,7 @@ import influxdb_client
 from influxdb_client.client.write_api import SYNCHRONOUS
 
 from icon.config.config import get_config
-from icon.server.data_access.db_context.influxdb_v1 import (
+from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
     DatabaseValueType,
     escape_quotes,
 )

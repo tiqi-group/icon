@@ -14,7 +14,7 @@ import numpy as np
 import numpy.typing as npt
 
 from icon.config.config import get_config
-from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+from icon.server.data_access.db_context.influxdb.influxdb_v1 import DatabaseValueType
 from icon.server.data_access.models.sqlite.scan_parameter import (
     ScanParameter,
     contains_realtime_parameter,

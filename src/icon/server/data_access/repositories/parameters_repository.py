@@ -1,45 +1,27 @@
 from __future__ import annotations
 
 import logging
-import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, ClassVar
 
-from icon.server.data_access.db_context import (
-    get_influxdb_measurement,
-    get_influxdb_session,
+from icon.server.data_access.db_context.influxdb.parameters_backend import (
+    InfluxDBParameterBackend,
+    assert_parameter_db,
+    create_parameter_backend,
 )
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 if TYPE_CHECKING:
     from multiprocessing.managers import DictProxy
 
-    from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+    from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
+        DatabaseValueType,
+    )
 
 logger = logging.getLogger(__name__)
 
 
 class NotInitialisedError(Exception):
     """Raised when repository methods are called before initialization."""
-
-
-def get_specifiers_from_parameter_identifier(
-    parameter_identifier: str,
-) -> dict[str, str]:
-    """Extract specifiers from a parameter identifier string.
-
-    Parameter identifiers encode metadata as `key='value'` pairs. This helper parses
-    them into a dictionary.
-
-    Args:
-        parameter_identifier: Identifier string to parse.
-
-    Returns:
-        Mapping of specifier keys to values.
-    """
-    pattern = re.compile(r"(\w+)='([^']*)'")
-    matches = pattern.findall(parameter_identifier)
-
-    return dict(matches)
 
 
 class ParametersRepository:
@@ -52,6 +34,20 @@ class ParametersRepository:
 
     _shared_parameters: DictProxy[str, DatabaseValueType]
     initialised: bool = False
+    _backend: ClassVar[InfluxDBParameterBackend | None] = None
+
+    @classmethod
+    def _get_backend(cls) -> InfluxDBParameterBackend:
+        """Return the schema-specific influxDB parameter backend."""
+        if cls._backend is None:
+            schema_revision = assert_parameter_db(wrap_connection_errors=False)
+            cls._backend = create_parameter_backend(schema_revision)
+            logger.info(
+                "Detected InfluxDB parameter schema %s; using %s.",
+                schema_revision.value,
+                type(cls._backend).__name__,
+            )
+        return cls._backend
 
     @classmethod
     def initialize(
@@ -160,34 +156,38 @@ class ParametersRepository:
 
         return cls._shared_parameters
 
-    @staticmethod
-    def get_influxdb_parameter_keys() -> list[str]:
-        """Return all parameter field keys from InfluxDB v1."""
-        with get_influxdb_session() as influxdbv1:
-            return influxdbv1.get_field_keys(get_influxdb_measurement())
+    @classmethod
+    def get_influxdb_parameter_keys(cls) -> list[str]:
+        """Return all known parameter identifiers from InfluxDB."""
+        return cls._get_backend().get_influxdb_parameter_keys()
 
-    @staticmethod
+    @classmethod
     def get_influxdb_parameters(
-        *, before: str | None = None, namespace: str | None = None
+        cls,
+        *,
+        before: str | None = None,
+        namespace: str | None = None,
+        measurement: str | None = None,
     ) -> dict[str, DatabaseValueType]:
         """Return the latest parameter values from InfluxDB.
 
         Args:
             before: Optional ISO timestamp to query parameters before.
             namespace: Optional namespace filter.
+            measurement: Optional measurement override; defaults to the active backend's
+                measurement.
 
         Returns:
             Mapping of parameter IDs to values.
         """
-        with get_influxdb_session() as influxdbv1:
-            return influxdbv1.query_last(
-                get_influxdb_measurement(),
-                before=before,
-                namespace=namespace,
-            )
+        return cls._get_backend().get_influxdb_parameters(
+            before=before, namespace=namespace, measurement=measurement
+        )
 
-    @staticmethod
-    def get_influxdb_parameter_by_id(parameter_id: str) -> DatabaseValueType | None:
+    @classmethod
+    def get_influxdb_parameter_by_id(
+        cls, parameter_id: str
+    ) -> DatabaseValueType | None:
         """Return a single parameter value from InfluxDB.
 
         Args:
@@ -196,22 +196,20 @@ class ParametersRepository:
         Returns:
             The parameter value, or None if not found.
         """
-        with get_influxdb_session() as influxdb:
-            result_dict = influxdb.query(
-                measurement=get_influxdb_measurement(),
-                field=parameter_id,
+        backend = cls._get_backend()
+        value = backend.get_influxdb_parameter_by_id(parameter_id)
+        if value is None:
+            logger.error(
+                "Could not find parameter with id %s in measurement %s",
+                parameter_id,
+                backend.measurement,
             )
-            if result_dict is None:
-                logger.error(
-                    "Could not find parameter with id %s in database %s",
-                    parameter_id,
-                    get_influxdb_measurement(),
-                )
-                return None
-            return result_dict[parameter_id]
+            return None
+        return value
 
-    @staticmethod
+    @classmethod
     def _update_influxdb_parameters(
+        cls,
         parameter_mapping: dict[str, DatabaseValueType],
     ) -> None:
         """Write multiple parameter values into InfluxDB.
@@ -219,16 +217,4 @@ class ParametersRepository:
         Args:
             parameter_mapping: Mapping of parameter IDs to values.
         """
-        records: list[dict[str, Any]] = []
-
-        for parameter_id, value in parameter_mapping.items():
-            records.append(
-                {
-                    "measurement": get_influxdb_measurement(),
-                    "tags": get_specifiers_from_parameter_identifier(parameter_id),
-                    "fields": {parameter_id: value},
-                }
-            )
-
-        with get_influxdb_session() as influxdb:
-            influxdb.write_points(points=records)
+        cls._get_backend().update_influxdb_parameters(parameter_mapping)

@@ -32,7 +32,9 @@ from icon.server.utils.pydase_client import client_call_with_timeout, raw_client
 if TYPE_CHECKING:
     import queue
 
-    from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+    from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
+        DatabaseValueType,
+    )
     from icon.server.data_access.models.sqlite.device import Device
     from icon.server.hardware_processing.hardware_controller import HardwareController
     from icon.server.hardware_processing.task import HardwareProcessingTask

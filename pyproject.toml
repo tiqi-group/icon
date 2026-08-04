@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Mose Müller", email = "mosemueller@gmail.com" }
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.11,<3.14"
 dependencies = [
     "influxdb>=5.3.2",
     "pydase>=0.10.21",
@@ -16,6 +16,7 @@ dependencies = [
 [project.optional-dependencies]
 server = [
     "alembic>=1.14.0",
+    "click>=8.1.0",
     "influxdb>=5.3.2",
     "influxdb-client>=1.40.0",
     "scipy>=1.14.0",
@@ -23,6 +24,7 @@ server = [
     "tables>=3.10.1",
     "h5py>=3.12.1",
     "psutil>=7.0.0",
+    "tqdm>=4.66.0",
 ]
 zedboard = [
     "tiqi-zedboard @ git+ssh://git@gitlab.phys.ethz.ch/tiqi-projects/drivers/tiqi-zedboard.git@v1.3.0",
@@ -36,6 +38,9 @@ client = [
 pycrystal = [
     "pycrystal @ git+ssh://git@gitlab.phys.ethz.ch/tiqi-projects/ionpulse-python-sdk/pycrystal.git@v2.3.0",
 ]
+
+[project.scripts]
+icon-migrate-influxdb-schema = "icon.cli.migrate_influxdb_schema:cli"
 
 [build-system]
 requires = ["hatchling"]
@@ -57,6 +62,7 @@ dev = [
     "types-pytz>=2024.2.0.20241003",
     "types-pyyaml>=6.0.12.20250402",
     "types-requests>=2.32.0.20250328",
+    "types-tqdm>=4.68.0.20260608",
 ]
 build = [
     "pyinstaller>=6.15.0",
@@ -127,6 +133,9 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = [
     "S101",     # assert
+]
+"src/icon/cli/**" = [
+    "FBT001",   # boolean positional arg (click passes flag options positionally)
 ]
 
 [tool.ruff.lint.mccabe]

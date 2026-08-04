@@ -26,7 +26,9 @@ from icon.server.pre_processing.worker import ExperimentIdentifier
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
 
 if TYPE_CHECKING:
-    from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+    from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
+        DatabaseValueType,
+    )
     from icon.server.post_processing.task import PostProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
     from icon.server.utils.types import UpdateQueue

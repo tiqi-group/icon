@@ -10,7 +10,9 @@ if TYPE_CHECKING:
     from icon.server.api.models.parameter_metadata import (
         ParameterMetadata,
     )
-    from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+    from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
+        DatabaseValueType,
+    )
     from icon.server.data_access.repositories.experiment_data_repository import (
         ReadoutMetadata,
     )

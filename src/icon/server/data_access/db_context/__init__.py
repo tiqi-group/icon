@@ -1,6 +1,6 @@
 from icon.config.config import get_config
-from icon.server.data_access.db_context.influxdb_v1 import InfluxDBv1Session
-from icon.server.data_access.db_context.influxdb_v1 import (
+from icon.server.data_access.db_context.influxdb.influxdb_v1 import InfluxDBv1Session
+from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
     is_responsive as v1_is_responsive,
 )
 from icon.server.data_access.db_context.influxdb_v2 import InfluxDBv2Session
