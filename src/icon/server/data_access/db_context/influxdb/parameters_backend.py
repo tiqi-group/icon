@@ -25,9 +25,8 @@ from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
 )
 
 if TYPE_CHECKING:
-    from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
-        DatabaseValueType,
-    )
+    from icon.server.data_access.experiment_data import DatabaseValueType
+
 
 # A legacy parameter field key always contains the namespace specifier.
 _IDENTIFIER_MARKER = "namespace='"

@@ -2,18 +2,17 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import click
-from attr import dataclass
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 from typing_extensions import Self
 
 from icon.config.config import get_config, set_config_path
 from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
-    DatabaseValueType,
     InfluxDBv1Session,
     escape_quotes,
 )
@@ -33,6 +32,8 @@ from icon.server.data_access.db_context.influxdb.parameters_backend import (
 if TYPE_CHECKING:
     import contextlib
     from types import TracebackType
+
+    from icon.server.data_access.experiment_data import DatabaseValueType
 
 logger = logging.getLogger(__name__)
 
