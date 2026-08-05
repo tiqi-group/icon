@@ -53,7 +53,7 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
         elif isinstance(obj, AbstractDataService):
             result = cls._serialize_data_service(obj, access_path=access_path)
 
-        elif isinstance(obj, list):
+        elif isinstance(obj, (list, tuple)):
             result = cls._serialize_list(obj, access_path=access_path)
 
         elif isinstance(obj, dict):
@@ -78,7 +78,7 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
             return result
 
         raise pydase.utils.serialization.serializer.SerializationError(
-            f"Could not serialized object of type {type(obj)}."
+            f"Could not serialize object of type {type(obj)}."
         )
 
     @classmethod
@@ -97,7 +97,7 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
     ) -> SerializedPydanticModel:
         doc = get_attribute_doc(obj)
         dumped_model = obj.model_dump_json()
-        return {
+        out: pydantic.BaseModel = {
             "type": "pydantic.BaseModel",
             "name": f"{obj.__module__}.{type(obj).__name__}",
             "value": dumped_model,
@@ -105,6 +105,7 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
             "full_access_path": access_path,
             "readonly": True,
         }
+        return out
 
     @classmethod
     def _serialize_orm(

@@ -24,9 +24,6 @@ else:
 logger = logging.getLogger(__name__)
 
 
-DatabaseValueType = bool | float | int | str
-
-
 def escape_quotes(value: str) -> str:
     """Escape backslashes and double quotes for use in a double-quoted identifier."""
     return value.replace("\\", "\\\\").replace('"', r"\"")

@@ -1,29 +1,30 @@
 import { Typography, Stack, IconButton } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import { ReachabilityIndicator } from "../devices/ReachabilityIndicator";
-import { Configuration } from "../../types/Configuration";
 import { Link as RouterLink } from "react-router";
+import { HardwareError } from "../../types/HardwareStatus";
 
 interface HardwareStatusCardProps {
-  hardwareReachable: boolean;
-  configuration: Configuration | null;
+  hardwareStatus: boolean | HardwareError;
+  configuration: {
+    id: string;
+    args: Record<string, string | number>;
+    enabled: boolean;
+  };
 }
 
 export const HardwareStatusCard = ({
-  hardwareReachable,
+  hardwareStatus,
   configuration,
 }: HardwareStatusCardProps) => {
-  if (configuration == null) {
-    return <Typography variant="h6">Hardware</Typography>;
-  }
-
-  const { host, port } = configuration.hardware;
-
   return (
     <Stack spacing={1}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <ReachabilityIndicator enabled reachable={hardwareReachable} />
-        <Typography variant="h6">Hardware</Typography>
+        <ReachabilityIndicator
+          enabled={configuration.enabled}
+          status={hardwareStatus}
+        />
+        <Typography variant="h6">{configuration.id}</Typography>
 
         <IconButton
           component={RouterLink}
@@ -36,8 +37,11 @@ export const HardwareStatusCard = ({
           <EditIcon fontSize="small" />
         </IconButton>
       </div>
-      <Typography variant="body2">Host: {host}</Typography>
-      <Typography variant="body2">Port: {port}</Typography>
+      {Object.entries(configuration.args).map(([key, val]) => (
+        <Typography variant="body2" key={key}>
+          {key}: {val}
+        </Typography>
+      ))}
     </Stack>
   );
 };

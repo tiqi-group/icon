@@ -1,21 +1,18 @@
 import datetime
 from typing import TYPE_CHECKING
 
-import pytz
 import sqlalchemy
 import sqlalchemy.event
 import sqlalchemy.orm
 
-from icon.config.config import get_config
 from icon.server.data_access.models.enums import JobStatus
 from icon.server.data_access.models.sqlite.base import Base
+from icon.server.data_access.models.sqlite.now import now
 
 if TYPE_CHECKING:
     from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
     from icon.server.data_access.models.sqlite.job_run import JobRun
     from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
-
-timezone = pytz.timezone(get_config().date.timezone)
 
 
 class Job(Base):
@@ -48,7 +45,7 @@ class Job(Base):
     """Primary key identifier for the job."""
 
     created: sqlalchemy.orm.Mapped[datetime.datetime] = sqlalchemy.orm.mapped_column(
-        default=lambda: datetime.datetime.now(timezone)
+        default=now
     )
     """Timestamp when the job was created. This cannot be set manually."""
     experiment_source_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
@@ -87,7 +84,7 @@ class Job(Base):
     """Number of shots per repetition."""
 
     local_parameters_timestamp: sqlalchemy.orm.Mapped[datetime.datetime] = (
-        sqlalchemy.orm.mapped_column(default=datetime.datetime.now(timezone))
+        sqlalchemy.orm.mapped_column(default=now)
     )
     """Timestamp of the local parameter snapshot used for this job."""
 

@@ -92,7 +92,7 @@ const ResultChannelPlot = ({
 
     const timestampEntry = scanInfo.find((param) => param.name === "timestamp");
 
-    const resultChannels = Object.entries(experimentData.result_channels)
+    const resultChannels = Object.entries(experimentData.readouts.result_channels)
       .filter(([name]) => channelNames.includes(name))
       .map(([name, data]) => ({
         name,
@@ -270,7 +270,9 @@ const ResultChannelPlot = ({
       const activeChannelName = selectedChannel ?? resultChannels[0]?.name;
       const activeChannel =
         resultChannels.find((rc) => rc.name === activeChannelName) ?? resultChannels[0];
-      const finiteValues = (activeChannel?.data ?? []).filter((v) => Number.isFinite(v));
+      const finiteValues = (activeChannel?.data ?? []).filter((v) =>
+        Number.isFinite(v),
+      );
       const vmMin = finiteValues.length ? Math.min(...finiteValues) : 0;
       const vmMax =
         finiteValues.length && Math.max(...finiteValues) !== vmMin
@@ -448,7 +450,7 @@ const ResultChannelPlot = ({
 
   return (
     <>
-      {Object.keys(experimentData.result_channels).length === 0 ||
+      {Object.keys(experimentData.readouts.result_channels).length === 0 ||
       option === undefined ? (
         loading ? (
           <div

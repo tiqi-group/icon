@@ -9,10 +9,12 @@ import { useConfiguration } from "../hooks/useConfiguration";
 import { InfluxDBStatusCard } from "../components/statusCards/InfluxDBStatus";
 import { HardwareStatusCard } from "../components/statusCards/HardwareStatus";
 import { DevicesStatusCard } from "../components/statusCards/DevicesStatus";
+import { HardwareError } from "../types/HardwareStatus";
 
+type HardwareStatus = Record<string, boolean | HardwareError>;
 interface Status {
   influxdb: boolean;
-  hardware: boolean;
+  hardware: HardwareStatus;
 }
 
 export default function DashboardPage() {
@@ -20,17 +22,19 @@ export default function DashboardPage() {
   const configuration = useConfiguration();
 
   const [influxReachable, setInfluxReachable] = useState<boolean>(false);
-  const [hardwareReachable, setHardwareReachable] = useState<boolean>(false);
+  const [hardwareStatus, setSHardwaretatus] = useState<HardwareStatus>({});
 
   useEffect(() => {
     runMethod("status.get_status", [], {}, (response) => {
       const status = deserialize(response as SerializedDict) as Status;
       setInfluxReachable(status.influxdb);
-      setHardwareReachable(status.hardware);
+      setSHardwaretatus(status.hardware);
     });
 
     socket.on("status.influxdb", (status: boolean) => setInfluxReachable(status));
-    socket.on("status.hardware", (status: boolean) => setHardwareReachable(status));
+    socket.on("status.hardware", (status: Record<string, boolean>) =>
+      setSHardwaretatus(status),
+    );
     return () => {
       socket.off("status.influxdb");
       socket.off("status.hardware");
@@ -59,11 +63,23 @@ export default function DashboardPage() {
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
-            <CardContent sx={{ display: "flex", flex: 1, alignItems: "center" }}>
-              <HardwareStatusCard
-                hardwareReachable={hardwareReachable}
-                configuration={configuration}
-              />
+            <CardContent
+              sx={{
+                display: "flex",
+                flex: 1,
+                flexDirection: "column",
+                gap: "1.5em",
+              }}
+            >
+              {configuration?.hardware?.devices.map((dev) => {
+                return (
+                  <HardwareStatusCard
+                    key={dev.id}
+                    hardwareStatus={hardwareStatus[dev.id]}
+                    configuration={dev}
+                  />
+                );
+              })}
             </CardContent>
           </Card>
         </Grid>

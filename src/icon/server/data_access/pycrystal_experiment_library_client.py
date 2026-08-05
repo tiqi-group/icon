@@ -15,6 +15,7 @@ from pycrystal.utils.helpers import (
 )
 
 import icon.server.utils.git_helpers
+from icon.server.data_access.experiment_data import PlotWindowMetadata, ReadoutMetadata
 from icon.server.data_access.experiment_library_client import ExperimentLibraryClient
 from icon.server.data_access.venv_experiment_library_client import (
     BlockingExperimentLibraryClient,
@@ -27,14 +28,10 @@ if TYPE_CHECKING:
     from icon.server.api.models.experiment_dict import (
         ExperimentDict,
     )
-    from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
+    from icon.server.data_access.experiment_data import (
         DatabaseValueType,
     )
     from icon.server.data_access.experiment_library_client import ParameterMetadataDict
-    from icon.server.data_access.repositories.experiment_data_repository import (
-        PlotWindowMetadata,
-        ReadoutMetadata,
-    )
 
 logger = logging.getLogger("experiment_library")
 logging.getLogger("pycrystal").setLevel(logging.ERROR)
@@ -99,14 +96,14 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         raise RuntimeError("Read only attribute")
 
     @staticmethod
-    def generate_json_sequence(
+    def create_hardware_instructions(
         *,
         exp_module_name: str,
         exp_instance_name: str,
         parameter_dict: "dict[str, DatabaseValueType]",
         n_shots: int,
     ) -> str:
-        """Generate a JSON sequence for an experiment.
+        """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -148,28 +145,28 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         exp_instance = import_experiment_instance(exp_module_name, exp_instance_name)
         readout = exp_instance.get_readout_metadata(parameter_dict, LOG_LEVEL)
 
-        def plot_window_metadata(data: Any) -> "PlotWindowMetadata":
-            return {
-                "name": data.name,
-                "index": data.index,
-                "type": data.type.name.lower(),
-                "channel_names": data.channel_names,
-            }
+        def plot_window_metadata(data: Any) -> PlotWindowMetadata:
+            return PlotWindowMetadata(
+                name=data.name,
+                index=data.index,
+                type=data.type.name.lower(),
+                channel_names=data.channel_names,
+            )
 
-        return {
-            "readout_channel_names": readout.readout_channel_names,
-            "shot_channel_names": readout.shot_channel_names,
-            "vector_channel_names": readout.vector_channel_names,
-            "readout_channel_windows": [
+        return ReadoutMetadata(
+            readout_channel_names=readout.readout_channel_names,
+            shot_channel_names=readout.shot_channel_names,
+            vector_channel_names=readout.vector_channel_names,
+            readout_channel_windows=[
                 plot_window_metadata(m) for m in readout.readout_channel_windows
             ],
-            "shot_channel_windows": [
+            shot_channel_windows=[
                 plot_window_metadata(m) for m in readout.shot_channel_windows
             ],
-            "vector_channel_windows": [
+            vector_channel_windows=[
                 plot_window_metadata(m) for m in readout.vector_channel_windows
             ],
-        }
+        )
 
     def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:
         """Fetch hardware description from experiment library.

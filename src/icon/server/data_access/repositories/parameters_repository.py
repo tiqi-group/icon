@@ -13,9 +13,7 @@ from icon.server.web_server.socketio_emit_queue import emit_queue
 if TYPE_CHECKING:
     from multiprocessing.managers import DictProxy
 
-    from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
-        DatabaseValueType,
-    )
+    from icon.server.data_access.experiment_data import DatabaseValueType
 
 logger = logging.getLogger(__name__)
 

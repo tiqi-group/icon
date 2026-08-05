@@ -22,7 +22,7 @@ export const InfluxDBStatusCard = ({
   return (
     <Stack spacing={1}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <ReachabilityIndicator enabled reachable={influxReachable} />
+        <ReachabilityIndicator enabled status={influxReachable} />
         <Typography variant="h6">InfluxDB</Typography>
         <IconButton
           component={RouterLink}

@@ -13,13 +13,9 @@ from icon.server.data_access.experiment_library_client import (
 )
 
 if TYPE_CHECKING:
-    from icon.server.api.models.experiment_dict import (
-        ExperimentDict,
-    )
-    from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
+    from icon.server.api.models.experiment_dict import ExperimentDict
+    from icon.server.data_access.experiment_data import (
         DatabaseValueType,
-    )
-    from icon.server.data_access.repositories.experiment_data_repository import (
         ReadoutMetadata,
     )
 
@@ -92,7 +88,7 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
         self.client = self.reloader.reload()
         return await self.client.load_metadata()
 
-    async def generate_json_sequence(
+    async def create_hardware_instructions(
         self,
         *,
         exp_module_name: str,
@@ -100,7 +96,7 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
         parameter_dict: "dict[str, DatabaseValueType]",
         n_shots: int,
     ) -> str:
-        """Generate a JSON sequence for an experiment.
+        """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -112,7 +108,7 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
             JSON string containing the generated sequence.
         """
         self.client = self.reloader.reload()
-        return await self.client.generate_json_sequence(
+        return await self.client.create_hardware_instructions(
             exp_module_name=exp_module_name,
             exp_instance_name=exp_instance_name,
             parameter_dict=parameter_dict,

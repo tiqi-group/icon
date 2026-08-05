@@ -1,12 +1,9 @@
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from icon.server.data_access.experiment_data import ReadoutMetadata
+
 if TYPE_CHECKING:
-    from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
-        DatabaseValueType,
-    )
-    from icon.server.data_access.repositories.experiment_data_repository import (
-        ReadoutMetadata,
-    )
+    from icon.server.data_access.experiment_data import DatabaseValueType
 
 
 class MockExperimentLibraryClient:
@@ -42,7 +39,7 @@ class MockExperimentLibraryClient:
         exp_module_name: str,  # noqa: ARG002
         exp_instance_name: str,  # noqa: ARG002
         parameter_dict: "dict[str, DatabaseValueType]",  # noqa: ARG002
-    ) -> "ReadoutMetadata":
+    ) -> ReadoutMetadata:
         """Fetch readout metadata for an experiment.
 
         Args:
@@ -53,4 +50,11 @@ class MockExperimentLibraryClient:
         Returns:
             Dictionary containing readout metadata for the experiment.
         """
-        return {}
+        return ReadoutMetadata(
+            readout_channel_names=[],
+            shot_channel_names=[],
+            vector_channel_names=[],
+            readout_channel_windows=[],
+            shot_channel_windows=[],
+            vector_channel_windows=[],
+        )
