@@ -331,6 +331,15 @@ class ExperimentDataRepository:
                 "data": asdict(data_point),
             }
         )
+        # Consumed by the sequence visualiser served under /visualiser/ (see
+        # icon.server.web_server.visualiser). Reinstates the event removed in
+        # 8daf9ea, now carrying the renamed hardware_instructions field.
+        emit_queue.put(
+            {
+                "event": "last_experiment_sequence",
+                "data": data_point.hardware_instructions,
+            }
+        )
 
     @staticmethod
     def write_parameter_update_by_job_id(
