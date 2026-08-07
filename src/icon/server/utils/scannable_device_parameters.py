@@ -19,7 +19,11 @@ logger = logging.getLogger(__name__)
 
 def is_scannable_parameter(serialized_object: SerializedObject) -> bool:
     """Is this serialized object scannable through icon?"""
-    return not serialized_object["readonly"] and serialized_object["type"] in ("float", "int", "Quantity")
+    return not serialized_object["readonly"] and serialized_object["type"] in (
+        "float",
+        "int",
+        "Quantity",
+    )
 
 
 def get_scannable_params_list(
