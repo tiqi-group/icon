@@ -96,12 +96,17 @@ export function useDeviceStateSync(
     }
 
     function subscribe() {
-      socket.emit("subscribe_device_updates");
+      socket.emit("subscribe_device_updates", deviceName);
       runMethod("devices.serialize", [], {}, (ack) => {
+        const devices_deserialized = deserialize(ack as SerializedObject);
         stateDispatch({
           type: "SET",
           data: {
-            value: { devices: deserialize(ack as SerializedObject) },
+            value: {
+              devices: {
+                value: { device_proxies: devices_deserialized?.value?.device_proxies },
+              },
+            },
           } as DeviceState,
         });
       });
@@ -114,7 +119,7 @@ export function useDeviceStateSync(
     return () => {
       socket.off("notify", onNotify);
       socket.off("connect", subscribe);
-      socket.emit("unsubscribe_device_updates");
+      socket.emit("unsubscribe_device_updates", deviceName);
     };
   }, [stateDispatch, deviceName]);
 }
