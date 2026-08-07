@@ -1,5 +1,6 @@
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import ScienceIcon from "@mui/icons-material/Science";
+import SsidChartIcon from "@mui/icons-material/SsidChart";
 import TimelineIcon from "@mui/icons-material/Timeline";
 import { Outlet } from "react-router";
 import { ReactRouterAppProvider } from "@toolpad/core/react-router";
@@ -45,6 +46,11 @@ const NAVIGATION: Navigation = [
     segment: "data",
     title: "Data",
     icon: <TimelineIcon />,
+  },
+  {
+    segment: "sequence",
+    title: "Sequence",
+    icon: <SsidChartIcon />,
   },
   {
     segment: "devices",

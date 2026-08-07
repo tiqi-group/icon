@@ -2,9 +2,10 @@ import { io } from "socket.io-client";
 import { serializeDict, serializeList } from "./utils/serializationUtils";
 import { SerializedObject } from "./types/SerializedObject";
 
-const hostname =
+export const hostname =
   process.env.NODE_ENV === "development" ? `localhost` : window.location.hostname;
-const port = process.env.NODE_ENV === "development" ? 8004 : window.location.port;
+export const port =
+  process.env.NODE_ENV === "development" ? 8004 : window.location.port;
 
 // Get the forwarded prefix from the global variable
 export const forwardedPrefix: string =

@@ -7,6 +7,7 @@ import DashboardPage from "./pages";
 import ExperimentsPage from "./pages/experiments";
 import ParameterPage from "./pages/parameters";
 import { DataPage } from "./pages/data";
+import { VisualiserPage } from "./pages/visualiser";
 import DevicesPage from "./pages/devices";
 import { SettingsPage } from "./pages/settings";
 import JobViewerLayout from "./layouts/job-viewer";
@@ -39,6 +40,10 @@ const router = createBrowserRouter([
           {
             path: "devices",
             Component: DevicesPage,
+          },
+          {
+            path: "sequence",
+            Component: VisualiserPage,
           },
           {
             path: "settings",

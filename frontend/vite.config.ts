@@ -5,6 +5,13 @@ import svgr from "vite-plugin-svgr";
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), svgr()],
+  server: {
+    proxy: {
+      // The sequence visualiser is served by the ICON backend (see
+      // src/icon/server/web_server/visualiser.py).
+      "/visualiser": "http://localhost:8004",
+    },
+  },
   build: {
     outDir: "../src/icon/server/frontend",
     rollupOptions: {
