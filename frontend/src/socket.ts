@@ -40,6 +40,10 @@ export const updateValue = (
   );
 };
 
+export const getValue = (accessPath: string, callback?: (ack: unknown) => void) => {
+  socket.emit("get_value", accessPath, ...(callback ? [callback] : []));
+};
+
 export const runMethod = (
   accessPath: string,
   args: unknown[] = [],

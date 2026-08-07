@@ -1,5 +1,5 @@
 import { useEffect, Dispatch } from "react";
-import { runMethod, socket } from "../socket";
+import { runMethod, getValue, socket } from "../socket";
 import { deserialize } from "../utils/deserializer";
 import { SerializedObject } from "../types/SerializedObject";
 import { DeviceState, StateAction } from "../contexts/DeviceStateContext";
@@ -72,7 +72,7 @@ export function useDeviceInfoSync(infoDispatch: Dispatch<Action>) {
  * React hook that synchronizes the device state for a single device with the backend.
  *
  * This hook:
- * - Fetches the device states using `devices.serialize`.
+ * - Fetches the specific device state `devices.device_proxies[deviceName]`.
  * - Applies live `notify` value updates for the given `deviceName`.
  * - Joins the device-updates room for as long as it is mounted.
  * - Cleans up its own socket listeners on unmount.
@@ -97,17 +97,26 @@ export function useDeviceStateSync(
 
     function subscribe() {
       socket.emit("subscribe_device_updates", deviceName);
-      runMethod("devices.serialize", [], {}, (ack) => {
-        const devices_deserialized = deserialize(ack as SerializedObject);
-        stateDispatch({
-          type: "SET",
-          data: {
-            value: {
-              devices: {
-                value: { device_proxies: devices_deserialized?.value?.device_proxies },
+      getValue(`devices.device_proxies["${deviceName}"]`, (ack) => {
+        const device_proxy_state = ack as SerializedObject;
+        const devstate: DeviceState = {
+          value: {
+            devices: {
+              value: {
+                device_proxies: {
+                  type: "dict",
+                  full_access_path: `devices.device_proxies`,
+                  doc: null,
+                  readonly: false,
+                  value: { [deviceName]: device_proxy_state },
+                },
               },
             },
-          } as DeviceState,
+          },
+        };
+        stateDispatch({
+          type: "SET",
+          data: devstate,
         });
       });
     }
