@@ -368,7 +368,11 @@ const ResultChannelPlot = ({
       toolbox: {
         top: -6,
         feature: {
-          dataZoom: { yAxisIndex: "none" },
+          // filterMode "none" only moves the axis windows instead of dropping
+          // out-of-window points, so lines run to the plot edge (clip: true)
+          // rather than breaking where a filtered point used to be.
+          dataZoom: { filterMode: "none" },
+          restore: {},
           myCopyToClipboard: {
             show: true,
             title: "Copy to Clipboard",

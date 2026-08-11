@@ -23,6 +23,14 @@ export interface ReactEChartsProps {
   onChartReady?: (chart: ECharts) => void;
 }
 
+interface DataZoomBatchItem {
+  dataZoomId?: string;
+  start?: number;
+  end?: number;
+  startValue?: number;
+  endValue?: number;
+}
+
 echarts.use([
   LegendComponent,
   LineChart,
@@ -45,6 +53,9 @@ export function ReactECharts({
 }: ReactEChartsProps) {
   const chartDivRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<ECharts | null>(null);
+  // Last zoom window per dataZoom component, captured from user interactions so
+  // it can be re-applied after every setOption({ notMerge: true }) re-draw.
+  const zoomStateRef = useRef<Record<string, DataZoomBatchItem>>({});
   const { mode } = useColorScheme();
 
   useEffect(() => {
@@ -52,6 +63,23 @@ export function ReactECharts({
 
     const chart = echarts.init(chartDivRef.current, mode);
     chartInstanceRef.current = chart;
+
+    chart.on("datazoom", (params) => {
+      const payload = params as { batch?: DataZoomBatchItem[] } & DataZoomBatchItem;
+      for (const item of payload.batch ?? [payload]) {
+        if (!item.dataZoomId) continue;
+        zoomStateRef.current[item.dataZoomId] = {
+          dataZoomId: item.dataZoomId,
+          start: item.start,
+          end: item.end,
+          startValue: item.startValue,
+          endValue: item.endValue,
+        };
+      }
+    });
+    chart.on("restore", () => {
+      zoomStateRef.current = {};
+    });
 
     if (onChartReady) {
       onChartReady(chart);
@@ -68,13 +96,24 @@ export function ReactECharts({
   }, [mode, onChartReady]);
 
   useEffect(() => {
-    chartInstanceRef.current?.setOption(
+    const chart = chartInstanceRef.current;
+    if (!chart) return;
+
+    chart.setOption(
       {
         ...option,
         backgroundColor: mode === "dark" ? "#1e1e1e" : "#ffffff",
       },
       { notMerge: true },
     );
+
+    // notMerge re-creates the dataZoom components with a full-range window;
+    // re-apply the last zoom so it survives re-draws while a scan is running.
+    // Stale ids (e.g. after switching to an option without zoom) are a no-op.
+    const batch = Object.values(zoomStateRef.current);
+    if (batch.length > 0) {
+      chart.dispatchAction({ type: "dataZoom", batch }, { silent: true });
+    }
   }, [option, mode]);
 
   useEffect(() => {

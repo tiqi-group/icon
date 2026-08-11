@@ -401,8 +401,10 @@ export const JobView = ({
           </Grid>
         )}
 
+        {/* Plot windows are keyed by job so charts remount on job switch instead
+            of carrying chart state (e.g. the sticky zoom window) over. */}
         {experimentData?.plot_windows?.shot_channels?.map((win) => (
-          <Grid size={{ xs: 12, sm: 12, lg: 4 }} key={`shot-${win.index}`}>
+          <Grid size={{ xs: 12, sm: 12, lg: 4 }} key={`shot-${jobId}-${win.index}`}>
             <Card>
               <CardContent sx={{ padding: 1 }}>
                 <div style={{ display: "flex", alignItems: "center" }}>
@@ -441,7 +443,7 @@ export const JobView = ({
         ))}
 
         {experimentData?.plot_windows?.result_channels?.map((win) => (
-          <Grid size={{ xs: 12, sm: 12, lg: 6 }} key={`result-${win.index}`}>
+          <Grid size={{ xs: 12, sm: 12, lg: 6 }} key={`result-${jobId}-${win.index}`}>
             <Card>
               <CardContent sx={{ padding: 1 }}>
                 <div style={{ display: "flex", alignItems: "center" }}>
