@@ -77,7 +77,7 @@ export const Device = React.memo(
         <div style={{ display: "flex", alignItems: "center" }}>
           <ReachabilityIndicator
             enabled={status === DeviceStatus.ENABLED}
-            reachable={reachable}
+            status={reachable}
           />
           <div
             style={{

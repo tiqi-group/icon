@@ -1,12 +1,25 @@
 import asyncio
+from typing import TypedDict
 
 import pydase
 from pydase.task.decorator import task
 
 from icon.config.config import get_config
 from icon.server.data_access.db_context import influxdb_v1
-from icon.server.hardware_processing.hardware_controller import HardwareController
+from icon.server.hardware_processing.devices import Devices, HardwareController
 from icon.server.web_server.socketio_emit_queue import emit_queue
+
+
+class Error(TypedDict):
+    msg: str
+
+
+HardwareStatus = dict[str, bool | Error]
+
+
+class Status(TypedDict):
+    influxdb: bool
+    hardware: HardwareStatus
 
 
 class StatusController(pydase.DataService):
@@ -16,13 +29,13 @@ class StatusController(pydase.DataService):
     via the Socket.IO queue.
     """
 
-    def __init__(self, hardware_controller: HardwareController) -> None:
+    def __init__(self, devices: Devices) -> None:
         super().__init__()
-        self.__hardware_controller = hardware_controller
+        self.__devices = devices
         self._influxdb_available = False
-        self._hardware_available = False
+        self._hardware_available: HardwareStatus = {}
 
-    def get_status(self) -> dict[str, bool]:
+    def get_status(self) -> Status:
         """Return the current system status flags.
 
         Returns:
@@ -54,15 +67,16 @@ class StatusController(pydase.DataService):
 
         Emits a `"status.hardware"` event to the Socket.IO queue.
         """
-        status = self.__hardware_controller.connected
+        await asyncio.to_thread(self.__devices.reload)
 
-        if (
-            not status
-            or self.__hardware_controller._host != get_config().hardware.host
-            or self.__hardware_controller._port != get_config().hardware.port
-        ):
-            await asyncio.to_thread(self.__hardware_controller.connect)
-
+        status: HardwareStatus = {
+            dev_id: (
+                dev.controller.connected
+                if isinstance(dev.controller, HardwareController)
+                else {"msg": format(dev.controller)}
+            )
+            for dev_id, dev in self.__devices.items()
+        }
         self._hardware_available = status
         emit_queue.put({"event": "status.hardware", "data": status})
 

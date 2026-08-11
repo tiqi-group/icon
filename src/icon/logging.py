@@ -1,7 +1,39 @@
 import logging
 import logging.config
+from typing import Any
 
 logger = logging.getLogger(__name__)
+
+LOGGERS: dict[str, dict[str, Any]] = {
+    "pydase.server.server": {
+        "handlers": ["stdout"],
+        "level": logging.INFO,
+        "propagate": False,
+    },
+    "pydase.server.web_server.web_server": {
+        "handlers": ["stdout"],
+        "level": logging.INFO,
+        "propagate": False,
+    },
+    "icon": {"handlers": ["default"], "propagate": False},  # level set at runtime
+    "tiqi_zedboard": {
+        "handlers": ["default"],
+    },  # level set at runtime
+    "pydase": {"handlers": ["default"], "propagate": False},  # level set at runtime
+    "asyncio": {"handlers": ["default"], "level": logging.INFO, "propagate": True},
+    "socketio": {
+        "handlers": ["default"],
+        "level": logging.WARNING,
+        "propagate": True,
+    },
+    "sqlalchemy.engine": {
+        "handlers": ["default"],
+        "level": logging.WARNING,
+        "propagate": True,
+    },
+    "alembic": {"handlers": ["default"], "propagate": True},  # level set at runtime
+    "aiohttp": {"handlers": ["default"], "propagate": True},  # level set at runtime
+}
 
 LOGGING_CONFIG = {
     "version": 1,
@@ -27,36 +59,7 @@ LOGGING_CONFIG = {
             "stream": "ext://sys.stdout",
         },
     },
-    "loggers": {
-        "pydase.server.server": {
-            "handlers": ["stdout"],
-            "level": logging.INFO,
-            "propagate": False,
-        },
-        "pydase.server.web_server.web_server": {
-            "handlers": ["stdout"],
-            "level": logging.INFO,
-            "propagate": False,
-        },
-        "icon": {"handlers": ["default"], "propagate": False},  # level set at runtime
-        "tiqi_zedboard": {
-            "handlers": ["default"],
-        },  # level set at runtime
-        "pydase": {"handlers": ["default"], "propagate": False},  # level set at runtime
-        "asyncio": {"handlers": ["default"], "level": logging.INFO, "propagate": True},
-        "socketio": {
-            "handlers": ["default"],
-            "level": logging.WARNING,
-            "propagate": True,
-        },
-        "sqlalchemy.engine": {
-            "handlers": ["default"],
-            "level": logging.WARNING,
-            "propagate": True,
-        },
-        "alembic": {"handlers": ["default"], "propagate": True},  # level set at runtime
-        "aiohttp": {"handlers": ["default"], "propagate": True},  # level set at runtime
-    },
+    "loggers": LOGGERS,
 }
 
 
@@ -77,11 +80,12 @@ def setup_logging(log_level: int) -> None:
         - Each '-v' flag decreases the threshold (e.g., WARNING → INFO → DEBUG).
         - Each '-q' flag increases the threshold (e.g., WARNING → ERROR → CRITICAL).
     """
-    LOGGING_CONFIG["loggers"]["icon"]["level"] = log_level
-    LOGGING_CONFIG["loggers"]["pydase"]["level"] = log_level
-    LOGGING_CONFIG["loggers"]["alembic"]["level"] = log_level
-    LOGGING_CONFIG["loggers"]["aiohttp"]["level"] = log_level
-    LOGGING_CONFIG["loggers"]["tiqi_zedboard"]["level"] = log_level
-    logging.config.dictConfig(LOGGING_CONFIG)
+    config = {
+        **LOGGING_CONFIG,
+        "loggers": {
+            name: {"level": log_level, **logger} for name, logger in LOGGERS.items()
+        },
+    }
+    logging.config.dictConfig(config)
 
     logger.info("Configured log level: %s", logging.getLevelName(log_level))

@@ -11,7 +11,7 @@ from pydase.utils.serialization.serializer import (
 )
 from pydase.utils.serialization.types import SerializedObject
 
-from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+from icon.server.data_access.experiment_data import DatabaseValueType
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,11 @@ logger = logging.getLogger(__name__)
 
 def is_scannable_parameter(serialized_object: SerializedObject) -> bool:
     """Is this serialized object scannable through icon?"""
-    return serialized_object["type"] in ("float", "int", "Quantity")
+    return not serialized_object["readonly"] and serialized_object["type"] in (
+        "float",
+        "int",
+        "Quantity",
+    )
 
 
 def get_scannable_params_list(

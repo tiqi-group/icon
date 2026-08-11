@@ -9,8 +9,9 @@ from pydase.utils.serialization.types import SerializedObject
 
 from icon.server.utils.scannable_device_parameters import (
     emit_scannable_device_params_change,
+    get_device_name,
 )
-from icon.server.web_server.sio_setup import DEVICE_UPDATES_ROOM
+from icon.server.web_server.sio_setup import device_updates_room
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 logger = logging.getLogger(__name__)
@@ -20,12 +21,11 @@ _CONNECTED_PATH_PATTERN = re.compile(r'^devices\.device_proxies\["[^"]+"\]\.conn
 
 
 def _install_device_room_emit(sio: Any) -> None:
-    """Reroute high-rate device proxy `notify` events to an opt-in room.
+    """Reroute pydase `notify` events to opt-in socket.io rooms.
 
-    pydase broadcasts every state change as a "notify" event to all connected
-    clients. High-rate device proxy updates (chatty pydase devices) can flood
-    every browser tab and freeze the UI. Reroute those to a room that the
-    frontend only joins while the Devices page is open.
+    pydase `notify` events from device proxies are broadcast to all client by default.
+    Re-route them to a device update broadcast room and device-specific update rooms,
+    which clients can subscribe to.
     """
     original_emit = sio.emit
 
@@ -39,10 +39,16 @@ def _install_device_room_emit(sio: Any) -> None:
             and isinstance(data, dict)
         ):
             full_access_path = data.get("data", {}).get("full_access_path", "")
-            if full_access_path.startswith(
-                "devices.device_proxies"
-            ) and not _CONNECTED_PATH_PATTERN.match(full_access_path):
-                kwargs["room"] = DEVICE_UPDATES_ROOM
+            device_name = get_device_name(full_access_path)
+            if (
+                full_access_path.startswith("devices.device_proxies")
+                and device_name is not None
+                and not _CONNECTED_PATH_PATTERN.match(full_access_path)
+            ):
+                kwargs["to"] = [
+                    device_updates_room(),  # Device update broadcast room
+                    device_updates_room(device_name),  # Device-specific update room
+                ]
         return await original_emit(event, data=data, **kwargs)
 
     sio.emit = emit_with_device_room

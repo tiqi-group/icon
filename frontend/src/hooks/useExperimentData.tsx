@@ -15,11 +15,13 @@ const emptyExperimentData: ExperimentData = {
     shot_channels: [],
     vector_channels: [],
   },
-  shot_channels: {},
-  result_channels: {},
-  vector_channels: {},
+  readouts: {
+    shot_channels: {},
+    result_channels: {},
+    vector_channels: {},
+  },
   scan_parameters: {},
-  json_sequences: [],
+  hardware_instructions: [],
   parameters: {},
   total_data_points: 0,
   fits: {},
@@ -30,7 +32,7 @@ const emptyExperimentData: ExperimentData = {
  *
  * - Fetches initial experiment data via RPC.
  * - Subscribes to live updates via WebSocket and merges new data.
- * - Updates json_sequences only when the sequence changes.
+ * - Updates hardware_instructions only when the sequence changes.
  * - Captures any fetch error in `experimentDataError`.
  *
  * @param jobId - The job ID to fetch and subscribe to.
@@ -53,18 +55,18 @@ export function useExperimentData(jobId: string | undefined) {
     const handleNewDataPoint = (data: ExperimentDataPoint) => {
       setError(null);
       setExperimentData((prev) => {
-        const shot_channels = { ...prev.shot_channels };
-        for (const [channel, value] of Object.entries(data.shot_channels)) {
+        const shot_channels = { ...prev.readouts.shot_channels };
+        for (const [channel, value] of Object.entries(data.readouts.shot_channels)) {
           (shot_channels[channel] ??= {})[data.index] = value;
         }
 
-        const result_channels = { ...prev.result_channels };
-        for (const [channel, value] of Object.entries(data.result_channels)) {
+        const result_channels = { ...prev.readouts.result_channels };
+        for (const [channel, value] of Object.entries(data.readouts.result_channels)) {
           (result_channels[channel] ??= {})[data.index] = value;
         }
 
-        const vector_channels = { ...prev.vector_channels };
-        for (const [channel, value] of Object.entries(data.vector_channels)) {
+        const vector_channels = { ...prev.readouts.vector_channels };
+        for (const [channel, value] of Object.entries(data.readouts.vector_channels)) {
           (vector_channels[channel] ??= {})[data.index] = value;
         }
 
@@ -74,19 +76,21 @@ export function useExperimentData(jobId: string | undefined) {
         }
         (scan_parameters["timestamp"] ??= {})[data.index] = data.timestamp;
 
-        const json_sequences = [...prev.json_sequences];
-        const lastEntry = json_sequences.at(-1);
-        if (!lastEntry || lastEntry[1] !== data.sequence_json) {
-          json_sequences.push([data.index, data.sequence_json]);
+        const hardware_instructions = [...prev.hardware_instructions];
+        const lastEntry = hardware_instructions.at(-1);
+        if (!lastEntry || lastEntry[1] !== data.hardware_instructions) {
+          hardware_instructions.push([data.index, data.hardware_instructions]);
         }
 
         return {
           ...prev,
-          shot_channels,
-          result_channels,
-          vector_channels,
+          readouts: {
+            shot_channels,
+            result_channels,
+            vector_channels,
+          },
           scan_parameters,
-          json_sequences,
+          hardware_instructions,
           total_data_points: prev.total_data_points + 1,
         };
       });
