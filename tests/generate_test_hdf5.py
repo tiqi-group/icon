@@ -36,6 +36,9 @@ from icon.server.data_access.models.sqlite.experiment_source import ExperimentSo
 from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.models.sqlite.job_run import JobRun
 from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
+from icon.server.data_access.repositories.experiment_data_repository import (
+    format_h5_filename,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -101,11 +104,10 @@ def _insert_job_and_run(
 def _hdf5_path(scheduled_time: datetime) -> str:
     """Return the HDF5 file path for a given scheduled time.
 
-    Must match exactly how ``get_filename_by_job_id`` builds the name:
-    ``f"{scheduled_time}.h5"``
+    Uses :func:`format_h5_filename` so names match production writes.
     """
     results_dir = get_config().data.results_dir
-    return f"{results_dir}/{scheduled_time}.h5"
+    return f"{results_dir}/{format_h5_filename(scheduled_time)}"
 
 
 def _write_hdf5(
