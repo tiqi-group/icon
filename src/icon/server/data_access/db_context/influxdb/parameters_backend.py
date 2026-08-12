@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from icon.config.config import get_config
 from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
@@ -23,11 +23,24 @@ from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
     escape_quotes,
     escape_tag_value,
 )
+from icon.server.data_access.db_context.influxdb_v2 import (
+    InfluxDBv2Session,
+    InfluxDBv2SessionProvider,
+    default_v2_session_provider,
+)
 
 if TYPE_CHECKING:
+    import contextlib
+    from collections.abc import Callable
+    from datetime import datetime
+
+    from influxdb_client.client.flux_table import FluxRecord
+
     from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
         DatabaseValueType,
     )
+
+SessionT = TypeVar("SessionT", InfluxDBv1Session, InfluxDBv2Session)
 
 # A legacy parameter field key always contains the namespace specifier.
 _IDENTIFIER_MARKER = "namespace='"
@@ -203,14 +216,23 @@ def _where_clause(namespace: str | None, before: str | None) -> str:
     return f" WHERE {' AND '.join(clauses)}" if clauses else ""
 
 
-class InfluxDBParameterBackend(ABC):
-    """ABC for parameter storage in influxDB."""
+class InfluxDBParameterBackend(ABC, Generic[SessionT]):
+    """ABC for parameter storage in influxDB.
+
+    Generic over the session type so that InfluxDB v1 backends (which speak InfluxQL)
+    and v2 backends (which speak Flux) can share the write path while keeping their
+    query construction type-safe. Subclasses supply their own default provider.
+    """
 
     schema: ParameterDBSchema
     measurement: str
+    _session_provider: Callable[[], contextlib.AbstractContextManager[SessionT]]
 
-    def __init__(self, session_provider: InfluxDBSessionProvider | None = None) -> None:
-        self._session_provider = session_provider or default_session_provider
+    def __init__(
+        self,
+        session_provider: Callable[[], contextlib.AbstractContextManager[SessionT]],
+    ) -> None:
+        self._session_provider = session_provider
 
     @abstractmethod
     def get_influxdb_parameters(
@@ -269,14 +291,14 @@ def value_from_point(point: dict[str, Any]) -> DatabaseValueType | None:
     return None
 
 
-class ParameterBackendR2(InfluxDBParameterBackend):
+class ParameterBackendR2(InfluxDBParameterBackend[InfluxDBv1Session]):
     schema = ParameterDBSchema.R2
 
     def __init__(self, session_provider: InfluxDBSessionProvider | None = None) -> None:
         self.measurement = r2_measurement_name(
             get_config().databases.influxdbv1.measurement
         )
-        super().__init__(session_provider)
+        super().__init__(session_provider or default_session_provider)
 
     def get_influxdb_parameters(
         self,
@@ -333,12 +355,12 @@ class ParameterBackendR2(InfluxDBParameterBackend):
         return {field_key_from_value(value): value}
 
 
-class ParameterBackendR1(InfluxDBParameterBackend):
+class ParameterBackendR1(InfluxDBParameterBackend[InfluxDBv1Session]):
     schema = ParameterDBSchema.R1
 
     def __init__(self, session_provider: InfluxDBSessionProvider | None = None) -> None:
         self.measurement = get_config().databases.influxdbv1.measurement
-        super().__init__(session_provider)
+        super().__init__(session_provider or default_session_provider)
 
     def get_influxdb_parameters(
         self,
@@ -386,7 +408,164 @@ class ParameterBackendR1(InfluxDBParameterBackend):
         return {parameter_id: value}
 
 
-_BACKENDS: dict[ParameterDBSchema, type[InfluxDBParameterBackend]] = {
+# Columns the Flux result set carries alongside the tags of a series.
+_FLUX_NON_TAG_COLUMNS = frozenset(
+    {
+        "result",
+        "table",
+        "_start",
+        "_stop",
+        "_time",
+        "_value",
+        "_field",
+        "_measurement",
+    }
+)
+
+# Flux equivalent of selecting the r2 value fields.
+_FLUX_VALUE_FIELD_FILTER = " or ".join(
+    f'r._field == "{escape_quotes(name)}"' for name in FIELD_KEY_NAMES
+)
+
+
+def _tags_from_flux_record(record: FluxRecord) -> dict[str, str]:
+    """Return the tag columns of a Flux record, dropping Flux's own bookkeeping."""
+    return {
+        key: str(value)
+        for key, value in record.values.items()
+        if key not in _FLUX_NON_TAG_COLUMNS and value is not None
+    }
+
+
+class InfluxDBv2ParameterBackend(InfluxDBParameterBackend[InfluxDBv2Session]):
+    """The r2 parameter layout stored on an InfluxDB v2 server.
+
+    Writes exactly the same measurement/tag/field shape as :class:`ParameterBackendR2`,
+    but reads it back over Flux instead of InfluxQL, and derives its measurement name
+    from the ``influxdbv2`` configuration section rather than ``influxdbv1``.
+
+    InfluxDB v2 has no legacy (r1) deployments to detect, so this backend is selected
+    from configuration alone and always uses r2.
+    """
+
+    schema = ParameterDBSchema.R2
+
+    def __init__(
+        self, session_provider: InfluxDBv2SessionProvider | None = None
+    ) -> None:
+        self.measurement = r2_measurement_name(
+            get_config().databases.influxdbv2.measurement
+        )
+        super().__init__(session_provider or default_v2_session_provider)
+
+    def _latest_values_query(
+        self,
+        bucket: str,
+        measurement: str,
+        *,
+        before: str | None = None,
+        namespace: str | None = None,
+        tag_filter: str | None = None,
+    ) -> str:
+        """Build the Flux query returning the latest point of every matching series."""
+        range_args = "start: 0"
+        if before is not None:
+            range_args += f', stop: time(v: "{escape_quotes(before)}")'
+
+        optional_filters = ""
+        if namespace is not None:
+            optional_filters += (
+                f'  |> filter(fn: (r) => r.namespace == "{escape_quotes(namespace)}")\n'
+            )
+        if tag_filter is not None:
+            optional_filters += f"  |> filter(fn: (r) => {tag_filter})\n"
+
+        return (
+            f'from(bucket: "{escape_quotes(bucket)}")\n'
+            f"  |> range({range_args})\n"
+            f'  |> filter(fn: (r) => r._measurement == "{escape_quotes(measurement)}")\n'
+            f"  |> filter(fn: (r) => {_FLUX_VALUE_FIELD_FILTER})\n"
+            f"{optional_filters}"
+            f"  |> last()"
+        )
+
+    def _collect_latest(
+        self, session: InfluxDBv2Session, flux: str
+    ) -> dict[str, DatabaseValueType]:
+        """Reduce a ``last()`` result set to one value per parameter identifier.
+
+        Flux groups by ``_field`` as well as by tags, so a parameter whose type changed
+        over time yields one series per type field it has ever used. The most recent
+        point across those series wins.
+        """
+        latest: dict[str, tuple[datetime, DatabaseValueType]] = {}
+        for table in session.query_flux(flux):
+            for record in table.records:
+                # `record.values` is the same store `get_value()`/`get_time()` read
+                # from, and is what the tags are recovered from just below.
+                value = record.values.get("_value")
+                if value is None:
+                    continue
+                identifier = build_parameter_identifier_from_specifiers(
+                    _tags_from_flux_record(record)
+                )
+                if not identifier:
+                    continue
+                previous = latest.get(identifier)
+                timestamp = record.values["_time"]
+                if previous is None or timestamp >= previous[0]:
+                    latest[identifier] = (timestamp, value)
+        return {identifier: value for identifier, (_, value) in latest.items()}
+
+    def get_influxdb_parameters(
+        self,
+        *,
+        before: str | None = None,
+        namespace: str | None = None,
+        measurement: str | None = None,
+    ) -> dict[str, DatabaseValueType]:
+        with self._session_provider() as session:
+            flux = self._latest_values_query(
+                session.bucket,
+                measurement or self.measurement,
+                before=before,
+                namespace=namespace,
+            )
+            return self._collect_latest(session, flux)
+
+    def get_influxdb_parameter_keys(self) -> list[str]:
+        return list(self.get_influxdb_parameters())
+
+    def get_influxdb_parameter_by_id(
+        self, parameter_id: str
+    ) -> DatabaseValueType | None:
+        specifiers = get_specifiers_from_parameter_identifier(parameter_id)
+        if not specifiers:
+            return None
+
+        tag_filter = " and ".join(
+            f'r["{escape_quotes(key)}"] == "{escape_quotes(value)}"'
+            for key, value in specifiers.items()
+        )
+        with self._session_provider() as session:
+            flux = self._latest_values_query(
+                session.bucket, self.measurement, tag_filter=tag_filter
+            )
+            values = self._collect_latest(session, flux)
+
+        # The tags of a matching series round-trip to the canonical spelling of the
+        # identifier, which need not be the spelling the caller passed in.
+        return values.get(build_parameter_identifier_from_specifiers(specifiers))
+
+    def _fields_for(
+        self,
+        parameter_id: str,  # noqa: ARG002 - the typed schema keys fields by value type
+        value: DatabaseValueType,
+    ) -> dict[str, DatabaseValueType]:
+        return {field_key_from_value(value): value}
+
+
+_BACKENDS: dict[ParameterDBSchema, type[ParameterBackendR1 | ParameterBackendR2]] = {
     ParameterDBSchema.R1: ParameterBackendR1,
     ParameterDBSchema.R2: ParameterBackendR2,
     # A pristine database is initialised with the current (r2) schema.
@@ -396,6 +575,10 @@ _BACKENDS: dict[ParameterDBSchema, type[InfluxDBParameterBackend]] = {
 
 def create_parameter_backend(
     version: ParameterDBSchema, session_provider: InfluxDBSessionProvider | None = None
-) -> InfluxDBParameterBackend:
-    """Instantiate the parameter backend for a detected schema version."""
+) -> InfluxDBParameterBackend[InfluxDBv1Session]:
+    """Instantiate the InfluxDB v1 parameter backend for a detected schema version.
+
+    InfluxDB v2 deployments do not go through schema detection; see
+    :class:`InfluxDBv2ParameterBackend`.
+    """
     return _BACKENDS[version](session_provider=session_provider)

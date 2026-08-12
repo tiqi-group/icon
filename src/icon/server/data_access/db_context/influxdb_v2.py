@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 import sys
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal
 
 import influxdb_client
@@ -15,6 +17,8 @@ from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
 
 if TYPE_CHECKING:
     from types import TracebackType
+
+    from influxdb_client.client.flux_table import TableList
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
@@ -84,7 +88,7 @@ class InfluxDBv2Session:
     def write_points(
         self,
         points: list[dict[str, Any]],
-        time_precision: Literal["s", "m", "ms", "u"] | None = None,
+        time_precision: Literal["s", "m", "ms", "u", "n"] | None = None,
         _database: str | None = None,
         tags: dict[str, str] | None = None,
         _batch_size: int | None = None,
@@ -102,6 +106,7 @@ class InfluxDBv2Session:
             "m": "ms",
             "ms": "ms",
             "u": "us",
+            "n": "ns",
             None: None,
         }
         write_precision = _precision_map.get(time_precision)
@@ -177,6 +182,25 @@ class InfluxDBv2Session:
             logger.exception("Error querying InfluxDB v2 measurement %s", measurement)
             return {}
 
+    def query_flux(self, flux: str) -> TableList:
+        """Run a raw Flux query and return its tables.
+
+        This is a thin, schema-agnostic passthrough, mirroring
+        :meth:`InfluxDBv1Session.query`. Schema-aware statement construction lives in
+        the parameter backend, not here.
+
+        Unlike the schema-specific helpers below, connection errors are deliberately
+        *not* swallowed: the server relies on them propagating to drive its "InfluxDB
+        not available, retrying" logic.
+
+        Args:
+            flux: The Flux query to execute.
+
+        Returns:
+            The queried tables.
+        """
+        return self._query_api.query(flux, org=self.org)
+
     def get_field_keys(self, measurement: str) -> list[str]:
         """Return all field names present in *measurement*."""
         flux = (
@@ -196,3 +220,14 @@ class InfluxDBv2Session:
                 "Error fetching field keys from InfluxDB v2 measurement %s", measurement
             )
             return []
+
+
+InfluxDBv2SessionProvider = Callable[
+    [], contextlib.AbstractContextManager[InfluxDBv2Session]
+]
+
+
+def default_v2_session_provider() -> contextlib.AbstractContextManager[
+    InfluxDBv2Session
+]:
+    return InfluxDBv2Session()

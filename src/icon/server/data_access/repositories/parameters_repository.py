@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
+from icon.config.config import get_config
 from icon.server.data_access.db_context.influxdb.parameters_backend import (
     InfluxDBParameterBackend,
+    InfluxDBv2ParameterBackend,
     assert_parameter_db,
     create_parameter_backend,
 )
@@ -34,19 +36,33 @@ class ParametersRepository:
 
     _shared_parameters: DictProxy[str, DatabaseValueType]
     initialised: bool = False
-    _backend: ClassVar[InfluxDBParameterBackend | None] = None
+    _backend: ClassVar[InfluxDBParameterBackend[Any] | None] = None
 
     @classmethod
-    def _get_backend(cls) -> InfluxDBParameterBackend:
-        """Return the schema-specific influxDB parameter backend."""
+    def _get_backend(cls) -> InfluxDBParameterBackend[Any]:
+        """Return the parameter backend for the configured InfluxDB deployment.
+
+        InfluxDB v2 has no legacy deployments to account for and always uses the r2
+        layout, so it is selected from configuration alone. For v1 the layout is
+        detected from the measurements present in the database.
+        """
         if cls._backend is None:
-            schema_revision = assert_parameter_db(wrap_connection_errors=False)
-            cls._backend = create_parameter_backend(schema_revision)
-            logger.info(
-                "Detected InfluxDB parameter schema %s; using %s.",
-                schema_revision.value,
-                type(cls._backend).__name__,
-            )
+            if get_config().databases.backend == "influxdbv2":
+                cls._backend = InfluxDBv2ParameterBackend()
+                logger.info(
+                    "Using InfluxDB v2 parameter store with the %s schema in "
+                    "measurement %s.",
+                    cls._backend.schema.value,
+                    cls._backend.measurement,
+                )
+            else:
+                schema_revision = assert_parameter_db(wrap_connection_errors=False)
+                cls._backend = create_parameter_backend(schema_revision)
+                logger.info(
+                    "Detected InfluxDB parameter schema %s; using %s.",
+                    schema_revision.value,
+                    type(cls._backend).__name__,
+                )
         return cls._backend
 
     @classmethod
