@@ -57,6 +57,32 @@ class ExperimentDataController(pydase.DataService):
         )
         return asdict(result)
 
+    async def get_hardware_instructions(
+        self,
+        job_id: int | None = None,
+        index: int | None = None,
+    ) -> str | None:
+        """Return stored hardware instructions (the serialized sequence JSON).
+
+        Used by the sequence visualizer to display the pulse sequence of a
+        specific data point, a job, or the most recent experiment run.
+
+        Args:
+            job_id: Job to read from. Defaults to the most recent job with
+                stored hardware instructions.
+            index: Data point index within the job. Defaults to the last
+                stored entry.
+
+        Returns:
+            The serialized hardware instructions, or None when nothing is
+            stored for the requested scope.
+        """
+        return await asyncio.to_thread(
+            ExperimentDataRepository.get_hardware_instructions,
+            job_id=job_id,
+            index=index,
+        )
+
     async def run_fit(
         self,
         job_id: int,

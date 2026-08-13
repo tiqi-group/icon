@@ -1,7 +1,11 @@
 import dataclasses
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import h5py
+import pytest
+from sqlalchemy.exc import NoResultFound
 
 from icon.server.data_access.experiment_data import (
     ExperimentData,
@@ -104,3 +108,54 @@ class MockScanParameter:
         self.variable_id = variable_id
         self.realtime = realtime
         self.device = None
+
+
+def _write_instruction_file(path: Path, entries: list[tuple[int, str]]) -> None:
+    with h5py.File(path, "w") as h5file:
+        for data_point_index, instructions in entries:
+            experiment_data_repository.write_hardware_instructions_to_dataset(
+                h5file, data_point_index, instructions
+            )
+
+
+def test_get_hardware_instructions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path)))
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+    unknown_job_id = 42
+
+    def filename(job_id: int) -> str:
+        if job_id == unknown_job_id:
+            raise NoResultFound
+        return f"job-{job_id}.h5"
+
+    monkeypatch.setattr(experiment_data_repository, "get_filename_by_job_id", filename)
+
+    # Two jobs; instructions are stored deduplicated: the entry index marks the
+    # data point at which the instructions changed.
+    _write_instruction_file(tmp_path / "job-1.h5", [(0, "seq-1a"), (5, "seq-1b")])
+    _write_instruction_file(tmp_path / "job-2.h5", [(0, "seq-2a")])
+    # A newer file without instructions must be skipped for the latest scope.
+    with h5py.File(tmp_path / "job-3.h5", "w"):
+        pass
+
+    get = experiment_data_repository.ExperimentDataRepository.get_hardware_instructions
+    # latest: newest file that has instructions
+    assert get() == "seq-2a"
+    # job scope: last entry of that job
+    assert get(job_id=1) == "seq-1b"
+    # data point scope: entry active at the given index
+    assert get(job_id=1, index=0) == "seq-1a"
+    assert get(job_id=1, index=4) == "seq-1a"
+    assert get(job_id=1, index=5) == "seq-1b"
+    assert get(job_id=1, index=99) == "seq-1b"
+    # unknown job, missing file, and empty directory behave gracefully
+    assert get(job_id=unknown_job_id) is None
+    assert get(job_id=39) is None
+    monkeypatch.setattr(
+        experiment_data_repository,
+        "get_config",
+        lambda: SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path / "x"))),
+    )
+    assert get() is None

@@ -2,7 +2,7 @@ import json
 import logging
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import datetime
@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, cast
 import h5py  # type: ignore
 import numpy as np
 import numpy.typing as npt
+from sqlalchemy.exc import NoResultFound
 
 from icon.config.config import get_config
 from icon.server.data_access.experiment_data import (
@@ -331,7 +332,7 @@ class ExperimentDataRepository:
                 "data": asdict(data_point),
             }
         )
-        # Consumed by the sequence visualiser served under /visualiser/ (see
+        # Consumed by the sequence visualizer served under /visualizer/ (see
         # icon.server.web_server.visualiser). Reinstates the event removed in
         # 8daf9ea, now carrying the renamed hardware_instructions field.
         emit_queue.put(
@@ -445,6 +446,57 @@ class ExperimentDataRepository:
                 max_transfer_bytes,
                 include_hardware_instructions=include_hardware_instructions,
             )
+
+    @staticmethod
+    def get_hardware_instructions(
+        *,
+        job_id: int | None = None,
+        index: int | None = None,
+    ) -> str | None:
+        """Return stored hardware instructions (the serialized sequence JSON).
+
+        Args:
+            job_id: Job to read from. Defaults to the most recent job with
+                stored hardware instructions.
+            index: Data point index within the job. Defaults to the last stored
+                entry. Instructions are stored deduplicated (one entry per
+                change), so the entry active at *index* is returned.
+
+        Returns:
+            The serialized hardware instructions, or None when nothing is
+            stored for the requested scope.
+        """
+        results_dir = Path(get_config().data.results_dir)
+        if job_id is not None:
+            try:
+                paths = [results_dir / get_filename_by_job_id(job_id)]
+            except NoResultFound:
+                return None
+        else:
+            paths = sorted(results_dir.glob("*.h5"), reverse=True)
+
+        for path in paths:
+            if not path.is_file():
+                continue
+            instructions = _read_hardware_instructions(path, index=index)
+            if instructions is not None:
+                return instructions
+        return None
+
+
+def _read_hardware_instructions(path: Path, *, index: int | None) -> str | None:
+    """Read the instructions entry active at *index* (last entry if None)."""
+    with h5_open(path, "r") as h5file:
+        dataset = h5file.get("hardware_instructions")
+        if not isinstance(dataset, h5py.Dataset) or dataset.shape[0] == 0:
+            return None
+        instructions: str | None = None
+        for entry in cast("Iterable[Any]", dataset[:]):
+            change_index = cast("np.int32", entry["index"]).item()
+            if index is not None and change_index > index:
+                break
+            instructions = cast("bytes", entry["Sequence"]).decode()
+        return instructions
 
 
 def prepare_readout_metadata(
