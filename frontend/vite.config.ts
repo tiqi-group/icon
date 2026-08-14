@@ -9,7 +9,7 @@ export default defineConfig({
     proxy: {
       // The sequence visualiser is served by the ICON backend (see
       // src/icon/server/web_server/visualiser.py).
-      "/visualiser": "http://localhost:8004",
+      "/visualizer": "http://localhost:8004",
     },
   },
   build: {
