@@ -26,8 +26,7 @@ class ZedboardController(HardwareController):
         Args:
             host: Hostname of the Zedboard.
             port: Port the Zedboard RPC server listens on.
-            timeout: RPC timeout in seconds for calls such as runExperiment. The
-                tiqi_zedboard default of 5 s is tight for slower experiments.
+            timeout: RPC timeout in seconds for calls such as runExperiment. Configurable in the config file.
         """
         self._host = host
         self._port = port
