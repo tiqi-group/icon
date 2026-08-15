@@ -2,6 +2,7 @@ import json
 import logging
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -118,7 +119,7 @@ def test_write_experiment_data_by_job_id_skips_mismatched_shot_channel(
     )
 
 
-def _leaf(type_: str, value: object) -> dict:
+def _leaf(type_: str, value: object) -> dict[str, Any]:
     """Build a minimal pydase SerializedObject leaf node for tests."""
     return {
         "full_access_path": "",
@@ -129,7 +130,7 @@ def _leaf(type_: str, value: object) -> dict:
     }
 
 
-def _container(type_: str, value: dict, **extra: object) -> dict:
+def _container(type_: str, value: dict[str, Any], **extra: object) -> dict[str, Any]:
     """Build a minimal pydase SerializedObject container node for tests."""
     return {
         "full_access_path": "",
@@ -248,7 +249,7 @@ def test_write_device_snapshots_by_job_id_diffs_against_previous_state(
     voltage = 1.0
     gain = 10
 
-    def _dac_state(gain_value: int) -> dict:
+    def _dac_state(gain_value: int) -> dict[str, Any]:
         return _container(
             "DataService",
             {

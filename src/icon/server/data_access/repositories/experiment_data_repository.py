@@ -203,6 +203,7 @@ def write_shot_channels_to_datasets(
     shot_channels: dict[str, list[int]],
     number_of_data_points: int,
     number_of_shots: int,
+    job_id: int,
 ) -> None:
     """Write per-shot data into datasets under the 'shot_channels' group.
 
@@ -212,9 +213,20 @@ def write_shot_channels_to_datasets(
         shot_channels: Mapping of channel to per-shot integers.
         number_of_data_points: Current total number of stored data points.
         number_of_shots: Expected number of shots per channel.
+        job_id: Job identifier, used for logging on a mismatched channel.
     """
     shot_group = h5file.require_group("shot_channels")
     for key, value in shot_channels.items():
+        if len(value) != number_of_shots:
+            logger.error(
+                "Shot channel %r has %d values, expected %d (job %d); skipping.",
+                key,
+                len(value),
+                number_of_shots,
+                job_id,
+            )
+            continue
+
         shot_dataset = shot_group.require_dataset(
             key,
             shape=(number_of_data_points, number_of_shots),
@@ -716,7 +728,7 @@ class ExperimentDataRepository:
         h5_path = Path(get_config().data.results_dir) / filename
 
         with h5_open(h5_path, "a") as h5file:
-            write_experiment_data_point(h5file, data_point)
+            write_experiment_data_point(h5file, data_point, job_id)
         logger.debug("Appended data to %s", h5_path)
 
         emit_queue.put(
@@ -947,7 +959,7 @@ def prepare_readout_metadata(
 
 
 def write_experiment_data_point(
-    h5file: h5py.File, data_point: ExperimentDataPoint
+    h5file: h5py.File, data_point: ExperimentDataPoint, job_id: int
 ) -> None:
     try:
         number_of_shots: int = h5file.attrs["number_of_shots"]
@@ -978,6 +990,7 @@ def write_experiment_data_point(
         shot_channels=data_point.readouts.shot_channels,
         number_of_data_points=number_of_data_points,
         number_of_shots=number_of_shots,
+        job_id=job_id,
     )
 
     write_vector_channels_to_datasets(
