@@ -5,13 +5,12 @@ import logging
 import multiprocessing
 import queue
 import time
+from contextlib import ExitStack
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from icon.server.data_access.experiment_data import PostProcessingOutput
 from icon.server.data_access.models.enums import JobRunStatus
-from icon.server.data_access.pycrystal_experiment_library_client import PyCrystalClient
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataRepository,
 )
@@ -22,12 +21,14 @@ from icon.server.data_access.repositories.job_run_repository import (
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
 )
-from icon.server.data_access.venv_exec import VirtualEnvironment
 from icon.server.pre_processing.worker import ExperimentIdentifier
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
 
 if TYPE_CHECKING:
     from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
+    from icon.server.data_access.experiment_library_client import (
+        ExperimentLibraryClient,
+    )
     from icon.server.post_processing.task import PostProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
     from icon.server.utils.types import UpdateQueue
@@ -52,6 +53,10 @@ class ExperimentPostProcessingState:
     """Monotonic timestamp of the last InfluxDB upload."""
     has_post_processing: bool | None = None
     """Whether the experiment defines post_processing (None until first call)."""
+    client: ExperimentLibraryClient | None = None
+    """Client checked out to this job's revision, reused for its data points."""
+    client_stack: ExitStack = field(default_factory=ExitStack)
+    """Owns `client`'s isolation context (if any); closed once the job ends."""
 
 
 class PostProcessingWorker(multiprocessing.Process):
@@ -60,13 +65,14 @@ class PostProcessingWorker(multiprocessing.Process):
         post_processing_queue: multiprocessing.Queue[PostProcessingTask],
         manager: SharedResourceManager,
         pre_processing_update_queues: list[multiprocessing.Queue[UpdateQueue]],
+        experiment_library_client: ExperimentLibraryClient,
     ) -> None:
         super().__init__()
         self._post_processing_queue = post_processing_queue
         self._manager = manager
         self._pre_processing_update_queues = pre_processing_update_queues
+        self._experiment_library_client = experiment_library_client
         self._job_states: dict[int, ExperimentPostProcessingState] = {}
-        self._venvs: dict[str, VirtualEnvironment] = {}
 
     @handle_keyboard_interrupt(logger)
     def run(self) -> None:
@@ -105,20 +111,24 @@ class PostProcessingWorker(multiprocessing.Process):
     def _run_experiment_post_processing(self, task: PostProcessingTask) -> None:
         """Execute the experiment's optional post_processing for one data point.
 
-        The experiment code runs inside the experiment library's virtual
-        environment (the checkout that generated the data point). Parameters the
-        experiment updates are pushed to running jobs immediately via
-        "calibration" events and uploaded to InfluxDB at most every
-        `db_upload_interval`; `_flush_finished_jobs` performs a final upload when
-        the job ends. Result channels updated by the experiment are merged into
-        `task.data_point` so they end up in the stored data (the caller writes
-        the data point after this method returns).
+        The experiment code runs through the experiment library client, isolated
+        and checked out to the git revision that produced this data point (once
+        per job, reused for the job's later data points -- see
+        `_get_job_client`). Parameters the experiment updates are pushed to
+        running jobs immediately via "calibration" events and uploaded to
+        InfluxDB at most every `db_upload_interval`; `_flush_finished_jobs`
+        performs a final upload when the job ends. Result channels updated by
+        the experiment are merged into `task.data_point` so they end up in the
+        stored data (the caller writes the data point after this method
+        returns).
         """
         job = task.pre_processing_task.job
         state = self._job_states.setdefault(job.id, ExperimentPostProcessingState())
 
-        if state.has_post_processing is False or task.src_dir is None:
+        if state.has_post_processing is False:
             return
+
+        client = self._get_job_client(task, state)
 
         namespace = ExperimentIdentifier.from_str(job.experiment_source.experiment_id)
 
@@ -131,23 +141,14 @@ class PostProcessingWorker(multiprocessing.Process):
             **task.data_point.scan_params,
         }
 
-        venv = self._venvs.get(task.src_dir)
-        if venv is None:
-            venv = VirtualEnvironment(str(Path(task.src_dir) / ".venv"))
-            self._venvs[task.src_dir] = venv
-
         result = asyncio.run(
-            venv.run(
-                PyCrystalClient.run_experiment_post_processing,
-                args={
-                    "exp_module_name": namespace.module_name,
-                    "exp_instance_name": namespace.instance_name,
-                    "parameter_dict": parameter_dict,
-                    "result_channels": task.data_point.readouts.result_channels,
-                    "post_processing_output": state.post_processing_output.values,
-                    "shot_channels": task.data_point.readouts.shot_channels,
-                },
-                logger=logger,
+            client.run_experiment_post_processing(
+                exp_module_name=namespace.module_name,
+                exp_instance_name=namespace.instance_name,
+                parameter_dict=parameter_dict,
+                result_channels=task.data_point.readouts.result_channels,
+                post_processing_output=state.post_processing_output.values,
+                shot_channels=task.data_point.readouts.shot_channels,
             )
         )
 
@@ -169,6 +170,31 @@ class PostProcessingWorker(multiprocessing.Process):
             updated_parameters=result["updated_parameters"],
             db_upload_interval=result["db_upload_interval"],
         )
+
+    def _get_job_client(
+        self, task: PostProcessingTask, state: ExperimentPostProcessingState
+    ) -> ExperimentLibraryClient:
+        """Get the client checked out to this job's revision, caching per job.
+
+        Checking out a revision shells out to git, so it must happen once per
+        job rather than once per data point -- data points from different
+        concurrently-running jobs can interleave in the queue. Debug-mode jobs
+        use the live (shared) client directly, matching the pre-processing
+        worker; other jobs get an isolated copy so their checkout doesn't
+        affect other jobs sharing `self._experiment_library_client`.
+        """
+        if state.client is not None:
+            return state.client
+
+        if task.pre_processing_task.debug_mode:
+            client = self._experiment_library_client
+        else:
+            client = state.client_stack.enter_context(
+                self._experiment_library_client.isolated()
+            )
+        client.checkout_revision(task.pre_processing_task.git_commit_hash)
+        state.client = client
+        return client
 
     @staticmethod
     def _merge_result_channels(
@@ -242,3 +268,4 @@ class PostProcessingWorker(multiprocessing.Process):
             ):
                 state = self._job_states.pop(job_id)
                 self._upload_pending_parameters(state)
+                state.client_stack.close()

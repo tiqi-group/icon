@@ -147,3 +147,38 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
         """
         self.client = self.reloader.reload()
         return await self.client.get_setup_hardware_description()
+
+    async def run_experiment_post_processing(
+        self,
+        *,
+        exp_module_name: str,
+        exp_instance_name: str,
+        parameter_dict: "dict[str, DatabaseValueType]",
+        result_channels: dict[str, float],
+        post_processing_output: list[float],
+        shot_channels: dict[str, list[int]] | None = None,
+    ) -> dict[str, Any]:
+        """Run an experiment's optional ``post_processing`` method.
+
+        Args:
+            exp_module_name: Module name of the experiment.
+            exp_instance_name: Name of the experiment instance.
+            parameter_dict: Mapping of parameter IDs to values.
+            result_channels: Result channel values of the processed data point.
+            post_processing_output: Post-processing state returned by the
+                previous call for this job (empty list on the first call).
+            shot_channels: Per-shot counts of the processed data point.
+
+        Returns:
+            Dictionary with post-processing results (see
+            `ExperimentLibraryClient.run_experiment_post_processing`).
+        """
+        self.client = self.reloader.reload()
+        return await self.client.run_experiment_post_processing(
+            exp_module_name=exp_module_name,
+            exp_instance_name=exp_instance_name,
+            parameter_dict=parameter_dict,
+            result_channels=result_channels,
+            post_processing_output=post_processing_output,
+            shot_channels=shot_channels,
+        )

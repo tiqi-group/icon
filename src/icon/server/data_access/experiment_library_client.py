@@ -100,6 +100,39 @@ class ExperimentLibraryClient:
         """
         raise NotImplementedError("Must be implemented by a subclass")
 
+    async def run_experiment_post_processing(
+        self,
+        *,
+        exp_module_name: str,
+        exp_instance_name: str,
+        parameter_dict: "dict[str, DatabaseValueType]",
+        result_channels: dict[str, float],
+        post_processing_output: list[float],
+        shot_channels: dict[str, list[int]] | None = None,
+    ) -> dict[str, Any]:
+        """Run an experiment's optional ``post_processing`` method.
+
+        Args:
+            exp_module_name: Module name of the experiment.
+            exp_instance_name: Name of the experiment instance.
+            parameter_dict: Mapping of parameter IDs to values.
+            result_channels: Result channel values of the processed data point.
+            post_processing_output: Post-processing state returned by the
+                previous call for this job (empty list on the first call).
+            shot_channels: Per-shot counts of the processed data point.
+
+        Returns:
+            Dictionary with keys:
+            - "has_post_processing": whether the experiment defines the method.
+            - "updated_parameters": parameter IDs/values changed by the method.
+            - "updated_result_channels": result channels added or modified by
+              the method.
+            - "post_processing_output": state to pass into the next call.
+            - "db_upload_interval": database upload interval in seconds, or
+              None if the experiment does not define the parameter.
+        """
+        raise NotImplementedError("Must be implemented by a subclass")
+
 
 class FallbackExperimentLibraryClient(ExperimentLibraryClient):
     """Client for an empty library."""
@@ -171,4 +204,36 @@ class FallbackExperimentLibraryClient(ExperimentLibraryClient):
             "PMTs": {},
             "RTDs": {},
             "Readouts": {},
+        }
+
+    async def run_experiment_post_processing(
+        self,
+        *,
+        exp_module_name: str,  # noqa: ARG002
+        exp_instance_name: str,  # noqa: ARG002
+        parameter_dict: "dict[str, DatabaseValueType]",  # noqa: ARG002
+        result_channels: dict[str, float],  # noqa: ARG002
+        post_processing_output: list[float],
+        shot_channels: dict[str, list[int]] | None = None,  # noqa: ARG002
+    ) -> dict[str, Any]:
+        """Run an experiment's optional ``post_processing`` method.
+
+        Args:
+            exp_module_name: Module name of the experiment.
+            exp_instance_name: Name of the experiment instance.
+            parameter_dict: Mapping of parameter IDs to values.
+            result_channels: Result channel values of the processed data point.
+            post_processing_output: Post-processing state returned by the
+                previous call for this job (empty list on the first call).
+            shot_channels: Per-shot counts of the processed data point.
+
+        Returns:
+            Dictionary containing an empty/no-op post-processing result.
+        """
+        return {
+            "has_post_processing": False,
+            "updated_parameters": {},
+            "updated_result_channels": {},
+            "post_processing_output": post_processing_output,
+            "db_upload_interval": None,
         }
