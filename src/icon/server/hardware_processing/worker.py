@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import multiprocessing
 import re
@@ -27,7 +26,7 @@ from icon.server.data_access.repositories.job_run_repository import JobRunReposi
 from icon.server.hardware_processing.utils import extract_hardware_error_message
 from icon.server.post_processing.task import PostProcessingTask
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
-from icon.server.utils.pydase_client import client_call_with_timeout, raw_client_call
+from icon.server.utils.pydase_client import client_call_with_timeout
 
 if TYPE_CHECKING:
     import queue
@@ -40,9 +39,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 timezone = pytz.timezone(get_config().date.timezone)
-
-DEVICE_SNAPSHOT_TIMEOUT_SECONDS = 30
-"""Timeout for fetching the full state of a device for the HDF5 snapshot."""
 
 
 def parse_parameter_id(param_id: str) -> tuple[str | None, str]:
@@ -159,66 +155,6 @@ class HardwareProcessingWorker(multiprocessing.Process):
             f"Failed to set {access_path!r} of device {device.name!r} after "
             f"{device.retry_attempts} attempts."
         )
-
-    def _snapshot_connected_devices(self, job_id: int) -> None:
-        """Save the full state of all enabled devices to the job's HDF5 file.
-
-        Fetches a fresh serialization from each device and stores it under the
-        'devices' group. Unreachable devices are recorded with an error message
-        instead of failing the measurement.
-        """
-        snapshots: list[DeviceSnapshot] = []
-        for device in DeviceRepository.get_devices_by_status(
-            status=DeviceStatus.ENABLED
-        ):
-            if device.name not in self._pydase_clients:
-                # Non-blocking on purpose: an unreachable device must not stall
-                # the snapshot (or the measurement).
-                self._pydase_clients[device.name] = pydase.Client(
-                    url=device.url,
-                    client_id="icon-hardware-worker",
-                    block_until_connected=False,
-                    auto_update_proxy=False,
-                )
-            client = self._pydase_clients[device.name]
-            timestamp = datetime.now(timezone).isoformat()
-            try:
-                state = raw_client_call(
-                    client,
-                    "service_serialization",
-                    None,
-                    DEVICE_SNAPSHOT_TIMEOUT_SECONDS,
-                )
-                snapshots.append(
-                    DeviceSnapshot(
-                        name=device.name,
-                        url=device.url,
-                        timestamp=timestamp,
-                        state_json=json.dumps(state),
-                    )
-                )
-            except Exception as e:
-                logger.warning(
-                    "Could not fetch state of device %r at %r for job %d: %s",
-                    device.name,
-                    device.url,
-                    job_id,
-                    e,
-                )
-                snapshots.append(
-                    DeviceSnapshot(
-                        name=device.name,
-                        url=device.url,
-                        timestamp=timestamp,
-                        state_json=None,
-                        error=str(e),
-                    )
-                )
-
-        if snapshots:
-            ExperimentDataRepository.write_device_snapshots_by_job_id(
-                job_id=job_id, snapshots=snapshots
-            )
 
     def _add_device(self, device: Device) -> None:
         self._pydase_clients[device.name] = pydase.Client(
