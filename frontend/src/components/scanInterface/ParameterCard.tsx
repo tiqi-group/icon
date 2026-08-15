@@ -145,13 +145,19 @@ export const ParameterCard = ({
 
   const inputMode: ScanInputMode = param.generation.inputMode ?? "startStop";
 
-  // Derived quantities for span/center mode. Center and span are reconstructed from
-  // start/stop on every render, so round away the floating-point reconstruction
-  // noise (e.g. 0.015099999999996783 for a typed 0.0151) well above the ~16-digit
-  // float precision but far below any physically meaningful digit.
+  // Span is reconstructed from start/stop on every render, so round away the
+  // floating-point reconstruction noise (e.g. 0.015099999999996783 for a typed
+  // 0.0151) well above the ~16-digit float precision but far below any physically
+  // meaningful digit. There is no "center" field: in Span mode the range is always
+  // centred on the parameter's current live value, looked up fresh whenever needed
+  // rather than stored.
   const roundFloatNoise = (value: number) => Number(value.toPrecision(12));
-  const center = roundFloatNoise((param.generation.start + param.generation.stop) / 2);
   const span = roundFloatNoise(param.generation.stop - param.generation.start);
+
+  const liveCenter = (fallback: number): number => {
+    const rawValue = parameterStore?.get(param.id);
+    return typeof rawValue === "number" ? rawValue : fallback;
+  };
 
   const handleInputModeChange = (
     _: React.MouseEvent,
@@ -171,12 +177,32 @@ export const ParameterCard = ({
     };
     const restoredModeSpec = param.generation.otherModeSpec ?? currentModeSpec;
 
+    const newGeneration =
+      newMode === "spanCenter"
+        ? (() => {
+            // Center is never stored — re-centre the remembered span on the
+            // parameter's current live value instead of whatever midpoint the
+            // snapshot happened to have.
+            const restoredSpan =
+              Math.abs(restoredModeSpec.stop - restoredModeSpec.start) || 1;
+            const center = liveCenter(
+              (restoredModeSpec.start + restoredModeSpec.stop) / 2,
+            );
+            return {
+              start: center - restoredSpan / 2,
+              stop: center + restoredSpan / 2,
+              points: restoredModeSpec.points,
+              pattern: restoredModeSpec.pattern,
+            };
+          })()
+        : restoredModeSpec;
+
     dispatchScanInfoStateUpdate({
       type: "UPDATE_PARAMETER",
       index,
       payload: {
         generation: {
-          ...restoredModeSpec,
+          ...newGeneration,
           inputMode: newMode,
           otherModeSpec: currentModeSpec,
         },
@@ -336,72 +362,41 @@ export const ParameterCard = ({
                 Start / Stop
               </ToggleButton>
               <ToggleButton value="spanCenter" sx={{ textTransform: "none" }}>
-                Center / Span
+                Span
               </ToggleButton>
             </ToggleButtonGroup>
 
             {inputMode === "spanCenter" ? (
-              <>
-                <TextField
-                  required
-                  disabled={!param.id}
-                  label="Center"
-                  size="small"
-                  type="number"
-                  fullWidth
-                  value={center}
-                  onChange={(e) => {
-                    const newCenter = Number(e.target.value);
-                    dispatchScanInfoStateUpdate({
-                      type: "UPDATE_PARAMETER",
-                      index,
-                      payload: {
-                        generation: {
-                          ...param.generation,
-                          start: newCenter - span / 2,
-                          stop: newCenter + span / 2,
-                        },
-                      },
-                    });
-                  }}
-                  variant="outlined"
-                  slotProps={{
-                    input: {
-                      inputProps: {
-                        min: parameterOptions[param.id]?.min,
-                        max: parameterOptions[param.id]?.max,
+              <TextField
+                required
+                disabled={!param.id}
+                label="Span"
+                size="small"
+                type="number"
+                fullWidth
+                value={Math.abs(span)}
+                onChange={(e) => {
+                  const newSpan = Math.abs(Number(e.target.value));
+                  const center = liveCenter(
+                    (param.generation.start + param.generation.stop) / 2,
+                  );
+                  dispatchScanInfoStateUpdate({
+                    type: "UPDATE_PARAMETER",
+                    index,
+                    payload: {
+                      generation: {
+                        ...param.generation,
+                        start: center - newSpan / 2,
+                        stop: center + newSpan / 2,
                       },
                     },
-                  }}
-                />
-                <TextField
-                  required
-                  disabled={!param.id}
-                  label="Span"
-                  size="small"
-                  type="number"
-                  fullWidth
-                  value={Math.abs(span)}
-                  onChange={(e) => {
-                    const newSpan = Math.abs(Number(e.target.value));
-                    dispatchScanInfoStateUpdate({
-                      type: "UPDATE_PARAMETER",
-                      index,
-                      payload: {
-                        generation: {
-                          ...param.generation,
-                          start: center - newSpan / 2,
-                          stop: center + newSpan / 2,
-                        },
-                      },
-                    });
-                  }}
-                  variant="outlined"
-                  slotProps={{
-                    input: { inputProps: { min: 0 } },
-                  }}
-                />
-              </>
+                  });
+                }}
+                variant="outlined"
+                slotProps={{
+                  input: { inputProps: { min: 0 } },
+                }}
+              />
             ) : (
               <>
                 <TextField

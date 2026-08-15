@@ -11,8 +11,12 @@ import {
 } from "@mui/material";
 import { useNotifications } from "@toolpad/core";
 import { ParameterDisplayGroupsContext } from "../../contexts/ParameterDisplayGroupsContext";
+import { ParameterStoreContext } from "../../contexts/ParameterStoreContext";
 import { useScanContext } from "../../hooks/useScanContext";
-import { getScanParameterBounds } from "../../utils/scanUtils";
+import {
+  getScanParameterBounds,
+  refreshSpanCenterParameters,
+} from "../../utils/scanUtils";
 import { submitJob } from "../../utils/submitJob";
 import ScanParameterTable from "./ScanParameterTable";
 
@@ -22,6 +26,7 @@ interface ScanInterfaceProps {
 const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
   const { scanInfoState, dispatchScanInfoStateUpdate } = useScanContext();
   const { parameterDisplayGroups } = useContext(ParameterDisplayGroupsContext);
+  const parameterStore = useContext(ParameterStoreContext);
   const notifications = useNotifications();
   const [submitDisabled, setSubmitDisabled] = useState(false);
 
@@ -98,12 +103,20 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
     event.preventDefault();
 
     if (validateForm()) {
-      const parameterBounds = scanInfoState.parameters.map((param) =>
+      // Refresh Span-mode parameters from the latest live value right before
+      // submitting, so the executed scan is centred on what's current right now
+      // rather than whatever the value happened to be when Span was last edited.
+      const parametersToSubmit = refreshSpanCenterParameters(
+        scanInfoState.parameters,
+        parameterStore,
+      );
+
+      const parameterBounds = parametersToSubmit.map((param) =>
         getScanParameterBounds(param, parameterDisplayGroups),
       );
       const { clampedParamIds } = submitJob(
         experimentId,
-        scanInfoState,
+        { ...scanInfoState, parameters: parametersToSubmit },
         parameterBounds,
       );
       if (clampedParamIds.length > 0) {

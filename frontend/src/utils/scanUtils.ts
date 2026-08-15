@@ -1,10 +1,43 @@
 import { GroupsByNamespace } from "../hooks/useParameterDisplayGroups";
+import { Store } from "../stores/parmeterStore";
 import { ScanParameterInfo } from "../types/ScanParameterInfo";
 
 export interface ScanParameterBounds {
   min: number | null;
   max: number | null;
 }
+
+/**
+ * Refreshes Span-mode parameters' start/stop from each parameter's current live
+ * value, keeping the remembered span. Span mode never stores a "center" — it's
+ * always the parameter's live value, looked up here fresh (typically right before
+ * submitting a job) rather than reused from whenever the span was last edited.
+ *
+ * Parameters not in Span mode, or whose live value isn't known/numeric, are
+ * returned unchanged.
+ *
+ * @param parameters - The scan parameters to refresh.
+ * @param parameterStore - Store to read live parameter values from.
+ * @returns A new parameters array with Span-mode entries re-centred.
+ */
+export const refreshSpanCenterParameters = (
+  parameters: ScanParameterInfo[],
+  parameterStore: Pick<Store, "get"> | null,
+): ScanParameterInfo[] =>
+  parameters.map((param) => {
+    if ((param.generation.inputMode ?? "startStop") !== "spanCenter") return param;
+    const liveValue = parameterStore?.get(param.id);
+    if (typeof liveValue !== "number") return param;
+    const span = Math.abs(param.generation.stop - param.generation.start);
+    return {
+      ...param,
+      generation: {
+        ...param.generation,
+        start: liveValue - span / 2,
+        stop: liveValue + span / 2,
+      },
+    };
+  });
 
 /**
  * Looks up the allowed value range of a scan parameter from the display group
