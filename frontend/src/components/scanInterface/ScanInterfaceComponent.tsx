@@ -98,11 +98,22 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
       const parameterBounds = scanInfoState.parameters.map((param) =>
         getScanParameterBounds(param, parameterDisplayGroups),
       );
-      submitJob(experimentId, scanInfoState, parameterBounds);
-      notifications.show("Job submitted", {
-        severity: "success",
-        autoHideDuration: 3000,
-      });
+      const { clampedParamIds } = submitJob(
+        experimentId,
+        scanInfoState,
+        parameterBounds,
+      );
+      if (clampedParamIds.length > 0) {
+        notifications.show(
+          `Job submitted, but the requested range for ${clampedParamIds.join(", ")} exceeded the parameter's bounds and was clamped.`,
+          { severity: "warning", autoHideDuration: 8000 },
+        );
+      } else {
+        notifications.show("Job submitted", {
+          severity: "success",
+          autoHideDuration: 3000,
+        });
+      }
       setSubmitDisabled(true);
       setTimeout(() => setSubmitDisabled(false), 1000);
     }

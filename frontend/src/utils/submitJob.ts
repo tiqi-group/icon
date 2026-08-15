@@ -54,7 +54,9 @@ export const submitJob = (
   experimentId: string,
   scanInfoState: ScanInfoState,
   parameterBounds: ScanParameterBounds[] = [],
-) => {
+): { clampedParamIds: string[] } => {
+  const clampedParamIds: string[] = [];
+
   const scan_parameters = scanInfoState.parameters.map(
     ({ namespace, generation, deviceNameOrDisplayGroup, ...rest }, index) => {
       const param: ScanParameterArgument = { ...rest };
@@ -66,9 +68,14 @@ export const submitJob = (
           param.device_name = deviceNameOrDisplayGroup;
         }
         const bounds = parameterBounds[index] ?? { min: null, max: null };
+        const clampedStart = clampToBounds(generation.start, bounds);
+        const clampedStop = clampToBounds(generation.stop, bounds);
+        if (clampedStart !== generation.start || clampedStop !== generation.stop) {
+          clampedParamIds.push(rest.id);
+        }
         param.values = generateScanValues(
-          clampToBounds(generation.start, bounds),
-          clampToBounds(generation.stop, bounds),
+          clampedStart,
+          clampedStop,
           generation.points,
           generation.pattern,
         );
@@ -94,4 +101,6 @@ export const submitJob = (
       }
     },
   );
+
+  return { clampedParamIds };
 };
