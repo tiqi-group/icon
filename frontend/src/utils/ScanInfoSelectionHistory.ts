@@ -56,6 +56,7 @@ export class ScanInfoSelectionHistory extends MruSelectionTree<ScanParameterGene
   handleParamUpdate(
     current: ScanParameterInfo,
     update: Partial<ScanParameterInfo>,
+    recenterOn?: number,
   ): {
     updatedParam: ScanParameterInfo;
     updatedScanInfoHistory: SerializedScanInfoSelectionHistory;
@@ -76,7 +77,8 @@ export class ScanInfoSelectionHistory extends MruSelectionTree<ScanParameterGene
         leafFromParam(updatedParam),
       ).serialize();
     } else if (update.id) {
-      // Parameter id provided. Lookup leaf node by its globally-unique scanned key.
+      // Parameter id provided. Lookup leaf node by its globally-unique scanned key
+      // to restore that parameter's own remembered start/stop/points/pattern.
       const namespace = update.namespace ?? current.namespace;
       const deviceNameOrDisplayGroup =
         update.deviceNameOrDisplayGroup ?? current.deviceNameOrDisplayGroup;
@@ -85,7 +87,14 @@ export class ScanInfoSelectionHistory extends MruSelectionTree<ScanParameterGene
         namespace,
         deviceNameOrDisplayGroup,
       );
-      const leaf = this.lookupLeaf(leafKey) ?? this.defaultLeaf();
+      let leaf = this.lookupLeaf(leafKey) ?? this.defaultLeaf();
+      if (recenterOn !== undefined) {
+        // Recentre on the new parameter's live value while keeping its own
+        // remembered span (and, since only start/stop change, its own points
+        // and pattern too).
+        const span = leaf.stop - leaf.start;
+        leaf = { ...leaf, start: recenterOn - span / 2, stop: recenterOn + span / 2 };
+      }
       updatedParam = paramFromLeaf(
         namespace,
         deviceNameOrDisplayGroup,

@@ -60,6 +60,23 @@ describe("ScanInfoSelectionHistory.handleParamUpdate", () => {
       const { updatedParam } = mkMgr().handleParamUpdate(current, { id: "unknown" });
       expect(updatedParam).toEqual(param("E", "grp", "unknown", defaultGen));
     });
+
+    it("recentring on a live value keeps the recalled parameter's own points/pattern/span", () => {
+      // A was scanned 10-20, 5 points, linear; B was scanned 0-1, 100 points, scatter.
+      let history = record(emptyScanInfoHistory, param("E", "grp", "A", gen(10, 20, 5, "linear")));
+      history = record(history, param("E", "grp", "B", gen(0, 1, 100, "scatter")));
+      const current = param("E", "grp", "B", gen(0, 1, 100, "scatter"));
+
+      // Switch back to A while re-centring on A's live value (15.5), as spanCenter mode does.
+      const { updatedParam } = mkMgr(history).handleParamUpdate(
+        current,
+        { id: "A" },
+        15.5,
+      );
+
+      // Span (10) and A's own points/pattern are preserved; only start/stop shift.
+      expect(updatedParam).toEqual(param("E", "grp", "A", gen(10.5, 20.5, 5, "linear")));
+    });
   });
 
   describe("namespace change", () => {

@@ -299,21 +299,16 @@ export const ParameterCard = ({
                 const newParamId = e.target.value;
 
                 if (inputMode === "spanCenter") {
-                  // Re-centre on the new parameter's live value (if numeric); keep the span.
+                  // Restore the new parameter's own remembered settings, re-centred
+                  // on its live value (if numeric) while keeping its own span.
                   const rawValue = parameterStore?.get(newParamId);
-                  const newCenter = typeof rawValue === "number" ? rawValue : center;
-                  const currentSpan = Math.abs(span) || 1;
+                  const recenterOn =
+                    typeof rawValue === "number" ? rawValue : undefined;
                   dispatchScanInfoStateUpdate({
                     type: "UPDATE_PARAMETER",
                     index,
-                    payload: {
-                      id: newParamId,
-                      generation: {
-                        ...param.generation,
-                        start: newCenter - currentSpan / 2,
-                        stop: newCenter + currentSpan / 2,
-                      },
-                    },
+                    payload: { id: newParamId },
+                    recenterOn,
                   });
                 } else {
                   dispatchScanInfoStateUpdate({
