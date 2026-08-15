@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from icon.server.data_access.experiment_data import Readouts
 from icon.server.data_access.repositories import experiment_data_repository as edr
 
 
@@ -89,13 +90,15 @@ def test_write_experiment_data_by_job_id_skips_mismatched_shot_channel(
         h5file.attrs["number_of_data_points"] = 0
 
     data_point = edr.ExperimentDataPoint(
-        result_channels={"raw_counts": 2.0},
-        vector_channels={},
-        shot_channels={"raw_counts": [1, 2, 3], "repeated_shots": []},
         index=0,
         scan_params={"x": 1.0},
         timestamp="2026-07-01T00:00:00",
-        sequence_json="{}",
+        hardware_instructions="{}",
+        readouts=Readouts(
+            result_channels={"raw_counts": 2.0},
+            vector_channels={},
+            shot_channels={"raw_counts": [1, 2, 3], "repeated_shots": []},
+        ),
     )
 
     with caplog.at_level(logging.ERROR):
