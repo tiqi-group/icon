@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from icon.server.data_access.experiment_data import PostProcessingOutput
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.data_access.pycrystal_experiment_library_client import PyCrystalClient
 from icon.server.data_access.repositories.experiment_data_repository import (
@@ -41,7 +42,9 @@ QUEUE_POLL_TIMEOUT = 1.0
 class ExperimentPostProcessingState:
     """Per-job state of the experiment-defined post-processing."""
 
-    post_processing_output: list[float] = field(default_factory=list)
+    post_processing_output: PostProcessingOutput = field(
+        default_factory=PostProcessingOutput
+    )
     """State handed back by the experiment's post_processing on the last call."""
     pending_parameters: dict[str, DatabaseValueType] = field(default_factory=dict)
     """Parameters updated by post-processing but not yet uploaded to InfluxDB."""
@@ -140,9 +143,9 @@ class PostProcessingWorker(multiprocessing.Process):
                     "exp_module_name": namespace.module_name,
                     "exp_instance_name": namespace.instance_name,
                     "parameter_dict": parameter_dict,
-                    "result_channels": task.data_point.result_channels,
-                    "post_processing_output": state.post_processing_output,
-                    "shot_channels": task.data_point.shot_channels,
+                    "result_channels": task.data_point.readouts.result_channels,
+                    "post_processing_output": state.post_processing_output.values,
+                    "shot_channels": task.data_point.readouts.shot_channels,
                 },
                 logger=logger,
             )
@@ -152,7 +155,9 @@ class PostProcessingWorker(multiprocessing.Process):
         if not state.has_post_processing:
             return
 
-        state.post_processing_output = result["post_processing_output"]
+        state.post_processing_output = PostProcessingOutput(
+            values=result["post_processing_output"]
+        )
 
         self._merge_result_channels(
             task=task,
@@ -175,8 +180,8 @@ class PostProcessingWorker(multiprocessing.Process):
         Only channels that the hardware already reported can be updated.
         """
         for channel_name, value in updated_result_channels.items():
-            if channel_name in task.data_point.result_channels:
-                task.data_point.result_channels[channel_name] = value
+            if channel_name in task.data_point.readouts.result_channels:
+                task.data_point.readouts.result_channels[channel_name] = value
             else:
                 logger.warning(
                     "Post-processing of job %s set unknown result channel %r; "
