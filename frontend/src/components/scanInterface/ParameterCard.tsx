@@ -159,14 +159,28 @@ export const ParameterCard = ({
   ) => {
     if (!newMode || newMode === inputMode) return;
 
-    // Center/span and start/stop are equivalent views of the same start/stop values
-    // (center and span above are always derived from them), so toggling the
-    // representation only flips which fields are shown — it must never itself change
-    // the configured range.
+    // Each mode remembers its own start/stop/points/pattern independently: editing
+    // fields in one mode must never change what the other mode shows. Toggling swaps
+    // the active quadruple with the snapshot stashed for the mode being entered (or
+    // keeps the current one, unchanged, the first time that other mode is visited).
+    const currentModeSpec = {
+      start: param.generation.start,
+      stop: param.generation.stop,
+      points: param.generation.points,
+      pattern: param.generation.pattern,
+    };
+    const restoredModeSpec = param.generation.otherModeSpec ?? currentModeSpec;
+
     dispatchScanInfoStateUpdate({
       type: "UPDATE_PARAMETER",
       index,
-      payload: { generation: { ...param.generation, inputMode: newMode } },
+      payload: {
+        generation: {
+          ...restoredModeSpec,
+          inputMode: newMode,
+          otherModeSpec: currentModeSpec,
+        },
+      },
     });
   };
 

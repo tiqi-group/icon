@@ -123,6 +123,95 @@ describe("useScanInfoState reducer", () => {
     expect(backToStartStop.parameters[0].generation.stop).toBe(20);
   });
 
+  it("editing one mode's fields never changes the other mode's remembered settings", () => {
+    // Mirrors the dispatches ParameterCard itself issues: mode toggle swaps in/out an
+    // "otherModeSpec" snapshot, and plain field edits always spread the existing
+    // generation (so they can't touch that snapshot).
+    let state: ScanInfoState = {
+      ...baseState(),
+      parameters: [
+        {
+          ...defaultParameter,
+          id: "p1",
+          generation: { start: 10, stop: 20, points: 2, pattern: "linear" as const },
+        },
+      ],
+    };
+
+    const toggle = (s: ScanInfoState, newInputMode: "startStop" | "spanCenter") => {
+      const gen = s.parameters[0].generation;
+      const currentModeSpec = {
+        start: gen.start,
+        stop: gen.stop,
+        points: gen.points,
+        pattern: gen.pattern,
+      };
+      const restoredModeSpec = gen.otherModeSpec ?? currentModeSpec;
+      return run(s, {
+        type: "UPDATE_PARAMETER",
+        index: 0,
+        payload: {
+          generation: {
+            ...restoredModeSpec,
+            inputMode: newInputMode,
+            otherModeSpec: currentModeSpec,
+          },
+        },
+      });
+    };
+
+    // Enter Center/Span mode (first time: nothing to restore, keeps 10-20/2/linear).
+    state = toggle(state, "spanCenter");
+
+    // Edit Center/Span's own points and pattern while in that mode.
+    state = run(state, {
+      type: "UPDATE_PARAMETER",
+      index: 0,
+      payload: {
+        generation: {
+          ...state.parameters[0].generation,
+          points: 7,
+          pattern: "scatter",
+        },
+      },
+    });
+    // ... and its range: center 50, span 10 -> start 45, stop 55.
+    state = run(state, {
+      type: "UPDATE_PARAMETER",
+      index: 0,
+      payload: {
+        generation: { ...state.parameters[0].generation, start: 45, stop: 55 },
+      },
+    });
+
+    // Back to Start/Stop: its original 10-20/2/linear must be exactly restored.
+    state = toggle(state, "startStop");
+    expect(state.parameters[0].generation).toMatchObject({
+      start: 10,
+      stop: 20,
+      points: 2,
+      pattern: "linear",
+    });
+
+    // Now edit Start/Stop's own fields.
+    state = run(state, {
+      type: "UPDATE_PARAMETER",
+      index: 0,
+      payload: {
+        generation: { ...state.parameters[0].generation, start: 100, stop: 200 },
+      },
+    });
+
+    // Center/Span's settings (including pattern) must be unaffected by that edit.
+    state = toggle(state, "spanCenter");
+    expect(state.parameters[0].generation).toMatchObject({
+      start: 45,
+      stop: 55,
+      points: 7,
+      pattern: "scatter",
+    });
+  });
+
   it("persists the new state to localStorage", () => {
     run(baseState(), { type: "SET_SHOTS", payload: 42 });
     const saved = JSON.parse(store.getItem(STORAGE_KEY) as string);

@@ -63,7 +63,10 @@ describe("ScanInfoSelectionHistory.handleParamUpdate", () => {
 
     it("recentring on a live value keeps the recalled parameter's own points/pattern/span", () => {
       // A was scanned 10-20, 5 points, linear; B was scanned 0-1, 100 points, scatter.
-      let history = record(emptyScanInfoHistory, param("E", "grp", "A", gen(10, 20, 5, "linear")));
+      let history = record(
+        emptyScanInfoHistory,
+        param("E", "grp", "A", gen(10, 20, 5, "linear")),
+      );
       history = record(history, param("E", "grp", "B", gen(0, 1, 100, "scatter")));
       const current = param("E", "grp", "B", gen(0, 1, 100, "scatter"));
 
@@ -75,7 +78,9 @@ describe("ScanInfoSelectionHistory.handleParamUpdate", () => {
       );
 
       // Span (10) and A's own points/pattern are preserved; only start/stop shift.
-      expect(updatedParam).toEqual(param("E", "grp", "A", gen(10.5, 20.5, 5, "linear")));
+      expect(updatedParam).toEqual(
+        param("E", "grp", "A", gen(10.5, 20.5, 5, "linear")),
+      );
     });
 
     it("keeps the current input mode even though the recalled parameter has none stored", () => {
@@ -88,6 +93,46 @@ describe("ScanInfoSelectionHistory.handleParamUpdate", () => {
 
       const { updatedParam } = mkMgr(history).handleParamUpdate(current, { id: "A" });
       expect(updatedParam.generation.inputMode).toBe("spanCenter");
+    });
+
+    it("surfaces the recalled parameter's own settings for the current mode, not whichever it was last saved under", () => {
+      // A was last saved while in Center/Span mode (30-40/3/scatter), but its own
+      // Start/Stop settings (10-20/5/linear) are stashed in otherModeSpec — exactly
+      // what ParameterCard leaves behind after a mode toggle.
+      const history = record(
+        emptyScanInfoHistory,
+        param("E", "grp", "A", {
+          start: 30,
+          stop: 40,
+          points: 3,
+          pattern: "scatter",
+          inputMode: "spanCenter",
+          otherModeSpec: { start: 10, stop: 20, points: 5, pattern: "linear" },
+        }),
+      );
+      const current: ScanParameterInfo = {
+        ...param("E", "grp", "B", gen(0, 1)),
+        generation: { ...gen(0, 1), inputMode: "startStop" },
+      };
+
+      // Switching to A while the card is in Start/Stop mode must show A's own
+      // Start/Stop numbers (10-20/5/linear), not its Center/Span ones.
+      const { updatedParam } = mkMgr(history).handleParamUpdate(current, { id: "A" });
+      expect(updatedParam.generation).toMatchObject({
+        start: 10,
+        stop: 20,
+        points: 5,
+        pattern: "linear",
+        inputMode: "startStop",
+      });
+      // And A's Center/Span settings are preserved in the swap, ready to be restored
+      // if the card is toggled back.
+      expect(updatedParam.generation.otherModeSpec).toEqual({
+        start: 30,
+        stop: 40,
+        points: 3,
+        pattern: "scatter",
+      });
     });
   });
 
