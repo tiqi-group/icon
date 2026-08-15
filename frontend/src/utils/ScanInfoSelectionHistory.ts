@@ -30,6 +30,7 @@ const paramFromLeaf = (
     stop: leaf.stop,
     points: leaf.points,
     pattern: leaf.pattern,
+    inputMode: leaf.inputMode,
   },
 });
 
@@ -95,6 +96,10 @@ export class ScanInfoSelectionHistory extends MruSelectionTree<ScanParameterGene
         const span = leaf.stop - leaf.start;
         leaf = { ...leaf, start: recenterOn - span / 2, stop: recenterOn + span / 2 };
       }
+      // Input mode (start/stop vs. center/span) is a card-level view setting, not
+      // something tied to the target parameter's own memory — keep whatever mode
+      // was active before the switch.
+      leaf = { ...leaf, inputMode: current.generation.inputMode };
       updatedParam = paramFromLeaf(
         namespace,
         deviceNameOrDisplayGroup,
@@ -114,8 +119,11 @@ export class ScanInfoSelectionHistory extends MruSelectionTree<ScanParameterGene
           ? update.deviceNameOrDisplayGroup
           : undefined,
       ];
-      const { path, leafKey, leaf } = this.resolve(partialPath);
+      const { path, leafKey, leaf: resolvedLeaf } = this.resolve(partialPath);
       const id = extractScannedParamId(leafKey, path[0], path[1]);
+      // Preserve the current view mode across namespace/display-group changes,
+      // rather than adopting whatever mode the resolved parameter last used.
+      const leaf = { ...resolvedLeaf, inputMode: current.generation.inputMode };
       updatedParam = paramFromLeaf(path[0], path[1], id, leaf);
       updatedScanInfoHistory = this.update(path, leafKey, leaf).serialize();
     }

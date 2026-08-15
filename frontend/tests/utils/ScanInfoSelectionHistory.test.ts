@@ -77,6 +77,18 @@ describe("ScanInfoSelectionHistory.handleParamUpdate", () => {
       // Span (10) and A's own points/pattern are preserved; only start/stop shift.
       expect(updatedParam).toEqual(param("E", "grp", "A", gen(10.5, 20.5, 5, "linear")));
     });
+
+    it("keeps the current input mode even though the recalled parameter has none stored", () => {
+      // A has never been recorded, so it has no memorized inputMode.
+      const history = record(emptyScanInfoHistory, param("E", "grp", "B", gen(0, 1)));
+      const current: ScanParameterInfo = {
+        ...param("E", "grp", "B", gen(0, 1)),
+        generation: { ...gen(0, 1), inputMode: "spanCenter" },
+      };
+
+      const { updatedParam } = mkMgr(history).handleParamUpdate(current, { id: "A" });
+      expect(updatedParam.generation.inputMode).toBe("spanCenter");
+    });
   });
 
   describe("namespace change", () => {
@@ -92,6 +104,22 @@ describe("ScanInfoSelectionHistory.handleParamUpdate", () => {
       });
       expect(updatedParam).toEqual(param("E2", "grpB", "pB", gen(3, 9)));
     });
+
+    it("keeps the current input mode instead of the target namespace's remembered mode", () => {
+      const history = record(
+        emptyScanInfoHistory,
+        param("E2", "grpB", "pB", gen(3, 9)),
+      );
+      const current: ScanParameterInfo = {
+        ...param("E1", "grpA", "pA", gen(0, 1)),
+        generation: { ...gen(0, 1), inputMode: "spanCenter" },
+      };
+
+      const { updatedParam } = mkMgr(history).handleParamUpdate(current, {
+        namespace: "E2",
+      });
+      expect(updatedParam.generation.inputMode).toBe("spanCenter");
+    });
   });
 
   describe("display group change", () => {
@@ -106,6 +134,22 @@ describe("ScanInfoSelectionHistory.handleParamUpdate", () => {
         deviceNameOrDisplayGroup: "grpB",
       });
       expect(updatedParam).toEqual(param("E2", "grpB", "pB", gen(3, 9)));
+    });
+
+    it("stays in Center/Span mode after switching display group", () => {
+      const history = record(
+        emptyScanInfoHistory,
+        param("E2", "grpB", "pB", gen(3, 9)),
+      );
+      const current: ScanParameterInfo = {
+        ...param("E2", "grpA", "pA", gen(0, 1)),
+        generation: { ...gen(0, 1), inputMode: "spanCenter" },
+      };
+
+      const { updatedParam } = mkMgr(history).handleParamUpdate(current, {
+        deviceNameOrDisplayGroup: "grpB",
+      });
+      expect(updatedParam.generation.inputMode).toBe("spanCenter");
     });
 
     it("treats an explicit empty display group as a cleared selection (presence vs truthiness)", () => {
