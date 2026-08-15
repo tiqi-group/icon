@@ -87,6 +87,42 @@ describe("useScanInfoState reducer", () => {
     expect(Object.keys(saved.history.selectionTree.children)).toContain(TEST_NAMESPACE);
   });
 
+  it("UPDATE_PARAMETER toggling inputMode round-trip leaves start/stop unchanged", () => {
+    const state = {
+      ...baseState(),
+      parameters: [
+        {
+          ...defaultParameter,
+          id: "p1",
+          generation: { start: 10, stop: 20, points: 2, pattern: "linear" as const },
+        },
+      ],
+    };
+
+    const toSpanCenter = run(state, {
+      type: "UPDATE_PARAMETER",
+      index: 0,
+      payload: {
+        generation: { ...state.parameters[0].generation, inputMode: "spanCenter" },
+      },
+    });
+    expect(toSpanCenter.parameters[0].generation.start).toBe(10);
+    expect(toSpanCenter.parameters[0].generation.stop).toBe(20);
+
+    const backToStartStop = run(toSpanCenter, {
+      type: "UPDATE_PARAMETER",
+      index: 0,
+      payload: {
+        generation: {
+          ...toSpanCenter.parameters[0].generation,
+          inputMode: "startStop",
+        },
+      },
+    });
+    expect(backToStartStop.parameters[0].generation.start).toBe(10);
+    expect(backToStartStop.parameters[0].generation.stop).toBe(20);
+  });
+
   it("persists the new state to localStorage", () => {
     run(baseState(), { type: "SET_SHOTS", payload: 42 });
     const saved = JSON.parse(store.getItem(STORAGE_KEY) as string);

@@ -10,7 +10,6 @@ import {
   ToggleButtonGroup,
 } from "@mui/material";
 import { useContext, useMemo } from "react";
-import { useParameter } from "../../hooks/useParameter";
 import { ParameterStoreContext } from "../../contexts/ParameterStoreContext";
 import { DeviceInfoContext } from "../../contexts/DeviceInfoContext";
 import { ExperimentsContext } from "../../contexts/ExperimentsContext";
@@ -146,12 +145,6 @@ export const ParameterCard = ({
 
   const inputMode: ScanInputMode = param.generation.inputMode ?? "startStop";
 
-  // Live value of the currently selected parameter — used to seed "Center" when
-  // switching to span/center mode.
-  const [currentParamValue] = useParameter(param.id);
-  const currentNumericValue =
-    typeof currentParamValue === "number" ? currentParamValue : null;
-
   // Derived quantities for span/center mode. Center and span are reconstructed from
   // start/stop on every render, so round away the floating-point reconstruction
   // noise (e.g. 0.015099999999996783 for a typed 0.0151) well above the ~16-digit
@@ -166,31 +159,15 @@ export const ParameterCard = ({
   ) => {
     if (!newMode || newMode === inputMode) return;
 
-    if (newMode === "spanCenter") {
-      // Seed center from the live parameter value when available, otherwise keep the
-      // midpoint of the existing range.
-      const newCenter = currentNumericValue !== null ? currentNumericValue : center;
-      const newSpan = Math.abs(span) || 1; // keep existing span (>0 guard)
-      dispatchScanInfoStateUpdate({
-        type: "UPDATE_PARAMETER",
-        index,
-        payload: {
-          generation: {
-            ...param.generation,
-            inputMode: "spanCenter",
-            start: newCenter - newSpan / 2,
-            stop: newCenter + newSpan / 2,
-          },
-        },
-      });
-    } else {
-      // Switching back to start/stop: just flip the mode flag; start/stop are already correct.
-      dispatchScanInfoStateUpdate({
-        type: "UPDATE_PARAMETER",
-        index,
-        payload: { generation: { ...param.generation, inputMode: "startStop" } },
-      });
-    }
+    // Center/span and start/stop are equivalent views of the same start/stop values
+    // (center and span above are always derived from them), so toggling the
+    // representation only flips which fields are shown — it must never itself change
+    // the configured range.
+    dispatchScanInfoStateUpdate({
+      type: "UPDATE_PARAMETER",
+      index,
+      payload: { generation: { ...param.generation, inputMode: newMode } },
+    });
   };
 
   return (
