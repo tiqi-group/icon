@@ -479,7 +479,9 @@ def _flatten_serialized_string(prefix: str, key: str, value: str) -> dict[str, A
     return {_join_path(prefix, _sanitize_hdf5_name(key)): value}
 
 
-def _flatten_serialized_node(prefix: str, key: str, node: dict[str, Any]) -> dict[str, Any]:
+def _flatten_serialized_node(
+    prefix: str, key: str, node: dict[str, Any]
+) -> dict[str, Any]:
     """Mirror of `_write_serialized_node`, producing ``{path: value}`` for diffing.
 
     Paths use the same segments `_write_serialized_node` would turn into HDF5
@@ -553,7 +555,9 @@ def _append_leaf_history(
         index = ds.shape[0]
         resize_dataset(ds, next_index=index, axis=0)
     else:
-        ds = history_group.create_dataset(path, shape=(1,), maxshape=(None,), dtype=dtype)
+        ds = history_group.create_dataset(
+            path, shape=(1,), maxshape=(None,), dtype=dtype
+        )
         index = 0
     ds[index] = (timestamp.encode(), value)
 
@@ -568,7 +572,9 @@ def _write_device_snapshot_baseline(
     if "parameters" in device_group:
         del device_group["parameters"]
     parameters_group = device_group.create_group("parameters")
-    write_device_state_to_group(parameters_group, cast("dict[str, Any]", snapshot.state))
+    write_device_state_to_group(
+        parameters_group, cast("dict[str, Any]", snapshot.state)
+    )
     for path, value in new_state.items():
         _append_leaf_history(history_group, path, snapshot.timestamp, value)
 
@@ -590,7 +596,9 @@ def _write_device_snapshot_diff(
 
 
 def _write_device_snapshot(
-    devices_group: h5py.Group, snapshot: DeviceSnapshot, old_state: dict[str, Any] | None
+    devices_group: h5py.Group,
+    snapshot: DeviceSnapshot,
+    old_state: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
     """Write/update one device's snapshot; returns its new flattened state.
 
@@ -615,7 +623,9 @@ def _write_device_snapshot(
     history_group = device_group.require_group("parameter_history")
 
     if old_state is None:
-        _write_device_snapshot_baseline(device_group, history_group, snapshot, new_state)
+        _write_device_snapshot_baseline(
+            device_group, history_group, snapshot, new_state
+        )
     else:
         _write_device_snapshot_diff(
             device_group, history_group, snapshot, old_state, new_state
