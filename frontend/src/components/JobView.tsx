@@ -56,9 +56,9 @@ export const JobView = ({
   // one-dimensional list of data points, so it is presented like a 1D scan.
   const isCorrelated =
     jobInfo?.scan_mode === ScanMode.CORRELATED &&
-    !jobInfo.scan_parameters.some((param) => param.realtime);
-  const is1D = jobInfo?.scan_parameters.length === 1 || isCorrelated;
-  const is2D = (jobInfo?.scan_parameters.length ?? 0) >= 2 && !isCorrelated;
+    !(jobInfo?.scan_parameters?.some((param) => param.realtime) ?? false);
+  const is1D = (jobInfo?.scan_parameters?.length ?? 0) === 1 || isCorrelated;
+  const is2D = (jobInfo?.scan_parameters?.length ?? 0) >= 2 && !isCorrelated;
 
   const [windowSize, setWindowSize] = useState<number | null>(null);
   const [yMin, setYMin] = useState<number | null>(null);
