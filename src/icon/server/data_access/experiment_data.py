@@ -50,6 +50,14 @@ class ExperimentDataPoint:
 
 
 @dataclass
+class PostProcessingOutput:
+    """State an experiment's ``post_processing`` method carries between calls."""
+
+    values: list[float] = field(default_factory=list)
+    """Opaque state returned by ``post_processing`` on the previous call."""
+
+
+@dataclass
 class PlotWindowMetadata:
     """Metadata describing a single plot window for visualization in the frontend.
 
