@@ -39,6 +39,8 @@ logger = logging.getLogger("experiment_library")
 logging.getLogger("pycrystal").setLevel(logging.ERROR)
 logging.getLogger("ionpulse_sequence_generator").setLevel(logging.ERROR)
 LOG_LEVEL = logging.INFO
+_MIN_POST_PROCESSING_PARAMS_WITH_OUTPUT = 2
+"""Positional params `post_processing` needs to also receive `post_processing_output`."""
 
 
 class AsyncPyCrystalClient(VEnvExperimentLibraryClient):
@@ -201,7 +203,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             for name in post_processing_signature.parameters
             if name not in keyword_args
         ]
-        if len(positional_parameters) >= 2:  # noqa: PLR2004
+        if len(positional_parameters) >= _MIN_POST_PROCESSING_PARAMS_WITH_OUTPUT:
             post_processing_output = exp_instance.post_processing(
                 result_channels, post_processing_output, **keyword_args
             )
