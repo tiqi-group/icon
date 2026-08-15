@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class ZedboardController(HardwareController):
-    def __init__(self, *, host: str, port: int, timeout: int = 60) -> None:
+    def __init__(self, *, host: str, port: int, timeout: int = 5) -> None:
         """Initialise the controller.
 
         Args:
