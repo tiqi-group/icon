@@ -32,7 +32,7 @@ client = [
     "pandas>=2.2.3",
 ]
 pycrystal = [
-    "pycrystal @ git+ssh://git@gitlab.phys.ethz.ch/tiqi-projects/ionpulse-python-sdk/pycrystal.git@v2.3.0",
+    "pycrystal @ git+ssh://git@gitlab.phys.ethz.ch/tiqi-projects/ionpulse-python-sdk/pycrystal.git@efe4dc24310ccfe6e7239641ec012a3f325116c2",
 ]
 
 [build-system]

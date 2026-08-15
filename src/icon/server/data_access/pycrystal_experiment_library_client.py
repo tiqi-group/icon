@@ -1,5 +1,4 @@
 import importlib
-import inspect
 import logging
 import tempfile
 from collections.abc import Iterator
@@ -10,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 import pycrystal.database.local_cache
 import pycrystal.parameters
 from ionpulse_sequence_generator import Units
+from pycrystal.experiment import Experiment
 from pycrystal.parameters import Parameter
 from pycrystal.utils.helpers import (
     collect_experiment_metadata,
@@ -39,8 +39,6 @@ logger = logging.getLogger("experiment_library")
 logging.getLogger("pycrystal").setLevel(logging.ERROR)
 logging.getLogger("ionpulse_sequence_generator").setLevel(logging.ERROR)
 LOG_LEVEL = logging.INFO
-_MIN_POST_PROCESSING_PARAMS_WITH_OUTPUT = 2
-"""Positional params `post_processing` needs to also receive `post_processing_output`."""
 
 
 class AsyncPyCrystalClient(VEnvExperimentLibraryClient):
@@ -152,18 +150,16 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             result_channels: Result channel values of the processed data point.
             post_processing_output: Post-processing state returned by the
                 previous call for this job (empty list on the first call).
-                Only passed on to ``post_processing`` if that method actually
-                accepts it -- see below.
-            shot_channels: Per-shot counts of the processed data point. Only
-                passed on to ``post_processing`` if that method declares a
-                ``shot_channels`` parameter -- see below. Needed by experiments
-                that derive result channels from individual shots (e.g. sorting
-                one detection's shots by another detection's outcome), which the
-                averaged/summed `result_channels` cannot express.
+            shot_channels: Per-shot counts of the processed data point. Needed
+                by experiments that derive result channels from individual
+                shots (e.g. sorting one detection's shots by another
+                detection's outcome), which the averaged/summed
+                `result_channels` cannot express.
 
         Returns:
             Dictionary with keys:
-            - "has_post_processing": whether the experiment defines the method.
+            - "has_post_processing": whether the experiment overrides
+              `Experiment.post_processing`.
             - "updated_parameters": parameter IDs/values changed by the method.
             - "updated_result_channels": result channels added or modified by
               the method.
@@ -178,7 +174,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
 
         exp_instance = import_experiment_instance(exp_module_name, exp_instance_name)
 
-        if not hasattr(exp_instance, "post_processing"):
+        if type(exp_instance).post_processing == Experiment.post_processing:
             return {
                 "has_post_processing": False,
                 "updated_parameters": {},
@@ -189,28 +185,11 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
 
         original_result_channels = dict(result_channels)
 
-        # Optional arguments are passed by keyword only to experiments that name
-        # them, and are not counted towards the positional arguments below, so
-        # adding one here cannot change how existing post_processing methods are
-        # called.
-        post_processing_signature = inspect.signature(exp_instance.post_processing)
-        keyword_args: dict[str, Any] = {}
-        if "shot_channels" in post_processing_signature.parameters:
-            keyword_args["shot_channels"] = shot_channels or {}
-
-        positional_parameters = [
-            name
-            for name in post_processing_signature.parameters
-            if name not in keyword_args
-        ]
-        if len(positional_parameters) >= _MIN_POST_PROCESSING_PARAMS_WITH_OUTPUT:
-            post_processing_output = exp_instance.post_processing(
-                result_channels, post_processing_output, **keyword_args
-            )
-        else:
-            post_processing_output = exp_instance.post_processing(
-                result_channels, **keyword_args
-            )
+        new_post_processing_output = exp_instance.post_processing(
+            result_channels,
+            post_processing_output,
+            shot_channels=shot_channels or {},
+        )
 
         updated_parameters = {
             key: value
@@ -235,7 +214,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             "has_post_processing": True,
             "updated_parameters": updated_parameters,
             "updated_result_channels": updated_result_channels,
-            "post_processing_output": list(post_processing_output or []),
+            "post_processing_output": list(new_post_processing_output or []),
             "db_upload_interval": db_upload_interval,
         }
 
