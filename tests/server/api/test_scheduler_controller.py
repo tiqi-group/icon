@@ -134,11 +134,10 @@ def submittable_controller() -> SchedulerController:
     """Controller whose parameter lookups resolve without hitting a database."""
     parameters_controller = MagicMock()
     parameters_controller._all_parameter_metadata = {}
-    controller = SchedulerController(
+    return SchedulerController(
         devices_controller=MagicMock(),
         parameters_controller=parameters_controller,
     )
-    return controller
 
 
 @pytest.mark.asyncio
