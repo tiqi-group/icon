@@ -311,10 +311,14 @@ def test_correlated_scan_repeats_each_data_point() -> None:
         repetitions=2,
     )
 
-    assert get_scan_combinations(job) == [
-        {"a": 1, "b": 10},
-        {"a": 2, "b": 20},
-    ] * 2
+    assert (
+        get_scan_combinations(job)
+        == [
+            {"a": 1, "b": 10},
+            {"a": 2, "b": 20},
+        ]
+        * 2
+    )
 
 
 def test_correlated_scan_ignores_realtime_parameter() -> None:
