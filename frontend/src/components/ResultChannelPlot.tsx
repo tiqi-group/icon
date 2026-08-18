@@ -6,6 +6,7 @@ import type { ECharts } from "echarts/core";
 import { useNotifications } from "@toolpad/core";
 import { copyEChartsToClipboard } from "../utils/copyEChartsToClipboard";
 import { ScanParameter } from "../types/ScanParameter";
+import { ScanMode } from "../types/enums";
 import { buildResultChannelChartSeries } from "../utils/buildResultChannelChartSeries";
 
 interface ResultChannelPlotProps {
@@ -17,6 +18,7 @@ interface ResultChannelPlotProps {
   repetitions: number | undefined;
   showRepetitions: boolean;
   scanParameters: ScanParameter[] | undefined;
+  scanMode: ScanMode | undefined;
   windowSize?: number | null;
   yRange?: { min: number | null; max: number | null };
   fits?: Record<string, FitResult>;
@@ -68,6 +70,7 @@ const ResultChannelPlot = ({
   repetitions = 1,
   showRepetitions = false,
   scanParameters = [],
+  scanMode = ScanMode.MESH,
   windowSize = null,
   yRange,
   fits = {},
@@ -78,7 +81,15 @@ const ResultChannelPlot = ({
 
   const [selectedChannel, setSelectedChannel] = useState<string | undefined>(undefined);
 
-  const is2D = scanParameters.length === 2;
+  // A correlated scan steps through all of its parameters at once and produces a
+  // one-dimensional list of data points, so it is drawn as a line rather than as a
+  // heatmap. A realtime parameter is scanned as an outer loop and keeps its own axis.
+  const isCorrelatedMultiParam =
+    scanMode === ScanMode.CORRELATED &&
+    scanParameters.length > 1 &&
+    !scanParameters.some((param) => param.realtime);
+  const isOneDimensional = scanParameters.length === 1 || isCorrelatedMultiParam;
+  const is2D = scanParameters.length === 2 && !isCorrelatedMultiParam;
 
   const option = useMemo<ReactEChartsProps["option"] | undefined>(() => {
     if (!experimentData || Object.keys(experimentData.scan_parameters).length === 0)
@@ -170,7 +181,7 @@ const ResultChannelPlot = ({
         data: fullDataSet,
         showSymbol: false,
       }));
-    } else if (scanParameters.length === 1) {
+    } else if (isOneDimensional) {
       xAxis.type = "value";
       xAxis.name = scanParameters[0].name;
       xAxis.axisLabel = { formatter: formatAxisLabel };
@@ -214,7 +225,7 @@ const ResultChannelPlot = ({
           showRepetitions,
         );
       }
-    } else if (scanParameters.length === 2) {
+    } else if (is2D) {
       const [xScan, yScan] = scanParameters;
       const xScanValues =
         xScan.realtime && timestampEntry
@@ -340,7 +351,7 @@ const ResultChannelPlot = ({
     }
 
     // Add fit curve overlays for 1D scans
-    if (scanParameters.length === 1 && fits) {
+    if (isOneDimensional && fits) {
       for (const [channelName, fitResult] of Object.entries(fits)) {
         if (!fitResult.success || !fitResult.fit_curve) continue;
         if (!channelNames.includes(channelName)) continue;
@@ -398,6 +409,8 @@ const ResultChannelPlot = ({
     titleText,
     subtitle,
     scanParameters,
+    isOneDimensional,
+    is2D,
     repetitions,
     showRepetitions,
     windowSize,

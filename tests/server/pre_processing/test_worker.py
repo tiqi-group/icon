@@ -6,11 +6,18 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import MagicMock, patch
 
-from icon.server.data_access.models.enums import JobRunStatus
+import pytest
+
+from icon.server.data_access.models.enums import JobRunStatus, ScanMode
 from icon.server.hardware_processing.worker import should_divert_task
-from icon.server.pre_processing.worker import PreProcessingWorker
+from icon.server.pre_processing.worker import (
+    PreProcessingWorker,
+    get_scan_combinations,
+)
 
 if TYPE_CHECKING:
+    from icon.server.data_access.models.sqlite.job import Job
+    from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
     from icon.server.hardware_processing.task import HardwareProcessingTask
 
 # Fixed reference point: the parameter-update timestamp the consumer compares against.
@@ -228,3 +235,122 @@ def test_should_divert_task_staleness_for_regular_scans() -> None:
     assert not should_divert_task(fresh, NAIVE_TS, JobRunStatus.PROCESSING)
     # No parameter update recorded yet -> nothing is stale.
     assert not should_divert_task(stale, None, JobRunStatus.PROCESSING)
+
+
+def _scan_parameter(
+    name: str, scan_values: list[Any], *, realtime: bool = False
+) -> ScanParameter:
+    """A scan parameter typed as the SQLAlchemy model, without touching the database."""
+    param = SimpleNamespace(
+        name=name,
+        variable_id=name,
+        scan_values=scan_values,
+        realtime=realtime,
+        unique_id=lambda: name,
+    )
+    return cast("ScanParameter", param)
+
+
+def _job(
+    scan_parameters: list[ScanParameter],
+    *,
+    scan_mode: ScanMode = ScanMode.MESH,
+    repetitions: int = 1,
+) -> Job:
+    """A job typed as the SQLAlchemy model, without touching the database."""
+    return cast(
+        "Job",
+        SimpleNamespace(
+            scan_parameters=scan_parameters,
+            scan_mode=scan_mode,
+            repetitions=repetitions,
+        ),
+    )
+
+
+def test_mesh_scan_combines_every_parameter_value() -> None:
+    """A mesh scan yields the cartesian product: n * m data points."""
+    job = _job(
+        [_scan_parameter("a", [1, 2, 3]), _scan_parameter("b", [10, 20])],
+        scan_mode=ScanMode.MESH,
+    )
+
+    assert get_scan_combinations(job) == [
+        {"a": 1, "b": 10},
+        {"a": 1, "b": 20},
+        {"a": 2, "b": 10},
+        {"a": 2, "b": 20},
+        {"a": 3, "b": 10},
+        {"a": 3, "b": 20},
+    ]
+
+
+def test_correlated_scan_steps_through_parameters_together() -> None:
+    """A correlated scan yields one data point per index: n data points, not n * m."""
+    job = _job(
+        [
+            _scan_parameter("a", [1, 2, 3]),
+            _scan_parameter("b", [10, 20, 30]),
+            _scan_parameter("c", [100, 200, 300]),
+        ],
+        scan_mode=ScanMode.CORRELATED,
+    )
+
+    assert get_scan_combinations(job) == [
+        {"a": 1, "b": 10, "c": 100},
+        {"a": 2, "b": 20, "c": 200},
+        {"a": 3, "b": 30, "c": 300},
+    ]
+
+
+def test_correlated_scan_repeats_each_data_point() -> None:
+    """Repetitions repeat the whole correlated sequence, as they do for mesh scans."""
+    job = _job(
+        [_scan_parameter("a", [1, 2]), _scan_parameter("b", [10, 20])],
+        scan_mode=ScanMode.CORRELATED,
+        repetitions=2,
+    )
+
+    assert (
+        get_scan_combinations(job)
+        == [
+            {"a": 1, "b": 10},
+            {"a": 2, "b": 20},
+        ]
+        * 2
+    )
+
+
+def test_correlated_scan_ignores_realtime_parameter() -> None:
+    """Realtime parameters are scanned as an outer loop, not correlated with the rest."""
+    job = _job(
+        [
+            _scan_parameter("a", [1, 2]),
+            _scan_parameter("b", [10, 20]),
+            _scan_parameter("Real Time", [1, 1, 1], realtime=True),
+        ],
+        scan_mode=ScanMode.CORRELATED,
+    )
+
+    assert get_scan_combinations(job) == [{"a": 1, "b": 10}, {"a": 2, "b": 20}]
+
+
+def test_correlated_scan_rejects_unequal_number_of_scan_values() -> None:
+    """A correlated scan requires the same number of values for every parameter."""
+    job = _job(
+        [_scan_parameter("a", [1, 2, 3]), _scan_parameter("b", [10, 20])],
+        scan_mode=ScanMode.CORRELATED,
+    )
+
+    with pytest.raises(ValueError, match="same number of scan values"):
+        get_scan_combinations(job)
+
+
+def test_mesh_scan_allows_unequal_number_of_scan_values() -> None:
+    """The equal-length requirement applies to correlated scans only."""
+    job = _job(
+        [_scan_parameter("a", [1, 2, 3]), _scan_parameter("b", [10, 20])],
+        scan_mode=ScanMode.MESH,
+    )
+
+    assert len(get_scan_combinations(job)) == 6  # noqa: PLR2004

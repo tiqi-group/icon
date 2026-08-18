@@ -18,9 +18,10 @@ import pytz
 
 from icon.config.config import get_config
 from icon.server.data_access.experiment_data import DatabaseValueType
-from icon.server.data_access.models.enums import JobRunStatus, JobStatus
+from icon.server.data_access.models.enums import JobRunStatus, JobStatus, ScanMode
 from icon.server.data_access.models.sqlite.scan_parameter import (
     contains_realtime_parameter,
+    validate_correlated_scan_values,
 )
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataRepository,
@@ -73,7 +74,13 @@ def change_process_priority(priority: int) -> None:
 
 
 def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
-    """Generates all combinations of scan parameters for a given job.
+    """Generates the scan parameter combinations for a given job.
+
+    In `ScanMode.MESH` the cartesian product of all scan parameters is generated, so
+    a scan over parameters with n and m values yields n * m data points. In
+    `ScanMode.CORRELATED` all scan parameters are stepped through simultaneously,
+    which yields n data points: the i-th data point sets every parameter to its i-th
+    value.
 
     Repeats each combination `job.repetitions` times.
 
@@ -84,6 +91,10 @@ def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
     Returns:
         A list of dictionaries, where each dictionary represents a combination of
         parameter values.
+
+    Raises:
+        ValueError: If the job is a correlated scan and its scan parameters do not all
+            define the same number of scan values.
     """
     # Extract variable IDs and their scan values from the job's scan parameters
     parameter_values = {
@@ -95,10 +106,15 @@ def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
     if not parameter_values:
         return [{}] * job.repetitions
 
-    # Generate combinations using itertools.product
     keys, values = zip(*parameter_values.items(), strict=True)
 
-    combinations = itertools.product(*values)
+    if job.scan_mode == ScanMode.CORRELATED:
+        validate_correlated_scan_values(job.scan_parameters)
+        combinations: Iterable[tuple[DatabaseValueType, ...]] = zip(
+            *values, strict=True
+        )
+    else:
+        combinations = itertools.product(*values)
 
     # Map each combination back to variable IDs
     return [

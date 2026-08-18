@@ -1,9 +1,10 @@
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from icon.server.api.scheduler_controller import SchedulerController
-from icon.server.data_access.models.enums import JobRunStatus, JobStatus
+from icon.server.data_access.models.enums import JobRunStatus, JobStatus, ScanMode
 
 
 @pytest.fixture
@@ -122,3 +123,103 @@ def test_cancel_job_cancels_paused_runs(
         )
     else:
         mock_job_run_repo.update_run_by_id.assert_not_called()
+
+
+def _scan_parameter_spec(parameter_id: str, values: list[float]) -> dict[str, Any]:
+    return {"id": parameter_id, "values": values}
+
+
+@pytest.fixture
+def submittable_controller() -> SchedulerController:
+    """Controller whose parameter lookups resolve without hitting a database."""
+    parameters_controller = MagicMock()
+    parameters_controller._all_parameter_metadata = {}
+    return SchedulerController(
+        devices_controller=MagicMock(),
+        parameters_controller=parameters_controller,
+    )
+
+
+@pytest.mark.asyncio
+@patch("icon.server.api.scheduler_controller.ParametersRepository")
+@patch("icon.server.api.scheduler_controller.ExperimentSourceRepository")
+@patch("icon.server.api.scheduler_controller.JobRepository")
+async def test_submit_job_rejects_correlated_scan_with_unequal_scan_values(
+    mock_job_repo: MagicMock,
+    mock_experiment_source_repo: MagicMock,  # noqa: ARG001
+    mock_parameters_repo: MagicMock,
+    submittable_controller: SchedulerController,
+) -> None:
+    """Mismatched correlated scans fail at submission, not on the queued job."""
+    mock_parameters_repo.get_shared_parameter_by_id.return_value = 0.0
+
+    with pytest.raises(ValueError, match="same number of scan values"):
+        await submittable_controller.submit_job(
+            experiment_id="experiment_library.experiments.exp.Class (Instance)",
+            scan_parameters=[
+                _scan_parameter_spec("a", [1.0, 2.0, 3.0]),
+                _scan_parameter_spec("b", [10.0, 20.0]),
+            ],
+            scan_mode=ScanMode.CORRELATED,
+        )
+
+    mock_job_repo.submit_job.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("scan_mode", "expected"),
+    [
+        (ScanMode.CORRELATED, ScanMode.CORRELATED),
+        # The frontend sends the mode as a plain string.
+        ("correlated", ScanMode.CORRELATED),
+        (ScanMode.MESH, ScanMode.MESH),
+    ],
+)
+@patch("icon.server.api.scheduler_controller.ParametersRepository")
+@patch("icon.server.api.scheduler_controller.ExperimentSourceRepository")
+@patch("icon.server.api.scheduler_controller.JobRepository")
+async def test_submit_job_persists_scan_mode(
+    mock_job_repo: MagicMock,
+    mock_experiment_source_repo: MagicMock,  # noqa: ARG001
+    mock_parameters_repo: MagicMock,
+    scan_mode: ScanMode | str,
+    expected: ScanMode,
+    submittable_controller: SchedulerController,
+) -> None:
+    mock_parameters_repo.get_shared_parameter_by_id.return_value = 0.0
+
+    await submittable_controller.submit_job(
+        experiment_id="experiment_library.experiments.exp.Class (Instance)",
+        scan_parameters=[
+            _scan_parameter_spec("a", [1.0, 2.0]),
+            _scan_parameter_spec("b", [10.0, 20.0]),
+        ],
+        scan_mode=scan_mode,
+    )
+
+    assert mock_job_repo.submit_job.call_args.kwargs["job"].scan_mode == expected
+
+
+@pytest.mark.asyncio
+@patch("icon.server.api.scheduler_controller.ParametersRepository")
+@patch("icon.server.api.scheduler_controller.ExperimentSourceRepository")
+@patch("icon.server.api.scheduler_controller.JobRepository")
+async def test_submit_job_defaults_to_mesh_scan(
+    mock_job_repo: MagicMock,
+    mock_experiment_source_repo: MagicMock,  # noqa: ARG001
+    mock_parameters_repo: MagicMock,
+    submittable_controller: SchedulerController,
+) -> None:
+    """Omitting scan_mode keeps the pre-existing mesh behaviour."""
+    mock_parameters_repo.get_shared_parameter_by_id.return_value = 0.0
+
+    await submittable_controller.submit_job(
+        experiment_id="experiment_library.experiments.exp.Class (Instance)",
+        scan_parameters=[
+            _scan_parameter_spec("a", [1.0, 2.0, 3.0]),
+            _scan_parameter_spec("b", [10.0, 20.0]),
+        ],
+    )
+
+    assert mock_job_repo.submit_job.call_args.kwargs["job"].scan_mode == ScanMode.MESH

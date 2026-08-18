@@ -9,6 +9,11 @@ export enum JobStatus {
   PROCESSED = "processed",
 }
 
+export enum ScanMode {
+  MESH = "mesh",
+  CORRELATED = "correlated",
+}
+
 export enum JobRunStatus {
   PENDING = "pending",
   PROCESSING = "processing",

@@ -12,6 +12,7 @@ from icon.server.data_access.experiment_data import (
     Readouts,
     ReadoutSequences,
 )
+from icon.server.data_access.models.enums import ScanMode
 from icon.server.data_access.repositories import experiment_data_repository
 
 
@@ -82,6 +83,7 @@ def test_experiment_data_io() -> None:
             ),
             local_parameter_timestamp=None,
             parameters=[param],
+            scan_mode=ScanMode.MESH,
         )
         for data_point in data_points:
             experiment_data_repository.write_experiment_data_point(h5file, data_point)
