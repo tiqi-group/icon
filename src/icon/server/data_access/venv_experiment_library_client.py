@@ -85,14 +85,22 @@ class BlockingExperimentLibraryClient:
     def run_experiment_post_processing(
         self,
         *,
-        exp_module_name: str,
-        exp_instance_name: str,
-        parameter_dict: "dict[str, DatabaseValueType]",
-        result_channels: dict[str, float],
+        exp_module_name: str,  # noqa: ARG002
+        exp_instance_name: str,  # noqa: ARG002
+        parameter_dict: "dict[str, DatabaseValueType]",  # noqa: ARG002
+        result_channels: dict[str, float],  # noqa: ARG002
         post_processing_output: list[float],
-        shot_channels: dict[str, list[int]] | None = None,
+        shot_channels: dict[str, list[int]] | None = None,  # noqa: ARG002
     ) -> dict[str, Any]:
         """Run an experiment's optional ``post_processing`` method.
+
+        By default -- i.e. for clients that predate this method, or that
+        don't support post-processing -- this reports that the experiment
+        has no post-processing rather than raising (matching the default on
+        `ExperimentLibraryClient.run_experiment_post_processing`), since a
+        client running inside the venv subprocess crashing that subprocess
+        on an unimplemented method would be a more disruptive failure mode
+        than for the other (non-venv) methods.
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -107,7 +115,13 @@ class BlockingExperimentLibraryClient:
             Dictionary with post-processing results (see
             `ExperimentLibraryClient.run_experiment_post_processing`).
         """
-        raise NotImplementedError("Must be implemented by a subclass")
+        return {
+            "has_post_processing": False,
+            "updated_parameters": {},
+            "updated_result_channels": {},
+            "post_processing_output": post_processing_output,
+            "db_upload_interval": None,
+        }
 
 
 class VEnvExperimentLibraryClient(ExperimentLibraryClient):
