@@ -7,7 +7,7 @@ import queue
 import time
 from contextlib import ExitStack
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from icon.server.data_access.experiment_data import PostProcessingOutput
 from icon.server.data_access.models.enums import JobRunStatus
@@ -25,6 +25,8 @@ from icon.server.pre_processing.worker import ExperimentIdentifier
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
 
 if TYPE_CHECKING:
+    from collections.abc import Coroutine
+
     from icon.server.data_access.db_context.influxdb_v1 import DatabaseValueType
     from icon.server.data_access.experiment_library_client import (
         ExperimentLibraryClient,
@@ -37,6 +39,8 @@ logger = logging.getLogger(__name__)
 
 QUEUE_POLL_TIMEOUT = 1.0
 """Seconds to block on the task queue before checking for finished jobs."""
+
+T = TypeVar("T")
 
 
 @dataclass
@@ -73,12 +77,22 @@ class PostProcessingWorker(multiprocessing.Process):
         self._pre_processing_update_queues = pre_processing_update_queues
         self._experiment_library_client = experiment_library_client
         self._job_states: dict[int, ExperimentPostProcessingState] = {}
+        self._loop: asyncio.AbstractEventLoop | None = None
 
     @handle_keyboard_interrupt(logger)
     def run(self) -> None:
         logger.info("Post-processing worker started")
 
         ParametersRepository.initialize(shared_parameters=self._manager.parameters_dict)
+
+        # A single event loop is kept alive for the whole process, rather
+        # than using `asyncio.run` per task, so that a job's persistent
+        # experiment-library worker subprocess (started on its first data
+        # point -- see `ExperimentPostProcessingState`) stays usable for its
+        # later data points instead of being tied to a loop that's already
+        # closed by the time they arrive.
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
 
         while True:
             try:
@@ -141,7 +155,7 @@ class PostProcessingWorker(multiprocessing.Process):
             **task.data_point.scan_params,
         }
 
-        result = asyncio.run(
+        result = self._run_async(
             client.run_experiment_post_processing(
                 exp_module_name=namespace.module_name,
                 exp_instance_name=namespace.instance_name,
@@ -268,4 +282,11 @@ class PostProcessingWorker(multiprocessing.Process):
             ):
                 state = self._job_states.pop(job_id)
                 self._upload_pending_parameters(state)
+                if state.client is not None:
+                    self._run_async(state.client.aclose())
                 state.client_stack.close()
+
+    def _run_async(self, coroutine: Coroutine[Any, Any, T]) -> T:
+        if self._loop is None:
+            raise RuntimeError("Post-processing worker's event loop is not running")
+        return self._loop.run_until_complete(coroutine)
