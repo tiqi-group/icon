@@ -44,10 +44,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 timezone = pytz.timezone(get_config().date.timezone)
 
-DEVICE_SNAPSHOT_TIMEOUT_SECONDS = 5.0
-"""Timeout for fetching a fresh `service_serialization` from a device, called once
-per data point -- must stay well under a data point's acquisition time so a slow
-or unreachable device can't stall the measurement."""
+DEVICE_SNAPSHOT_TIMEOUT_SECONDS = 0.1
+"""Timeout for fetching a fresh `service_serialization` from a device -- must stay
+well under a data point's acquisition time so a slow or unreachable device can't
+stall the measurement. Called once per data point, or once per job, depending on
+`config.data.device_snapshot_frequency`."""
 
 
 def parse_parameter_id(param_id: str) -> tuple[str | None, str]:
@@ -312,12 +313,14 @@ class HardwareProcessingWorker(multiprocessing.Process):
             try:
                 self._set_pydase_service_values(scanned_params=task.scanned_params)
 
-                try:
-                    self._snapshot_connected_devices(job_id=job_id)
-                except Exception:
-                    logger.exception(
-                        "Failed to write device snapshots for job %d", job_id
-                    )
+                snapshot_frequency = get_config().data.device_snapshot_frequency
+                if snapshot_frequency == "data_point" or task.data_point_index == 0:
+                    try:
+                        self._snapshot_connected_devices(job_id=job_id)
+                    except Exception:
+                        logger.exception(
+                            "Failed to write device snapshots for job %d", job_id
+                        )
 
                 timestamp = datetime.now(timezone)
                 hardware_controller = self._devices.main_device()
