@@ -109,14 +109,19 @@ class ExperimentLibraryClient:
     async def run_experiment_post_processing(
         self,
         *,
-        exp_module_name: str,
-        exp_instance_name: str,
-        parameter_dict: "dict[str, DatabaseValueType]",
-        result_channels: dict[str, float],
+        exp_module_name: str,  # noqa: ARG002
+        exp_instance_name: str,  # noqa: ARG002
+        parameter_dict: "dict[str, DatabaseValueType]",  # noqa: ARG002
+        result_channels: dict[str, float],  # noqa: ARG002
         post_processing_output: list[float],
-        shot_channels: dict[str, list[int]] | None = None,
+        shot_channels: dict[str, list[int]] | None = None,  # noqa: ARG002
     ) -> dict[str, Any]:
         """Run an experiment's optional ``post_processing`` method.
+
+        By default -- i.e. for clients that predate this method, or that
+        don't support post-processing -- this reports that the experiment
+        has no post-processing rather than raising, since post-processing is
+        an optional feature of an experiment library client.
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -137,7 +142,13 @@ class ExperimentLibraryClient:
             - "db_upload_interval": database upload interval in seconds, or
               None if the experiment does not define the parameter.
         """
-        raise NotImplementedError("Must be implemented by a subclass")
+        return {
+            "has_post_processing": False,
+            "updated_parameters": {},
+            "updated_result_channels": {},
+            "post_processing_output": post_processing_output,
+            "db_upload_interval": None,
+        }
 
 
 class FallbackExperimentLibraryClient(ExperimentLibraryClient):
@@ -210,36 +221,4 @@ class FallbackExperimentLibraryClient(ExperimentLibraryClient):
             "PMTs": {},
             "RTDs": {},
             "Readouts": {},
-        }
-
-    async def run_experiment_post_processing(
-        self,
-        *,
-        exp_module_name: str,  # noqa: ARG002
-        exp_instance_name: str,  # noqa: ARG002
-        parameter_dict: "dict[str, DatabaseValueType]",  # noqa: ARG002
-        result_channels: dict[str, float],  # noqa: ARG002
-        post_processing_output: list[float],
-        shot_channels: dict[str, list[int]] | None = None,  # noqa: ARG002
-    ) -> dict[str, Any]:
-        """Run an experiment's optional ``post_processing`` method.
-
-        Args:
-            exp_module_name: Module name of the experiment.
-            exp_instance_name: Name of the experiment instance.
-            parameter_dict: Mapping of parameter IDs to values.
-            result_channels: Result channel values of the processed data point.
-            post_processing_output: Post-processing state returned by the
-                previous call for this job (empty list on the first call).
-            shot_channels: Per-shot counts of the processed data point.
-
-        Returns:
-            Dictionary containing an empty/no-op post-processing result.
-        """
-        return {
-            "has_post_processing": False,
-            "updated_parameters": {},
-            "updated_result_channels": {},
-            "post_processing_output": post_processing_output,
-            "db_upload_interval": None,
         }
