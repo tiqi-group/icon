@@ -5,7 +5,11 @@ from typing import TYPE_CHECKING, Any
 
 from icon.server.data_access.experiment_data import ReadoutMetadata
 from icon.server.data_access.experiment_library_client import ExperimentLibraryClient
-from icon.server.data_access.venv_exec import VirtualEnvironment, deep_asdict
+from icon.server.data_access.venv_exec import (
+    VenvWorker,
+    VirtualEnvironment,
+    deep_asdict,
+)
 
 if TYPE_CHECKING:
     from icon.server.api.models.experiment_dict import ExperimentDict
@@ -116,6 +120,7 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
     ) -> None:
         self.venv = VirtualEnvironment(venv_path)
         self.client = client
+        self._post_processing_worker: VenvWorker | None = None
 
     async def load_metadata(self) -> "tuple[ExperimentDict, ParameterMetadataDict]":
         """Load the experiment and parameter metadata."""
@@ -217,7 +222,8 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
             Dictionary with post-processing results (see
             `ExperimentLibraryClient.run_experiment_post_processing`).
         """
-        return await self.venv.run(
+        worker = await self._get_post_processing_worker()
+        return await worker.run(
             self.client.run_experiment_post_processing,
             args={
                 "exp_module_name": exp_module_name,
@@ -229,3 +235,24 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
             },
             logger=venv_logger,
         )
+
+    async def _get_post_processing_worker(self) -> VenvWorker:
+        """Start (once) and reuse the subprocess for this client's post-processing.
+
+        Post-processing is called once per job data point, so spawning a
+        subprocess per call (as `VirtualEnvironment.run` does for the other
+        methods) is wasteful; instead a single subprocess is started on the
+        first call and kept alive for the rest of this client's lifetime
+        (i.e. for the whole job -- see `aclose`).
+        """
+        if self._post_processing_worker is None:
+            self._post_processing_worker = await self.venv.start_worker(
+                self.client.run_experiment_post_processing
+            )
+        return self._post_processing_worker
+
+    async def aclose(self) -> None:
+        """Stop the persistent post-processing worker, if one was started."""
+        if self._post_processing_worker is not None:
+            await self._post_processing_worker.stop()
+            self._post_processing_worker = None

@@ -44,6 +44,12 @@ class ExperimentLibraryClient:
         """
         return nullcontext(self)
 
+    async def aclose(self) -> None:
+        """Release any resources held for the job this client was used for.
+
+        Called once a job ends. By default there is nothing to release.
+        """
+
     async def load_metadata(self) -> "tuple[ExperimentDict, ParameterMetadataDict]":
         """Load the experiment and parameter metadata.
 

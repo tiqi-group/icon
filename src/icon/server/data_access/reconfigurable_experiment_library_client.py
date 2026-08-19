@@ -182,3 +182,7 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
             post_processing_output=post_processing_output,
             shot_channels=shot_channels,
         )
+
+    async def aclose(self) -> None:
+        """Release resources the underlying client holds for a finished job."""
+        await self.client.aclose()
