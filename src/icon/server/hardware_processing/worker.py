@@ -115,7 +115,6 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self._post_processing_queue = post_processing_queue
         self._manager = manager
         self._pydase_clients: dict[str, pydase.Client] = {}
-        self._device_states: dict[int, dict[str, dict[str, Any]]] = {}
 
         self._devices = devices
 
@@ -185,14 +184,11 @@ class HardwareProcessingWorker(multiprocessing.Process):
         return future.result(timeout=timeout)
 
     def _snapshot_connected_devices(self, job_id: int) -> None:
-        """Update the state of all enabled devices in the job's HDF5 file.
+        """Store the state of all enabled devices in the job's HDF5 file.
 
-        Fetches a fresh serialization from each device and diffs it against the
-        last snapshot taken for this job (kept in `self._device_states`): the
-        first call writes each device's full state, later calls (intended to run
-        once per data point, so scan-induced side effects on other parameters are
-        caught) only touch parameters that actually changed. Unreachable devices
-        are recorded with an error message instead of failing the measurement.
+        Fetches a fresh serialization from each device and appends it (as a JSON
+        string) to that device's snapshot history. Unreachable devices are
+        recorded with an error message instead of failing the measurement.
         """
         snapshots: list[DeviceSnapshot] = []
         for device in DeviceRepository.get_devices_by_status(
@@ -243,12 +239,9 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 )
 
         if snapshots:
-            self._device_states[job_id] = (
-                ExperimentDataRepository.write_device_snapshots_by_job_id(
-                    job_id=job_id,
-                    snapshots=snapshots,
-                    previous_states=self._device_states.get(job_id, {}),
-                )
+            ExperimentDataRepository.write_device_snapshots_by_job_id(
+                job_id=job_id,
+                snapshots=snapshots,
             )
 
     def _add_device(self, device: Device) -> None:

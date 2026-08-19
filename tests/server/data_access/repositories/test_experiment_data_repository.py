@@ -119,63 +119,13 @@ def test_write_experiment_data_by_job_id_skips_mismatched_shot_channel(
     )
 
 
-def _leaf(type_: str, value: object) -> dict[str, Any]:
-    """Build a minimal pydase SerializedObject leaf node for tests."""
-    return {
-        "full_access_path": "",
-        "doc": None,
-        "readonly": False,
-        "type": type_,
-        "value": value,
-    }
-
-
-def _container(type_: str, value: dict[str, Any], **extra: object) -> dict[str, Any]:
-    """Build a minimal pydase SerializedObject container node for tests."""
-    return {
-        "full_access_path": "",
-        "doc": None,
-        "readonly": False,
-        "type": type_,
-        "value": value,
-        **extra,
-    }
-
-
 def test_write_device_snapshots_by_job_id(results_dir: Path, job_filename: str) -> None:
-    """Device snapshots are mirrored field-by-field; failed fetches keep an error attr."""
-    voltage = 1.25
-    gain = 10
-    channels = [1.1, 2.2, 3.3]
-    is_enabled = True
-
-    dac_state = _container(
-        "DataService",
-        {
-            "voltage": _leaf("float", voltage),
-            "enabled": _leaf("bool", is_enabled),
-            "status": {
-                **_leaf("Enum", "RUNNING"),
-                "name": "Status",
-                "enum": {"IDLE": "idle", "RUNNING": "running"},
-            },
-            "setpoint": _leaf("Quantity", {"magnitude": 3.3, "unit": "V"}),
-            "calibrate": {
-                "full_access_path": "calibrate",
-                "doc": None,
-                "readonly": True,
-                "type": "method",
-                "value": None,
-            },
-            "sub": _container(
-                "DataService",
-                {
-                    "gain": _leaf("int", gain),
-                    "channels": _leaf("list", [_leaf("float", c) for c in channels]),
-                },
-            ),
-        },
-    )
+    """Device snapshots are stored as JSON strings; failed fetches keep an error."""
+    dac_state: dict[str, Any] = {
+        "voltage": 1.25,
+        "enabled": True,
+        "sub": {"gain": 10, "channels": [1.1, 2.2, 3.3]},
+    }
 
     edr.ExperimentDataRepository.write_device_snapshots_by_job_id(
         job_id=1,
@@ -194,27 +144,22 @@ def test_write_device_snapshots_by_job_id(results_dir: Path, job_filename: str) 
                 error="not connected",
             ),
         ],
-        previous_states={},
     )
 
     with edr.h5_open(results_dir / job_filename, "r") as h5file:
-        params = h5file["devices"]["dac"]["parameters"]
-        assert params.attrs["voltage"] == voltage
-        assert params.attrs["enabled"]
-        assert params.attrs["status"] == "RUNNING"
-        assert params.attrs["setpoint"] == "3.3 V"
-        assert "calibrate" not in params  # methods are actions, not state
-        assert params["sub"].attrs["gain"] == gain
-        assert list(params["sub"].attrs["channels"]) == channels
+        dac_snapshots = h5file["devices"]["dac"]["snapshots"]
+        assert h5file["devices"]["dac"].attrs["url"] == "ws://localhost:8001"
+        assert dac_snapshots[0]["timestamp"].decode() == "2026-07-17T10:00:00"
+        assert json.loads(dac_snapshots[0]["state"]) == dac_state
+        assert dac_snapshots[0]["error"].decode() == ""
 
-        down_device = h5file["devices"]["down_device"]
-        assert down_device.attrs["error"] == "not connected"
-        assert "parameters" not in down_device
+        down_device_snapshots = h5file["devices"]["down_device"]["snapshots"]
+        assert down_device_snapshots[0]["state"].decode() == ""
+        assert down_device_snapshots[0]["error"].decode() == "not connected"
 
-    # A snapshot for the same device with no known previous state (e.g. the worker
-    # restarted) replaces its state wholesale, dropping fields that no longer
-    # exist (e.g. "sub" was removed).
-    updated_voltage = 2.5
+    # A later snapshot for the same device appends a new row rather than
+    # overwriting the previous one.
+    updated_state = {"voltage": 2.5}
     edr.ExperimentDataRepository.write_device_snapshots_by_job_id(
         job_id=1,
         snapshots=[
@@ -222,128 +167,13 @@ def test_write_device_snapshots_by_job_id(results_dir: Path, job_filename: str) 
                 name="dac",
                 url="ws://localhost:8001",
                 timestamp="2026-07-17T10:05:00",
-                state=_container(
-                    "DataService", {"voltage": _leaf("float", updated_voltage)}
-                ),
+                state=updated_state,
             ),
         ],
-        previous_states={},
     )
 
     with edr.h5_open(results_dir / job_filename, "r") as h5file:
-        dac = h5file["devices"]["dac"]
-        assert dac.attrs["timestamp"] == "2026-07-17T10:05:00"
-        assert dac["parameters"].attrs["voltage"] == updated_voltage
-        assert "sub" not in dac["parameters"]
-
-
-def test_write_device_snapshots_by_job_id_diffs_against_previous_state(
-    results_dir: Path, job_filename: str
-) -> None:
-    """Threading `previous_states` back in only touches parameters that changed.
-
-    This is what lets the caller snapshot once per data point (to catch e.g. a
-    scanned parameter changing another one on the device) without re-writing the
-    whole device state -- and its full history -- every time.
-    """
-    voltage = 1.0
-    gain = 10
-
-    def _dac_state(gain_value: int) -> dict[str, Any]:
-        return _container(
-            "DataService",
-            {
-                "voltage": _leaf("float", voltage),
-                "gain": _leaf("int", gain_value),
-                "sub": _container("DataService", {"mode": _leaf("str", "IDLE")}),
-            },
-        )
-
-    previous_states = edr.ExperimentDataRepository.write_device_snapshots_by_job_id(
-        job_id=1,
-        snapshots=[
-            edr.DeviceSnapshot(
-                name="dac",
-                url="ws://localhost:8001",
-                timestamp="2026-07-17T10:00:00",
-                state=_dac_state(gain),
-            ),
-        ],
-        previous_states={},
-    )
-
-    with edr.h5_open(results_dir / job_filename, "r") as h5file:
-        history = h5file["devices"]["dac"]["parameter_history"]
-        assert set(history.keys()) == {"voltage", "gain", "sub"}
-        assert list(history["voltage"][:]["value"]) == [voltage]
-        assert list(history["gain"][:]["value"]) == [gain]
-
-    # Second snapshot for the same job/device with the threaded-back state: gain
-    # changed (e.g. a side effect of setting a scanned parameter), voltage didn't.
-    updated_gain = 20
-    previous_states = edr.ExperimentDataRepository.write_device_snapshots_by_job_id(
-        job_id=1,
-        snapshots=[
-            edr.DeviceSnapshot(
-                name="dac",
-                url="ws://localhost:8001",
-                timestamp="2026-07-17T10:00:01",
-                state=_dac_state(updated_gain),
-            ),
-        ],
-        previous_states=previous_states,
-    )
-
-    with edr.h5_open(results_dir / job_filename, "r") as h5file:
-        params = h5file["devices"]["dac"]["parameters"]
-        assert params.attrs["voltage"] == voltage
-        assert params.attrs["gain"] == updated_gain
-
-        history = h5file["devices"]["dac"]["parameter_history"]
-        # gain changed -> a second row was appended
-        assert list(history["gain"][:]["value"]) == [gain, updated_gain]
-        # voltage and sub/mode didn't change -> still just their baseline row
-        assert list(history["voltage"][:]["value"]) == [voltage]
-        mode_history_values = list(history["sub"]["mode"][:]["value"])
-        assert mode_history_values == ["IDLE"] or [
-            v.decode() if isinstance(v, bytes) else v for v in mode_history_values
-        ] == ["IDLE"]
-
-
-def test_write_device_snapshots_by_job_id_expands_json_string_field(
-    results_dir: Path, job_filename: str
-) -> None:
-    """A JSON-encoded string field gets expanded, not left as opaque text.
-
-    Some device plugins report composite state that way.
-    """
-    gain = 10
-    config_json = json.dumps({"gain": gain, "nested": {"offset": 0.5}})
-    state = _container(
-        "DataService",
-        {
-            "name": _leaf("str", "my_dac"),
-            "not_json": _leaf("str", "[not actually json"),
-            "config": _leaf("str", config_json),
-        },
-    )
-
-    edr.ExperimentDataRepository.write_device_snapshots_by_job_id(
-        job_id=1,
-        snapshots=[
-            edr.DeviceSnapshot(
-                name="dac",
-                url="ws://localhost:8001",
-                timestamp="2026-07-17T10:00:00",
-                state=state,
-            ),
-        ],
-        previous_states={},
-    )
-
-    with edr.h5_open(results_dir / job_filename, "r") as h5file:
-        params = h5file["devices"]["dac"]["parameters"]
-        assert params.attrs["name"] == "my_dac"
-        assert params.attrs["not_json"] == "[not actually json"
-        assert params["config"].attrs["gain"] == gain
-        assert params["config"]["nested"].attrs["offset"] == 0.5  # noqa: PLR2004
+        dac_snapshots = h5file["devices"]["dac"]["snapshots"]
+        assert dac_snapshots.shape[0] == 2  # noqa: PLR2004
+        assert dac_snapshots[1]["timestamp"].decode() == "2026-07-17T10:05:00"
+        assert json.loads(dac_snapshots[1]["state"]) == updated_state
