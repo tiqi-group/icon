@@ -24,8 +24,11 @@ export function VisualiserPage() {
   if (datapoint) iframeParams.set("datapoint", datapoint);
 
   return (
+    // Linking to /plot instead of / avoids the visualizer's internal redirect,
+    // which would drop the parameters below from the URL and lose them when
+    // the page is reloaded.
     <iframe
-      src={`/visualizer/?${iframeParams.toString()}`}
+      src={`/visualizer/plot?${iframeParams.toString()}`}
       title="Sequence Visualizer"
       style={{ display: "block", width: "100%", height: "100%", border: "none" }}
     />

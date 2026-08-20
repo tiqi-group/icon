@@ -73,8 +73,11 @@ export function openVisualizerWindow(
     "toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes," +
     "width=1200,height=800,left=100,top=100";
 
+  // Linking to /plot instead of / avoids the visualizer's internal redirect,
+  // which would drop the parameters from the URL and lose them when the
+  // window is reloaded.
   window.open(
-    `${baseUrl}/visualizer/?${params.toString()}`,
+    `${baseUrl}/visualizer/plot?${params.toString()}`,
     `visualizerWindow:${jobId ?? "latest"}`,
     features,
   );
