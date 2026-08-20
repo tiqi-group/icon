@@ -2,7 +2,7 @@ import json
 import logging
 import threading
 import time
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import datetime
@@ -485,18 +485,30 @@ class ExperimentDataRepository:
 
 
 def _read_hardware_instructions(path: Path, *, index: int | None) -> str | None:
-    """Read the instructions entry active at *index* (last entry if None)."""
+    """Read the instructions entry active at *index* (last entry if None).
+
+    Only the requested entry is read: the stored blobs are tens of kilobytes
+    each and a scan stores one per change, so reading the whole dataset to
+    return a single sequence would transfer megabytes.
+    """
     with h5_open(path, "r") as h5file:
         dataset = h5file.get("hardware_instructions")
         if not isinstance(dataset, h5py.Dataset) or dataset.shape[0] == 0:
             return None
-        instructions: str | None = None
-        for entry in cast("Iterable[Any]", dataset[:]):
-            change_index = cast("np.int32", entry["index"]).item()
-            if index is not None and change_index > index:
-                break
-            instructions = cast("bytes", entry["Sequence"]).decode()
-        return instructions
+
+        entry_index = dataset.shape[0] - 1
+        if index is not None:
+            # The entry active at *index* is the last one stored at or before
+            # it. Scanning rather than bisecting keeps that true even if
+            # entries are ever stored out of order, as re-taking a data point
+            # would do.
+            change_indices = cast("npt.NDArray[np.int32]", dataset.fields("index")[:])
+            positions = np.flatnonzero(change_indices <= index)
+            if positions.size == 0:
+                return None
+            entry_index = int(positions[-1])
+
+        return cast("bytes", dataset[entry_index]["Sequence"]).decode()
 
 
 def prepare_readout_metadata(

@@ -136,6 +136,8 @@ def test_get_hardware_instructions(
     # data point at which the instructions changed.
     _write_instruction_file(tmp_path / "job-1.h5", [(0, "seq-1a"), (5, "seq-1b")])
     _write_instruction_file(tmp_path / "job-2.h5", [(0, "seq-2a")])
+    # Sorts below job-2 so that it does not affect the latest-file lookup.
+    _write_instruction_file(tmp_path / "job-0.h5", [(2, "seq-0a")])
     # A newer file without instructions must be skipped for the latest scope.
     with h5py.File(tmp_path / "job-3.h5", "w"):
         pass
@@ -150,6 +152,9 @@ def test_get_hardware_instructions(
     assert get(job_id=1, index=4) == "seq-1a"
     assert get(job_id=1, index=5) == "seq-1b"
     assert get(job_id=1, index=99) == "seq-1b"
+    # data points before the first stored entry have no instructions
+    assert get(job_id=0, index=1) is None
+    assert get(job_id=0, index=2) == "seq-0a"
     # unknown job, missing file, and empty directory behave gracefully
     assert get(job_id=unknown_job_id) is None
     assert get(job_id=39) is None
