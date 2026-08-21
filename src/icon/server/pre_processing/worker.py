@@ -179,6 +179,7 @@ class PreProcessingWorker(multiprocessing.Process):
         ]
         self._processed_data_points: queue.Queue[HardwareProcessingTask]
         self._parameter_dict: dict[str, DatabaseValueType] = {}
+        self._last_written_parameters: dict[str, DatabaseValueType] = {}
         self._outdated_tasks: queue.PriorityQueue[HardwareProcessingTask] = (
             manager.PriorityQueue()
         )
@@ -253,6 +254,7 @@ class PreProcessingWorker(multiprocessing.Process):
             run_id=pre_processing_task.job_run.id,
             status=JobRunStatus.PROCESSING,
         )
+        self._last_written_parameters = {}
 
         namespace = ExperimentIdentifier.from_str(job.experiment_source.experiment_id)
         # empty update queue
@@ -329,9 +331,8 @@ class PreProcessingWorker(multiprocessing.Process):
         if mode == ParamUpdateMode.ONLY_NEW_PARAMETERS:
             if new_parameters:
                 self._parameter_dict.update(new_parameters)
-            ExperimentDataRepository.write_parameter_update_by_job_id(
+            self._write_changed_parameters(
                 job_id=pre_processing_task.job.id,
-                timestamp=self._global_parameter_timestamp.isoformat(),
                 parameter_values=self._parameter_dict,
             )
             return
@@ -356,10 +357,40 @@ class PreProcessingWorker(multiprocessing.Process):
 
         self._parameter_dict = {**self._parameter_dict, **global_values, **local_values}
 
-        ExperimentDataRepository.write_parameter_update_by_job_id(
+        self._write_changed_parameters(
             job_id=pre_processing_task.job.id,
-            timestamp=self._global_parameter_timestamp.isoformat(),
             parameter_values=self._parameter_dict,
+        )
+
+    def _write_changed_parameters(
+        self,
+        job_id: int,
+        parameter_values: dict[str, DatabaseValueType],
+    ) -> None:
+        """Persist only the parameters whose value changed since the last write.
+
+        `write_parameter_update_by_job_id` re-reads every tracked parameter's
+        HDF5 dataset to detect a change, so calling it with the entire merged
+        parameter dict (which can be 1000+ entries) on every data point held
+        the shared HDF5 file open for hundreds of milliseconds even though a
+        calibration or scan update typically changes only one or two values --
+        starving the post-processing worker's writes to the same file. Diffing
+        against an in-memory cache of last-written values first keeps the call
+        down to just the parameters that actually changed.
+        """
+        changed = {
+            param_id: value
+            for param_id, value in parameter_values.items()
+            if self._last_written_parameters.get(param_id) != value
+        }
+        if not changed:
+            return
+
+        self._last_written_parameters.update(changed)
+        ExperimentDataRepository.write_parameter_update_by_job_id(
+            job_id=job_id,
+            timestamp=self._global_parameter_timestamp.isoformat(),
+            parameter_values=changed,
         )
 
     def _handle_parameter_updates(
