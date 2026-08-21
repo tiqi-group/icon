@@ -9,11 +9,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from icon.server.data_access.models.enums import JobRunStatus
+from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.pycrystal_experiment_library_client import PyCrystalClient
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataRepository,
 )
+from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
     job_run_cancelled_or_failed,
@@ -163,6 +164,37 @@ class PostProcessingWorker(multiprocessing.Process):
             updated_parameters=result["updated_parameters"],
             db_upload_interval=result["db_upload_interval"],
         )
+
+        if result.get("terminate"):
+            logger.info(
+                "Job %s terminated by its experiment's termination_condition",
+                job.id,
+            )
+            self._cancel_job_run(job_id=job.id)
+
+    @staticmethod
+    def _cancel_job_run(*, job_id: int) -> None:
+        """Cancel a job whose experiment's termination_condition returned True.
+
+        Mirrors the status updates of ``SchedulerController.cancel_job``; the
+        data point that triggered the termination is still written by the
+        caller, while queued data points of the job are dropped by the
+        ``job_run_cancelled_or_failed`` guards in the workers.
+        """
+        job = JobRepository.get_job_by_id(job_id=job_id)
+        if job.status in (JobStatus.PROCESSING, JobStatus.SUBMITTED):
+            JobRepository.update_job_status(job=job, status=JobStatus.PROCESSED)
+        job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
+        if job_run.status in (
+            JobRunStatus.PENDING,
+            JobRunStatus.PROCESSING,
+            JobRunStatus.PAUSED,
+        ):
+            JobRunRepository.update_run_by_id(
+                run_id=job_run.id,
+                status=JobRunStatus.CANCELLED,
+                log="Terminated by experiment termination condition.",
+            )
 
     @staticmethod
     def _merge_result_channels(

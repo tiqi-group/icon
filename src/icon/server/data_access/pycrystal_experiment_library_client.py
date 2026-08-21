@@ -143,6 +143,11 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         `result_channels` (e.g. a servo's tracked value) are collected the same
         way and returned under "updated_result_channels".
 
+        After ``post_processing``, the experiment's optional
+        ``termination_condition(result_channels)`` is evaluated on the same
+        instance; if it returns True the caller is asked to stop the job via
+        the "terminate" key.
+
         Args:
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
@@ -155,13 +160,17 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
 
         Returns:
             Dictionary with keys:
-            - "has_post_processing": whether the experiment defines the method.
+            - "has_post_processing": whether the experiment defines any
+              per-data-point processing (``post_processing`` and/or
+              ``termination_condition``).
             - "updated_parameters": parameter IDs/values changed by the method.
             - "updated_result_channels": result channels added or modified by
               the method.
             - "post_processing_output": state to pass into the next call.
             - "db_upload_interval": database upload interval in seconds, or
               None if the experiment does not define the parameter.
+            - "terminate": whether the experiment's ``termination_condition``
+              requested the job to be stopped.
         """
         cache_dict: dict[str, DatabaseValueType] = dict(parameter_dict)
         pycrystal.parameters.Parameter.db = pycrystal.database.local_cache.LocalCache(
@@ -170,24 +179,33 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
 
         exp_instance = import_experiment_instance(exp_module_name, exp_instance_name)
 
-        if not hasattr(exp_instance, "post_processing"):
+        has_post_processing = hasattr(exp_instance, "post_processing")
+        has_termination_condition = hasattr(exp_instance, "termination_condition")
+
+        if not has_post_processing and not has_termination_condition:
             return {
                 "has_post_processing": False,
                 "updated_parameters": {},
                 "updated_result_channels": {},
                 "post_processing_output": post_processing_output,
                 "db_upload_interval": None,
+                "terminate": False,
             }
 
         original_result_channels = dict(result_channels)
 
-        post_processing_signature = inspect.signature(exp_instance.post_processing)
-        if len(post_processing_signature.parameters) >= 2:  # noqa: PLR2004
-            post_processing_output = exp_instance.post_processing(
-                result_channels, post_processing_output
-            )
-        else:
-            post_processing_output = exp_instance.post_processing(result_channels)
+        if has_post_processing:
+            post_processing_signature = inspect.signature(exp_instance.post_processing)
+            if len(post_processing_signature.parameters) >= 2:  # noqa: PLR2004
+                post_processing_output = exp_instance.post_processing(
+                    result_channels, post_processing_output
+                )
+            else:
+                post_processing_output = exp_instance.post_processing(result_channels)
+
+        terminate = False
+        if has_termination_condition:
+            terminate = bool(exp_instance.termination_condition(result_channels))
 
         updated_parameters = {
             key: value
@@ -214,6 +232,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             "updated_result_channels": updated_result_channels,
             "post_processing_output": list(post_processing_output or []),
             "db_upload_interval": db_upload_interval,
+            "terminate": terminate,
         }
 
     @staticmethod
