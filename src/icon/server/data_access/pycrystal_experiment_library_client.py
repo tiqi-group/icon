@@ -174,7 +174,9 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
 
         exp_instance = import_experiment_instance(exp_module_name, exp_instance_name)
 
-        if type(exp_instance).post_processing == Experiment.post_processing:
+        if getattr(type(exp_instance), "post_processing", None) == getattr(
+            Experiment, "post_processing", None
+        ):
             return {
                 "has_post_processing": False,
                 "updated_parameters": {},
