@@ -78,6 +78,39 @@ def parse_parameter_id(param_id: str) -> tuple[str | None, str]:
     return None, param_id
 
 
+_NO_DIFF = object()
+"""Sentinel returned by `_diff_device_state` for a node with no changes."""
+
+
+def _diff_device_state(baseline: Any, current: Any) -> Any:
+    """Return the parts of `current` that differ from `baseline`.
+
+    Both are pydase ``SerializedObject`` nodes. Recurses into container nodes
+    (dict-valued: a "dict" node, or a device/component -- these all nest further
+    `SerializedObject`s under `"value"`) so unchanged branches are dropped
+    entirely; a changed leaf -- or a list-valued node, compared and kept as a
+    whole rather than diffed positionally -- is returned as-is. Returns
+    `_NO_DIFF` when nothing differs.
+    """
+    if current == baseline:
+        return _NO_DIFF
+
+    current_value = current.get("value") if isinstance(current, dict) else None
+    baseline_value = baseline.get("value") if isinstance(baseline, dict) else None
+
+    if isinstance(current_value, dict) and isinstance(baseline_value, dict):
+        diffed_children = {}
+        for key, child in current_value.items():
+            child_diff = _diff_device_state(baseline_value.get(key), child)
+            if child_diff is not _NO_DIFF:
+                diffed_children[key] = child_diff
+        if not diffed_children:
+            return _NO_DIFF
+        return {**current, "value": diffed_children}
+
+    return current
+
+
 def should_divert_task(
     task: HardwareProcessingTask,
     parameter_update_timestamp: datetime | None,
@@ -116,6 +149,9 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self._post_processing_queue = post_processing_queue
         self._manager = manager
         self._pydase_clients: dict[str, pydase.Client] = {}
+        self._device_state_baselines: dict[int, dict[str, dict[str, Any]]] = {}
+        """job_id -> {device_name: state at that device's first snapshot in this
+        job}, used to diff later snapshots against."""
 
         self._devices = devices
 
@@ -188,9 +224,13 @@ class HardwareProcessingWorker(multiprocessing.Process):
         """Store the state of all enabled devices in the job's HDF5 file.
 
         Fetches a fresh serialization from each device and appends it (as a JSON
-        string) to that device's snapshot history. Unreachable devices are
+        string) to that device's snapshot history. A device's first snapshot in a
+        job stores its full state; every later snapshot for that device in the
+        same job stores only the branches that changed since that first snapshot
+        (an empty JSON object if nothing changed). Unreachable devices are
         recorded with an error message instead of failing the measurement.
         """
+        baselines = self._device_state_baselines.setdefault(job_id, {})
         snapshots: list[DeviceSnapshot] = []
         for device in DeviceRepository.get_devices_by_status(
             status=DeviceStatus.ENABLED
@@ -213,12 +253,18 @@ class HardwareProcessingWorker(multiprocessing.Process):
                     None,
                     DEVICE_SNAPSHOT_TIMEOUT_SECONDS,
                 )
+                if device.name not in baselines:
+                    baselines[device.name] = state
+                    snapshot_state = state
+                else:
+                    diff = _diff_device_state(baselines[device.name], state)
+                    snapshot_state = {} if diff is _NO_DIFF else diff
                 snapshots.append(
                     DeviceSnapshot(
                         name=device.name,
                         url=device.url,
                         timestamp=timestamp,
-                        state=state,
+                        state=snapshot_state,
                     )
                 )
             except Exception as e:

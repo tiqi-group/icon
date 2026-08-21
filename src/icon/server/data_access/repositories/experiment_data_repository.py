@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DeviceSnapshot:
-    """Full state of a connected device at the time of a measurement."""
+    """State of a connected device at the time of a measurement."""
 
     name: str
     """Device name (as registered in the devices table)."""
@@ -48,7 +48,9 @@ class DeviceSnapshot:
     timestamp: str
     """Snapshot timestamp (ISO string)."""
     state: dict[str, Any] | None
-    """Raw pydase ``SerializedObject`` tree for the device, or None if unreachable."""
+    """Raw pydase ``SerializedObject`` tree for the device's first snapshot in a
+    job; only the branches that changed since that first snapshot for later
+    snapshots (an empty dict if nothing changed). None if unreachable."""
     error: str | None = None
     """Error message if the device state could not be fetched."""
 
