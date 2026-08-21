@@ -141,6 +141,8 @@ class ExperimentLibraryClient:
             - "post_processing_output": state to pass into the next call.
             - "db_upload_interval": database upload interval in seconds, or
               None if the experiment does not define the parameter.
+            - "terminate": whether the experiment's ``termination_condition``
+              requested the job to be stopped.
         """
         return {
             "has_post_processing": False,
@@ -148,6 +150,7 @@ class ExperimentLibraryClient:
             "updated_result_channels": {},
             "post_processing_output": post_processing_output,
             "db_upload_interval": None,
+            "terminate": False,
         }
 
 
