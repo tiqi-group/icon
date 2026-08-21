@@ -1,3 +1,75 @@
+import { GroupsByNamespace } from "../hooks/useParameterDisplayGroups";
+import { Store } from "../stores/parmeterStore";
+import { ScanParameterInfo } from "../types/ScanParameterInfo";
+
+export interface ScanParameterBounds {
+  min: number | null;
+  max: number | null;
+}
+
+/**
+ * Refreshes Span-mode parameters' start/stop from each parameter's current live
+ * value, keeping the remembered span. Span mode never stores a "center" — it's
+ * always the parameter's live value, looked up here fresh (typically right before
+ * submitting a job) rather than reused from whenever the span was last edited.
+ *
+ * Parameters not in Span mode, or whose live value isn't known/numeric, are
+ * returned unchanged.
+ *
+ * @param parameters - The scan parameters to refresh.
+ * @param parameterStore - Store to read live parameter values from.
+ * @returns A new parameters array with Span-mode entries re-centred.
+ */
+export const refreshSpanCenterParameters = (
+  parameters: ScanParameterInfo[],
+  parameterStore: Pick<Store, "get"> | null,
+): ScanParameterInfo[] =>
+  parameters.map((param) => {
+    if ((param.generation.inputMode ?? "startStop") !== "spanCenter") return param;
+    const liveValue = parameterStore?.get(param.id);
+    if (typeof liveValue !== "number") return param;
+    const span = Math.abs(param.generation.stop - param.generation.start);
+    return {
+      ...param,
+      generation: {
+        ...param.generation,
+        start: liveValue - span / 2,
+        stop: liveValue + span / 2,
+      },
+    };
+  });
+
+/**
+ * Looks up the allowed value range of a scan parameter from the display group
+ * metadata (as provided by the experiment library).
+ *
+ * Device and realtime parameters carry no range metadata, so their bounds are null.
+ *
+ * @param param - The scan parameter to look up.
+ * @param parameterDisplayGroups - Display group metadata keyed by "namespace (group)".
+ * @returns The parameter's min/max bounds, null when unbounded or unknown.
+ */
+export const getScanParameterBounds = (
+  param: ScanParameterInfo,
+  parameterDisplayGroups: GroupsByNamespace,
+): ScanParameterBounds => {
+  if (
+    !param.namespace ||
+    !param.deviceNameOrDisplayGroup ||
+    param.namespace === "Devices" ||
+    param.namespace === "Real Time"
+  ) {
+    return { min: null, max: null };
+  }
+  const group =
+    parameterDisplayGroups[`${param.namespace} (${param.deviceNameOrDisplayGroup})`];
+  const metadata = group?.[param.id];
+  return {
+    min: metadata?.min_value ?? null,
+    max: metadata?.max_value ?? null,
+  };
+};
+
 /**
  * Constructs a unique key for identifying a scanned parameter.
  *

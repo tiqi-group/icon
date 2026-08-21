@@ -3,7 +3,10 @@ import {
   extractScannedParamId,
   getScanIndex,
   isScannableParameterType,
+  refreshSpanCenterParameters,
 } from "../../src/utils/scanUtils";
+import { ScanParameterInfo } from "../../src/types/ScanParameterInfo";
+import { ParameterValueType } from "../../src/types/ExperimentMetadata";
 
 describe("scanUtils: makeScannedParamKey", () => {
   it("returns the id unchanged for experiment parameters", () => {
@@ -58,6 +61,45 @@ describe("scanUtils: getScanIndex", () => {
   it("returns null when the parameter is not scanned", () => {
     expect(getScanIndex("x", scanned)).toBeNull();
     expect(getScanIndex("a", [])).toBeNull();
+  });
+});
+
+describe("scanUtils: refreshSpanCenterParameters", () => {
+  const param = (
+    id: string,
+    inputMode: "startStop" | "spanCenter",
+    start: number,
+    stop: number,
+  ): ScanParameterInfo => ({
+    id,
+    namespace: "E",
+    deviceNameOrDisplayGroup: "grp",
+    generation: { start, stop, points: 2, pattern: "linear", inputMode },
+  });
+
+  const storeOf = (values: Record<string, ParameterValueType>) => ({
+    get: (key: string) => values[key],
+  });
+
+  it("re-centres a Span-mode parameter on its live value, keeping the span", () => {
+    const parameters = [param("p1", "spanCenter", 10, 20)]; // span 10, old center 15
+    const refreshed = refreshSpanCenterParameters(parameters, storeOf({ p1: 42 }));
+
+    expect(refreshed[0].generation.start).toBe(37);
+    expect(refreshed[0].generation.stop).toBe(47);
+  });
+
+  it("leaves Start/Stop-mode parameters untouched", () => {
+    const parameters = [param("p1", "startStop", 10, 20)];
+    const refreshed = refreshSpanCenterParameters(parameters, storeOf({ p1: 42 }));
+
+    expect(refreshed[0]).toBe(parameters[0]);
+  });
+
+  it("leaves a Span-mode parameter untouched when its live value isn't numeric", () => {
+    const parameters = [param("p1", "spanCenter", 10, 20)];
+    expect(refreshSpanCenterParameters(parameters, storeOf({}))).toEqual(parameters);
+    expect(refreshSpanCenterParameters(parameters, null)).toEqual(parameters);
   });
 });
 

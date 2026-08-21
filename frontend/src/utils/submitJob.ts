@@ -3,6 +3,7 @@ import { runMethod } from "../socket";
 import { SerializedInteger } from "../types/SerializedObject";
 import { ScanPattern } from "../types/ScanParameterInfo";
 import { deserialize } from "./deserializer";
+import { ScanParameterBounds } from "./scanUtils";
 import { openJobWindow } from "./windowUtils";
 
 interface ScanParameterArgument {
@@ -43,9 +44,21 @@ const generateScanValues = (
   }
 };
 
-export const submitJob = (experimentId: string, scanInfoState: ScanInfoState) => {
+const clampToBounds = (value: number, bounds: ScanParameterBounds): number => {
+  if (bounds.min !== null && value < bounds.min) return bounds.min;
+  if (bounds.max !== null && value > bounds.max) return bounds.max;
+  return value;
+};
+
+export const submitJob = (
+  experimentId: string,
+  scanInfoState: ScanInfoState,
+  parameterBounds: ScanParameterBounds[] = [],
+): { clampedParamIds: string[] } => {
+  const clampedParamIds: string[] = [];
+
   const scan_parameters = scanInfoState.parameters.map(
-    ({ namespace, generation, deviceNameOrDisplayGroup, ...rest }) => {
+    ({ namespace, generation, deviceNameOrDisplayGroup, ...rest }, index) => {
       const param: ScanParameterArgument = { ...rest };
       if (namespace == "Real Time") {
         delete param.id;
@@ -54,9 +67,15 @@ export const submitJob = (experimentId: string, scanInfoState: ScanInfoState) =>
         if (namespace == "Devices") {
           param.device_name = deviceNameOrDisplayGroup;
         }
+        const bounds = parameterBounds[index] ?? { min: null, max: null };
+        const clampedStart = clampToBounds(generation.start, bounds);
+        const clampedStop = clampToBounds(generation.stop, bounds);
+        if (clampedStart !== generation.start || clampedStop !== generation.stop) {
+          clampedParamIds.push(rest.id);
+        }
         param.values = generateScanValues(
-          generation.start,
-          generation.stop,
+          clampedStart,
+          clampedStop,
           generation.points,
           generation.pattern,
         );
@@ -82,4 +101,6 @@ export const submitJob = (experimentId: string, scanInfoState: ScanInfoState) =>
       }
     },
   );
+
+  return { clampedParamIds };
 };
