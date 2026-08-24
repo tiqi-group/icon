@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+import pydase.units as u
 import pytest
 
 from icon.server.api.scheduler_controller import SchedulerController
@@ -122,3 +123,23 @@ def test_cancel_job_cancels_paused_runs(
         )
     else:
         mock_job_run_repo.update_run_by_id.assert_not_called()
+
+
+def test_resolve_unit_from_parameter_metadata(controller: SchedulerController) -> None:
+    controller._parameters_controller._all_parameter_metadata = {
+        "tickle_frequency": {"display_name": "Tickle frequency", "unit": "MHz"},
+        "empty_unit": {"display_name": "No unit", "unit": "  "},
+    }
+
+    assert controller._resolve_unit("tickle_frequency") == "MHz"
+    assert controller._resolve_unit("empty_unit") is None
+    assert controller._resolve_unit("unknown") is None
+
+
+def test_resolve_unit_from_quantity_value(controller: SchedulerController) -> None:
+    controller._parameters_controller._all_parameter_metadata = {}
+    quantity = u.Quantity(1, "MHz")
+
+    unit = controller._resolve_unit("device.freq", value=quantity)
+    assert unit is not None
+    assert "Hz" in unit or "hertz" in unit.lower()

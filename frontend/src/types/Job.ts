@@ -14,6 +14,7 @@ export interface Job {
   parent_job_id?: number | null;
   priority: number;
   repetitions: number;
+  number_of_shots: number;
   scan_parameters: ScanParameter[];
   status: JobStatus;
 }

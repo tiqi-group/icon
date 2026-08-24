@@ -18,8 +18,12 @@ const generateScanValues = (
   points: number,
   pattern: ScanPattern,
 ) => {
-  const linspace = (n: number) =>
-    Array.from({ length: n }, (_, i) => start + (i * (stop - start)) / (n - 1));
+  const linspace = (n: number) => {
+    if (n <= 1) return [start];
+    return Array.from({ length: n }, (_, i) =>
+      Number((start + (i * (stop - start)) / (n - 1)).toPrecision(12)),
+    );
+  };
 
   switch (pattern) {
     case "linear":

@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any
 
 import pydase
+import pydase.units as u
 
 import icon.server.data_access.models.sqlite.scan_parameter as sqlite_scan_parameter
 from icon.server.api.devices_controller import DevicesController
@@ -47,7 +48,7 @@ class SchedulerController(pydase.DataService):
             devices_controller: Reference to the devices controller. Used to read
                 current values of device parameters when casting scan values.
             parameters_controller: Reference to the parameters controller. Used to
-                resolve display names for scan parameters at submission time.
+                resolve display names and units for scan parameters at submission time.
         """
         super().__init__()
         self._devices_controller = devices_controller
@@ -58,6 +59,16 @@ class SchedulerController(pydase.DataService):
         if metadata is not None:
             return metadata["display_name"]
         return parameter_id
+
+    def _resolve_unit(self, parameter_id: str, *, value: Any = None) -> str | None:
+        metadata = self._parameters_controller._all_parameter_metadata.get(parameter_id)
+        if metadata is not None:
+            unit = metadata.get("unit")
+            if isinstance(unit, str) and unit.strip():
+                return unit.strip()
+        if isinstance(value, u.Quantity):
+            return str(value.u)
+        return None
 
     async def submit_job(
         self,
@@ -102,7 +113,7 @@ class SchedulerController(pydase.DataService):
             experiment_source=experiment_source
         )
 
-        def to_sqlite_model(
+        async def to_sqlite_model(
             param: ScanParameter,
         ) -> sqlite_scan_parameter.ScanParameter:
             if isinstance(param, RealtimeParameter):
@@ -111,13 +122,19 @@ class SchedulerController(pydase.DataService):
                     variable_id="Real Time",
                     scan_values=[1] * param.n_scan_points,
                     realtime=True,
+                    unit=None,
                 )
             if isinstance(param, DatabaseParameter):
                 return sqlite_scan_parameter.ScanParameter(
                     name=self._resolve_display_name(param.id),
                     variable_id=param.id,
                     scan_values=param.values,
+                    unit=self._resolve_unit(param.id),
                 )
+            current_value = await self._devices_controller.get_parameter_value(
+                name=param.device_name,
+                parameter_id=param.id,
+            )
             return sqlite_scan_parameter.ScanParameter(
                 name=self._resolve_display_name(param.id),
                 variable_id=param.id,
@@ -125,6 +142,7 @@ class SchedulerController(pydase.DataService):
                 device_id=DeviceRepository.get_device_by_name(
                     name=param.device_name
                 ).id,
+                unit=self._resolve_unit(param.id, value=current_value),
             )
 
         concretized_params = [
@@ -149,7 +167,7 @@ class SchedulerController(pydase.DataService):
                 "Only 1 repetition possible if continuous realtime is present"
             )
         sqlite_scan_parameters = [
-            to_sqlite_model(param) for param in concretized_params
+            await to_sqlite_model(param) for param in concretized_params
         ]
 
         job = Job(
