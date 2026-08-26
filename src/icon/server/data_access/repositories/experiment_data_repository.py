@@ -473,15 +473,31 @@ class ExperimentDataRepository:
             except NoResultFound:
                 return None
         else:
+            # The results dir can hold tens of thousands of files, so the
+            # latest-scope fallback must stay strictly bounded: a recent job
+            # with stored instructions sits in the first file or two, and the
+            # limit only cushions bursts of aborted or empty jobs.
             paths = sorted(results_dir.glob("*.h5"), reverse=True)
+            paths = paths[:_LATEST_SEQUENCE_SCAN_LIMIT]
 
         for path in paths:
             if not path.is_file():
                 continue
-            instructions = _read_hardware_instructions(path, index=index)
+            try:
+                instructions = _read_hardware_instructions(path, index=index)
+            except (OSError, TimeoutError):
+                # An unreadable file must not fail the RPC: the visualizer
+                # showing nothing is always preferable to an error, and
+                # skipping keeps the scan moving.
+                logger.warning("Skipping unreadable HDF5 file %s", path)
+                continue
             if instructions is not None:
                 return instructions
         return None
+
+
+_LATEST_SEQUENCE_SCAN_LIMIT = 30
+"""Maximum number of newest HDF5 files inspected when no job_id is given."""
 
 
 def _read_hardware_instructions(path: Path, *, index: int | None) -> str | None:
