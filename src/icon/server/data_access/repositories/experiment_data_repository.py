@@ -1,6 +1,5 @@
 import json
 import logging
-import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -12,6 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 import h5py  # type: ignore
 import numpy as np
 import numpy.typing as npt
+from filelock import FileLock, Timeout
 
 from icon.config.config import get_config
 from icon.server.data_access.experiment_data import (
@@ -744,20 +744,55 @@ def get_result_channels_dataset(
 
 
 POLL_INTERVAL = 0.05
+OPEN_TIMEOUT = 10.0
 
-_HDF5_GLOBAL_LOCK = threading.RLock()
+
+def _h5_lock_path(path: Path) -> Path:
+    return path.with_name(f".{path.name}.lock")
+
+
+def _sleep_or_timeout(deadline: float, path: Path) -> None:
+    if time.monotonic() >= deadline:
+        logger.error("Timed out opening HDF5 file %s after %.1fs", path, OPEN_TIMEOUT)
+        raise TimeoutError(f"Timed out opening HDF5 file {path}")
+    logger.debug("HDF5 file %s busy, retrying", path)
+    time.sleep(POLL_INTERVAL)
 
 
 @contextmanager
 def h5_open(path: Path, mode: str, **kwargs: Any) -> Iterator[h5py.File]:
-    with _HDF5_GLOBAL_LOCK:
+    """Open an HDF5 file, waiting up to OPEN_TIMEOUT for a busy file.
+
+    Uses a per-file sidecar lock so pre-processing, post-processing, and the
+    API process serialize access. HDF5 open is retried separately in case the
+    file is held outside this helper. Missing files and permission errors
+    fail immediately. Errors from the caller's ``with`` body are not retried.
+    """
+    deadline = time.monotonic() + OPEN_TIMEOUT
+    lock = FileLock(_h5_lock_path(path))
+    try:
+        lock.acquire(timeout=max(0.0, deadline - time.monotonic()))
+    except Timeout as exc:
+        logger.exception(
+            "Timed out waiting for HDF5 lock on %s after %.1fs", path, OPEN_TIMEOUT
+        )
+        raise TimeoutError(f"Timed out opening HDF5 file {path}") from exc
+
+    try:
         while True:
             try:
-                with h5py.File(str(path), mode, **kwargs) as h5file:
-                    yield h5file
+                h5file = h5py.File(str(path), mode, **kwargs)
                 break
-            except (OSError, FileNotFoundError):
-                time.sleep(POLL_INTERVAL)
+            except OSError as exc:
+                if isinstance(exc, FileNotFoundError | PermissionError):
+                    raise
+                _sleep_or_timeout(deadline, path)
+        try:
+            yield h5file
+        finally:
+            h5file.close()
+    finally:
+        lock.release()
 
 
 def _read_fits_from_hdf5(
