@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypedDict, cast
 import h5py  # type: ignore
 import numpy as np
 import numpy.typing as npt
+from sqlalchemy.exc import NoResultFound
 
 from icon.config.config import get_config
 from icon.server.data_access.db_context.influxdb.influxdb_v1 import DatabaseValueType
@@ -975,6 +976,73 @@ class ExperimentDataRepository:
             data.parameters = extract_parameter_values(h5file)
             data.fits = _read_fits_from_hdf5(h5file)
         return data
+
+    @staticmethod
+    def get_hardware_instructions(
+        *,
+        job_id: int | None = None,
+        index: int | None = None,
+    ) -> str | None:
+        """Return stored hardware instructions (the serialized sequence JSON).
+
+        Note: on this branch the instructions live in the HDF5 ``sequence_json``
+        dataset; the method keeps the ``hardware_instructions`` name because the
+        vendored sequence visualizer calls this RPC by name.
+
+        Args:
+            job_id: Job to read from. Defaults to the most recent job with
+                stored hardware instructions.
+            index: Data point index within the job. Defaults to the last stored
+                entry. Instructions are stored deduplicated (one entry per
+                change), so the entry active at *index* is returned.
+
+        Returns:
+            The serialized hardware instructions, or None when nothing is
+            stored for the requested scope.
+        """
+        results_dir = Path(get_config().data.results_dir)
+        if job_id is not None:
+            try:
+                paths = [results_dir / get_filename_by_job_id(job_id)]
+            except NoResultFound:
+                return None
+        else:
+            paths = sorted(results_dir.glob("*.h5"), reverse=True)
+
+        for path in paths:
+            if not path.is_file():
+                continue
+            instructions = _read_hardware_instructions(path, index=index)
+            if instructions is not None:
+                return instructions
+        return None
+
+
+def _read_hardware_instructions(path: Path, *, index: int | None) -> str | None:
+    """Read the instructions entry active at *index* (last entry if None).
+
+    Only the requested entry is read: the stored blobs are tens of kilobytes
+    each and a scan stores one per change, so reading the whole dataset to
+    return a single sequence would transfer megabytes.
+    """
+    with h5_open(path, "r") as h5file:
+        dataset = h5file.get("sequence_json")
+        if not isinstance(dataset, h5py.Dataset) or dataset.shape[0] == 0:
+            return None
+
+        entry_index = dataset.shape[0] - 1
+        if index is not None:
+            # The entry active at *index* is the last one stored at or before
+            # it. Scanning rather than bisecting keeps that true even if
+            # entries are ever stored out of order, as re-taking a data point
+            # would do.
+            change_indices = cast("npt.NDArray[np.int32]", dataset.fields("index")[:])
+            positions = np.flatnonzero(change_indices <= index)
+            if positions.size == 0:
+                return None
+            entry_index = int(positions[-1])
+
+        return cast("bytes", dataset[entry_index]["Sequence"]).decode()
 
 
 def extract_parameter_values(

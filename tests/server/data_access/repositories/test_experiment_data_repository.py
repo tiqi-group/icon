@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy.exc import NoResultFound
 
 from icon.server.data_access.repositories import experiment_data_repository as edr
 
@@ -266,3 +267,53 @@ def test_write_device_snapshots_by_job_id_expands_json_string_field(
         assert params.attrs["not_json"] == "[not actually json"
         assert params["config"].attrs["gain"] == gain
         assert params["config"]["nested"].attrs["offset"] == 0.5  # noqa: PLR2004
+
+
+def _write_instruction_file(path: Path, entries: list[tuple[int, str]]) -> None:
+    with edr.h5_open(path, "w") as h5file:
+        for data_point_index, instructions in entries:
+            edr.write_sequence_json_to_dataset(h5file, data_point_index, instructions)
+
+
+def test_get_hardware_instructions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path)))
+    monkeypatch.setattr(edr, "get_config", lambda: config)
+    unknown_job_id = 42
+
+    def filename(job_id: int) -> str:
+        if job_id == unknown_job_id:
+            raise NoResultFound
+        return f"job-{job_id}.h5"
+
+    monkeypatch.setattr(edr, "get_filename_by_job_id", filename)
+
+    _write_instruction_file(tmp_path / "job-1.h5", [(0, "seq-1a"), (5, "seq-1b")])
+    _write_instruction_file(tmp_path / "job-2.h5", [(0, "seq-2a")])
+    _write_instruction_file(tmp_path / "job-0.h5", [(2, "seq-0a")])
+    with edr.h5_open(tmp_path / "job-3.h5", "w"):
+        pass  # newer file without instructions must be skipped for latest scope
+
+    get = edr.ExperimentDataRepository.get_hardware_instructions
+    # latest scope: newest file that actually has instructions
+    assert get() == "seq-2a"
+    # job scope: last entry of that job
+    assert get(job_id=1) == "seq-1b"
+    # data point scope: the entry active at the given index
+    assert get(job_id=1, index=0) == "seq-1a"
+    assert get(job_id=1, index=4) == "seq-1a"
+    assert get(job_id=1, index=5) == "seq-1b"
+    assert get(job_id=1, index=99) == "seq-1b"
+    # data points before the first stored entry have no instructions
+    assert get(job_id=0, index=1) is None
+    assert get(job_id=0, index=2) == "seq-0a"
+    # unknown job, missing file, and empty results dir behave gracefully
+    assert get(job_id=unknown_job_id) is None
+    assert get(job_id=39) is None
+    monkeypatch.setattr(
+        edr,
+        "get_config",
+        lambda: SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path / "x"))),
+    )
+    assert get() is None
