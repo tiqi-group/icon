@@ -420,3 +420,44 @@ def test_h5_open_timeout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     finally:
         stop.set()
         thread.join(timeout=2)
+
+
+def test_get_hardware_instructions_skips_unreadable_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path)))
+    monkeypatch.setattr(edr, "get_config", lambda: config)
+    monkeypatch.setattr(edr, "get_filename_by_job_id", lambda job_id: "job-9.h5")  # noqa: ARG005
+    # Keep the corrupt-file retry loop short.
+    monkeypatch.setattr(edr, "OPEN_TIMEOUT", 0.2)
+
+    _write_instruction_file(tmp_path / "job-1.h5", [(0, "seq-1a")])
+    # Newest file is not valid HDF5; the latest scope must skip it instead of
+    # failing, and the job scope must return None instead of raising.
+    (tmp_path / "job-9.h5").write_bytes(b"not hdf5")
+
+    get = edr.ExperimentDataRepository.get_hardware_instructions
+    assert get() == "seq-1a"
+    assert get(job_id=9) is None
+
+
+def test_get_hardware_instructions_latest_scan_is_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path)))
+    monkeypatch.setattr(edr, "get_config", lambda: config)
+    monkeypatch.setattr(edr, "_LATEST_SEQUENCE_SCAN_LIMIT", 3)
+
+    # A file with instructions, hidden behind more sequence-less files than
+    # the scan limit allows.
+    _write_instruction_file(tmp_path / "job-0.h5", [(0, "seq-0a")])
+    for i in range(1, 5):
+        with edr.h5_open(tmp_path / f"job-{i}.h5", "w"):
+            pass
+
+    get = edr.ExperimentDataRepository.get_hardware_instructions
+    assert get() is None
+
+    # Within the limit it is found.
+    monkeypatch.setattr(edr, "_LATEST_SEQUENCE_SCAN_LIMIT", 5)
+    assert get() == "seq-0a"
