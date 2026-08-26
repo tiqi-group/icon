@@ -1,4 +1,4 @@
-import { forwardedPrefix } from "../socket";
+import { forwardedPrefix, hostname, port } from "../socket";
 
 export function openJobWindow(jobId: string | number, experimentId: string) {
   const baseUrl = `${window.location.origin}${forwardedPrefix}`;
@@ -49,4 +49,36 @@ export function extractExperimentId(windowName: string): string | null {
 
 export function getWindowName(): string {
   return window.name || document.title;
+}
+
+export function openVisualizerWindow(
+  jobId?: string | number,
+  datapoint?: string | number,
+) {
+  const baseUrl = `${window.location.origin}${forwardedPrefix}`;
+  const theme =
+    document.documentElement.getAttribute("data-toolpad-color-scheme") === "dark"
+      ? "dark"
+      : "light";
+  // The visualizer reads its endpoint configuration from these keys
+  // (same origin, so localStorage is shared with the popup).
+  localStorage.setItem("libraryAddress", hostname);
+  localStorage.setItem("libraryPort", String(port));
+
+  const params = new URLSearchParams({ theme, embedded: "1" });
+  if (jobId !== undefined) params.set("jobId", String(jobId));
+  if (datapoint !== undefined) params.set("datapoint", String(datapoint));
+
+  const features =
+    "toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes," +
+    "width=1200,height=800,left=100,top=100";
+
+  // Linking to /plot instead of / avoids the visualizer's internal redirect,
+  // which would drop the parameters from the URL and lose them when the
+  // window is reloaded.
+  window.open(
+    `${baseUrl}/visualizer/plot?${params.toString()}`,
+    `visualizerWindow:${jobId ?? "latest"}`,
+    features,
+  );
 }

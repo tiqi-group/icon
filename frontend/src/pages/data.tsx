@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import {
+  Button,
   FormControlLabel,
   List,
   ListItemButton,
@@ -8,17 +9,19 @@ import {
   Switch,
   Tooltip,
 } from "@mui/material";
+import SsidChartIcon from "@mui/icons-material/SsidChart";
 import { JobsContext } from "../contexts/JobsContext";
 import { JobView } from "../components/JobView";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { Job } from "../types/Job";
 import { JobStatus } from "../types/enums";
-import { openJobWindow } from "../utils/windowUtils";
+import { openJobWindow, openVisualizerWindow } from "../utils/windowUtils";
 import { getExperimentNameFromExperimentId } from "../utils/experimentUtils";
 
 export function DataPage() {
   const jobs = useContext(JobsContext);
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const selectedJobId = searchParams.get("jobId");
 
   const groupedJobs = useMemo(() => {
@@ -140,6 +143,22 @@ export function DataPage() {
       <div style={{ flexGrow: 1, height: "100%", overflow: "auto" }}>
         {selectedJobId ? (
           <div style={{ width: "100%" }}>
+            <Tooltip title="Show the pulse sequence of this job in the sequence visualizer">
+              <Button
+                size="small"
+                startIcon={<SsidChartIcon />}
+                sx={{ m: 1 }}
+                onClick={() => {
+                  if (localStorage.getItem("openVisualizerInNewWindow") !== "false") {
+                    openVisualizerWindow(selectedJobId);
+                  } else {
+                    navigate(`/sequence?jobId=${selectedJobId}`);
+                  }
+                }}
+              >
+                Open in visualizer
+              </Button>
+            </Tooltip>
             {layoutReady ? (
               <JobView jobId={selectedJobId} showFitPanel />
             ) : (
