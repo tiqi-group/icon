@@ -1,9 +1,14 @@
 import json
 import logging
+import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
+import h5py
 import pytest
+from filelock import FileLock
 from sqlalchemy.exc import NoResultFound
 
 from icon.server.data_access.repositories import experiment_data_repository as edr
@@ -317,3 +322,101 @@ def test_get_hardware_instructions(
         lambda: SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path / "x"))),
     )
     assert get() is None
+
+
+def test_h5_open_waits_for_writer(tmp_path: Path) -> None:
+    path = tmp_path / "job.h5"
+    with h5py.File(path, "w"):
+        pass
+
+    writer_done = threading.Event()
+    reader_done = threading.Event()
+    errors: list[BaseException] = []
+
+    def writer() -> None:
+        try:
+            with edr.h5_open(path, "a") as h5file:
+                h5file.attrs["marker"] = 1
+                time.sleep(0.3)
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            writer_done.set()
+
+    def reader() -> None:
+        try:
+            time.sleep(0.05)
+            with edr.h5_open(path, "r") as h5file:
+                assert h5file.attrs["marker"] == 1
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            reader_done.set()
+
+    threading.Thread(target=writer, daemon=True).start()
+    threading.Thread(target=reader, daemon=True).start()
+    assert reader_done.wait(timeout=5)
+    assert writer_done.wait(timeout=5)
+    assert errors == []
+
+
+def test_h5_open_missing_file_raises_immediately(tmp_path: Path) -> None:
+    path = tmp_path / "missing.h5"
+    start = time.monotonic()
+    with (
+        pytest.raises(FileNotFoundError),
+        edr.h5_open(path, "r"),
+    ):
+        pass
+    assert time.monotonic() - start < 1.0
+
+
+def test_h5_open_does_not_retry_body_oserror(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "job.h5"
+    with h5py.File(path, "w"):
+        pass
+
+    opens = 0
+    original = h5py.File
+
+    def counting_file(*args: Any, **kwargs: Any) -> Any:
+        nonlocal opens
+        opens += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(edr.h5py, "File", counting_file)
+    with (
+        pytest.raises(OSError, match="disk full"),
+        edr.h5_open(path, "a"),
+    ):
+        raise OSError("disk full")
+    assert opens == 1
+
+
+def test_h5_open_timeout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = tmp_path / "job.h5"
+    monkeypatch.setattr(edr, "OPEN_TIMEOUT", 0.2)
+
+    held = threading.Event()
+    stop = threading.Event()
+
+    def holder() -> None:
+        lock = FileLock(edr._h5_lock_path(path))
+        with lock:
+            held.set()
+            stop.wait(timeout=5)
+
+    thread = threading.Thread(target=holder, daemon=True)
+    thread.start()
+    assert held.wait(timeout=2)
+    try:
+        with (
+            pytest.raises(TimeoutError, match="Timed out opening HDF5 file"),
+            edr.h5_open(path, "a"),
+        ):
+            pass
+    finally:
+        stop.set()
+        thread.join(timeout=2)
