@@ -53,6 +53,7 @@ class RPCResponse:
     error: Any
     result: Any
 
+
 DEFAULT_LOCK_ACQUSITION_TIME: Final = 1.0
 """Default time for a RPC round-trip lock to become available."""
 
@@ -63,8 +64,10 @@ DEFAULT_NOTIFICATION_BUFFER: Final = 1000
 """Notifications retained while nobody polls. Past this the oldest are dropped, which is
     reported once per poll rather than once per message."""
 
+
 class _Abbreviated:
     """Abbreviate an RPC payload for logging."""
+
     __slots__ = ("obj",)
 
     def __init__(self, obj: Any) -> None:
@@ -201,7 +204,10 @@ class MsgPackRPCClient:
                 return notification
             case [MessageType.RESPONSE, int(msgid), error, result]:
                 logger.debug(
-                    "> RESPONSE (%d): %s%s", msgid, _Abbreviated(error), _Abbreviated(result)
+                    "> RESPONSE (%d): %s%s",
+                    msgid,
+                    _Abbreviated(error),
+                    _Abbreviated(result),
                 )
                 return RPCResponse(msgid, error, result)
             case _:

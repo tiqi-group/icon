@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 class ZedboardController(HardwareController):
     """Zedboard Hardware Controller relying on the tiqi_zedboard client."""
+
     def __init__(self, *, host: str, port: int, timeout: int = 5) -> None:
         """Initialise the controller.
 

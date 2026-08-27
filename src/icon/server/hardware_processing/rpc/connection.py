@@ -9,7 +9,7 @@ import sys
 import threading
 import time
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Final, override
+from typing import TYPE_CHECKING, Any, Final
 
 import msgpack
 
@@ -410,22 +410,18 @@ class FramedConnection(Connection):
     def __repr__(self) -> str:
         return f"msgpack(framed)://{self._hostname}:{self._port}"
 
-    @override
     def _new_unpacker(self) -> Any:
         """Framed messages are decoded whole, so no incremental decoder is needed."""
         return None
 
-    @override
     def _reset_decoder(self) -> None:
         self._buffer.clear()
 
-    @override
     def send(self, message: MsgPackRecord) -> None:
         """Override for the framed decode case. Prepend message with length header."""
         body: bytes = self._packer.pack(message)
         self._sock().sendall(HEADER_STRUCT.pack(len(body)) + body)
 
-    @override
     def _read_message(self, deadline: float | None) -> MsgPackRecord:
         """Override for the framed decode case. Read header first, then read body with indicated length."""
         while True:
@@ -434,7 +430,6 @@ class FramedConnection(Connection):
                 return message
             self._buffer += self._recv(RECV_CHUNK_SIZE, deadline)
 
-    @override
     def try_receive(self) -> MsgPackRecord | None:
         while True:
             message = self._next_buffered()
@@ -445,7 +440,6 @@ class FramedConnection(Connection):
                 return None
             self._buffer += chunk
 
-    @override
     def _next_buffered(self) -> MsgPackRecord:
         """Take one complete frame out of the buffer, or :data:`_NOTHING` if none is whole yet."""
         if len(self._buffer) < HEADER_SIZE:

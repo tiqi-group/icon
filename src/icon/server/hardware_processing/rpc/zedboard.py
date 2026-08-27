@@ -4,7 +4,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Any, Self, TypeVar
 
 from icon.server.hardware_processing.rpc.client import MsgPackRPCClient
 from icon.server.hardware_processing.rpc.errors import RFSoCError
@@ -118,12 +118,12 @@ class Zedboard:
         """Write several parameters in one round trip."""
         self._invoke("setParams", [[param_id, value] for param_id, value in params])
 
-    def get_ttl_mask(self) -> tuple[int,int]:
+    def get_ttl_mask(self) -> tuple[int, int]:
         """Get TTL states. Returns `high_mask`, `low_mask`."""
         high_mask, low_mask = self._invoke("ttlMasks")
         return high_mask, low_mask
 
-    def set_ttl_mask(self, high_mask:int, low_mask:int) -> None:
+    def set_ttl_mask(self, high_mask: int, low_mask: int) -> None:
         """Set TTL `high_mask`, `low_mask`."""
         return self._invoke("setTTLMasks", high_mask, low_mask)
 
@@ -180,9 +180,12 @@ class ExperimentResult:
     shot_channels: dict[str, list[int]] = field(default_factory=dict)
 
 
-def _lookup_by_name[T](
-    name: str, collection: Iterable[T], key: Callable[[T], str]
-) -> T:
+_T = TypeVar("_T")
+
+
+def _lookup_by_name(
+    name: str, collection: Iterable[_T], key: Callable[[_T], str]
+) -> _T:
     try:
         return next(filter(lambda p: key(p) == name, collection))
     except StopIteration as e:
@@ -213,7 +216,6 @@ class ZedboardSeqRunner(Zedboard):
     _param_id: int
     """Parameter id for the JSON Sequence parameter."""
 
-    @override
     def connect(self) -> None:
         """Connect to the device and discover configuration values."""
         super().connect()
@@ -285,12 +287,11 @@ class ZedboardSeqRunnerCached(ZedboardSeqRunner):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self.marker='"header":'
+        self.marker = '"header":'
         self.marker_len = len(self.marker)
 
         self._channel_names = {t: [] for t in ZedboardSeqRunnerCached.ChannelTypes}
 
-    @override
     def _result_channel_names(
         self, page_id: int
     ) -> tuple[list[str], list[str], list[str]]:
@@ -312,7 +313,6 @@ class ZedboardSeqRunnerCached(ZedboardSeqRunner):
             self._channel_names[ZedboardSeqRunnerCached.ChannelTypes.VECTOR],
         )
 
-    @override
     def load_sequence(self, sequence_json: str) -> None:
         """Update the cache with the new sequence description."""
         self._update_channel_names(sequence_json)
@@ -324,13 +324,19 @@ class ZedboardSeqRunnerCached(ZedboardSeqRunner):
         Fall back to full JSON decode if the partial decode fails.
         """
         try:
-            hdr = json.JSONDecoder().raw_decode(sequence_json, sequence_json.index(self.marker) + self.marker_len )[0]
+            hdr = json.JSONDecoder().raw_decode(
+                sequence_json, sequence_json.index(self.marker) + self.marker_len
+            )[0]
         except (json.decoder.JSONDecodeError, ValueError):
-            logger.warning("Sequence description format unexpected. Expecting dense format with no spaces. Falling back to slow decoder.")
+            logger.warning(
+                "Sequence description format unexpected. Expecting dense format with no spaces. Falling back to slow decoder."
+            )
             try:
-                hdr = json.loads(sequence_json).get("header",{})
+                hdr = json.loads(sequence_json).get("header", {})
             except json.decoder.JSONDecodeError as e:
-                raise RFSoCError("Submitted sequence is not valid JSON. Can't run") from e
+                raise RFSoCError(
+                    "Submitted sequence is not valid JSON. Can't run"
+                ) from e
 
         for t in ZedboardSeqRunnerCached.ChannelTypes:
             self._channel_names[t] = hdr.get(f"{t}_channel_names", [])

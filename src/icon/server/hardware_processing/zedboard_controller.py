@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 class ZedboardController(HardwareController):
     """Zedboard Hardware Controller using a stripped-down minimal Zedboard-compatible RPC client."""
+
     def __init__(
         self, *, host: str, port: int, timeout: int = 5, cached: bool = True
     ) -> None:
@@ -30,9 +31,9 @@ class ZedboardController(HardwareController):
         self._host = host
         self._port = port
         self._timeout = timeout
-        self._zedboard = (zedboard.ZedboardSeqRunnerCached if cached else zedboard.ZedboardSeqRunner)(
-            hostname=self._host, port=self._port, timeout=timeout
-        )
+        self._zedboard = (
+            zedboard.ZedboardSeqRunnerCached if cached else zedboard.ZedboardSeqRunner
+        )(hostname=self._host, port=self._port, timeout=timeout)
 
     def connect(self) -> None:
         try:
@@ -44,7 +45,9 @@ class ZedboardController(HardwareController):
                 e,
             )
         except (ConnectionResetError, ConnectionRefusedError, OSError) as e:
-            logger.warning("Could not connect to the Zedboard: %s (%r)", e, self._zedboard)
+            logger.warning(
+                "Could not connect to the Zedboard: %s (%r)", e, self._zedboard
+            )
         else:
             logger.info("Connected to the Zedboard: %s", self._zedboard)
 
