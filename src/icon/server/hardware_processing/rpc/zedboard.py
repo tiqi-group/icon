@@ -118,6 +118,15 @@ class Zedboard:
         """Write several parameters in one round trip."""
         self._invoke("setParams", [[param_id, value] for param_id, value in params])
 
+    def get_ttl_mask(self) -> tuple[int,int]:
+        """Get TTL states. Returns `high_mask`, `low_mask`."""
+        high_mask, low_mask = self._invoke("ttlMasks")
+        return high_mask, low_mask
+
+    def set_ttl_mask(self, high_mask:int, low_mask:int) -> None:
+        """Set TTL `high_mask`, `low_mask`."""
+        return self._invoke("setTTLMasks", high_mask, low_mask)
+
     def call_remote_action(self, page_id: int, action_id: int) -> Any:
         """Call remote action by page id and action id. See :meth:`get_remote_actions`."""
         return self._invoke("callRemoteAction", page_id, action_id)
