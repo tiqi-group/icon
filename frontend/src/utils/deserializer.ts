@@ -43,7 +43,9 @@ class Deserializer {
       return handler(serializedObject);
     }
 
-    console.warn(`Unknown type: ${serializedObject.type}`);
+    console.debug(
+      `Ignoring unknown type: ${serializedObject.type} (${serializedObject.full_access_path})`,
+    );
     return null;
   }
 
