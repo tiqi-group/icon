@@ -20,8 +20,8 @@ ParamDescr = tuple[tuple[int, ParamVal], tuple[str, int, int, str, list[Any]]]
 PageDescr = tuple[str, int, list[int]]
 
 
-class RFSoC:
-    """Direct RPC interface to the experiment runtime on the RFSoC control system.
+class Zedboard:
+    """Direct RPC interface to the legacy experiment runtime on the Zedboard.
 
     Provides typed stateless methods for the following operations
       * read pages, parameters, channels, and remote action.
@@ -30,13 +30,16 @@ class RFSoC:
 
     Intended to serve as a base class for specialized clients on top of the experiment
     runtime.
+
+    **Note**: This is a compatibility module for the legacy Zedboard controller interface.
+        The interface is deprecated and will be replaced in the future.
     """
 
     _client: MsgPackRPCClient
 
     def __init__(
         self,
-        hostname: str = "rfsoc.lab",
+        hostname: str = "zedboard.lab",
         port: int = 6007,
         timeout: float | None = 5,
     ) -> None:
@@ -60,7 +63,7 @@ class RFSoC:
         self.disconnect()
 
     def connect(self) -> None:
-        """Establish a connection to the RFSoC.
+        """Establish a connection to the Zedboard.
 
         Raises:
             ConnectionRefusedError: if the peer does not accept the connection. Probably
@@ -177,32 +180,29 @@ def _lookup_by_name[T](
         raise RFSoCError(f"{name} does not exist on device") from e
 
 
-class RFSoCSeqRunner(RFSoC):
-    """Representation of the Sequence Runner Experiment on the RFSoC.
+class ZedboardSeqRunner(Zedboard):
+    """Representation of the Sequence Runner Experiment on the Zedboard.
 
     On connect, the necessary configuration values for a sequence run are discovered once.
 
     Usage:
 
-        rfsoc = RFSoCSeqRunner(hostname="localhost", port=6000)
-        rfsoc.connect()
+        zedboard = ZedboardSeqRunner(hostname="localhost", port=6000)
+        zedboard.connect()
 
     The following steps are required for each sequence run:
 
-        rfsoc.load_sequence(seq_json)
-        res = rfsoc.run_sequence()
+        zedboard.load_sequence(seq_json)
+        res = zedboard.run_sequence()
     """
 
     _SEQ_PAGE_NAME = "sequence JSON parser"
     _SEQ_PARAM_NAME = "Sequence JSON"
-    _SEQ_PARSE_ACTION_NAME = "Parse JSON Header"
 
     _page_id: int
     """Page id for the sequence parser page."""
     _param_id: int
     """Parameter id for the JSON Sequence parameter."""
-    _action_id: int
-    """Action ID for the Parse JSON Header action."""
 
     @override
     def connect(self) -> None:
@@ -216,7 +216,7 @@ class RFSoCSeqRunner(RFSoC):
         return self.is_connected and self._page_id is not None
 
     def _discover(self) -> None:
-        """Discover the relevant page/parameter/action for the sequence runner.
+        """Discover the relevant page/parameter for the sequence runner.
 
         This is done only once after the connection is established.
 
@@ -238,14 +238,7 @@ class RFSoCSeqRunner(RFSoC):
             lambda x: x[1][0],
         )
 
-        # Actions: str[]
-        action_id, _ = _lookup_by_name(
-            self._SEQ_PARSE_ACTION_NAME,
-            enumerate(self.get_remote_actions(page_id)),
-            lambda x: x[1],
-        )
-
-        self._page_id, self._param_id, self._action_id = page_id, param_id, action_id
+        self._page_id, self._param_id = page_id, param_id
 
     def load_sequence(self, sequence_json: str) -> None:
         """Transmit the sequence description to the device."""
@@ -256,20 +249,20 @@ class RFSoCSeqRunner(RFSoC):
         return self.run_experiment(self._page_id)
 
 
-class RFSoCSeqRunnerCached(RFSoCSeqRunner):
-    """Cached variant of RFSoCSeqRunner.
+class ZedboardSeqRunnerCached(ZedboardSeqRunner):
+    """Cached variant of ZedboardSeqRunner.
 
-    By default, the RFSoC run_experiment routine fetches the channel names after every
+    By default, the run_experiment routine fetches the channel names after every
     experiment run. This is because the channel names are not known a priori as they are
     built according to the instructions in the sequence description.
-    This Sequence Runner inspects the sequence description between runs and allows to
+    This Sequence Runner infers the channel names from the sequence description and allows to
     retrieve the channel names directly from the cache. This avoids three round trips to
     the device for querying the individual channel names. The assumption is that three
     round trips takes longer than decoding the sequence description.
 
     Usage:
 
-    Identical to :class:`RFSoCSeqRunner`
+    Identical to :class:`ZedboardSeqRunner`
     """
 
     class ChannelTypes(StrEnum):
@@ -286,7 +279,7 @@ class RFSoCSeqRunnerCached(RFSoCSeqRunner):
         self.marker='"header":'
         self.marker_len = len(self.marker)
 
-        self._channel_names = {t: [] for t in RFSoCSeqRunnerCached.ChannelTypes}
+        self._channel_names = {t: [] for t in ZedboardSeqRunnerCached.ChannelTypes}
 
     @override
     def _result_channel_names(
@@ -305,9 +298,9 @@ class RFSoCSeqRunnerCached(RFSoCSeqRunner):
                 f"runner), not page {page_id}"
             )
         return (
-            self._channel_names[RFSoCSeqRunnerCached.ChannelTypes.READOUT],
-            self._channel_names[RFSoCSeqRunnerCached.ChannelTypes.SHOT],
-            self._channel_names[RFSoCSeqRunnerCached.ChannelTypes.VECTOR],
+            self._channel_names[ZedboardSeqRunnerCached.ChannelTypes.READOUT],
+            self._channel_names[ZedboardSeqRunnerCached.ChannelTypes.SHOT],
+            self._channel_names[ZedboardSeqRunnerCached.ChannelTypes.VECTOR],
         )
 
     @override
@@ -317,6 +310,10 @@ class RFSoCSeqRunnerCached(RFSoCSeqRunner):
         super().load_sequence(sequence_json)
 
     def _update_channel_names(self, sequence_json: str) -> None:
+        """Partially decode the header out of sequence_json to read the channel names.
+
+        Fall back to full JSON decode if the partial decode fails.
+        """
         try:
             hdr = json.JSONDecoder().raw_decode(sequence_json, sequence_json.index(self.marker) + self.marker_len )[0]
         except (json.decoder.JSONDecodeError, ValueError):
@@ -326,5 +323,5 @@ class RFSoCSeqRunnerCached(RFSoCSeqRunner):
             except json.decoder.JSONDecodeError as e:
                 raise RFSoCError("Submitted sequence is not valid JSON. Can't run") from e
 
-        for t in RFSoCSeqRunnerCached.ChannelTypes:
+        for t in ZedboardSeqRunnerCached.ChannelTypes:
             self._channel_names[t] = hdr.get(f"{t}_channel_names", [])

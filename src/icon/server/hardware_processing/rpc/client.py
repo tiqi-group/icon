@@ -8,6 +8,7 @@ NOTIFICATION := [2, method: str, params]
 from __future__ import annotations
 
 import logging
+import reprlib
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -62,8 +63,17 @@ DEFAULT_NOTIFICATION_BUFFER: Final = 1000
 """Notifications retained while nobody polls. Past this the oldest are dropped, which is
     reported once per poll rather than once per message."""
 
-def _Brief(x: Any) -> Any:
-    return x
+class _Abbreviated:
+    """Abbreviate an RPC payload for logging."""
+    __slots__ = ("obj",)
+
+    def __init__(self, obj: Any) -> None:
+        self.obj = obj
+
+    def __str__(self) -> str:
+        return reprlib.repr(self.obj) if self.obj is not None else ""
+
+    __repr__ = __str__
 
 
 class MsgPackRPCClient:
@@ -149,11 +159,11 @@ class MsgPackRPCClient:
                 sent, so retrying is safe.
             ConnectionError: If the connection is not open, or the peer closed it.
         """
-        logger.debug("call: %s%s", method_name, _Brief(args))
         _timeout = self._timeout if timeout is None else timeout
 
         with self._connection.transaction(_timeout) as transaction:
             msgid = self._next_msgid
+            logger.debug("< CALL (%d): %s%s", msgid, method_name, _Abbreviated(args))
             transaction.send((MessageType.REQUEST, msgid, method_name, args))
 
             while True:
@@ -183,7 +193,7 @@ class MsgPackRPCClient:
                 logger.debug(
                     "> NOTIFICATION %s%s",
                     notification.method,
-                    _Brief(notification.params),
+                    _Abbreviated(notification.params),
                 )
                 if len(self._notifications) == self._notification_buffer:
                     self._dropped += 1
@@ -191,7 +201,7 @@ class MsgPackRPCClient:
                 return notification
             case [MessageType.RESPONSE, int(msgid), error, result]:
                 logger.debug(
-                    "> RESPONSE (%d) %s%s", msgid, _Brief(error), _Brief(result)
+                    "> RESPONSE (%d): %s%s", msgid, _Abbreviated(error), _Abbreviated(result)
                 )
                 return RPCResponse(msgid, error, result)
             case _:
@@ -199,7 +209,7 @@ class MsgPackRPCClient:
 
     def notify(self, method_name: str, *args: Any) -> None:
         """Send a one-way notification, for which the server sends no reply."""
-        logger.debug("notify: %s%s", method_name, _Brief(args))
+        logger.debug("notify: %s%s", method_name, _Abbreviated(args))
         with self._connection.transaction() as transaction:
             transaction.send((MessageType.NOTIFICATION, method_name, args))
 
