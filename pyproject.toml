@@ -17,6 +17,7 @@ server = [
     "alembic>=1.14.0",
     "click>=8.1.0",
     "influxdb>=5.3.2",
+    "msgpack>=1.0.5,<2",
     "scipy>=1.14.0",
     "sqlalchemy>=2.0.36",
     "tables>=3.10.1",
@@ -82,10 +83,10 @@ typeCheckingMode = "basic"
 
 
 [tool.ruff]
-target-version = "py310" # Always generate Python 3.10-compatible code
+target-version = "py310"
 extend-exclude = [
-    "docs", 
-    "frontend", 
+    "docs",
+    "frontend",
     "src/icon/server/data_access/templates/"
 ]
 
