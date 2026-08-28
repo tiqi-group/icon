@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import pydase
 import pytz
 import socketio.exceptions
+from pydase.utils.serialization.serializer import dump
 
 from icon.config.config import get_config
 from icon.server.data_access.experiment_data import (
@@ -24,6 +25,7 @@ from icon.server.data_access.repositories.job_run_repository import JobRunReposi
 from icon.server.hardware_processing.utils import extract_hardware_error_message
 from icon.server.post_processing.task import PostProcessingTask
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
+from icon.server.utils.pydase_client import client_call_with_timeout
 
 if TYPE_CHECKING:
     import queue
@@ -110,15 +112,31 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self, device: Device, access_path: str, new_value: DatabaseValueType
     ) -> None:
         client = self._pydase_clients[device.name]
+        timeout = get_config().devices.set_value_timeout_seconds
         try:
-            client.update_value(access_path=access_path, new_value=new_value)
+            client_call_with_timeout(
+                client=client,
+                event="update_value",
+                data={"access_path": access_path, "value": dump(new_value)},
+                timeout=timeout,
+            )
         except socketio.exceptions.BadNamespaceError as e:
             raise RuntimeError(
                 f"Failed to connect to device {device.name!r} as {device.url!r}."
             ) from e
+        except socketio.exceptions.TimeoutError as e:
+            raise RuntimeError(
+                f"Timed out after {timeout} s while setting {access_path!r} of "
+                f"device {device.name!r}."
+            ) from e
 
         for attempt in range(1, device.retry_attempts + 1):
-            value_on_device = client.get_value(access_path=access_path)
+            value_on_device = client_call_with_timeout(
+                client=client,
+                event="get_value",
+                data=access_path,
+                timeout=timeout,
+            )
             # TODO: check for rounding errors
             if value_on_device == new_value:
                 return

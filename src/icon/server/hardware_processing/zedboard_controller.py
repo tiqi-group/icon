@@ -20,15 +20,23 @@ logger = logging.getLogger(__name__)
 
 
 class ZedboardController(HardwareController):
-    def __init__(self, *, host: str, port: int) -> None:
+    def __init__(self, *, host: str, port: int, timeout: int = 5) -> None:
+        """Initialise the controller.
+
+        Args:
+            host: Hostname of the Zedboard.
+            port: Port the Zedboard RPC server listens on.
+            timeout: RPC timeout in seconds for calls such as runExperiment. Configurable in the config file.
+        """
         self._host = host
         self._port = port
+        self._timeout = timeout
         self._zedboard: tiqi_zedboard.zedboard.Zedboard | None = None
 
     def connect(self) -> None:
         logger.info("Connecting to the Zedboard")
         self._zedboard = tiqi_zedboard.zedboard.Zedboard(
-            hostname=self._host, port=self._port
+            hostname=self._host, port=self._port, timeout=self._timeout
         )
         if not self.connected:
             logger.warning("Failed to connect to the Zedboard")
