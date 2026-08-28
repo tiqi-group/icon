@@ -35,7 +35,7 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
     """Serialization of pydantic models to the `pydase.utils.serialization.serializer.Serializer`."""
 
     @classmethod
-    def serialize_object(cls, obj: Any, access_path: str = "") -> SerializedIconObject:  # type: ignore[override] # noqa: C901
+    def serialize_object(cls, obj: Any, access_path: str = "") -> SerializedIconObject:  # type: ignore[override]  # noqa: C901, PLR0912
         result: SerializedIconObject | None = None
 
         from pydase.client.proxy_class import ProxyClass  # noqa: PLC0415
