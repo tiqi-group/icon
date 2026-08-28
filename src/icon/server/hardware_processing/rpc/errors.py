@@ -35,11 +35,3 @@ class ProtocolError(RPCError):
     This error is fatal to the connection as it otherwise lead to desynchronization between
     client and server. Recover by opening the connection again.
     """
-
-
-class RFSoCError(RPCError):
-    """The device is configured differently than the client expects.
-
-    When reading and evaluating server state like page, parameter or remote action
-    this error indicates unexpected results mich may indicate misconfiguration.
-    """

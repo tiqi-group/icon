@@ -7,7 +7,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Self, TypeVar
 
 from icon.server.hardware_processing.rpc.client import MsgPackRPCClient
-from icon.server.hardware_processing.rpc.errors import RFSoCError
+from icon.server.hardware_processing.rpc.errors import RPCError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -18,6 +18,14 @@ logger = logging.getLogger(__name__)
 ParamVal = bool | int | float | str
 ParamDescr = tuple[tuple[int, ParamVal], tuple[str, int, int, str, list[Any]]]
 PageDescr = tuple[str, int, list[int]]
+
+
+class ZedboardError(RPCError):
+    """The device is configured differently than the client expects.
+
+    When reading and evaluating server state like page, parameter or remote action
+    this error indicates unexpected results mich may indicate misconfiguration.
+    """
 
 
 class Zedboard:
@@ -130,14 +138,14 @@ class Zedboard:
         self, kind: str, page_id: int, names: list[str], values: Any
     ) -> dict[str, Any]:
         if values is None:
-            raise RFSoCError(
+            raise ZedboardError(
                 f"page {page_id} returned no {kind} channel data at all, but "
                 f"{len(names)} channel name(s) are known: {names}"
             )
         try:
             return dict(zip(names, values, strict=True))
         except ValueError as e:
-            raise RFSoCError(
+            raise ZedboardError(
                 f"page {page_id}: device returned {len(values)} {kind} channel(s) but "
                 f"{len(names)} name(s) are known ({names}). Either the RFSoC is "
                 f"misconfigured, or the cached channel names are stale."
@@ -184,7 +192,7 @@ def _lookup_by_name(
     try:
         return next(filter(lambda p: key(p) == name, collection))
     except StopIteration as e:
-        raise RFSoCError(f"{name} does not exist on device") from e
+        raise ZedboardError(f"{name} does not exist on device") from e
 
 
 class ZedboardSeqRunner(Zedboard):
@@ -227,7 +235,7 @@ class ZedboardSeqRunner(Zedboard):
         This is done only once after the connection is established.
 
         Raises:
-            RFSoCError: if a required page/parameter/action could not be found.
+            ZedboardError: if a required page/parameter/action could not be found.
               Most likely due to a misconfiguration on the device.
         """
         # Page: (name:str, flags:int, _param_ids:int[])
@@ -293,12 +301,12 @@ class ZedboardSeqRunnerCached(ZedboardSeqRunner):
         """Serve the sequence runner's channel names from cache instead of the device.
 
         Raises:
-            RFSoCError: if asked about any page other than the sequence page. The cache
+            ZedboardError: if asked about any page other than the sequence page. The cache
                 describes the loaded sequence, so it cannot answer for another page --
                 and answering with it anyway would silently mislabel that page's results.
         """
         if page_id != self._page_id:
-            raise RFSoCError(
+            raise ZedboardError(
                 f"cached channel names describe page {self._page_id} (the sequence "
                 f"runner), not page {page_id}"
             )
@@ -329,7 +337,7 @@ class ZedboardSeqRunnerCached(ZedboardSeqRunner):
             try:
                 hdr = json.loads(sequence_json).get("header", {})
             except json.decoder.JSONDecodeError as e:
-                raise RFSoCError(
+                raise ZedboardError(
                     "Submitted sequence is not valid JSON. Can't run"
                 ) from e
 

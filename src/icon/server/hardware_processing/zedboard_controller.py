@@ -38,7 +38,7 @@ class ZedboardController(HardwareController):
     def connect(self) -> None:
         try:
             self._zedboard.connect()
-        except zedboard.RFSoCError as e:
+        except zedboard.ZedboardError as e:
             logger.warning(
                 "Connected to %r, but it may not be configured properly sequence running: %s",
                 self._zedboard,
