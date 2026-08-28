@@ -52,6 +52,7 @@ class AsyncPyCrystalClient(VEnvExperimentLibraryClient):
         )
         self.repo = GitRepo(repo_url=repo, local_path=checkout_path).clone()
         self.experiment_library_module = experiment_library_module
+        self.dev_mode = True
 
     def checkout_revision(self, revision: str | None) -> str | None:
         self.repo.checkout(revision)
@@ -59,12 +60,15 @@ class AsyncPyCrystalClient(VEnvExperimentLibraryClient):
 
     @contextmanager
     def isolated(self) -> Iterator[ExperimentLibraryClient]:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            yield type(self)(
-                checkout_path=tmp_dir,
-                repo=self.repo.repo_url,
-                experiment_library_module=self.experiment_library_module,
-            )
+        if self.dev_mode:
+            yield self
+        else:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                yield type(self)(
+                    checkout_path=tmp_dir,
+                    repo=self.repo.repo_url,
+                    experiment_library_module=self.experiment_library_module,
+                )
 
 
 class PyCrystalClient(BlockingExperimentLibraryClient):
