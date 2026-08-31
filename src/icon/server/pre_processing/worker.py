@@ -29,6 +29,7 @@ from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
     job_run_cancelled_or_failed,
+    run_cancelled_or_failed,
 )
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
@@ -44,6 +45,7 @@ if TYPE_CHECKING:
         ExperimentLibraryClient,
     )
     from icon.server.data_access.models.sqlite.job import Job
+    from icon.server.data_access.models.sqlite.job_run import JobRun
     from icon.server.pre_processing.task import PreProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
     from icon.server.utils.types import UpdateQueue
@@ -393,7 +395,7 @@ class PreProcessingWorker(multiprocessing.Process):
         client: ExperimentLibraryClient,
         pre_processing_task: PreProcessingTask,
         namespace: ExperimentIdentifier,
-    ) -> None:
+    ) -> JobRun:
         """Block until the job run's status is no longer ``PAUSED``.
 
         Parameter-update events are still drained while paused, so calibrations or
@@ -406,14 +408,19 @@ class PreProcessingWorker(multiprocessing.Process):
         loop may have already drained ``_data_points_to_process`` before the pause,
         in which case it would otherwise spin on an empty queue without yielding to
         the outer ``_regenerate_outdated_jobs`` call.
+
+        Returns:
+            The run as it was last read, so callers can reuse its status.
         """
-        while (
-            JobRunRepository.get_run_by_job_id(job_id=pre_processing_task.job.id).status
-            == JobRunStatus.PAUSED
-        ):
+        job_run = JobRunRepository.get_run_by_job_id(job_id=pre_processing_task.job.id)
+        while job_run.status == JobRunStatus.PAUSED:
             self._handle_parameter_updates(pre_processing_task, namespace=namespace)
             time.sleep(0.2)
+            job_run = JobRunRepository.get_run_by_job_id(
+                job_id=pre_processing_task.job.id
+            )
         self._regenerate_outdated_jobs(client, namespace)
+        return job_run
 
     def _submit_task_to_hw_worker(
         self,
@@ -449,7 +456,9 @@ class PreProcessingWorker(multiprocessing.Process):
             scan_parameter_value_combinations
         ):
             self._handle_parameter_updates(pre_processing_task, namespace)
-            self._wait_while_paused(client, pre_processing_task, namespace=namespace)
+            job_run = self._wait_while_paused(
+                client, pre_processing_task, namespace=namespace
+            )
 
             # TODO: this should probably be done with multiple workers to
             # speed up the preparation of JSONs
@@ -459,7 +468,7 @@ class PreProcessingWorker(multiprocessing.Process):
                 time.sleep(SCAN_COMPLETION_POLL_INTERVAL)
                 continue
 
-            if job_run_cancelled_or_failed(job_id=pre_processing_task.job.id):
+            if run_cancelled_or_failed(job_run):
                 break
 
             yield
