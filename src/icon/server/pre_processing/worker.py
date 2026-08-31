@@ -53,6 +53,10 @@ timezone = pytz.timezone(get_config().date.timezone)
 
 ScanCombination = frozenset[tuple[str, DatabaseValueType]]
 
+SCAN_COMPLETION_POLL_INTERVAL = 0.1
+"""Seconds to wait between completion checks once every data point of a regular scan
+has been handed to the hardware worker."""
+
 
 class ParamUpdateMode(str, Enum):
     ALL_UP_TO_DATE = "all_up_to_date"
@@ -452,7 +456,7 @@ class PreProcessingWorker(multiprocessing.Process):
             try:
                 index, data_point = self._data_points_to_process.get(block=False)
             except queue.Empty:
-                time.sleep(0.001)
+                time.sleep(SCAN_COMPLETION_POLL_INTERVAL)
                 continue
             finally:
                 should_exit = job_run_cancelled_or_failed(
