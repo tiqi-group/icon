@@ -37,6 +37,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+MOST_RECENT_RESULT_FILES = 10
+"""How many of the newest result files to search when no job is specified."""
+
 
 def get_filename_by_job_id(job_id: int) -> str:
     """Return the HDF5 filename for a job.
@@ -457,7 +460,8 @@ class ExperimentDataRepository:
 
         Args:
             job_id: Job to read from. Defaults to the most recent job with
-                stored hardware instructions.
+                stored hardware instructions, looking no further back than
+                ``MOST_RECENT_RESULT_FILES`` result files.
             index: Data point index within the job. Defaults to the last stored
                 entry. Instructions are stored deduplicated (one entry per
                 change), so the entry active at *index* is returned.
@@ -473,7 +477,11 @@ class ExperimentDataRepository:
             except NoResultFound:
                 return None
         else:
-            paths = sorted(results_dir.glob("*.h5"), reverse=True)
+            # Only the newest files are opened: the results directory grows
+            # without bound.
+            paths = sorted(results_dir.glob("*.h5"), reverse=True)[
+                :MOST_RECENT_RESULT_FILES
+            ]
 
         for path in paths:
             if not path.is_file():

@@ -164,3 +164,26 @@ def test_get_hardware_instructions(
         lambda: SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path / "x"))),
     )
     assert get() is None
+
+
+def test_get_hardware_instructions_only_searches_recent_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path)))
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+
+    limit = experiment_data_repository.MOST_RECENT_RESULT_FILES
+    # Only the oldest file has instructions, and it is pushed out of the window
+    # by newer files without any.
+    _write_instruction_file(tmp_path / "job-00.h5", [(0, "seq-old")])
+    for i in range(1, limit + 1):
+        with h5py.File(tmp_path / f"job-{i:02d}.h5", "w"):
+            pass
+
+    get = experiment_data_repository.ExperimentDataRepository.get_hardware_instructions
+    assert get() is None
+
+    # Within the window it is found again.
+    for i in range(1, limit + 1):
+        (tmp_path / f"job-{i:02d}.h5").unlink()
+    assert get() == "seq-old"
