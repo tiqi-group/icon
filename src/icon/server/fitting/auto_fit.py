@@ -61,20 +61,32 @@ def _auto_fit(job_id: int, experiment_source_id: int) -> None:
     if scan_param_name is None:
         return
 
-    for channel_name, fit_data in previous_fits.items():
-        if fit_data.success and fit_data.func_type:
-            _fit_channel(job_id, data, scan_param_name, channel_name, fit_data)
+    for device_id, device in previous_fits.items():
+        for channel_name, fit_data in device.items():
+            if fit_data.success and fit_data.func_type:
+                _fit_channel(
+                    job_id, device_id, data, scan_param_name, channel_name, fit_data
+                )
 
 
 def _fit_channel(
     job_id: int,
+    device_id: str,
     data: ExperimentData,
     scan_param_name: str,
     channel_name: str,
     fit_data: FitResult,
 ) -> None:
     """Run a single auto-fit for one channel and persist the result."""
-    channel_values = data.readouts.result_channels.get(channel_name, {})
+    try:
+        result_channels = next(
+            d.readouts.result_channels
+            for d in data.device_data
+            if d.device_id == device_id
+        )
+    except StopIteration:
+        return
+    channel_values = result_channels.get(channel_name, {})
     if not channel_values:
         return
 
@@ -92,11 +104,11 @@ def _fit_channel(
     )
 
     if fit_result.success:
-        write_fit_result_by_job_id(job_id=job_id, fit_result=fit_result)
+        write_fit_result_by_job_id(job_id=job_id, fit_results=[(device_id, fit_result)])
         emit_queue.put(
             {
                 "event": f"experiment_fit_{job_id}",
-                "data": asdict(fit_result),
+                "data": {"device_id": device_id, "fit_data": asdict(fit_result)},
             }
         )
         logger.info(

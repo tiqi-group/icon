@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import multiprocessing
 import queue
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -51,7 +52,9 @@ class _FakeTask:
                 number_of_shots=100,
                 scan_parameters=scan_parameters,
             ),
+            job_run=MagicMock(),
         )
+        self.data_point_index = 0
 
     def __lt__(self, other: _FakeTask) -> bool:
         return (self.priority, self.created) < (other.priority, other.created)
@@ -70,18 +73,18 @@ def _fake_task(
     )
 
 
-def _make_worker() -> tuple[PreProcessingWorker, list[HardwareProcessingTask]]:
-    worker = PreProcessingWorker.__new__(PreProcessingWorker)
-    worker._parameter_dict = {}
-    worker._outdated_tasks = queue.PriorityQueue()
-    worker._processed_data_points = queue.Queue()
-    submitted: list[HardwareProcessingTask] = []
-
-    def _submit(*, task: HardwareProcessingTask) -> None:
-        submitted.append(task)
-
-    worker._submit_task_to_hw_worker = _submit  # type: ignore[method-assign]
-    return worker, submitted
+def _make_worker() -> tuple[PreProcessingWorker, queue.PriorityQueue[Any]]:
+    hw_queue: queue.PriorityQueue[Any] = queue.PriorityQueue()
+    worker = PreProcessingWorker(
+        worker_number=0,
+        pre_processing_queue=queue.PriorityQueue(),
+        update_queue=multiprocessing.Queue(),
+        hardware_processing_queue=hw_queue,
+        manager=MagicMock(PriorityQueue=queue.PriorityQueue, Queue=queue.Queue),
+        experiment_library_client=MagicMock(),
+        devices=MagicMock(),
+    )
+    return worker, hw_queue
 
 
 def _run_mock(status: JobRunStatus) -> MagicMock:
@@ -120,7 +123,7 @@ def test_regenerate_only_regenerates_stale_tasks() -> None:
     generate = _run_regenerate(worker, JobRunStatus.PROCESSING)
 
     assert generate.call_count == 1
-    assert len(submitted) == NUM_TASKS
+    assert submitted.qsize() == NUM_TASKS
     assert stale.hardware_instructions == b"REGENERATED"
     assert fresh.hardware_instructions == b"ORIGINAL"
 
@@ -133,7 +136,7 @@ def test_regenerate_stops_when_paused() -> None:
 
     generate = _run_regenerate(worker, JobRunStatus.PAUSED)
 
-    assert submitted == []
+    assert submitted.empty()
     assert generate.call_count == 0
     assert worker._outdated_tasks.qsize() == NUM_TASKS
 
@@ -147,7 +150,7 @@ def test_regenerate_does_not_regenerate_realtime_tasks() -> None:
     generate = _run_regenerate(worker, JobRunStatus.PROCESSING)
 
     assert generate.call_count == 0
-    assert submitted == [stale]
+    assert submitted.queue == [stale]
     assert stale.hardware_instructions == b"ORIGINAL"
 
 
@@ -159,7 +162,7 @@ def test_regenerate_drops_cancelled_tasks() -> None:
 
     generate = _run_regenerate(worker, JobRunStatus.CANCELLED)
 
-    assert submitted == []
+    assert submitted.empty()
     assert generate.call_count == 0
     assert worker._processed_data_points.qsize() == NUM_TASKS
     assert worker._outdated_tasks.qsize() == 0
@@ -174,7 +177,7 @@ def test_regenerate_uses_updated_parameters_after_pause() -> None:
 
     generate = _run_regenerate(worker, JobRunStatus.PROCESSING)
 
-    assert submitted == [stale]
+    assert submitted.queue == [stale]
     assert stale.hardware_instructions == b"REGENERATED"
     assert generate.call_args.kwargs["parameter_dict"]["freq"] == UPDATED_FREQ
 
@@ -194,10 +197,12 @@ def test_no_tight_loop_on_realtime_resume() -> None:
     )
 
     for _ in range(MAX_ROUNDS):
-        submitted.clear()
+        while not submitted.empty():
+            submitted.get()
         _run_regenerate(worker, JobRunStatus.PROCESSING)
         # Model the hardware worker: divert each resubmission it still finds outdated.
-        for task in submitted:
+        while not submitted.empty():
+            task = submitted.get()
             if should_divert_task(task, PARAM_UPDATE_TS, JobRunStatus.PROCESSING):
                 worker._outdated_tasks.put(task)
         if worker._outdated_tasks.empty():
