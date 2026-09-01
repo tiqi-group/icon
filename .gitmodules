@@ -1,3 +1,3 @@
 [submodule "frontend/ionpulse-sequence-visualiser"]
 	path = frontend/ionpulse-sequence-visualiser
-	url = git@github.com:tiqi-group/ionpulse-sequence-visualiser.git
+	url = https://github.com/tiqi-group/ionpulse-sequence-visualiser.git
