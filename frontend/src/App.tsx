@@ -15,8 +15,7 @@ import { reducer, JobsContext } from "./contexts/JobsContext";
 import { ParameterStoreProvider } from "./contexts/ParameterStoreContext";
 import { useJobsSync } from "./hooks/useJobsSync";
 import { deviceInfoReducer, DeviceInfoContext } from "./contexts/DeviceInfoContext";
-import { useDevicesSync } from "./hooks/useDevicesSync";
-import { DeviceStateContext, deviceStateReducer } from "./contexts/DeviceStateContext";
+import { useDeviceInfoSync } from "./hooks/useDevicesSync";
 import logo from "./assets/logo.png";
 import { useParameterStore } from "./hooks/useParameterStore";
 import { useParameterDisplayGroups } from "./hooks/useParameterDisplayGroups";
@@ -81,35 +80,32 @@ export const BRANDING = {
 export default function App() {
   const [scheduledJobs, schedulerDispatch] = useReducer(reducer, {});
   const [deviceInfo, deviceInfoDispatch] = useReducer(deviceInfoReducer, {});
-  const [deviceStates, deviceStateDispatch] = useReducer(deviceStateReducer, null);
   const parameterStore = useParameterStore();
   const { parameterDisplayGroups, parameterNamespaceToDisplayGroups } =
     useParameterDisplayGroups();
   const experiments = useExperiments();
 
   useJobsSync(schedulerDispatch);
-  useDevicesSync(deviceStateDispatch, deviceInfoDispatch);
+  useDeviceInfoSync(deviceInfoDispatch);
 
   return (
     <ReactRouterAppProvider navigation={NAVIGATION} branding={BRANDING}>
       <NotificationsProvider>
         <ParameterStoreProvider store={parameterStore}>
-          <DeviceStateContext.Provider value={deviceStates}>
-            <DeviceInfoContext.Provider value={deviceInfo}>
-              <JobsContext.Provider value={scheduledJobs}>
-                <ParameterDisplayGroupsContext.Provider
-                  value={{
-                    parameterDisplayGroups,
-                    parameterNamespaceToDisplayGroups,
-                  }}
-                >
-                  <ExperimentsContext.Provider value={experiments}>
-                    <Outlet />
-                  </ExperimentsContext.Provider>
-                </ParameterDisplayGroupsContext.Provider>
-              </JobsContext.Provider>
-            </DeviceInfoContext.Provider>
-          </DeviceStateContext.Provider>
+          <DeviceInfoContext.Provider value={deviceInfo}>
+            <JobsContext.Provider value={scheduledJobs}>
+              <ParameterDisplayGroupsContext.Provider
+                value={{
+                  parameterDisplayGroups,
+                  parameterNamespaceToDisplayGroups,
+                }}
+              >
+                <ExperimentsContext.Provider value={experiments}>
+                  <Outlet />
+                </ExperimentsContext.Provider>
+              </ParameterDisplayGroupsContext.Provider>
+            </JobsContext.Provider>
+          </DeviceInfoContext.Provider>
         </ParameterStoreProvider>
       </NotificationsProvider>
     </ReactRouterAppProvider>

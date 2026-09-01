@@ -4,14 +4,18 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import pydase
 import pydase.units as u
+import socketio.exceptions
 from pydase.task.decorator import task
+from pydase.utils.serialization.serializer import dump
 from socketio.exceptions import BadNamespaceError  # type: ignore
 
+from icon.config.config import get_config
 from icon.server.api.models.device_dict import DeviceDict
 from icon.server.data_access.models.enums import DeviceStatus
 from icon.server.data_access.models.sqlite.device import Device
 from icon.server.data_access.repositories.device_repository import DeviceRepository
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
+from icon.server.utils.pydase_client import client_call_with_timeout
 from icon.server.utils.scannable_device_parameters import get_scannable_params_list
 
 if TYPE_CHECKING:
@@ -167,11 +171,14 @@ class DevicesController(pydase.DataService):
         elif type_ == "Quantity" and isinstance(new_value, dict):
             new_value = u.Quantity(new_value["magnitude"], new_value["unit"])  # type: ignore
 
+        timeout = get_config().devices.set_value_timeout_seconds
         try:
             await asyncio.to_thread(
-                self._devices[name].update_value,
-                access_path=parameter_id,
-                new_value=new_value,
+                client_call_with_timeout,
+                client=self._devices[name],
+                event="update_value",
+                data={"access_path": parameter_id, "value": dump(new_value)},
+                timeout=timeout,
             )
         except BadNamespaceError:
             logger.warning(
@@ -179,6 +186,13 @@ class DevicesController(pydase.DataService):
                 parameter_id,
                 name,
                 self._devices[name]._url,
+            )
+        except socketio.exceptions.TimeoutError:
+            logger.warning(
+                "Timed out after %s s while setting %r of device %r.",
+                timeout,
+                parameter_id,
+                name,
             )
         except KeyError:
             logger.warning("Device with name %r not found. Is it enabled?", name)
@@ -196,9 +210,14 @@ class DevicesController(pydase.DataService):
             The parameter value as returned by the device, or `None` if the device is
                 unreachable or unknown.
         """
+        timeout = get_config().devices.set_value_timeout_seconds
         try:
             return await asyncio.to_thread(
-                self._devices[name].get_value, access_path=parameter_id
+                client_call_with_timeout,
+                client=self._devices[name],
+                event="get_value",
+                data=parameter_id,
+                timeout=timeout,
             )
         except BadNamespaceError:
             logger.warning(
@@ -206,6 +225,13 @@ class DevicesController(pydase.DataService):
                 parameter_id,
                 name,
                 self._devices[name]._url,
+            )
+        except socketio.exceptions.TimeoutError:
+            logger.warning(
+                "Timed out after %s s while getting %r of device %r.",
+                timeout,
+                parameter_id,
+                name,
             )
         except KeyError:
             logger.warning("Device with name %r not found. Is it enabled?", name)

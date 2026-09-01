@@ -35,8 +35,10 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
     """Serialization of pydantic models to the `pydase.utils.serialization.serializer.Serializer`."""
 
     @classmethod
-    def serialize_object(cls, obj: Any, access_path: str = "") -> SerializedIconObject:  # type: ignore[override] # noqa: C901
+    def serialize_object(cls, obj: Any, access_path: str = "") -> SerializedIconObject:  # type: ignore[override]  # noqa: C901, PLR0912
         result: SerializedIconObject | None = None
+
+        from pydase.client.proxy_class import ProxyClass  # noqa: PLC0415
 
         if isinstance(obj, Exception):
             result = cls._serialize_exception(obj)
@@ -49,6 +51,9 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
 
         elif isinstance(obj, sqlalchemy.orm.DeclarativeBase):
             result = cls._serialize_orm(obj, access_path=access_path)
+
+        elif isinstance(obj, ProxyClass):
+            result = cls._serialize_proxy_class(obj, access_path=access_path)
 
         elif isinstance(obj, AbstractDataService):
             result = cls._serialize_data_service(obj, access_path=access_path)

@@ -31,18 +31,18 @@ export const updateValue = (
   serializedObject: SerializedObject,
   callback?: (ack: unknown) => void,
 ) => {
-  if (callback) {
-    socket.emit(
-      "update_value",
-      { access_path: serializedObject["full_access_path"], value: serializedObject },
-      callback,
-    );
-  } else {
-    socket.emit("update_value", {
+  socket.emit(
+    "update_value",
+    {
       access_path: serializedObject["full_access_path"],
       value: serializedObject,
-    });
-  }
+    },
+    ...(callback ? [callback] : []),
+  );
+};
+
+export const getValue = (accessPath: string, callback?: (ack: unknown) => void) => {
+  socket.emit("get_value", accessPath, ...(callback ? [callback] : []));
 };
 
 export const runMethod = (
@@ -51,20 +51,13 @@ export const runMethod = (
   kwargs: Record<string, unknown> = {},
   callback?: (ack: unknown) => void,
 ) => {
-  const serializedArgs = serializeList(args);
-  const serializedKwargs = serializeDict(kwargs);
-
-  if (callback) {
-    socket.emit(
-      "trigger_method",
-      { access_path: accessPath, args: serializedArgs, kwargs: serializedKwargs },
-      callback,
-    );
-  } else {
-    socket.emit("trigger_method", {
+  socket.emit(
+    "trigger_method",
+    {
       access_path: accessPath,
-      args: serializedArgs,
-      kwargs: serializedKwargs,
-    });
-  }
+      args: serializeList(args),
+      kwargs: serializeDict(kwargs),
+    },
+    ...(callback ? [callback] : []),
+  );
 };
