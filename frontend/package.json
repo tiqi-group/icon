@@ -4,10 +4,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build --emptyOutDir",
+    "build": "tsc -b && vite build --emptyOutDir && npm run build:visualizer",
+    "build:visualizer": "cd ionpulse-sequence-visualiser && npm run build -- --outDir ../../src/icon/server/frontend_visualizer --emptyOutDir",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "test": "jest"
+    "test": "jest",
+    "postinstall": "cd ionpulse-sequence-visualiser && npm install"
   },
   "dependencies": {
     "@base-ui-components/react": "^1.0.0-alpha.5",

@@ -1,7 +1,8 @@
-"""Serves the vendored sequence-visualizer build under ``/visualizer/``.
+"""Serves the sequence-visualizer build under ``/visualizer/``.
 
-The files in ``src/icon/server/visualiser_frontend/`` are a prebuilt bundle of
-the ionpulse-sequence-visualiser (see the VENDORED.md file there).
+The files in ``src/icon/server/frontend_visualizer/`` are a build of the
+ionpulse-sequence-visualiser, produced by the frontend build (see
+FRONTEND_VISUALIZER.md).
 
 pydase's ``WebServer`` constructs and runs its aiohttp application inside
 ``serve()`` without an extension hook, and its catch-all index route swallows
@@ -19,7 +20,7 @@ import aiohttp.web
 from pydase.server.web_server import WebServer
 
 URL_PREFIX = "/visualizer"
-DIST_DIR = (Path(__file__).parent.parent / "visualiser_frontend").resolve()
+DIST_DIR = (Path(__file__).parent.parent / "frontend_visualizer").resolve()
 
 
 def _visualiser_file_response(url_path: str) -> aiohttp.web.StreamResponse:
