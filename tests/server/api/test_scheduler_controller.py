@@ -1,18 +1,44 @@
-from unittest.mock import MagicMock, patch
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pydase.units as u
 import pytest
 
+from icon.server.api.models.parameter_metadata import ParameterMetadata
 from icon.server.api.scheduler_controller import SchedulerController
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 
 
 @pytest.fixture
-def controller() -> SchedulerController:
+def devices_controller() -> MagicMock:
+    return MagicMock()
+
+
+@pytest.fixture
+def controller(devices_controller: MagicMock) -> SchedulerController:
     return SchedulerController(
-        devices_controller=MagicMock(),
+        devices_controller=devices_controller,
         parameters_controller=MagicMock(),
     )
+
+
+def _metadata(
+    *,
+    display_name: str = "",
+    unit: str = "",
+    default_value: float = 0,
+    min_value: float | None = None,
+    max_value: float | None = None,
+    allowed_values: list[Any] | None = None,
+) -> ParameterMetadata:
+    return {
+        "display_name": display_name,
+        "unit": unit,
+        "default_value": default_value,
+        "min_value": min_value,
+        "max_value": max_value,
+        "allowed_values": allowed_values,
+    }
 
 
 def _mock_job_run(status: JobRunStatus, run_id: int = 42) -> MagicMock:
@@ -127,8 +153,8 @@ def test_cancel_job_cancels_paused_runs(
 
 def test_resolve_unit_from_parameter_metadata(controller: SchedulerController) -> None:
     controller._parameters_controller._all_parameter_metadata = {
-        "tickle_frequency": {"display_name": "Tickle frequency", "unit": "MHz"},
-        "empty_unit": {"display_name": "No unit", "unit": "  "},
+        "tickle_frequency": _metadata(display_name="Tickle frequency", unit="MHz"),
+        "empty_unit": _metadata(display_name="No unit", unit="  "),
     }
 
     assert controller._resolve_unit("tickle_frequency") == "MHz"
@@ -138,8 +164,76 @@ def test_resolve_unit_from_parameter_metadata(controller: SchedulerController) -
 
 def test_resolve_unit_from_quantity_value(controller: SchedulerController) -> None:
     controller._parameters_controller._all_parameter_metadata = {}
-    quantity = u.Quantity(1, "MHz")
 
-    unit = controller._resolve_unit("device.freq", value=quantity)
-    assert unit is not None
-    assert "Hz" in unit or "hertz" in unit.lower()
+    assert controller._resolve_unit("device.freq", value=u.Quantity(1, "MHz")) == "MHz"
+    assert controller._resolve_unit("device.time", value=u.Quantity(1, "us")) == "µs"
+
+
+@pytest.mark.asyncio
+@patch("icon.server.api.scheduler_controller.ParametersRepository")
+@patch("icon.server.api.scheduler_controller.ExperimentSourceRepository")
+@patch("icon.server.api.scheduler_controller.JobRepository")
+async def test_submit_job_persists_unit_from_metadata(
+    mock_job_repo: MagicMock,
+    mock_experiment_source_repo: MagicMock,
+    mock_params_repo: MagicMock,
+    controller: SchedulerController,
+    devices_controller: MagicMock,
+) -> None:
+    controller._parameters_controller._all_parameter_metadata = {
+        "tickle_frequency": _metadata(display_name="Tickle frequency", unit="MHz"),
+    }
+    mock_params_repo.get_shared_parameter_by_id.return_value = 1.0
+    mock_experiment_source_repo.get_or_create_experiment.return_value = MagicMock()
+    mock_job = MagicMock()
+    mock_job.id = 7
+    mock_job_repo.submit_job.return_value = mock_job
+
+    job_id = await controller.submit_job(
+        experiment_id="exp",
+        scan_parameters=[{"id": "tickle_frequency", "values": [1.0, 2.0]}],
+    )
+
+    assert job_id == mock_job.id
+    scan_parameter = mock_job_repo.submit_job.call_args.kwargs["job"].scan_parameters[0]
+    assert scan_parameter.unit == "MHz"
+    devices_controller.get_parameter_value.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("icon.server.api.scheduler_controller.DeviceRepository")
+@patch("icon.server.api.scheduler_controller.ExperimentSourceRepository")
+@patch("icon.server.api.scheduler_controller.JobRepository")
+async def test_submit_job_persists_unit_from_device_quantity(
+    mock_job_repo: MagicMock,
+    mock_experiment_source_repo: MagicMock,
+    mock_device_repo: MagicMock,
+    controller: SchedulerController,
+    devices_controller: MagicMock,
+) -> None:
+    controller._parameters_controller._all_parameter_metadata = {}
+    devices_controller.get_parameter_value = AsyncMock(
+        return_value=u.Quantity(1, "MHz")
+    )
+    mock_device = MagicMock()
+    mock_device.id = 3
+    mock_device_repo.get_device_by_name.return_value = mock_device
+    mock_experiment_source_repo.get_or_create_experiment.return_value = MagicMock()
+    mock_job = MagicMock()
+    mock_job.id = 8
+    mock_job_repo.submit_job.return_value = mock_job
+
+    job_id = await controller.submit_job(
+        experiment_id="exp",
+        scan_parameters=[
+            {"id": "freq", "device_name": "RF", "values": [1.0, 2.0]},
+        ],
+    )
+
+    assert job_id == mock_job.id
+    scan_parameter = mock_job_repo.submit_job.call_args.kwargs["job"].scan_parameters[0]
+    assert scan_parameter.unit == "MHz"
+    devices_controller.get_parameter_value.assert_awaited_once_with(
+        name="RF",
+        parameter_id="freq",
+    )

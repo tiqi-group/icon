@@ -12,7 +12,7 @@ interface ScanParameterArgument {
   n_scan_points?: number;
 }
 
-const generateScanValues = (
+export const generateScanValues = (
   start: number,
   stop: number,
   points: number,

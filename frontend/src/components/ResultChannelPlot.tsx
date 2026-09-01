@@ -8,6 +8,7 @@ import { copyEChartsToClipboard } from "../utils/copyEChartsToClipboard";
 import { ScanParameter } from "../types/ScanParameter";
 import { ExperimentMetadata } from "../types/ExperimentMetadata";
 import { buildResultChannelChartSeries } from "../utils/buildResultChannelChartSeries";
+import { formatNum, xDecimalsFromValues } from "../utils/plotAxisFormatting";
 
 interface ResultChannelPlotProps {
   experimentData: ExperimentData;
@@ -29,30 +30,6 @@ interface ResultChannelPlotProps {
 function yDecimalsFromShots(shots: number, repetitions: number): number {
   const n = Math.max(1, shots) * Math.max(1, repetitions);
   return n <= 1 ? 0 : Math.ceil(Math.log10(n));
-}
-
-function xDecimalsFromValues(values: number[]): number {
-  const nums = [...new Set(values.filter(Number.isFinite))].sort((a, b) => a - b);
-  if (nums.length < 2) return 0;
-  let step = Infinity;
-  for (let i = 1; i < nums.length; i++) {
-    const delta = nums[i] - nums[i - 1];
-    if (delta > 0) step = Math.min(step, delta);
-  }
-  if (!Number.isFinite(step) || step >= 1) return 0;
-  for (let d = 0; d <= 12; d++) {
-    const factor = 10 ** d;
-    if (Math.abs(Math.round(step * factor) / factor - step) < step * 1e-10 + 1e-12) {
-      return d;
-    }
-  }
-  return 12;
-}
-
-function formatNum(value: unknown, decimals: number): string {
-  const num = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(num)) return String(value ?? "");
-  return Number(num.toFixed(decimals)).toString();
 }
 
 function axisName(
