@@ -48,6 +48,8 @@ export const SettingsPage = () => {
     "openExperimentWindows",
     true,
   );
+  const [openVisualizerInNewWindow, setOpenVisualizerInNewWindow] =
+    useBrowserSetting<boolean>("openVisualizerInNewWindow", true);
 
   const tabParam = searchParams.get("tab");
   let tab = tabParam ? tabLabels.indexOf(tabParam) : -1;
@@ -306,6 +308,14 @@ export const SettingsPage = () => {
           onClick={() => setSeparateJobWindows(!separateJobWindows)}
         >
           {separateJobWindows ? "True" : "False"}
+        </BaseButton>
+        <BaseButton
+          label="Open visualizer in new window"
+          description="Open the sequence visualizer in a separate window instead of navigating to the Sequence page."
+          color={openVisualizerInNewWindow ? "success" : "inherit"}
+          onClick={() => setOpenVisualizerInNewWindow(!openVisualizerInNewWindow)}
+        >
+          {openVisualizerInNewWindow ? "True" : "False"}
         </BaseButton>
       </TabPanel>
     </>
