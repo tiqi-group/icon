@@ -8,6 +8,7 @@ import os
 import pickle
 import sys
 import tempfile
+import warnings
 from collections.abc import Callable
 from typing import Any
 
@@ -90,7 +91,21 @@ class VirtualEnvironment:
 """
                 )
             with open(out_path, "rb") as stream:  # noqa: ASYNC230
-                return deserialize(json.load(stream))
+                return_value, wrn = json.load(stream)
+            for warning, category in wrn:
+                log_venv_warning(warning, category, logger=logger)
+            return deserialize(return_value)
+
+
+def log_venv_warning(
+    message: str, category: str, logger: logging.Logger | None
+) -> None:
+    if logger is None:
+        warnings.warn(
+            message, category=getattr(sys.modules["builtins"], category), stacklevel=0
+        )
+    else:
+        logger.warning(message)
 
 
 def module_path(obj: Any) -> str | None:
@@ -125,9 +140,15 @@ def main() -> None:
     """Runtime for inside the isolated environment."""
     in_data = sys.stdin.buffer.read()
     callback, kwargs, out_path, serialize = pickle.loads(in_data)
-    out = callback(**kwargs)
+    with warnings.catch_warnings(record=True) as wrn:
+        warnings.simplefilter("always")
+        out = callback(**kwargs)
     with open(out_path, "w") as stream:
-        json.dump(serialize(out), stream)
+        json.dump((serialize(out), [serialize_warning(w) for w in wrn]), stream)
+
+
+def serialize_warning(w: warnings.WarningMessage) -> tuple[str, str]:
+    return (format(w.message), w.category.__name__)
 
 
 if __name__ == "__main__":
