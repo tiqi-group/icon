@@ -1,7 +1,11 @@
 import dataclasses
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import h5py
+import pytest
+from sqlalchemy.exc import NoResultFound
 
 from icon.server.data_access.experiment_data import (
     ExperimentData,
@@ -104,3 +108,82 @@ class MockScanParameter:
         self.variable_id = variable_id
         self.realtime = realtime
         self.device = None
+
+
+def _write_instruction_file(path: Path, entries: list[tuple[int, str]]) -> None:
+    with h5py.File(path, "w") as h5file:
+        for data_point_index, instructions in entries:
+            experiment_data_repository.write_hardware_instructions_to_dataset(
+                h5file, data_point_index, instructions
+            )
+
+
+def test_get_hardware_instructions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path)))
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+    unknown_job_id = 42
+
+    def filename(job_id: int) -> str:
+        if job_id == unknown_job_id:
+            raise NoResultFound
+        return f"job-{job_id}.h5"
+
+    monkeypatch.setattr(experiment_data_repository, "get_filename_by_job_id", filename)
+
+    # Two jobs; instructions are stored deduplicated: the entry index marks the
+    # data point at which the instructions changed.
+    _write_instruction_file(tmp_path / "job-1.h5", [(0, "seq-1a"), (5, "seq-1b")])
+    _write_instruction_file(tmp_path / "job-2.h5", [(0, "seq-2a")])
+    # Sorts below job-2 so that it does not affect the latest-file lookup.
+    _write_instruction_file(tmp_path / "job-0.h5", [(2, "seq-0a")])
+    # A newer file without instructions must be skipped for the latest scope.
+    with h5py.File(tmp_path / "job-3.h5", "w"):
+        pass
+
+    get = experiment_data_repository.ExperimentDataRepository.get_hardware_instructions
+    # latest: newest file that has instructions
+    assert get() == "seq-2a"
+    # job scope: last entry of that job
+    assert get(job_id=1) == "seq-1b"
+    # data point scope: entry active at the given index
+    assert get(job_id=1, index=0) == "seq-1a"
+    assert get(job_id=1, index=4) == "seq-1a"
+    assert get(job_id=1, index=5) == "seq-1b"
+    assert get(job_id=1, index=99) == "seq-1b"
+    # data points before the first stored entry have no instructions
+    assert get(job_id=0, index=1) is None
+    assert get(job_id=0, index=2) == "seq-0a"
+    # unknown job, missing file, and empty directory behave gracefully
+    assert get(job_id=unknown_job_id) is None
+    assert get(job_id=39) is None
+    monkeypatch.setattr(
+        experiment_data_repository,
+        "get_config",
+        lambda: SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path / "x"))),
+    )
+    assert get() is None
+
+
+def test_get_hardware_instructions_only_searches_recent_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path)))
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+
+    limit = experiment_data_repository.MOST_RECENT_RESULT_FILES
+    # Only the oldest file has instructions, and it is pushed out of the window
+    # by newer files without any.
+    _write_instruction_file(tmp_path / "job-00.h5", [(0, "seq-old")])
+    for i in range(1, limit + 1):
+        with h5py.File(tmp_path / f"job-{i:02d}.h5", "w"):
+            pass
+
+    get = experiment_data_repository.ExperimentDataRepository.get_hardware_instructions
+    assert get() is None
+
+    # Within the window it is found again.
+    for i in range(1, limit + 1):
+        (tmp_path / f"job-{i:02d}.h5").unlink()
+    assert get() == "seq-old"

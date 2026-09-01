@@ -5,7 +5,7 @@ import pydase
 from pydase.task.decorator import task
 
 from icon.config.config import get_config
-from icon.server.data_access.db_context import influxdb_v1
+from icon.server.data_access.db_context.influxdb import influxdb_v1
 from icon.server.hardware_processing.devices import Devices, HardwareController
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
