@@ -51,11 +51,7 @@ class VirtualEnvironment:
             payload = pickle.dumps((callback, args or {}, out_path, serialize))
             python_path = ":".join(
                 p
-                for p in {
-                    module_path(callback),
-                    module_path(serialize),
-                    module_path(deserialize),
-                }
+                for p in {module_path(callback), module_path(serialize)}
                 if p is not None
             )
             proc = await asyncio.create_subprocess_exec(
