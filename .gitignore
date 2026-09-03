@@ -144,3 +144,7 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+# Frontend build output
+/src/icon/server/frontend/
+/src/icon/server/frontend_visualizer/
