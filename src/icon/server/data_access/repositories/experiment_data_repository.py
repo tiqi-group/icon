@@ -4,7 +4,7 @@ import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -39,6 +39,24 @@ logger = logging.getLogger(__name__)
 
 MOST_RECENT_RESULT_FILES = 10
 """How many of the newest result files to search when no job is specified."""
+
+
+@dataclass
+class DeviceSnapshot:
+    """State of a connected device at the time of a measurement."""
+
+    name: str
+    """Device name (as registered in the devices table)."""
+    url: str
+    """pydase service URL of the device."""
+    timestamp: str
+    """Snapshot timestamp (ISO string)."""
+    state: dict[str, Any] | None
+    """Raw pydase ``SerializedObject`` tree for the device's first snapshot in a
+    job; only the branches that changed since that first snapshot for later
+    snapshots (an empty dict if nothing changed). None if unreachable."""
+    error: str | None = None
+    """Error message if the device state could not be fetched."""
 
 
 def get_filename_by_job_id(job_id: int) -> str:
@@ -191,6 +209,7 @@ def write_shot_channels_to_datasets(
     shot_channels: dict[str, list[int]],
     number_of_data_points: int,
     number_of_shots: int,
+    job_id: int,
 ) -> None:
     """Write per-shot data into datasets under the 'shot_channels' group.
 
@@ -200,9 +219,20 @@ def write_shot_channels_to_datasets(
         shot_channels: Mapping of channel to per-shot integers.
         number_of_data_points: Current total number of stored data points.
         number_of_shots: Expected number of shots per channel.
+        job_id: Job identifier, used for logging on a mismatched channel.
     """
     shot_group = h5file.require_group("shot_channels")
     for key, value in shot_channels.items():
+        if len(value) != number_of_shots:
+            logger.error(
+                "Shot channel %r has %d values, expected %d (job %d); skipping.",
+                key,
+                len(value),
+                number_of_shots,
+                job_id,
+            )
+            continue
+
         shot_dataset = shot_group.require_dataset(
             key,
             shape=(number_of_data_points, number_of_shots),
@@ -242,6 +272,39 @@ def write_vector_channels_to_datasets(
                 compression="gzip",
                 compression_opts=9,
             )
+
+
+_DEVICE_SNAPSHOT_DTYPE = [
+    ("timestamp", "S26"),
+    ("state", h5py.string_dtype()),
+    ("error", h5py.string_dtype()),
+]
+
+
+def _write_device_snapshot(devices_group: h5py.Group, snapshot: DeviceSnapshot) -> None:
+    """Append one device's state as a JSON string to its growable snapshot history.
+
+    Storing the raw device state as one JSON string.
+    """
+    device_group = devices_group.require_group(snapshot.name)
+    device_group.attrs["url"] = snapshot.url
+
+    row = (
+        snapshot.timestamp.encode(),
+        json.dumps(snapshot.state) if snapshot.state is not None else "",
+        snapshot.error or "",
+    )
+
+    if "snapshots" in device_group:
+        dataset: h5py.Dataset = device_group["snapshots"]
+        index = dataset.shape[0]
+        resize_dataset(dataset, next_index=index, axis=0)
+    else:
+        dataset = device_group.create_dataset(
+            "snapshots", shape=(1,), maxshape=(None,), dtype=_DEVICE_SNAPSHOT_DTYPE
+        )
+        index = 0
+    dataset[index] = row
 
 
 class ExperimentDataRepository:
@@ -326,7 +389,7 @@ class ExperimentDataRepository:
         h5_path = Path(get_config().data.results_dir) / filename
 
         with h5_open(h5_path, "a") as h5file:
-            write_experiment_data_point(h5file, data_point)
+            write_experiment_data_point(h5file, data_point, job_id)
         logger.debug("Appended data to %s", h5_path)
 
         emit_queue.put(
@@ -344,6 +407,32 @@ class ExperimentDataRepository:
                 "data": data_point.hardware_instructions,
             }
         )
+
+    @staticmethod
+    def write_device_snapshots_by_job_id(
+        *,
+        job_id: int,
+        snapshots: list[DeviceSnapshot],
+    ) -> None:
+        """Append each device's state as a JSON string under the 'devices' group.
+
+        Each call appends one row to 'devices/<name>/snapshots' with the
+        snapshot's timestamp, its state as a JSON string (empty if the device
+        was unreachable), and its error message (if any).
+
+        Args:
+            job_id: Job identifier.
+            snapshots: Device snapshots to persist.
+        """
+        filename = get_filename_by_job_id(job_id)
+        h5_path = Path(get_config().data.results_dir) / filename
+
+        with h5_open(h5_path, "a") as h5file:
+            devices_group = h5file.require_group("devices")
+            for snapshot in snapshots:
+                _write_device_snapshot(devices_group, snapshot)
+
+            logger.debug("Wrote %d device snapshots for job %d", len(snapshots), job_id)
 
     @staticmethod
     def write_parameter_update_by_job_id(
@@ -586,7 +675,7 @@ def prepare_readout_metadata(
 
 
 def write_experiment_data_point(
-    h5file: h5py.File, data_point: ExperimentDataPoint
+    h5file: h5py.File, data_point: ExperimentDataPoint, job_id: int
 ) -> None:
     try:
         number_of_shots: int = h5file.attrs["number_of_shots"]
@@ -617,6 +706,7 @@ def write_experiment_data_point(
         shot_channels=data_point.readouts.shot_channels,
         number_of_data_points=number_of_data_points,
         number_of_shots=number_of_shots,
+        job_id=job_id,
     )
 
     write_vector_channels_to_datasets(

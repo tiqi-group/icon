@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from confz import BaseConfig
 from pydantic import BaseModel
@@ -13,6 +13,9 @@ class HealthCheckConfig(BaseModel):
 
 class DataConfiguration(BaseModel):
     results_dir: str = str(Path.cwd() / "output")
+    device_snapshot_frequency: Literal["data_point", "job"] = "data_point"
+    """How often to store a snapshot of connected devices' state: on every data
+    point, or once per job (its first data point)."""
 
 
 class ExperimentLibraryConfig(BaseModel):

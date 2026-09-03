@@ -13,6 +13,12 @@
     results_dir: /my/results/output/dir/
   ```
 
+  Each stored data point can also include a snapshot of connected devices' state. By default this is taken on every data point (`data_point`); set it to `job` to snapshot only once, on the job's first data point:
+  ```yaml
+  data:
+    device_snapshot_frequency: job
+  ```
+
 * **SQLite** - stores metadata about jobs and devices. By default, ICON will create `icon.db` in the current working directory. You can override this path in the config file:
 
     ```yaml
