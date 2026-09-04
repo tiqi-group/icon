@@ -2,7 +2,7 @@
 
 The files in ``src/icon/server/frontend_visualizer/`` are a build of the
 ionpulse-sequence-visualiser, produced by the frontend build (see
-FRONTEND_VISUALIZER.md).
+frontend/README.md).
 
 pydase's ``WebServer`` constructs and runs its aiohttp application inside
 ``serve()`` without an extension hook, and its catch-all index route swallows
