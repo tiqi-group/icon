@@ -14,6 +14,25 @@ from icon.server.web_server.socketio_emit_queue import emit_queue
 logger = logging.getLogger(__name__)
 
 
+def run_cancelled_or_failed(job_run: JobRun) -> bool:
+    """Check if an already fetched run was cancelled or failed.
+
+    Args:
+        job_run: The run to check.
+
+    Returns:
+        True if the run status is CANCELLED or FAILED, False otherwise.
+    """
+    if job_run.status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
+        logger.info(
+            "JobRun with id %s %s.",
+            job_run.id,
+            job_run.status.value,
+        )
+        return True
+    return False
+
+
 def job_run_cancelled_or_failed(job_id: int) -> bool:
     """Check if a job's run was cancelled or failed.
 
@@ -23,15 +42,7 @@ def job_run_cancelled_or_failed(job_id: int) -> bool:
     Returns:
         True if the run status is CANCELLED or FAILED, False otherwise.
     """
-    job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
-    if job_run.status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
-        logger.info(
-            "JobRun with id %s %s.",
-            job_run.id,
-            job_run.status.value,
-        )
-        return True
-    return False
+    return run_cancelled_or_failed(JobRunRepository.get_run_by_job_id(job_id=job_id))
 
 
 class JobRunRepository:

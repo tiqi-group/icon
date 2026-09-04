@@ -38,6 +38,9 @@ LOGGERS: dict[str, dict[str, Any]] = {
 LOGGING_CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,
+    "root": {
+        "handlers": ["default"],
+    },
     "formatters": {
         "default": {
             "()": "pydase.utils.logging.DefaultFormatter",
@@ -87,5 +90,6 @@ def setup_logging(log_level: int) -> None:
         },
     }
     logging.config.dictConfig(config)
+    logging.captureWarnings(capture=True)
 
     logger.info("Configured log level: %s", logging.getLevelName(log_level))

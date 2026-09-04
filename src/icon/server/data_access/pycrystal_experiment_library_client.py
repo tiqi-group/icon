@@ -15,6 +15,9 @@ from pycrystal.utils.helpers import (
 )
 
 import icon.server.utils.git_helpers
+from icon.server.api.models.experiment_dict import (
+    ExperimentMetadata,
+)
 from icon.server.data_access.experiment_data import PlotWindowMetadata, ReadoutMetadata
 from icon.server.data_access.experiment_library_client import ExperimentLibraryClient
 from icon.server.data_access.venv_experiment_library_client import (
@@ -52,6 +55,7 @@ class AsyncPyCrystalClient(VEnvExperimentLibraryClient):
         )
         self.repo = GitRepo(repo_url=repo, local_path=checkout_path).clone()
         self.experiment_library_module = experiment_library_module
+        self.dev_mode = True
 
     def checkout_revision(self, revision: str | None) -> str | None:
         self.repo.checkout(revision)
@@ -59,12 +63,15 @@ class AsyncPyCrystalClient(VEnvExperimentLibraryClient):
 
     @contextmanager
     def isolated(self) -> Iterator[ExperimentLibraryClient]:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            yield type(self)(
-                checkout_path=tmp_dir,
-                repo=self.repo.repo_url,
-                experiment_library_module=self.experiment_library_module,
-            )
+        if self.dev_mode:
+            yield self
+        else:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                yield type(self)(
+                    checkout_path=tmp_dir,
+                    repo=self.repo.repo_url,
+                    experiment_library_module=self.experiment_library_module,
+                )
 
 
 class PyCrystalClient(BlockingExperimentLibraryClient):
@@ -89,7 +96,12 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
 
     @property
     def experiment_metadata(self) -> "ExperimentDict":
-        return collect_experiment_metadata(self.experiment_library_module)
+        return {
+            name: ExperimentMetadata(**data)
+            for name, data in collect_experiment_metadata(
+                self.experiment_library_module
+            ).items()
+        }
 
     @experiment_metadata.setter
     def experiment_metadata(self, value: "ExperimentDict") -> None:  # noqa: ARG002
