@@ -1,0 +1,313 @@
+@startuml
+
+enum JobRunStatus {
+    PENDING
+    PROCESSING
+    FAILED
+    CANCELLED
+    DONE
+}
+
+enum JobStatus {
+    SUBMITTED
+    PROCESSING
+    PROCESSED
+}
+
+enum SourceType {
+    INFLUXDB
+    PYDASE_SERVICE
+    TIQI_PLUGIN
+}
+
+
+class JobProxy {
+    + int job_id
+    + void toggle_plot()
+}
+
+
+class ScanParameterModel {
+    + int scan_parameter_id
+    + int job_id
+    + str variable_id
+    + number[] scan_values
+    + int remote_source_id
+}
+
+class RemoteSourceModel {
+    + int remote_source_id
+    + str name
+    + str hostname
+    + int port
+    + active bool
+    + str description
+    + SourceType source_type
+}
+
+class ExperimentSourceModel {
+    + int experiment_source_id
+    + int experiment_id
+}
+
+class JobModel {
+    + int job_id
+    + datetime created
+    + int user_id
+    + int experiment_source_id
+    + JobStatus status
+    + str git_commit_hash
+    + int priority
+    + int repetitions
+    + datetime local_parameter_timestamp
+    + bool auto_calibration
+    + bool debug_mode
+    + int parent_job_id
+}
+
+class UserModel {
+    + int user_id
+    + str name
+    + datetime created
+}
+
+class JobRunModel {
+    + int job_run_id
+    + datetime scheduled_time
+    + int job_id
+    + JobRunStatus status
+    + str log  # job information
+}
+
+
+JobModel -[hidden]r-> RemoteSourceModel
+ScanParameterModel -[hidden]l-> RemoteSourceModel
+ScanParameterModel -[hidden]> UserModel
+UserModel -[hidden]l> JobModel
+UserModel -[hidden]r> JobRunModel
+JobRunModel *-- JobRunStatus
+RemoteSourceModel *-- SourceType
+JobModel *-- JobStatus
+
+class PreProcessingTask {
+    + int job_id
+    + int job_run_id
+    + str experiment_id
+    + str | None git_commit_hash
+    + int priority
+    + datetime local_parameters_timestamp
+    + bool auto_calibration
+    + bool debug_mode
+    + int repetitions
+    + number[] scan_parameters
+}
+
+@enduml
+' @startuml
+'
+' enum JobRunStatus {
+'     PENDING
+'     PROCESSING
+'     FAILED
+'     CANCELLED
+'     DONE
+' }
+'
+' enum JobStatus {
+'     SUBMITTED
+'     PROCESSING
+'     PROCESSED
+' }
+'
+' enum SourceType {
+'     INFLUXDB
+'     PYDASE_SERVICE
+'     TIQI_PLUGIN
+' }
+'
+' enum PostProcessingTaskType {
+'     FIT
+'     DATA_POINT
+' }
+'
+' class JobProxy {
+'     + Job job
+'     + JobStatus get_status()
+'     + void toggle_show_data()
+' }
+'
+' class ParameterProxy {
+'     + ParameterMetadata metadata
+'     + Any get_value()
+'     + void set_value()
+' }
+'
+'
+' class Job {
+'     + Experiment experiment
+'     + int priority
+'     + datetime local_parameter_timestamp
+'     + ScanInfo scan_info
+'     + int repetitions
+' }
+'
+' class ScanInfo {
+'     + ScanParameter[] scan_parameters
+'     + bool auto_calibration
+' }
+'
+' class Experiment {
+'     + ExperimentSourceModel metadata
+'     + str description  # what for?
+'     + str git_commit_hash
+' }
+'
+' class ScanParameter {
+'     + ParameterMetadata parameter
+'     + number[] scan_values
+' }
+'
+' class ParameterMetadata {
+'     + str variable_name
+'     + RemoteSourceModel source
+'     + str description
+' }
+'
+' class ScanParameterModel {
+'     + int scan_parameter_id
+'     + int job_id
+'     + int remote_source_id
+'     + str variable_name
+'     + str description
+'     + number[] scan_values
+' }
+'
+' class RemoteSourceModel {
+'     + int remote_source_id
+'     + str name
+'     + str hostname
+'     + int port
+'     + active bool
+'     + str description
+'     + SourceType source_type
+' }
+'
+' class ExperimentSourceModel {
+'     + int experiment_source_id
+'     + str name
+'     + str file_path
+' }
+'
+' class JobModel {
+'     + int job_id
+'     + datetime created
+'     + int user_id
+'     + int experiment_source_id
+'     + JobStatus status
+'     + str git_commit_hash
+'     + int priority
+'     + int repetitions
+'     + datetime local_parameter_timestamp
+'     + bool auto_calibration
+'     + bool debug_mode
+'     + int parent_job_id
+' }
+'
+' class UserModel {
+'     + int user_id
+'     + str name
+'     + datetime created
+' }
+'
+' class JobRunModel {
+'     + int job_run_id
+'     + datetime scheduled_time
+'     + int job_id
+'     + JobRunStatus status
+'     + str log  # job information
+' }
+'
+'
+' JobModel -[hidden]r-> RemoteSourceModel
+' ScanParameterModel -[hidden]l-> RemoteSourceModel
+' ScanParameterModel -[hidden]> UserModel
+' UserModel -[hidden]l> JobModel
+' UserModel -[hidden]r> JobRunModel
+' JobRunModel --* JobRunStatus
+' JobStatus -------* JobModel
+'
+' class PreProcessingTask {
+'     + int job_id
+'     + int job_run_id
+'     + str experiment_file_path
+'     + str experiment_name
+'     + str | None git_commit_hash
+'     + int priority
+'     + datetime local_parameters_timestamp
+'     + bool auto_calibration
+'     + bool debug_mode
+'     + int repetitions
+'     + number[] scan_parameters
+' }
+'
+' class HardwareTask {
+'     + int job_run_id
+'     + Job job
+'     + str src_dir
+'     + dict json_sequence
+'     + dict[str, datetime] generation_timestamps  # keys: param namespace
+'     - DataPointId data_point_specifier
+'     - Queue processing_worker_data_points_to_process
+'     - Queue processing_worker_processed_data_points
+'     + void requeue_in_pre_processing_worker()
+'     + void mark_done()
+' }
+' class DataPointId{
+'     + tuple identifiers
+' }
+'
+' class ChannelData {
+'     --Using lists--
+'     + str[] channel_names
+'     + float[] data_points
+'     --Using dict--
+'     + dict[str, float] channel_data
+' }
+' class Data {
+'     + dict[DataPointId, ChannelData] data
+'     + PostProcessingTaskType type
+' }
+' Data *-- ChannelData
+' Data *-- DataPointId
+' Data *-- PostProcessingTaskType
+'
+' class PostProcessingTask {
+'     + int job_run_id
+'     + Job job
+'     + str src_dir
+'     + Data data
+'     + dict[str, datetime] generation_timestamps  # keys: param namespace
+'     - Queue processing_worker_data_points_to_process
+'     - Queue processing_worker_processed_data_points
+'     - Queue hardware_queue  # there is only one, so no need to pass?
+'     + void requeue_in_hardware_worker()  # needed?
+'     + void requeue_in_pre_processing_worker()
+'     + void mark_done()
+' }
+'
+' Job *-- Experiment
+' Experiment *-- ExperimentSourceModel
+' Job *-- ScanInfo
+' ScanInfo *-- "many" ScanParameter
+' ScanParameter *-- ParameterMetadata
+' ParameterProxy *-- ParameterMetadata
+' ParameterMetadata *-- RemoteSourceModel
+' RemoteSourceModel *-- SourceType
+' HardwareTask *-- Job
+' HardwareTask *-- DataPointId
+' PostProcessingTask *-- Job
+' PostProcessingTask *-- Data
+' JobProxy *-- Job
+' JobProxy *-- JobStatus
+'
+' @enduml

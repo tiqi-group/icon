@@ -1,0 +1,118 @@
+@startuml
+skinparam ranksep 100
+skinparam legend {
+    ' set legend to have a white background
+    BackgroundColor #FFFFFF
+    ' remove box around legend
+    BorderColor #FFFFFF
+    ' remove the lines between the legend items
+    EntrySeparator #FFFFFF
+}
+skinparam component<<Layout>> {
+  borderColor Transparent
+  backgroundColor Transparent
+  fontColor Transparent
+  stereotypeFontColor Transparent
+}
+
+legend top right
+    |=      |= Type |
+    |<#ForestGreen>| Process|
+    |<#LightSlateGrey>| Shared queue|
+    |<#Steelblue>| Database|
+endlegend
+
+skinparam database {
+    backgroundColor #SteelBlue
+}
+database SQLite
+
+together{
+    database InfluxDB
+    database Valkey
+}
+together{
+    cloud GitLab {
+        [Experiment Library] as exp_lib
+    }
+    [ ] as spacer_1  <<Layout>>
+    [API Server] as api_server  #ForestGreen
+
+    api_server <----[#Steelblue] SQLite: query\njobs
+    api_server ----[#Steelblue]> SQLite: submit\njobs
+    api_server -[hidden]> spacer_1
+    spacer_1 --[hidden]--> SQLite
+}
+
+together{
+    [Scheduler Process] as sched  #ForestGreen
+    [ ] as spacer_2  <<Layout>>
+
+    sched --[#Steelblue]> SQLite: update\nentries
+    sched <--[#Steelblue] SQLite: get submitted\njobs
+    spacer_2 -[hidden]-> SQLite
+}
+
+together {
+    package "Pre-processing Process" as pre_process {
+        [Pre-processing Queue] as pre_queue  #LightSlateGrey
+        [Workers] as pre_worker  #ForestGreen
+    }
+    together{
+        package "Hardware Process" as hw_process {
+            [Hardware Queue] as hw_queue  #LightSlateGrey
+            [Worker] as hw_worker  #ForestGreen
+            hw_queue -[hidden]> hw_worker
+        }
+        together{
+            node "Remote devices" as rem_dev
+            node Zedboard
+            ' rem_dev -[hidden]-> Zedboard
+        }
+    }
+
+    ' pre_worker -[#LightSlateGrey]> hw_queue: data point
+    hw_worker --> rem_dev: scan param
+    hw_worker --> Zedboard: execute
+    exp_lib ----> pre_worker
+    SQLite --[#Steelblue]> pre_worker: check\ncancelled
+    SQLite --[#Steelblue]> hw_worker: check\ncancelled
+    pre_worker <--[#Steelblue] InfluxDB: cache local\nparams
+    pre_worker <--[#Steelblue] Valkey: access params
+    sched --[#LightSlateGrey]> pre_queue: schedule\njob
+    hw_worker <--[#Steelblue] Valkey: timestamps
+}
+
+package "Post-processing Process" as post_process {
+    [Post-processing Queue] as post_queue  #LightSlateGrey
+    [Workers] as post_worker  #ForestGreen
+
+    pre_worker --[#LightSlateGrey]> post_queue: fit
+    hw_worker --[#LightSlateGrey]> post_queue: data point\nanalysis
+    SQLite ---[#Steelblue]> post_worker: check\ncancelled
+    InfluxDB <--[#Steelblue] post_worker: update
+    Valkey <--[#Steelblue] post_worker: update
+    Valkey --[#Steelblue]> post_worker: timestamps
+}
+
+InfluxDB -[#Steelblue]> Valkey: initialise
+' GitLab -> SQLite
+' GitLab ----> pre_process
+' exp_lib ----> pre_process
+' GitLab ---> sched_mod 
+' SQLite --> pre_process
+' SQLite --> hw_process
+' SQLite ---> post_process
+' pre_process --> InfluxDB
+' pre_process --> Valkey
+' pre_process -r-> hw_process
+' InfluxDB --> post_process
+' Valkey --> post_process
+' pre_process -[hidden]--> post_process
+' hw_process ---> post_process
+' hw_process -r-> rem_dev
+' hw_process --> Zedboard
+
+
+
+@enduml

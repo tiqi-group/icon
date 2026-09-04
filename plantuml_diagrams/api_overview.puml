@@ -1,0 +1,34 @@
+@startuml
+
+skinparam legend {
+    ' set legend to have a white background
+    BackgroundColor #FFFFFF
+    ' remove box around legend
+    BorderColor #FFFFFF
+    ' remove the lines between the legend items
+    EntrySeparator #FFFFFF
+}
+
+' legend top right
+'     |=      |= Type |
+'     |<#ForestGreen>| Processes|
+' endlegend
+
+node "API Server" as api_server {
+    interface "Scheduler" {
+        + JobProxy schedule_job(Job)
+        + JobProxy[] get_scheduled_jobs(before, after)
+    }
+    interface "Parameters" {
+        + void set_parameter(ParameterMetadata, value)
+        + Parameter get_parameter(ParameterMetadata)
+        + Parameter[] get_all_parameters()
+        + RemoteSource[] get_sources()
+    }
+    interface "Experiment Library" {
+        + Experiment[] get_experiments()
+        + Experiment get_experiment(ExperimentMetdata)
+    }
+}
+
+@enduml

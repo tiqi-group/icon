@@ -1,0 +1,86 @@
+@startuml
+start
+:Create Temporary Directory;
+repeat
+    :Get highest priority 'PreProcessingTask'
+    from pre-processing queue;
+    :Change process priority
+    depending on task priority;
+    if (debug_mode is on?) then (yes)
+        :Use dev source code directory;
+    else (no)
+        :Use temporary directory;
+        :Prepare folder;
+        note right
+            Checks if local repository exists,
+            clones if necessary, checks
+            out the specified commit, and
+            updates the python environment.
+        end note
+    endif
+    :Cache parameter values;
+    note
+        Get current values for all parameters in InfluxDB
+        and the experiment namespace parameters based on
+        the local_params_timestamp.
+    end note
+    :Prepare data points;
+    note
+        Create queues for data points to process and
+        already processed data points. Take repetitions
+        into account.
+    end note
+    while (All data points processed?) is (no)
+        :Process update_queue;
+        note left
+            This queue contains events like "update_scan",
+            where all parameters should be updated, or
+            "calibration" containing a dictionary of
+            calibrated parameter values.
+        end note
+        :Attempt to get the next data point;
+        if (Data Point Queue is Empty?) then (yes)
+            :Continue inner loop;
+            note left
+                The hardware/post-processing
+                worker might still requeue
+                data points if necessary. Manual
+                scans might still queue additional
+                data points.
+            end note
+        else (no)
+            partition #00000010 Pre-process data point{
+                note right
+                    This could also be done
+                    in separate processes.
+                    The order of the data points
+                    has to be kept, though.
+                end note
+                if (Job was cancelled?) then (yes)
+                    :Mark data point
+                    as cancelled;
+                else (no)
+                    :Create 'HardwareTask';
+                    note right
+                        Generating the json file,...
+                        Use locally cached local
+                        parameters when not
+                        scanning real-time.
+                    end note
+                    :Put 'HardwareTask' in 'hardware_queue';
+                endif
+            }
+        endif
+    endwhile (yes)
+
+    partition #00000010 Submit Fitting and Database Update {
+        :Create 'PostProcessingTask';
+        :Put 'PostProcessingTask' into 'post_processing_queue';
+    }
+    :Update Job Status
+    to "DONE";
+    note right
+        Should I update the job status
+        in the post-processing worker?
+    end note
+@enduml
