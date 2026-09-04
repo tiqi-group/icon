@@ -7,7 +7,7 @@
 
 ## Databases
 
-* **HDF** - file format of the experiment results. Each experiment job gets its own HDF file. The result directory defaults to `"$(pwd)/output"` and can be configured in the configuration file:
+* **HDF** - file format of the experiment results. Each experiment job gets its own HDF file under ``<results_dir>/YYYY/MM/DD/<timestamp>_job<id>.h5``. The result directory defaults to `"$(pwd)/output"` and can be configured in the configuration file:
   ```yaml
   data:
     results_dir: /my/results/output/dir/
