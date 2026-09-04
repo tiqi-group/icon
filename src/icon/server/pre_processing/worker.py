@@ -460,6 +460,9 @@ class PreProcessingWorker(multiprocessing.Process):
                 client, pre_processing_task, namespace=namespace
             )
 
+            if run_cancelled_or_failed(job_run):
+                break
+
             # TODO: this should probably be done with multiple workers to
             # speed up the preparation of JSONs
             try:
@@ -467,9 +470,6 @@ class PreProcessingWorker(multiprocessing.Process):
             except queue.Empty:
                 time.sleep(SCAN_COMPLETION_POLL_INTERVAL)
                 continue
-
-            if run_cancelled_or_failed(job_run):
-                break
 
             yield
             self._submit_task_to_hw_worker(
