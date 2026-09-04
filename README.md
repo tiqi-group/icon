@@ -104,12 +104,14 @@ uv run python -m icon.server
 
 ### Frontend
 
-The frontend source code is located in the `frontend/` folder. To start development:
+The frontend source code is located in the `frontend/` folder, a
+[pnpm workspace](https://pnpm.io/workspaces) holding two packages. To start
+development:
 
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install    # installs both packages
+pnpm run dev    # runs ICON's frontend
 ```
 
 This uses [Vite.js](https://vitejs.dev/) with hot-reloading enabled.
@@ -118,16 +120,23 @@ Project structure:
 
 ```bash
 frontend
-└── src
-    ├── components  # React components
-    ├── contexts    # React contexts
-    ├── hooks       # React hooks
-    ├── layouts     # Layouts for MUI Toolpad
-    ├── pages       # Page definitions
-    ├── stores      # State stores (e.g. parameter store)
-    ├── types       # Type definitions
-    └── utils       # Utility functions
+├── icon                 # ICON's own frontend
+│   └── src
+│       ├── components   # React components
+│       ├── contexts     # React contexts
+│       ├── hooks        # React hooks
+│       ├── layouts      # Layouts for MUI Toolpad
+│       ├── pages        # Page definitions
+│       ├── stores       # State stores (e.g. parameter store)
+│       ├── types        # Type definitions
+│       └── utils        # Utility functions
+└── sequence-visualiser  # sequence visualizer (git submodule)
 ```
+
+`pnpm run build` builds both packages into `src/icon/server/frontend/` and
+`src/icon/server/frontend_visualizer/`. Because the visualizer is a submodule,
+clone with `--recurse-submodules` (or run `git submodule update --init
+--recursive`).
 
 ### SQLite
 

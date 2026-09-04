@@ -1,0 +1,12 @@
+packages:
+  - "icon"
+  - "sequence-visualiser"
+
+nodeLinker: hoisted
+
+allowBuilds:
+  esbuild: true
+  "@swc/core": true
+  unrs-resolver: true
+  "@parcel/watcher": false
+  es5-ext: false

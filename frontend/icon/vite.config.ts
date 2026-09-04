@@ -13,7 +13,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: "../src/icon/server/frontend",
+    outDir: "../../src/icon/server/frontend",
     rollupOptions: {
       output: {
         // located large chunks using https://www.npmjs.com/package/rollup-plugin-visualizer
