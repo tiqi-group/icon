@@ -6,7 +6,9 @@ import type { ECharts } from "echarts/core";
 import { useNotifications } from "@toolpad/core";
 import { copyEChartsToClipboard } from "../utils/copyEChartsToClipboard";
 import { ScanParameter } from "../types/ScanParameter";
+import { ExperimentMetadata } from "../types/ExperimentMetadata";
 import { buildResultChannelChartSeries } from "../utils/buildResultChannelChartSeries";
+import { formatNum, xDecimalsFromValues } from "../utils/plotAxisFormatting";
 
 interface ResultChannelPlotProps {
   experimentData: ExperimentData;
@@ -17,16 +19,30 @@ interface ResultChannelPlotProps {
   repetitions: number | undefined;
   showRepetitions: boolean;
   scanParameters: ScanParameter[] | undefined;
+  numberOfShots?: number;
+  experimentMetadata?: ExperimentMetadata | null;
   windowSize?: number | null;
   yRange?: { min: number | null; max: number | null };
   fits?: Record<string, FitResult>;
   onChartClick?: (xValue: number) => void;
 }
 
-const formatAxisLabel = (value: string): string => {
-  const num = parseFloat(value);
-  return isNaN(num) ? value : num.toFixed(3);
-};
+function yDecimalsFromShots(shots: number, repetitions: number): number {
+  const n = Math.max(1, shots) * Math.max(1, repetitions);
+  return n <= 1 ? 0 : Math.ceil(Math.log10(n));
+}
+
+function axisName(
+  param: ScanParameter,
+  metadata?: ExperimentMetadata | null,
+): string {
+  const unit =
+    param.unit?.trim() ||
+    Object.values(metadata?.parameters ?? {}).find((group) => group[param.variable_id])?.[
+      param.variable_id
+    ]?.unit;
+  return unit ? `${param.name} (${unit})` : param.name;
+}
 
 function hasDayBreak(data: string[]) {
   const first = new Date(data[0]);
@@ -68,6 +84,8 @@ const ResultChannelPlot = ({
   repetitions = 1,
   showRepetitions = false,
   scanParameters = [],
+  numberOfShots = 50,
+  experimentMetadata = null,
   windowSize = null,
   yRange,
   fits = {},
@@ -100,6 +118,7 @@ const ResultChannelPlot = ({
       }));
 
     let xAxisData: string[] | number[];
+    let isTimeAxis = false;
     const xAxis: EChartsOption["xAxis"] = {
       nameLocation: "middle",
       nameGap: 25,
@@ -112,6 +131,11 @@ const ResultChannelPlot = ({
         hideOverlap: true,
       },
     };
+    const yDecimals = yDecimalsFromShots(numberOfShots, repetitions);
+    let xDecimals = xDecimalsFromValues(
+      scanParameters.flatMap((param) => (param.realtime ? [] : param.scan_values)),
+    );
+
     const yAxis: EChartsOption["yAxis"] = {
       name: "counts",
       nameLocation: "middle",
@@ -120,6 +144,9 @@ const ResultChannelPlot = ({
       minorSplitLine: { show: true },
       scale: true,
       boundaryGap: ["1%", "1%"],
+      axisLabel: {
+        formatter: (value: string | number) => formatNum(value, yDecimals),
+      },
       ...(yRange?.min != null && !(yRange?.max != null && yRange.max <= yRange.min)
         ? { min: yRange.min }
         : {}),
@@ -154,6 +181,7 @@ const ResultChannelPlot = ({
       }
 
       xAxisData = tsValues;
+      isTimeAxis = true;
       Object.assign(xAxis, { type: "time", name: "Time", ...timeAxisProps(xAxisData) });
 
       const fullDataSet = xAxisData.map((xVal, index) => [
@@ -172,8 +200,12 @@ const ResultChannelPlot = ({
       }));
     } else if (scanParameters.length === 1) {
       xAxis.type = "value";
-      xAxis.name = scanParameters[0].name;
-      xAxis.axisLabel = { formatter: formatAxisLabel };
+      xAxis.name = axisName(scanParameters[0], experimentMetadata);
+      xDecimals = xDecimalsFromValues(scanParameters[0].scan_values);
+      xAxis.axisLabel = {
+        hideOverlap: true,
+        formatter: (value: string | number) => formatNum(value, xDecimals),
+      };
 
       const ordinaryScanEntry = scanInfo.find((param) => param.name !== "timestamp");
 
@@ -284,9 +316,15 @@ const ResultChannelPlot = ({
         resultChannels.map((rc) => [rc.name, rc.name === activeChannelName]),
       );
 
-      const categoryAxisProps = {
-        axisLabel: { formatter: formatAxisLabel },
-      };
+      const xScanDecimals = xScan.realtime ? 0 : xDecimalsFromValues(xScan.scan_values);
+      const yScanDecimals = yScan.realtime ? 0 : xDecimalsFromValues(yScan.scan_values);
+      const xAxisTitle = axisName(xScan, experimentMetadata);
+      const yAxisTitle = axisName(yScan, experimentMetadata);
+      const categoryAxisProps = (decimals: number) => ({
+        axisLabel: {
+          formatter: (value: string | number) => formatNum(value, decimals),
+        },
+      });
 
       return {
         title,
@@ -303,24 +341,34 @@ const ResultChannelPlot = ({
           top: 70,
           containLabel: true,
         },
-        tooltip: {},
+        tooltip: {
+          formatter: (param: { value?: unknown; seriesName?: string }) => {
+            const value = param.value;
+            if (!Array.isArray(value) || value.length < 3) return "";
+            return [
+              `${xAxisTitle}: ${formatNum(value[0], xScanDecimals)}`,
+              `${yAxisTitle}: ${formatNum(value[1], yScanDecimals)}`,
+              `${param.seriesName ?? ""}: ${formatNum(value[2], yDecimals)}`,
+            ].join("<br/>");
+          },
+        },
         xAxis: {
-          name: xScan.name,
+          name: xAxisTitle,
           type: "category",
           nameLocation: "middle",
           nameGap: 25,
           ...(xScan.realtime
             ? timeAxisProps(xScanValues as string[])
-            : categoryAxisProps),
+            : categoryAxisProps(xScanDecimals)),
         },
         yAxis: {
-          name: yScan.name,
+          name: yAxisTitle,
           type: "category",
           nameLocation: "middle",
           nameGap: 45,
           ...(yScan.realtime
             ? timeAxisProps(yScanValues as string[])
-            : categoryAxisProps),
+            : categoryAxisProps(yScanDecimals)),
         },
         series,
         visualMap: [
@@ -364,7 +412,31 @@ const ResultChannelPlot = ({
     return {
       title,
       textStyle: { fontFamily: "sans-serif", fontSize: 12 },
-      tooltip: { trigger: "axis" },
+      tooltip: {
+        trigger: "axis",
+        formatter: (params: unknown) => {
+          const items = (Array.isArray(params) ? params : [params]) as {
+            marker?: string;
+            seriesName?: string;
+            value?: unknown;
+            axisValue?: unknown;
+            encode?: { y?: number | number[] };
+          }[];
+          if (items.length === 0) return "";
+          const first = items[0];
+          const xRaw = Array.isArray(first.value) ? first.value[0] : first.axisValue;
+          const header = isTimeAxis ? String(xRaw ?? "") : formatNum(xRaw, xDecimals);
+          return [
+            header,
+            ...items.map((item) => {
+              const yEnc = item.encode?.y;
+              const yIdx = Array.isArray(yEnc) ? (yEnc[0] ?? 1) : (yEnc ?? 1);
+              const y = Array.isArray(item.value) ? item.value[yIdx] : item.value;
+              return `${item.marker ?? ""}${item.seriesName ?? ""}: ${formatNum(y, yDecimals)}`;
+            }),
+          ].join("<br/>");
+        },
+      },
       toolbox: {
         top: -6,
         feature: {
@@ -398,6 +470,8 @@ const ResultChannelPlot = ({
     titleText,
     subtitle,
     scanParameters,
+    numberOfShots,
+    experimentMetadata,
     repetitions,
     showRepetitions,
     windowSize,

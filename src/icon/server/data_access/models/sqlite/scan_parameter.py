@@ -68,6 +68,11 @@ class ScanParameter(Base):
     name: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(nullable=False)
     """Human-friendly display name persisted at submission time."""
 
+    unit: sqlalchemy.orm.Mapped[str | None] = sqlalchemy.orm.mapped_column(
+        nullable=True, default=None
+    )
+    """Unit persisted at submission time, e.g. ``MHz``. ``None`` if unknown."""
+
     variable_id: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column()
     """Identifier of the parameter being scanned."""
 
