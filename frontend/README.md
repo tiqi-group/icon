@@ -17,11 +17,11 @@ frontend
 │       ├── stores       # State stores (e.g. parameter store)
 │       ├── types        # Type definitions
 │       └── utils        # Utility functions
-└── sequence-visualiser  # sequence visualiser (git submodule)
+└── sequence-visualizer  # sequence visualizer (git submodule)
 ```
 
 > [!IMPORTANT]
-> sequence-visualiser is a git submodule, clone the icon repository
+> sequence-visualizer is a git submodule, clone the icon repository
 > with `--recursive` or run `git submodule update --init --recursive`
 > after cloning.
 
@@ -48,7 +48,7 @@ by the ICON backend.
 
 ## The sequence visualizer frontend
 
-`frontend/sequence-visualiser` is a submodule pointing to the
+`frontend/sequence-visualizer` is a submodule pointing to the
 [ionpulse-sequence-visualiser](https://github.com/tiqi-group/ionpulse-sequence-visualiser).
 It is a standalone web application which renders hardware instructions as waveforms.
 The hardware instructions are picked up from `last_experiment_sequence` socket.io event

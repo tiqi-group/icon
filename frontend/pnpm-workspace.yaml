@@ -1,6 +1,6 @@
 packages:
   - "icon"
-  - "sequence-visualiser"
+  - "sequence-visualizer"
 
 nodeLinker: hoisted
 

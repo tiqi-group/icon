@@ -105,7 +105,8 @@ uv run python -m icon.server
 
 ### Frontend
 
-The frontend source code is located in the `frontend/` folder.
+The frontend source code is located in the `frontend/` folder, organised as a pnpm
+workspace. See [`frontend/README.md`](./frontend/README.md) for details.
 
 > [!IMPORTANT]
 > sequence-visualizer is a git submodule, clone the icon repository

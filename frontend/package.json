@@ -6,7 +6,7 @@
     "dev": "pnpm --filter icon run dev",
     "build": "pnpm run build:icon && pnpm run build:visualizer",
     "build:icon": "pnpm --fail-if-no-match --filter icon run build",
-    "build:visualizer": "pnpm --fail-if-no-match --filter sequence-visualiser run build --outDir ../../src/icon/server/frontend_visualizer --emptyOutDir",
+    "build:visualizer": "pnpm --fail-if-no-match --filter ./sequence-visualizer run build --outDir ../../src/icon/server/frontend_visualizer --emptyOutDir",
     "lint": "pnpm --filter icon run lint",
     "test": "pnpm --filter icon run test"
   }
