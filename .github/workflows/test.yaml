@@ -28,14 +28,13 @@ jobs:
         working-directory: frontend
         run: pnpm run build
 
-      - name: Package UI assets
-        run: tar -czf ui-assets.tar.gz -C src/icon/server frontend frontend_visualizer
-
       - name: Upload UI assets
         uses: actions/upload-artifact@v4
         with:
           name: ui-assets
-          path: ui-assets.tar.gz
+          path: |
+            src/icon/server/frontend
+            src/icon/server/frontend_visualizer
           if-no-files-found: error
 
   linux-test:
@@ -52,9 +51,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ui-assets
-
-      - name: Unpack UI assets
-        run: tar -xzf ui-assets.tar.gz -C src/icon/server
+          path: src/icon/server
 
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
