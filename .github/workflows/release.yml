@@ -42,15 +42,13 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
+      - name: Set up pnpm and Node
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1
         with:
-          node-version: "22"
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          runtime: node@22
+          working-directory: frontend
+          cache: true
+          require-lockfile: true
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -76,9 +74,7 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm run build
+        run: pnpm run build
 
       - name: Build with PyInstaller
         run: uv run pyinstaller icon.spec
