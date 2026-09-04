@@ -12,7 +12,7 @@ from icon.logging import setup_logging
 from icon.server.data_access.reconfigurable_experiment_library_client import (
     ReconfigurableExperimentLibraryClient,
 )
-from icon.server.hardware_processing.zedboard_controller import ZedboardController
+from icon.server.hardware_processing.devices import Devices
 from icon.server.shared_resource_manager import SRM
 
 if TYPE_CHECKING:
@@ -57,8 +57,10 @@ def start_server() -> None:
     from icon.server.pre_processing.worker import PreProcessingWorker
     from icon.server.scheduler.scheduler import Scheduler
     from icon.server.web_server.sio_setup import patch_sio_setup
+    from icon.server.web_server.visualiser import patch_web_server
 
     patch_sio_setup()
+    patch_web_server()
     patch_serialization_methods()
     run_migrations()
 
@@ -73,6 +75,7 @@ def start_server() -> None:
         multiprocessing.Queue() for _ in range(number_of_pre_processing_workers)
     ]
     exp_lib_client = ReconfigurableExperimentLibraryClient()
+    devices = Devices()
 
     for i, queue in enumerate(pre_processing_update_queues):
         PreProcessingWorker(
@@ -92,7 +95,7 @@ def start_server() -> None:
         hardware_processing_queue=SRM.hardware_processing_queue,
         post_processing_queue=post_processing_queue,
         manager=SRM,
-        hardware_controller=ZedboardController(),
+        devices=devices,
     )
     hardware_processing_worker.start()
 
@@ -107,7 +110,7 @@ def start_server() -> None:
         APIService(
             experiment_library_client=exp_lib_client,
             pre_processing_event_queues=pre_processing_update_queues,
-            hardware_controller=ZedboardController(connect=False),
+            devices=devices,
         ),
         host=get_config().server.host,
         web_port=get_config().server.port,

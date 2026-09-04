@@ -193,7 +193,7 @@ def _harmonic_derived(result: dict[str, float]) -> dict[str, float]:
 #    function signature. default_update_param is the fitted value pre-filled
 #    in the "Update Parameter" UI (can be a derived param name).
 # 5. Add the model name to FIT_TYPES, FIT_PARAM_NAMES, and
-#    FIT_DEFAULT_UPDATE_PARAM in frontend/src/utils/fitFunctions.ts.
+#    FIT_DEFAULT_UPDATE_PARAM in frontend/icon/src/utils/fitFunctions.ts.
 # 6. Add tests in tests/server/fitting/.
 
 FIT_MODELS: dict[str, FitModel] = {

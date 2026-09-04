@@ -5,10 +5,10 @@ from icon.config.latest import (
     DatabaseConfig,
     DataConfiguration,
     DateConfig,
-    HardwareConfig,
     HealthCheckConfig,
     ServerConfig,
 )
+from icon.config.v2 import HardwareConfig
 
 __version__ = 1
 

@@ -1,11 +1,12 @@
 import logging
 import os
+from contextlib import suppress
 from pathlib import Path, PosixPath
 
 import yaml
 from confz import BaseConfig, FileSource
 
-from icon.config import latest, v1
+from icon.config import latest, v1, v2
 from icon.config.migrations import migration_by_version
 
 _ENV_KEY = "ICON_CONFIG"
@@ -14,7 +15,7 @@ _LOCAL_CONFIG_PATH_FILE = Path(__file__).parents[3] / "config_path.local"
 logger = logging.getLogger("config")
 
 VERSIONS: dict[int, BaseConfig] = {
-    cfg.__version__: cfg.ServiceConfig for cfg in (v1, latest)
+    cfg.__version__: cfg.ServiceConfig for cfg in (v1, v2, latest)
 }
 
 
@@ -38,9 +39,14 @@ def get_config() -> latest.ServiceConfig:
         content = yaml.safe_load(f)
         config_version = content.get("version", None)
 
+    # If hardware.yml exists, load it, otherwise use inline config:
+    with suppress(FileNotFoundError), _hardware_config_path(source).open("r") as f:
+        hw_content = yaml.safe_load(f)
+        content["hardware"] = hw_content
+
     schema = VERSIONS.get(config_version)
     if schema is None:
-        raise RuntimeError("Unsupported configuration version: {config_version}")
+        raise RuntimeError(f"Unsupported configuration version: {config_version}")
 
     config = schema(config_sources=[FileSource(source)])
     original_config_version = config.version
@@ -67,8 +73,15 @@ def save_config(config: latest.ServiceConfig) -> None:
         config:
             The validated configuration instance.
     """
-    with get_config_path().open("w") as f:
-        f.write(yaml.dump(config.model_dump()))
+    source = get_config_path()
+    full_config = config.model_dump()
+    hardware_config_path = _hardware_config_path(source)
+    if hardware_config_path.exists():
+        hardware_config = full_config.pop("hardware")
+        with hardware_config_path.open("w") as f:
+            f.write(yaml.dump(hardware_config))
+    with source.open("w") as f:
+        f.write(yaml.dump(full_config))
 
 
 def _normalize(p: str | Path) -> Path:
@@ -87,3 +100,7 @@ def get_config_path() -> Path:
     if _LOCAL_CONFIG_PATH_FILE.is_file():
         return _normalize(_LOCAL_CONFIG_PATH_FILE.read_text().strip())
     return _normalize(Path.home() / ".config/icon/config.yaml")
+
+
+def _hardware_config_path(config_path: Path) -> Path:
+    return config_path.parent / "hardware.yaml"

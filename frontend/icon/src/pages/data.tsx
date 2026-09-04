@@ -1,0 +1,174 @@
+import React, { useContext, useEffect, useMemo, useState } from "react";
+import {
+  Button,
+  FormControlLabel,
+  List,
+  ListItemButton,
+  ListItemText,
+  ListSubheader,
+  Switch,
+  Tooltip,
+} from "@mui/material";
+import SsidChartIcon from "@mui/icons-material/SsidChart";
+import { JobsContext } from "../contexts/JobsContext";
+import { JobView } from "../components/JobView";
+import { useNavigate, useSearchParams } from "react-router";
+import { Job } from "../types/Job";
+import { JobStatus } from "../types/enums";
+import { openJobWindow, openVisualizerWindow } from "../utils/windowUtils";
+import { getExperimentNameFromExperimentId } from "../utils/experimentUtils";
+
+export function DataPage() {
+  const jobs = useContext(JobsContext);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const selectedJobId = searchParams.get("jobId");
+
+  const groupedJobs = useMemo(() => {
+    const group = {
+      "In Progress": [] as Job[],
+      Queued: [] as Job[],
+      Finished: [] as Job[],
+    };
+
+    for (const job of Object.values(jobs)) {
+      if (job.status == JobStatus.PROCESSED) group["Finished"].push(job);
+      else if (job.status == JobStatus.PROCESSING) group["In Progress"].push(job);
+      else if (job.status == JobStatus.SUBMITTED) group["Queued"].push(job);
+    }
+
+    for (const status of Object.keys(group)) {
+      group[status as "Queued" | "Finished" | "In Progress"].sort(
+        (a, b) => b.id - a.id,
+      );
+    }
+
+    return group;
+  }, [jobs]);
+
+  const layoutReady = useMemo(() => {
+    return Object.values(groupedJobs).some((list) => list.length > 0);
+  }, [groupedJobs]);
+
+  const [alwaysShowLatest, setAlwaysShowLatest] = useState(false);
+
+  const latestJobId = useMemo(() => {
+    const ids = Object.keys(jobs).map(Number);
+    return ids.length > 0 ? Math.max(...ids) : null;
+  }, [jobs]);
+
+  useEffect(() => {
+    if (alwaysShowLatest && latestJobId !== null) {
+      setSearchParams({ jobId: String(latestJobId) });
+    }
+  }, [alwaysShowLatest, latestJobId]);
+
+  const handleSelectJob = (jobId: number) => {
+    setSearchParams({ jobId: String(jobId) });
+  };
+
+  return (
+    <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
+      <div
+        style={{
+          flexShrink: 0,
+          width: "fit-content",
+          height: "100%",
+          overflowY: "auto",
+          borderRight: "1px solid var(--mui-palette-divider)",
+        }}
+      >
+        <Tooltip title="Switch to newest job as it's created">
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={alwaysShowLatest}
+                onChange={(_, v) => setAlwaysShowLatest(v)}
+              />
+            }
+            label="Latest"
+            sx={{ mx: 1, my: 0.5 }}
+          />
+        </Tooltip>
+        <List dense disablePadding>
+          {(Object.entries(groupedJobs) as [JobStatus, Job[]][]).map(
+            ([status, jobList]) =>
+              jobList.length > 0 && (
+                <React.Fragment key={status}>
+                  <ListSubheader
+                    sx={{
+                      position: "sticky",
+                      borderBottom: "1px solid var(--mui-palette-divider)",
+                    }}
+                  >
+                    {status}
+                  </ListSubheader>
+                  {jobList.map((job) => {
+                    const formattedTime = new Intl.DateTimeFormat("ch", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    }).format(new Date(job.created));
+
+                    return (
+                      <ListItemButton
+                        key={job.id}
+                        selected={String(job.id) === selectedJobId}
+                        onClick={() => handleSelectJob(job.id)}
+                        onDoubleClick={() =>
+                          openJobWindow(job.id, job.experiment_source.experiment_id)
+                        }
+                      >
+                        <ListItemText
+                          primary={`${getExperimentNameFromExperimentId(job.experiment_source.experiment_id)} (${
+                            job.scan_parameters.length === 0
+                              ? "continuous scan"
+                              : `${job.scan_parameters.length}d scan`
+                          })`}
+                          secondary={formattedTime}
+                        />
+                      </ListItemButton>
+                    );
+                  })}
+                </React.Fragment>
+              ),
+          )}
+        </List>
+      </div>
+
+      <div style={{ flexGrow: 1, height: "100%", overflow: "auto" }}>
+        {selectedJobId ? (
+          <div style={{ width: "100%" }}>
+            <Tooltip title="Show the pulse sequence of this job in the sequence visualizer">
+              <Button
+                size="small"
+                startIcon={<SsidChartIcon />}
+                sx={{ m: 1 }}
+                onClick={() => {
+                  if (localStorage.getItem("openVisualizerInNewWindow") !== "false") {
+                    openVisualizerWindow(selectedJobId);
+                  } else {
+                    navigate(`/sequence?jobId=${selectedJobId}`);
+                  }
+                }}
+              >
+                Open in visualizer
+              </Button>
+            </Tooltip>
+            {layoutReady ? (
+              <JobView jobId={selectedJobId} showFitPanel />
+            ) : (
+              <div style={{ padding: 16 }}>Loading...</div>
+            )}
+          </div>
+        ) : (
+          <div style={{ padding: 16 }}>Select a job to view its details</div>
+        )}
+      </div>
+    </div>
+  );
+}

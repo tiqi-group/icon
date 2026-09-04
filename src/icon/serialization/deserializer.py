@@ -25,7 +25,7 @@ class IconDeserializer(pydase.utils.serialization.deserializer.Deserializer):
 
     @classmethod
     def deserialize(cls, serialized_object: SerializedIconObject) -> Any:
-        type_handler: dict[str | None, None | Callable[..., Any]] = {
+        type_handler: dict[str | None, Callable[..., Any] | None] = {
             None: None,
             "int": cls.deserialize_primitive,
             "float": cls.deserialize_primitive,

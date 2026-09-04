@@ -3,18 +3,15 @@
 import logging
 from typing import TYPE_CHECKING, Any
 
+from icon.server.api.models.experiment_dict import ExperimentMetadata
+from icon.server.data_access.experiment_data import ReadoutMetadata
 from icon.server.data_access.experiment_library_client import ExperimentLibraryClient
-from icon.server.data_access.venv_exec import VirtualEnvironment
+from icon.server.data_access.venv_exec import VirtualEnvironment, deep_asdict
 
 if TYPE_CHECKING:
     from icon.server.api.models.experiment_dict import ExperimentDict
-    from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
-        DatabaseValueType,
-    )
+    from icon.server.data_access.experiment_data import DatabaseValueType
     from icon.server.data_access.experiment_library_client import ParameterMetadataDict
-    from icon.server.data_access.repositories.experiment_data_repository import (
-        ReadoutMetadata,
-    )
 
 venv_logger = logging.getLogger("venv")
 
@@ -34,7 +31,7 @@ class BlockingExperimentLibraryClient:
         """
         return self.experiment_metadata, self.parameter_metadata
 
-    def generate_json_sequence(
+    def create_hardware_instructions(
         self,
         *,
         exp_module_name: str,
@@ -42,7 +39,7 @@ class BlockingExperimentLibraryClient:
         parameter_dict: "dict[str, DatabaseValueType]",
         n_shots: int,
     ) -> str:
-        """Generate a JSON sequence for an experiment.
+        """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -83,6 +80,19 @@ class BlockingExperimentLibraryClient:
         raise NotImplementedError("Must be implemented by a subclass")
 
 
+def serialize_metadata(
+    d: "tuple[ExperimentDict, ParameterMetadataDict]",
+) -> "tuple[dict[str, Any], ParameterMetadataDict]":
+    """Shallow dataclass -> dict conversion as dataclasses.asdict does not seem to work here."""
+    return ({key: vars(val) for key, val in d[0].items()}, d[1])
+
+
+def deserialize_metadata(
+    d: "tuple[dict[str, Any], ParameterMetadataDict]",
+) -> "tuple[ExperimentDict, ParameterMetadataDict]":
+    return ({key: ExperimentMetadata(**val) for key, val in d[0].items()}, d[1])
+
+
 class VEnvExperimentLibraryClient(ExperimentLibraryClient):
     """Wrapper client which runs an actual client in a virtual environment."""
 
@@ -96,9 +106,14 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
 
     async def load_metadata(self) -> "tuple[ExperimentDict, ParameterMetadataDict]":
         """Load the experiment and parameter metadata."""
-        return await self.venv.run(self.client.reload_metadata, logger=venv_logger)
+        return await self.venv.run(
+            self.client.reload_metadata,
+            logger=venv_logger,
+            serialize=serialize_metadata,
+            deserialize=deserialize_metadata,
+        )
 
-    async def generate_json_sequence(
+    async def create_hardware_instructions(
         self,
         *,
         exp_module_name: str,
@@ -106,7 +121,7 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
         parameter_dict: "dict[str, DatabaseValueType]",
         n_shots: int,
     ) -> str:
-        """Generate a JSON sequence for an experiment.
+        """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
@@ -118,7 +133,7 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
             JSON string containing the generated sequence.
         """
         return await self.venv.run(
-            self.client.generate_json_sequence,
+            self.client.create_hardware_instructions,
             args={
                 "exp_module_name": exp_module_name,
                 "exp_instance_name": exp_instance_name,
@@ -153,6 +168,8 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
                 "parameter_dict": parameter_dict,
             },
             logger=venv_logger,
+            serialize=deep_asdict,
+            deserialize=ReadoutMetadata.from_dict,
         )
 
     async def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:

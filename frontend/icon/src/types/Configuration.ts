@@ -1,0 +1,58 @@
+export interface Configuration {
+  version: number;
+  date: {
+    timezone: string;
+  };
+  databases: {
+    backend: "influxdbv1" | "influxdbv2";
+    influxdbv1: {
+      database: string;
+      headers: Record<string, string>;
+      host: string;
+      measurement: string;
+      password: string;
+      port: number;
+      ssl: boolean;
+      username: string;
+      verify_ssl: boolean;
+    };
+    influxdbv2: {
+      url: string;
+      token: string;
+      org: string;
+      bucket: string;
+      measurement: string;
+      verify_ssl: boolean;
+    };
+    sqlite: {
+      file: string | null;
+    };
+  };
+  experiment_library: {
+    client_class: string | null;
+    client_args: Record<string, string>;
+    update_interval: number;
+  };
+  hardware: {
+    devices: {
+      id: string;
+      controller_class: string;
+      controller_module: string;
+      args: Record<string, string | number>;
+      enabled: boolean;
+    }[];
+  };
+  health_check: {
+    interval_seconds: number;
+  };
+  server: {
+    host: string;
+    port: number;
+    pre_processing: {
+      workers: number;
+    };
+  };
+  data: {
+    results_dir: string;
+  };
+}

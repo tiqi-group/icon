@@ -23,9 +23,7 @@ from icon.server.data_access.db_context.influxdb.parameters_backend import (
 if TYPE_CHECKING:
     from types import TracebackType
 
-    from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
-        DatabaseValueType,
-    )
+    from icon.server.data_access.experiment_data import DatabaseValueType
 
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 FLOAT_VALUE = 1.5

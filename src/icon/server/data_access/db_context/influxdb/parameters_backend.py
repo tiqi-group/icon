@@ -36,9 +36,7 @@ if TYPE_CHECKING:
 
     from influxdb_client.client.flux_table import FluxRecord
 
-    from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
-        DatabaseValueType,
-    )
+    from icon.server.data_access.experiment_data import DatabaseValueType
 
 SessionT = TypeVar("SessionT", InfluxDBv1Session, InfluxDBv2Session)
 

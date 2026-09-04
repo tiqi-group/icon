@@ -19,6 +19,7 @@ server = [
     "click>=8.1.0",
     "influxdb>=5.3.2",
     "influxdb-client>=1.40.0",
+    "msgpack>=1.0.5,<2",
     "scipy>=1.14.0",
     "sqlalchemy>=2.0.36",
     "tables>=3.10.1",
@@ -84,10 +85,10 @@ typeCheckingMode = "basic"
 
 
 [tool.ruff]
-target-version = "py310" # Always generate Python 3.10-compatible code
+target-version = "py310"
 extend-exclude = [
-    "docs", 
-    "frontend", 
+    "docs",
+    "frontend",
     "src/icon/server/data_access/templates/"
 ]
 
@@ -96,6 +97,7 @@ select = ["ALL"]
 ignore = [
     "ANN",      # flake8-annotations (mypy's job)
     "BLE001",   # blind-except
+    "CPY001",   # missing-copyright-notice
     "COM812",   # missing-trailing-comma (conflicts with formatter)
     "D105",     # undocumented-magic-method
     "E501",     # line too long - formatters job
@@ -105,6 +107,7 @@ ignore = [
     "ISC001",   # single-line-implicit-string-concatenation (conflicts with formatter)
     "PGH003",   # blanket-type-ignore
     "PLR0913",  # too-many-arguments
+    "PLR0917",  # too-many-positional-arguments
     "RUF006",   # asyncio-dangling-task
     "PERF203",  # try-except-in-loop
     "PTH",      # pathlib
@@ -145,13 +148,14 @@ max-complexity = 7
 convention = "google"
 
 [tool.mypy]
+files = ["src/", "tests/"]
 exclude = ["templates/.*\\.py"]
 disallow_untyped_defs = true
 disallow_untyped_calls = true
 disallow_incomplete_defs = true
 disallow_any_generics = true
 check_untyped_defs = true
-ignore_missing_imports = false
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "session"

@@ -1,14 +1,21 @@
 """Execute callables in isolated python environments."""
 
 import asyncio
+import dataclasses
 import json
 import logging
 import os
 import pickle
 import sys
 import tempfile
+import warnings
 from collections.abc import Callable
 from typing import Any
+
+
+def noop_serialize(obj: Any) -> Any:
+    """Default serialization / deserialization."""
+    return obj
 
 
 class VirtualEnvironment:
@@ -29,6 +36,8 @@ class VirtualEnvironment:
         callback: Callable[..., Any],
         args: dict[str, Any] | None = None,
         logger: logging.Logger | None = None,
+        serialize: Callable[[Any], Any] = noop_serialize,
+        deserialize: Callable[[Any], Any] = noop_serialize,
     ) -> Any:
         """Run a callback in an isolated environment.
 
@@ -40,8 +49,12 @@ class VirtualEnvironment:
         python_executable = os.path.join(self.path, "bin", "python3")
         with tempfile.TemporaryDirectory() as tmp_dir:
             out_path = os.path.join(tmp_dir, "out")
-            payload = pickle.dumps((callback, args or {}, out_path))
-            python_path = module_path(callback)
+            payload = pickle.dumps((callback, args or {}, out_path, serialize))
+            python_path = ":".join(
+                p
+                for p in {module_path(callback), module_path(serialize)}
+                if p is not None
+            )
             proc = await asyncio.create_subprocess_exec(
                 python_executable,
                 "-c",
@@ -74,7 +87,21 @@ class VirtualEnvironment:
 """
                 )
             with open(out_path, "rb") as stream:  # noqa: ASYNC230
-                return json.load(stream)
+                return_value, wrn = json.load(stream)
+            for warning, category in wrn:
+                log_venv_warning(warning, category, logger=logger)
+            return deserialize(return_value)
+
+
+def log_venv_warning(
+    message: str, category: str, logger: logging.Logger | None
+) -> None:
+    if logger is None:
+        warnings.warn(
+            message, category=getattr(sys.modules["builtins"], category), stacklevel=0
+        )
+    else:
+        logger.warning(message)
 
 
 def module_path(obj: Any) -> str | None:
@@ -93,13 +120,31 @@ def module_path(obj: Any) -> str | None:
     return os.path.dirname(path)
 
 
+def deep_asdict(
+    data: Any,
+) -> Any:
+    """Variant of dataclasses.asdict which also allows non dataclass objects."""
+
+    @dataclasses.dataclass
+    class Container:
+        obj: Any
+
+    return dataclasses.asdict(Container(data))["obj"]
+
+
 def main() -> None:
     """Runtime for inside the isolated environment."""
     in_data = sys.stdin.buffer.read()
-    callback, kwargs, out_path = pickle.loads(in_data)
-    out = callback(**kwargs)
+    callback, kwargs, out_path, serialize = pickle.loads(in_data)
+    with warnings.catch_warnings(record=True) as wrn:
+        warnings.simplefilter("always")
+        out = callback(**kwargs)
     with open(out_path, "w") as stream:
-        json.dump(out, stream)
+        json.dump((serialize(out), [serialize_warning(w) for w in wrn]), stream)
+
+
+def serialize_warning(w: warnings.WarningMessage) -> tuple[str, str]:
+    return (format(w.message), w.category.__name__)
 
 
 if __name__ == "__main__":

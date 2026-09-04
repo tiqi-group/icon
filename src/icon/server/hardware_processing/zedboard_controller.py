@@ -1,76 +1,80 @@
 import logging
 from typing import Any
 
-try:
-    import tiqi_zedboard.zedboard
-except ImportError:
-    raise ImportError(
-        "Tiqi zedboard package is not available. Please enable the `zedboard` extra."
-    ) from None
-
-
-from icon.config.config import get_config
-from icon.server.data_access.repositories.experiment_data_repository import ResultDict
+from icon.server.data_access.experiment_data import Readouts
 from icon.server.hardware_processing.hardware_controller import (
     HardwareController,
     StatusFlag,
 )
-from icon.server.utils.sockets import is_socket_closed
+from icon.server.hardware_processing.rpc import zedboard
 
 logger = logging.getLogger(__name__)
 
 
 class ZedboardController(HardwareController):
-    def __init__(self, *, connect: bool = True) -> None:
-        self._host = get_config().hardware.host
-        self._port = get_config().hardware.port
-        self._timeout = get_config().hardware.timeout_seconds
-        self._zedboard: tiqi_zedboard.zedboard.Zedboard | None = None
-        if connect:
-            self.connect()
+    """Zedboard Hardware Controller using a stripped-down minimal Zedboard-compatible RPC client."""
+
+    def __init__(
+        self, *, host: str, port: int, timeout: int = 5, cached: bool = True
+    ) -> None:
+        """Initialise the controller.
+
+        Args:
+            host: Hostname of the zedboard.
+            port: Port the Zedoard RPC server listens on.
+            timeout: RPC timeout in seconds for calls such as runExperiment. Configurable
+                in the config file.
+            cached: Whether to read the channel names out of the sequence description
+                instead of asking the device for them after every run. Saves three round
+                trips per data point.
+        """
+        self._host = host
+        self._port = port
+        self._timeout = timeout
+        self._zedboard = (
+            zedboard.ZedboardSeqRunnerCached if cached else zedboard.ZedboardSeqRunner
+        )(hostname=self._host, port=self._port, timeout=timeout)
 
     def connect(self) -> None:
-        logger.info("Connecting to the Zedboard")
-        self._host = get_config().hardware.host
-        self._port = get_config().hardware.port
-        self._timeout = get_config().hardware.timeout_seconds
-        self._zedboard = tiqi_zedboard.zedboard.Zedboard(
-            hostname=self._host, port=self._port, timeout=self._timeout
-        )
-        if not self.connected:
-            logger.warning("Failed to connect to the Zedboard")
+        try:
+            self._zedboard.connect()
+        except zedboard.ZedboardError as e:
+            logger.warning(
+                "Connected to %r, but it may not be configured properly sequence running: %s",
+                self._zedboard,
+                e,
+            )
+        except (ConnectionResetError, ConnectionRefusedError, OSError) as e:
+            logger.warning(
+                "Could not connect to the Zedboard: %s (%r)", e, self._zedboard
+            )
+        else:
+            logger.info("Connected to the Zedboard: %s", self._zedboard)
 
     @property
     def connected(self) -> bool:
-        return (
-            self._zedboard is not None
-            and hasattr(self._zedboard, "_client")
-            and self._zedboard._client is not None
-            and not is_socket_closed(self._zedboard._client._socket)
-        )
+        """Zedboard is ready to process sequences."""
+        return self._zedboard.is_connected
 
-    def _update_zedboard_sequence(self, *, sequence: str) -> None:
-        if self._zedboard is not None:
-            self._zedboard.sequence_JSON_parser.Sequence_JSON = sequence  # type: ignore
-
-    def send(self, data: bytes) -> None:
+    def send(self, data: str) -> None:
         if not self.connected:
             self.connect()
         if not self.connected:
-            raise RuntimeError("Could not connect to the Zedboard")
-        self._update_zedboard_sequence(sequence=data.decode())
+            raise RuntimeError(
+                f"Could not connect to the Zedboard at {self._host}:{self._port} "
+                f"while trying to run a command"
+            )
+        self._zedboard.load_sequence(data)
 
     def run(self) -> None:
-        self._zedboard.sequence_JSON_parser.Parse_JSON_Header()  # type: ignore
+        """The sequence is executed in the :meth:`receive` call. Nothing to be done here."""
 
-    def receive(self) -> ResultDict:
-        results: tiqi_zedboard.zedboard.Result = self._zedboard.sequence_JSON_parser()  # type: ignore
+    def receive(self) -> Readouts:
+        results = self._zedboard.run_sequence()
 
-        return ResultDict(
+        return Readouts(
             result_channels=results.result_channels,
-            vector_channels=results.vector_channels
-            if results.vector_channels is not None
-            else {},
+            vector_channels=results.vector_channels,
             shot_channels=results.shot_channels,
         )
 

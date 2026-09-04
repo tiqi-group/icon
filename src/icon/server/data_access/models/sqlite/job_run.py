@@ -1,18 +1,15 @@
 import datetime
 from typing import TYPE_CHECKING
 
-import pytz
 import sqlalchemy
 import sqlalchemy.orm
 
-from icon.config.config import get_config
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.data_access.models.sqlite.base import Base
+from icon.server.data_access.models.sqlite.now import now
 
 if TYPE_CHECKING:
     from icon.server.data_access.models.sqlite.job import Job
-
-timezone = pytz.timezone(get_config().date.timezone)
 
 
 class JobRun(Base):
@@ -43,7 +40,7 @@ class JobRun(Base):
     """Primary key identifier for the job run."""
 
     scheduled_time: sqlalchemy.orm.Mapped[datetime.datetime] = (
-        sqlalchemy.orm.mapped_column(default=datetime.datetime.now(timezone))
+        sqlalchemy.orm.mapped_column(default=now)
     )
     """Time when the run was scheduled to start."""
 

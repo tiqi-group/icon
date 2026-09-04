@@ -17,7 +17,7 @@ import psutil
 import pytz
 
 from icon.config.config import get_config
-from icon.server.data_access.db_context.influxdb.influxdb_v1 import DatabaseValueType
+from icon.server.data_access.experiment_data import DatabaseValueType
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus, ScanMode
 from icon.server.data_access.models.sqlite.scan_parameter import (
     contains_realtime_parameter,
@@ -30,6 +30,7 @@ from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
     job_run_cancelled_or_failed,
+    run_cancelled_or_failed,
 )
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
@@ -45,6 +46,7 @@ if TYPE_CHECKING:
         ExperimentLibraryClient,
     )
     from icon.server.data_access.models.sqlite.job import Job
+    from icon.server.data_access.models.sqlite.job_run import JobRun
     from icon.server.pre_processing.task import PreProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
     from icon.server.utils.types import UpdateQueue
@@ -53,6 +55,10 @@ logger = logging.getLogger(__name__)
 timezone = pytz.timezone(get_config().date.timezone)
 
 ScanCombination = frozenset[tuple[str, DatabaseValueType]]
+
+SCAN_COMPLETION_POLL_INTERVAL = 0.1
+"""Seconds to wait between completion checks once every data point of a regular scan
+has been handed to the hardware worker."""
 
 
 class ParamUpdateMode(str, Enum):
@@ -405,7 +411,7 @@ class PreProcessingWorker(multiprocessing.Process):
         client: ExperimentLibraryClient,
         pre_processing_task: PreProcessingTask,
         namespace: ExperimentIdentifier,
-    ) -> None:
+    ) -> JobRun:
         """Block until the job run's status is no longer ``PAUSED``.
 
         Parameter-update events are still drained while paused, so calibrations or
@@ -418,14 +424,19 @@ class PreProcessingWorker(multiprocessing.Process):
         loop may have already drained ``_data_points_to_process`` before the pause,
         in which case it would otherwise spin on an empty queue without yielding to
         the outer ``_regenerate_outdated_jobs`` call.
+
+        Returns:
+            The run as it was last read, so callers can reuse its status.
         """
-        while (
-            JobRunRepository.get_run_by_job_id(job_id=pre_processing_task.job.id).status
-            == JobRunStatus.PAUSED
-        ):
+        job_run = JobRunRepository.get_run_by_job_id(job_id=pre_processing_task.job.id)
+        while job_run.status == JobRunStatus.PAUSED:
             self._handle_parameter_updates(pre_processing_task, namespace=namespace)
             time.sleep(0.2)
+            job_run = JobRunRepository.get_run_by_job_id(
+                job_id=pre_processing_task.job.id
+            )
         self._regenerate_outdated_jobs(client, namespace)
+        return job_run
 
     def _submit_task_to_hw_worker(
         self,
@@ -461,22 +472,20 @@ class PreProcessingWorker(multiprocessing.Process):
             scan_parameter_value_combinations
         ):
             self._handle_parameter_updates(pre_processing_task, namespace)
-            self._wait_while_paused(client, pre_processing_task, namespace=namespace)
+            job_run = self._wait_while_paused(
+                client, pre_processing_task, namespace=namespace
+            )
+
+            if run_cancelled_or_failed(job_run):
+                break
 
             # TODO: this should probably be done with multiple workers to
             # speed up the preparation of JSONs
             try:
                 index, data_point = self._data_points_to_process.get(block=False)
             except queue.Empty:
-                time.sleep(0.001)
+                time.sleep(SCAN_COMPLETION_POLL_INTERVAL)
                 continue
-            finally:
-                should_exit = job_run_cancelled_or_failed(
-                    job_id=pre_processing_task.job.id
-                )
-
-            if should_exit:
-                break
 
             yield
             self._submit_task_to_hw_worker(
@@ -484,7 +493,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     pre_processing_task=pre_processing_task,
                     index=index,
                     data_point=data_point,
-                    sequence_json=generate_sequence_json(
+                    hardware_instructions=create_hardware_instructions(
                         client,
                         n_shots=pre_processing_task.job.number_of_shots,
                         parameter_dict={**self._parameter_dict, **data_point},
@@ -500,7 +509,7 @@ class PreProcessingWorker(multiprocessing.Process):
         pre_processing_task: PreProcessingTask,
         index: int,
         data_point: dict[str, DatabaseValueType],
-        sequence_json: str,
+        hardware_instructions: str,
         src_dir: str | None,
     ) -> HardwareProcessingTask:
         return HardwareProcessingTask(
@@ -510,7 +519,7 @@ class PreProcessingWorker(multiprocessing.Process):
             global_parameter_timestamp=self._global_parameter_timestamp,
             scanned_params=data_point,
             src_dir=src_dir,
-            sequence_json=sequence_json,
+            hardware_instructions=hardware_instructions,
             processed_data_points=self._processed_data_points,
             data_points_to_process=self._data_points_to_process,
             outdated_tasks=self._outdated_tasks,
@@ -524,7 +533,7 @@ class PreProcessingWorker(multiprocessing.Process):
             # Derive the job from the task itself: _outdated_tasks lives for the whole
             # worker, so we don't assume every task came from one pre-processing task.
             job = task.pre_processing_task.job
-            # Realtime scans manage their own sequence (re)generation in
+            # Realtime scans manage their own hardware instructions (re)generation in
             # _handle_realtime_scan (keyed on the global parameter timestamp); their
             # tasks are never regenerated here, only resubmitted as-is.
             is_realtime = contains_realtime_parameter(
@@ -545,15 +554,15 @@ class PreProcessingWorker(multiprocessing.Process):
             if job_run.status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
                 self._processed_data_points.put(task)
                 continue
-            # Only stale tasks (parameters changed since the task was built) need a
-            # fresh sequence. Pause-diverted tasks keep their valid sequence as-is.
+            # Only stale tasks (parameters changed since the task was built) need
+            # fresh hardware instructions. Pause-diverted tasks keep their valid hardware instructions as-is.
             parameter_update_timestamp = job_run.parameter_update_timestamp
             if (
                 not is_realtime
                 and parameter_update_timestamp is not None
                 and task.created < parameter_update_timestamp.replace(tzinfo=UTC)
             ):
-                task.sequence_json = generate_sequence_json(
+                task.hardware_instructions = create_hardware_instructions(
                     client,
                     n_shots=job.number_of_shots,
                     parameter_dict={**self._parameter_dict, **task.scanned_params},
@@ -606,7 +615,7 @@ class PreProcessingWorker(multiprocessing.Process):
                         pre_processing_task=pre_processing_task,
                         index=index,
                         data_point=data_point,
-                        sequence_json=generate_sequence_json(
+                        hardware_instructions=create_hardware_instructions(
                             client,
                             n_shots=pre_processing_task.job.number_of_shots,
                             parameter_dict={**self._parameter_dict, **data_point},
@@ -636,14 +645,14 @@ def freeze_dict(combination: dict[str, DatabaseValueType]) -> ScanCombination:
     return frozenset(combination.items())
 
 
-def generate_sequence_json(
+def create_hardware_instructions(
     client: ExperimentLibraryClient,
     n_shots: int,
     parameter_dict: dict[str, DatabaseValueType],
     namespace: ExperimentIdentifier,
 ) -> str:
     return asyncio.run(
-        client.generate_json_sequence(
+        client.create_hardware_instructions(
             n_shots=n_shots,
             parameter_dict=parameter_dict,
             exp_module_name=namespace.module_name,

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from icon.client.api.experiments_controller import (
     DisplayGroupProxy,
@@ -23,7 +23,7 @@ class ParametersController:
 
     def __init__(self, client: "Client") -> None:
         self._client = client
-        self._display_groups: dict[str, dict] = client.trigger_method(
+        self._display_groups: dict[str, dict[str, Any]] = client.trigger_method(
             "parameters.get_display_groups"
         )
         self._display_group_id_mapping = get_display_group_identifier_dict(

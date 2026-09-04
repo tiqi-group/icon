@@ -27,9 +27,7 @@ from icon.server.pre_processing.worker import ExperimentIdentifier
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
 
 if TYPE_CHECKING:
-    from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
-        DatabaseValueType,
-    )
+    from icon.server.data_access.experiment_data import DatabaseValueType
     from icon.server.post_processing.task import PostProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
     from icon.server.utils.types import UpdateQueue
@@ -143,9 +141,9 @@ class PostProcessingWorker(multiprocessing.Process):
                     "exp_module_name": namespace.module_name,
                     "exp_instance_name": namespace.instance_name,
                     "parameter_dict": parameter_dict,
-                    "result_channels": task.data_point.result_channels,
+                    "result_channels": task.data_point.readouts.result_channels,
                     "post_processing_output": state.post_processing_output,
-                    "shot_channels": task.data_point.shot_channels,
+                    "shot_channels": task.data_point.readouts.shot_channels,
                 },
                 logger=logger,
             )
@@ -209,8 +207,8 @@ class PostProcessingWorker(multiprocessing.Process):
         Only channels that the hardware already reported can be updated.
         """
         for channel_name, value in updated_result_channels.items():
-            if channel_name in task.data_point.result_channels:
-                task.data_point.result_channels[channel_name] = value
+            if channel_name in task.data_point.readouts.result_channels:
+                task.data_point.readouts.result_channels[channel_name] = value
             else:
                 logger.warning(
                     "Post-processing of job %s set unknown result channel %r; "

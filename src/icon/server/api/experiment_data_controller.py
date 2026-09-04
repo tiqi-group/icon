@@ -27,7 +27,7 @@ class ExperimentDataController(pydase.DataService):
         job_id: int,
         max_transfer_bytes: int = 50_000_000,
         *,
-        include_json_sequences: bool = False,
+        include_hardware_instructions: bool = False,
     ) -> dict[str, Any]:
         """Return experiment data for a given job.
 
@@ -37,11 +37,11 @@ class ExperimentDataController(pydase.DataService):
                 size in bytes.  The number of data points loaded is
                 derived from HDF5 metadata so that the response stays
                 within this budget.  Defaults to 50 MB.
-            include_json_sequences: If True, include per-point pulse
-                ``sequence_json`` blobs in the response.  Defaults to False
+            include_hardware_instructions: If True, include per-point pulse
+                ``hardware_instructions`` blobs in the response.  Defaults to False
                 because those strings dominate the payload for large scans
                 (~tens of MB) and are not needed for plotting/fitting; live
-                updates still carry ``sequence_json`` per data point.
+                updates still carry ``hardware_instructions`` per data point.
 
         Returns:
             The experiment data linked to the job as a dict resulting
@@ -53,9 +53,35 @@ class ExperimentDataController(pydase.DataService):
             ExperimentDataRepository.get_experiment_data_by_job_id,
             job_id=job_id,
             max_transfer_bytes=max_transfer_bytes,
-            include_json_sequences=include_json_sequences,
+            include_hardware_instructions=include_hardware_instructions,
         )
         return asdict(result)
+
+    async def get_hardware_instructions(
+        self,
+        job_id: int | None = None,
+        index: int | None = None,
+    ) -> str | None:
+        """Return stored hardware instructions (the serialized sequence JSON).
+
+        Used by the sequence visualizer to display the pulse sequence of a
+        specific data point, a job, or the most recent experiment run.
+
+        Args:
+            job_id: Job to read from. Defaults to the most recent job with
+                stored hardware instructions.
+            index: Data point index within the job. Defaults to the last
+                stored entry.
+
+        Returns:
+            The serialized hardware instructions, or None when nothing is
+            stored for the requested scope.
+        """
+        return await asyncio.to_thread(
+            ExperimentDataRepository.get_hardware_instructions,
+            job_id=job_id,
+            index=index,
+        )
 
     async def run_fit(
         self,
@@ -97,7 +123,7 @@ class ExperimentDataController(pydase.DataService):
             )
 
         scan_values = data.scan_parameters[scan_param_name]
-        channel_values = data.result_channels.get(result_channel, {})
+        channel_values = data.readouts.result_channels.get(result_channel, {})
 
         # Build aligned x, y arrays sorted by index
         indices = sorted(set(scan_values.keys()) & set(channel_values.keys()))

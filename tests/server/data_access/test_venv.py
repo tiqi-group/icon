@@ -2,6 +2,7 @@ import asyncio
 import importlib
 import sys
 import venv
+import warnings
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -30,3 +31,26 @@ def test_venv_run() -> None:
             )
         )
     assert result == "{}"
+
+
+def callback_with_warning() -> dict[str, int]:
+    warnings.warn("Some Warning", category=RuntimeWarning, stacklevel=42)
+    return {"status": 0}
+
+
+def test_venv_run_with_warnings() -> None:
+    with TemporaryDirectory() as temp_dir, warnings.catch_warnings(record=True) as wrn:
+        venv.EnvBuilder().create(temp_dir)
+        env = VirtualEnvironment(temp_dir)
+
+        warnings.simplefilter("always")
+        return_value = asyncio.run(
+            env.run(
+                callback_with_warning,
+                args={},
+            )
+        )
+    assert len(wrn) == 1
+    assert wrn[0].category is RuntimeWarning
+    assert str(wrn[0].message) == "Some Warning"
+    assert return_value == {"status": 0}

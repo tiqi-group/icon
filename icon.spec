@@ -11,8 +11,8 @@ a = Analysis(
     binaries=[],
     datas=[
         ("src/icon/server/frontend", "frontend"),
+        ("src/icon/server/frontend_visualizer", "icon/server/frontend_visualizer"),
         ("src/icon/server/data_access/db_context/sqlite/alembic", "icon/server/data_access/db_context/sqlite/alembic"),
-        ("src/icon/server/data_access/templates/", "icon/server/data_access/templates"),
         (pydase_path, "pydase")
     ],
     hiddenimports=[

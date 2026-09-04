@@ -51,12 +51,13 @@ Options:
   -h, --help         Show this message and exit
 ```
 
-If you prefer to run ICON from source, clone the repository and use [`uv`](https://docs.astral.sh/uv/) as the dependency manager:
+If you prefer to run ICON from source, clone the repository, build the frontend with [`pnpm`](https://pnpm.io/) and use [`uv`](https://docs.astral.sh/uv/) as the dependency manager for the python project:
 
 ```bash
-git clone https://github.com/tiqi-group/icon.git
+git clone --recursive https://github.com/tiqi-group/icon.git
 cd icon
-uv sync --extra server --extra zedboard # optional: --extra pycrystal
+(cd frontend; pnpm install; pnpm build)
+uv sync --extra server --extra pycrystal
 uv run python -m icon.server
 ```
 <!--getting-started-end-->
@@ -104,30 +105,22 @@ uv run python -m icon.server
 
 ### Frontend
 
-The frontend source code is located in the `frontend/` folder. To start development:
+The frontend source code is located in the `frontend/` folder, organised as a pnpm
+workspace. See [`frontend/README.md`](./frontend/README.md) for details.
+
+> [!IMPORTANT]
+> sequence-visualizer is a git submodule, clone the icon repository
+> with `--recursive` or run `git submodule update --init --recursive`
+> after cloning.
+
+To run ICON from source, the UI packages must be built first:
 
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install    # installs dependencies
+pnpm build      # builds the packages
 ```
 
-This uses [Vite.js](https://vitejs.dev/) with hot-reloading enabled.
-
-Project structure:
-
-```bash
-frontend
-└── src
-    ├── components  # React components
-    ├── contexts    # React contexts
-    ├── hooks       # React hooks
-    ├── layouts     # Layouts for MUI Toolpad
-    ├── pages       # Page definitions
-    ├── stores      # State stores (e.g. parameter store)
-    ├── types       # Type definitions
-    └── utils       # Utility functions
-```
 
 ### SQLite
 
