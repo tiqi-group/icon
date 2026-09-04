@@ -1,8 +1,18 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-import pydase, os
+import pydase, os, pathlib
+
+from PyInstaller.utils.hooks import collect_submodules
 
 pydase_path = os.path.dirname(pydase.__file__)
+
+icon_submodules = collect_submodules("icon")
+
+icon_src = pathlib.Path("src/icon")
+icon_sources = [
+    (str(path), str(pathlib.Path("icon") / path.relative_to(icon_src).parent))
+    for path in icon_src.rglob("*.py")
+]
 
 
 a = Analysis(
@@ -13,10 +23,12 @@ a = Analysis(
         ("src/icon/server/frontend", "frontend"),
         ("src/icon/server/frontend_visualizer", "icon/server/frontend_visualizer"),
         ("src/icon/server/data_access/db_context/sqlite/alembic", "icon/server/data_access/db_context/sqlite/alembic"),
-        (pydase_path, "pydase")
+        (pydase_path, "pydase"),
+        *icon_sources,
     ],
     hiddenimports=[
         "engineio.async_drivers.aiohttp",
+        *icon_submodules,
     ],
     hookspath=[],
     hooksconfig={},
