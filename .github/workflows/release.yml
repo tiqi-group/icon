@@ -26,19 +26,31 @@ jobs:
       BIN_NAME: icon
 
     steps:
+      - name: Install system deps
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            openssh-client git ca-certificates curl binutils gh
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
-      - name: Install system deps
-        run: |
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            openssh-client git ca-certificates curl binutils gh
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -60,8 +72,13 @@ jobs:
           GL_DEPLOY_USER: ${{ secrets.GITLAB_DEPLOY_USER }}
           GL_DEPLOY_TOKEN: ${{ secrets.GITLAB_DEPLOY_TOKEN }}
         run: |
-          uv sync --no-dev --extra server --group build
-          uv pip install "git+https://$GL_DEPLOY_USER:$GL_DEPLOY_TOKEN@gitlab.phys.ethz.ch/tiqi-projects/drivers/tiqi-zedboard.git"
+          uv sync --no-dev --extra server --extra pycrystal --group build
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
 
       - name: Build with PyInstaller
         run: uv run pyinstaller icon.spec
