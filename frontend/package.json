@@ -4,7 +4,7 @@
   "packageManager": "pnpm@11.25.0",
   "scripts": {
     "dev": "pnpm --filter icon run dev",
-    "build": "pnpm run build:icon && pnpm run build:visualizer",
+    "build": "pnpm run \"/^build:/\"",
     "build:icon": "pnpm --fail-if-no-match --filter icon run build",
     "build:visualizer": "pnpm --fail-if-no-match --filter ./sequence-visualizer run build --outDir ../../src/icon/server/frontend_visualizer --emptyOutDir",
     "lint": "pnpm --filter icon run lint",

@@ -4,11 +4,38 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
+  # Classify tags into release and prerelease
+  #   vX.Y.Z        -> release      (build and publish release)
+  #   vX.Y.Z-*      -> prerelease   (build only, no release)
+  #   else          -> malformed    (fail)
+  tag-check:
+    name: Classify tag
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    outputs:
+      is_release: ${{ steps.classify.outputs.is_release }}
+    steps:
+      - id: classify
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "$TAG is a release tag - Build job with trigger a published release."
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+- ]]; then
+            echo "$TAG is a prerelease tag - building only, no release."
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Tag '$TAG' is neither vX.Y.Z nor vX.Y.Z-*."
+            exit 1
+          fi
+
   build:
     name: Build (${{ matrix.distro.name }})
     runs-on: ubuntu-latest
@@ -26,19 +53,29 @@ jobs:
       BIN_NAME: icon
 
     steps:
+      - name: Install system deps
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            openssh-client git ca-certificates curl binutils gh
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
-      - name: Install system deps
-        run: |
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            openssh-client git ca-certificates curl binutils gh
+      - name: Set up pnpm and Node
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1
+        with:
+          runtime: node@22
+          working-directory: frontend
+          cache: true
+          require-lockfile: true
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -60,8 +97,11 @@ jobs:
           GL_DEPLOY_USER: ${{ secrets.GITLAB_DEPLOY_USER }}
           GL_DEPLOY_TOKEN: ${{ secrets.GITLAB_DEPLOY_TOKEN }}
         run: |
-          uv sync --no-dev --extra server --group build
-          uv pip install "git+https://$GL_DEPLOY_USER:$GL_DEPLOY_TOKEN@gitlab.phys.ethz.ch/tiqi-projects/drivers/tiqi-zedboard.git"
+          uv sync --no-dev --extra server --extra pycrystal --group build
+
+      - name: Build frontend
+        working-directory: frontend
+        run: pnpm run build
 
       - name: Build with PyInstaller
         run: uv run pyinstaller icon.spec
@@ -81,7 +121,8 @@ jobs:
   release:
     name: Create release & upload binaries
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, tag-check]
+    if: needs.tag-check.outputs.is_release == 'true'
     steps:
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
