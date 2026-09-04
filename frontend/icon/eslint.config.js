@@ -4,6 +4,7 @@ import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended"
 import reactRecommended from "eslint-plugin-react/configs/recommended.js";
 
 export default tseslint.config(
+  { ignores: ["dist/**"] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   ...tseslint.configs.stylistic,

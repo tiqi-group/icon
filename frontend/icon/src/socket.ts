@@ -14,7 +14,7 @@ export const forwardedPrefix: string =
 // Get the forwarded protocol type from the global variable
 export const forwardedProto: string =
   (window as any) /* eslint-disable-line @typescript-eslint/no-explicit-any */
-    .__FORWARDED_PROTO__ || "http";
+    .__FORWARDED_PROTO__ || (window.location.protocol === "https:" ? "https" : "http");
 
 export const authority = `${hostname}:${port}${forwardedPrefix}`;
 
