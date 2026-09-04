@@ -1,35 +1,55 @@
-# Toolpad Core - Vite with React Router
+# Frontend
 
-This example provides a minimal setup to get Toolpad Core working in Vite with HMR, as well as routing with React Router.
+The frontend code is organized as a [pnpm workspace](https://pnpm.io/workspaces)
+holding two packages.
 
-## Clone using `create-toolpad-app`
-
-To copy this example and customize it for your needs, run
-
-```bash
-npx create-toolpad-app@latest --example vite
-# or
-pnpm dlx create-toolpad-app@latest --example vite
-```
-
-and follow the instructions in the terminal.
-
-## Getting Started
-
-First, run the development server:
+Project structure:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+frontend
+├── icon                 # ICON's own frontend
+│   └── src
+│       ├── components   # React components
+│       ├── contexts     # React contexts
+│       ├── hooks        # React hooks
+│       ├── layouts      # Layouts for MUI Toolpad
+│       ├── pages        # Page definitions
+│       ├── stores       # State stores (e.g. parameter store)
+│       ├── types        # Type definitions
+│       └── utils        # Utility functions
+└── sequence-visualizer  # sequence visualizer (git submodule)
 ```
 
-Open [http://localhost:5173](http://localhost:5173) with your browser to see the result.
+> [!IMPORTANT]
+> sequence-visualizer is a git submodule, clone the icon repository
+> with `--recursive` or run `git submodule update --init --recursive`
+> after cloning.
 
-## The source
+To run ICON from source, the UI packages must be built first:
 
-[Check out the source code](https://github.com/mui/toolpad/tree/master/examples/core/vite/)
+```bash
+cd frontend
+pnpm install    # installs dependencies
+pnpm build      # builds the packages
+```
+
+`pnpm build` builds both packages into `src/icon/server/frontend/` and
+`src/icon/server/frontend_visualizer/`.
+
+`pnpm dev` runs a vite dev server which listens for code changes.
+
+## The ICON frontend
+
+`frontend/icon` holds ICON's React based web application which connects to the backend
+via a socket.io websocket.
+
+The build assets are copied into `src/icon/server/frontend/` from where they are served
+by the ICON backend.
+
+## The sequence visualizer frontend
+
+`frontend/sequence-visualizer` is a submodule pointing to the
+[ionpulse-sequence-visualiser](https://github.com/tiqi-group/ionpulse-sequence-visualiser).
+It is a standalone web application which renders hardware instructions as waveforms.
+The hardware instructions are picked up from `last_experiment_sequence` socket.io event
+emitted by ICON on every data point.

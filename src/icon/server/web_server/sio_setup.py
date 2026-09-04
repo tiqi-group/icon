@@ -12,6 +12,11 @@ logger = logging.getLogger(__name__)
 pydase_setup_sio_events = pydase.server.web_server.sio_setup.setup_sio_events
 
 
+def device_updates_room(device_name: str | None = None) -> str:
+    """Construct device update room name for device-specific updates. Broadcast room if device_name is None."""
+    return "devices.device_proxies" + (f'["{device_name}"]' if device_name else "")
+
+
 class AsyncServer(socketio.AsyncServer):
     controlling_sid: str | None = None
     """Socketio SID of the client controlling the frontend."""
@@ -55,6 +60,24 @@ def setup_sio_events(
         if sio.controlling_sid == sid:
             sio.controlling_sid = None
             await sio.emit("control_state", {"controlling_sid": None})
+
+    _setup_device_update_room_events(sio)
+
+
+def _setup_device_update_room_events(sio: AsyncServer) -> None:
+    @sio.event
+    async def subscribe_device_updates(
+        sid: str, device_name: str | None = None
+    ) -> None:
+        """Subscribe client to device update notifications. If device_name is None, subscribe to all device updates."""
+        await sio.enter_room(sid, device_updates_room(device_name))
+
+    @sio.event
+    async def unsubscribe_device_updates(
+        sid: str, device_name: str | None = None
+    ) -> None:
+        """Unsubscribe client to device update notifications. if device_name is None, unsubscribe from device update broadcast room."""
+        await sio.leave_room(sid, device_updates_room(device_name))
 
 
 def log_id(headers: Any, sid: str) -> str:

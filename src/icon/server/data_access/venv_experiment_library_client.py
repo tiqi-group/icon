@@ -3,6 +3,7 @@
 import logging
 from typing import TYPE_CHECKING, Any
 
+from icon.server.api.models.experiment_dict import ExperimentMetadata
 from icon.server.data_access.experiment_data import ReadoutMetadata
 from icon.server.data_access.experiment_library_client import ExperimentLibraryClient
 from icon.server.data_access.venv_exec import VirtualEnvironment, deep_asdict
@@ -79,6 +80,19 @@ class BlockingExperimentLibraryClient:
         raise NotImplementedError("Must be implemented by a subclass")
 
 
+def serialize_metadata(
+    d: "tuple[ExperimentDict, ParameterMetadataDict]",
+) -> "tuple[dict[str, Any], ParameterMetadataDict]":
+    """Shallow dataclass -> dict conversion as dataclasses.asdict does not seem to work here."""
+    return ({key: vars(val) for key, val in d[0].items()}, d[1])
+
+
+def deserialize_metadata(
+    d: "tuple[dict[str, Any], ParameterMetadataDict]",
+) -> "tuple[ExperimentDict, ParameterMetadataDict]":
+    return ({key: ExperimentMetadata(**val) for key, val in d[0].items()}, d[1])
+
+
 class VEnvExperimentLibraryClient(ExperimentLibraryClient):
     """Wrapper client which runs an actual client in a virtual environment."""
 
@@ -92,7 +106,12 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
 
     async def load_metadata(self) -> "tuple[ExperimentDict, ParameterMetadataDict]":
         """Load the experiment and parameter metadata."""
-        return await self.venv.run(self.client.reload_metadata, logger=venv_logger)
+        return await self.venv.run(
+            self.client.reload_metadata,
+            logger=venv_logger,
+            serialize=serialize_metadata,
+            deserialize=deserialize_metadata,
+        )
 
     async def create_hardware_instructions(
         self,
