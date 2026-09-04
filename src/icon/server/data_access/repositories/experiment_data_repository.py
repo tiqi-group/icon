@@ -41,17 +41,122 @@ MOST_RECENT_RESULT_FILES = 10
 """How many of the newest result files to search when no job is specified."""
 
 
+def _safe_timestamp(scheduled_time: datetime) -> str:
+    """Return a filesystem-safe timestamp string for HDF5 filenames.
+
+    Uses ``strftime`` so the result has no characters illegal on Windows
+    (``:`` ``*`` ``?`` ``"`` ``<`` ``>`` ``|``) and no spaces::
+
+        %Y-%m-%dT%H-%M-%S.%f%z  →  2026-08-11T13-41-00.123456+0000
+
+    ``%z`` is the UTC offset without colons (e.g. ``+0000``). Naive datetimes
+    omit the offset suffix.
+    """
+    return scheduled_time.strftime("%Y-%m-%dT%H-%M-%S.%f%z")
+
+
+def format_h5_filename(scheduled_time: datetime, job_id: int) -> str:
+    """Return the canonical HDF5 filename for a job.
+
+    Args:
+        scheduled_time: Job run scheduled time from the database.
+        job_id: Job identifier.
+
+    Returns:
+        Filename such as ``2026-08-11T13-41-00.123456+0000_job42.h5``.
+    """
+    return f"{_safe_timestamp(scheduled_time)}_job{job_id}.h5"
+
+
+def h5_date_subdir(scheduled_time: datetime) -> Path:
+    """Return ``YYYY/MM/DD`` relative to the results directory."""
+    return Path(
+        f"{scheduled_time.year:04d}",
+        f"{scheduled_time.month:02d}",
+        f"{scheduled_time.day:02d}",
+    )
+
+
+def legacy_h5_filename(scheduled_time: datetime) -> str:
+    """Return the pre-Windows-safe HDF5 filename for a scheduled time.
+
+    Args:
+        scheduled_time: Job run scheduled time from the database.
+
+    Returns:
+        Legacy filename ``f"{scheduled_time}.h5"`` (may contain ``:`` / spaces).
+    """
+    return f"{scheduled_time}.h5"
+
+
+def resolve_h5_path(
+    scheduled_time: datetime,
+    job_id: int,
+    results_dir: Path | str | None = None,
+) -> Path:
+    """Resolve the HDF5 path for a job with fallbacks for older layouts.
+
+    Prefers ``<results_dir>/YYYY/MM/DD/<timestamp>_job<id>.h5``. If that file
+    does not exist, looks for older flat names in ``results_dir`` (Windows-safe
+    timestamp only, then ``str(scheduled_time).h5``). When none exist, returns
+    the dated path so new writes use the current layout.
+
+    Args:
+        scheduled_time: Job run scheduled time from the database.
+        job_id: Job identifier.
+        results_dir: Results directory; defaults to ``data.results_dir`` config.
+
+    Returns:
+        Path to an existing file, or the canonical path for a new write.
+    """
+    base = Path(
+        results_dir if results_dir is not None else get_config().data.results_dir
+    )
+    canonical = (
+        base
+        / h5_date_subdir(scheduled_time)
+        / format_h5_filename(scheduled_time, job_id)
+    )
+    if canonical.exists():
+        return canonical
+    root_safe = base / f"{_safe_timestamp(scheduled_time)}.h5"
+    if root_safe.exists():
+        return root_safe
+    legacy_path = base / legacy_h5_filename(scheduled_time)
+    if legacy_path.exists():
+        return legacy_path
+    return canonical
+
+
 def get_filename_by_job_id(job_id: int) -> str:
-    """Return the HDF5 filename for a job.
+    """Return the canonical HDF5 filename for a job.
 
     Args:
         job_id: Job identifier.
 
     Returns:
-        Filename derived from the job's scheduled time (e.g., "<iso>.h5").
+        Filename from :func:`format_h5_filename`.
+
+    Note:
+        Path resolution that must open existing legacy files should use
+        :func:`resolve_h5_path_by_job_id` instead of joining this name onto
+        the results directory root.
     """
     scheduled_time = JobRunRepository.get_scheduled_time_by_job_id(job_id=job_id)
-    return f"{scheduled_time}.h5"
+    return format_h5_filename(scheduled_time, job_id)
+
+
+def resolve_h5_path_by_job_id(job_id: int) -> Path:
+    """Resolve the on-disk HDF5 path for a job, with legacy filename fallback.
+
+    Args:
+        job_id: Job identifier.
+
+    Returns:
+        Path to an existing file, or the canonical dated path for new writes.
+    """
+    scheduled_time = JobRunRepository.get_scheduled_time_by_job_id(job_id=job_id)
+    return resolve_h5_path(scheduled_time, job_id)
 
 
 def resize_dataset(dataset: h5py.Dataset, next_index: int, axis: int) -> None:
@@ -274,8 +379,7 @@ class ExperimentDataRepository:
             local_parameter_timestamp: Optional timestamp for local parameters.
             parameters: Scan parameters.
         """
-        filename = get_filename_by_job_id(job_id)
-        h5_path = Path(get_config().data.results_dir) / filename
+        h5_path = resolve_h5_path_by_job_id(job_id)
         job = JobRepository.get_job_by_id(job_id=job_id, load_experiment_source=True)
 
         with h5_open(h5_path, "a") as h5file:
@@ -322,8 +426,7 @@ class ExperimentDataRepository:
             job_id: Job identifier.
             data_point: Data point payload to append.
         """
-        filename = get_filename_by_job_id(job_id)
-        h5_path = Path(get_config().data.results_dir) / filename
+        h5_path = resolve_h5_path_by_job_id(job_id)
 
         with h5_open(h5_path, "a") as h5file:
             write_experiment_data_point(h5file, data_point)
@@ -362,8 +465,7 @@ class ExperimentDataRepository:
             timestamp: ISO timestamp string.
             parameter_values: Mapping of parameter id to value.
         """
-        filename = get_filename_by_job_id(job_id)
-        h5_path = Path(get_config().data.results_dir) / filename
+        h5_path = resolve_h5_path_by_job_id(job_id)
         parameter_updates = {}
         with h5_open(h5_path, "a") as h5file:
             parameters_group = h5file.require_group("parameters")
@@ -436,10 +538,9 @@ class ExperimentDataRepository:
         Returns:
             Experiment data payload suitable for the API.
         """
-        filename = get_filename_by_job_id(job_id)
-        h5_path = Path(get_config().data.results_dir) / filename
+        h5_path = resolve_h5_path_by_job_id(job_id)
 
-        if not Path(h5_path).exists():
+        if not h5_path.exists():
             logger.warning("The file %s does not exist.", h5_path)
             return ExperimentData()
 
@@ -473,15 +574,18 @@ class ExperimentDataRepository:
         results_dir = Path(get_config().data.results_dir)
         if job_id is not None:
             try:
-                paths = [results_dir / get_filename_by_job_id(job_id)]
+                paths = [resolve_h5_path_by_job_id(job_id)]
             except NoResultFound:
                 return None
-        else:
+        elif results_dir.is_dir():
             # Only the newest files are opened: the results directory grows
-            # without bound.
-            paths = sorted(results_dir.glob("*.h5"), reverse=True)[
+            # without bound. rglob covers dated subdirectories and older
+            # flat files in the results root.
+            paths = sorted(results_dir.rglob("*.h5"), reverse=True)[
                 :MOST_RECENT_RESULT_FILES
             ]
+        else:
+            paths = []
 
         for path in paths:
             if not path.is_file():
@@ -831,6 +935,8 @@ _HDF5_GLOBAL_LOCK = threading.RLock()
 
 @contextmanager
 def h5_open(path: Path, mode: str, **kwargs: Any) -> Iterator[h5py.File]:
+    if mode != "r":
+        path.parent.mkdir(parents=True, exist_ok=True)
     with _HDF5_GLOBAL_LOCK:
         while True:
             try:
@@ -870,8 +976,7 @@ def write_fit_result_by_job_id(
         job_id: Job identifier.
         fit_result: The fit result to persist.
     """
-    filename = get_filename_by_job_id(job_id)
-    h5_path = Path(get_config().data.results_dir) / filename
+    h5_path = resolve_h5_path_by_job_id(job_id)
     with h5_open(h5_path, "a") as h5file:
         fits_group = h5file.require_group("fits")
         channel = fit_result.result_channel
@@ -890,8 +995,7 @@ def get_fit_results_by_job_id(*, job_id: int) -> dict[str, FitResult]:
     Returns:
         Dict mapping result channel names to their fit result dicts.
     """
-    filename = get_filename_by_job_id(job_id)
-    h5_path = Path(get_config().data.results_dir) / filename
+    h5_path = resolve_h5_path_by_job_id(job_id)
     if not h5_path.exists():
         return {}
 
@@ -906,8 +1010,7 @@ def delete_fit_result_by_job_id(*, job_id: int, result_channel: str) -> None:
         job_id: Job identifier.
         result_channel: Name of the result channel whose fit to delete.
     """
-    filename = get_filename_by_job_id(job_id)
-    h5_path = Path(get_config().data.results_dir) / filename
+    h5_path = resolve_h5_path_by_job_id(job_id)
     with h5_open(h5_path, "a") as h5file:
         if "fits" in h5file and result_channel in h5file["fits"]:
             del h5file["fits"][result_channel]
