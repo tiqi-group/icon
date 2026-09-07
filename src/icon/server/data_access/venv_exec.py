@@ -12,6 +12,9 @@ import warnings
 from collections.abc import Callable
 from typing import Any
 
+ENV_PATH_VAR = "ICON_VENV_EXEC_PATH"
+"""ENV VAR for caller's import paths into the isolated environment."""
+
 
 def noop_serialize(obj: Any) -> Any:
     """Default serialization / deserialization."""
@@ -50,7 +53,7 @@ class VirtualEnvironment:
         with tempfile.TemporaryDirectory() as tmp_dir:
             out_path = os.path.join(tmp_dir, "out")
             payload = pickle.dumps((callback, args or {}, out_path, serialize))
-            python_path = ":".join(
+            python_path = os.pathsep.join(
                 p
                 for p in {module_path(callback), module_path(serialize)}
                 if p is not None
@@ -62,7 +65,7 @@ class VirtualEnvironment:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 stdin=asyncio.subprocess.PIPE,
-                env={"PYTHONPATH": python_path} if python_path else {},
+                env={ENV_PATH_VAR: python_path} if python_path else {},
             )
 
             try:
@@ -134,6 +137,10 @@ def deep_asdict(
 
 def main() -> None:
     """Runtime for inside the isolated environment."""
+    for path in os.environ.get(ENV_PATH_VAR, "").split(os.pathsep):
+        if path and path not in sys.path:
+            sys.path.append(path)
+
     in_data = sys.stdin.buffer.read()
     callback, kwargs, out_path, serialize = pickle.loads(in_data)
     with warnings.catch_warnings(record=True) as wrn:
