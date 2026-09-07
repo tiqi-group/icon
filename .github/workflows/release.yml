@@ -36,15 +36,19 @@ jobs:
             exit 1
           fi
 
+  build-ui:
+    uses: ./.github/workflows/build-ui.yml
+
   build:
     name: Build (${{ matrix.distro.name }})
     runs-on: ubuntu-latest
+    needs: build-ui
     strategy:
       fail-fast: false
       matrix:
         distro:
           # - { name: "ubuntu", image: "ubuntu:latest", suffix: "linux-ubuntu-amd64" }
-          - { name: "debian", image: "debian:latest", suffix: "linux-amd64" }
+          - { name: "debian", image: "debian:latest", suffix: "linux-amd64", python_dist: true }
 
     container:
       image: ${{ matrix.distro.image }}
@@ -62,21 +66,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-
-      - name: Set up pnpm and Node
-        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1
-        with:
-          runtime: node@22
-          working-directory: frontend
-          cache: true
-          require-lockfile: true
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -100,9 +95,11 @@ jobs:
         run: |
           uv sync --no-dev --extra server --extra pycrystal --group build
 
-      - name: Build frontend
-        working-directory: frontend
-        run: pnpm run build
+      - name: Download UI assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-assets
+          path: src/icon/server
 
       - name: Build with PyInstaller
         run: uv run pyinstaller icon.spec
@@ -118,6 +115,20 @@ jobs:
         with:
           name: ${{ matrix.distro.suffix }}
           path: out/*
+
+      - name: Build sdist & wheel
+        if: matrix.distro.python_dist
+        run: uv build
+
+      - name: Upload sdist & wheel
+        if: matrix.distro.python_dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: |
+            dist/*.tar.gz
+            dist/*.whl
+          if-no-files-found: error
 
   release:
     name: Create release & upload binaries

@@ -1,0 +1,34 @@
+---
+name: Build UI
+
+on:
+  workflow_call:
+
+jobs:
+  build-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set up pnpm and Node
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1
+        with:
+          working-directory: frontend
+          cache: true
+          require-lockfile: true
+
+      - name: Build UI assets
+        working-directory: frontend
+        run: pnpm run build
+
+      - name: Upload UI assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-assets
+          path: |
+            src/icon/server/frontend
+            src/icon/server/frontend_visualizer
+          if-no-files-found: error
