@@ -1,7 +1,8 @@
 {
   "name": "icon-frontend",
   "private": true,
-  "packageManager": "pnpm@11.25.0",
+  "packageManager": "pnpm",
+  "devEngines": "node@26",
   "scripts": {
     "dev": "pnpm --filter icon run dev",
     "build": "pnpm run \"/^build:/\"",

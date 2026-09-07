@@ -2,8 +2,6 @@ packages:
   - "icon"
   - "sequence-visualizer"
 
-nodeLinker: hoisted
-
 allowBuilds:
   esbuild: true
   "@swc/core": true
