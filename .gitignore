@@ -148,3 +148,7 @@ cython_debug/
 # Frontend build output
 /src/icon/server/frontend/
 /src/icon/server/frontend_visualizer/
+
+# ICON default files
+icon.db
+output
