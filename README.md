@@ -122,6 +122,33 @@ pnpm build      # builds the packages
 ```
 
 
+### Distributables
+
+All three artifacts embed the built UI assets. The version is derived from the
+git tag.
+
+Prepare the build process:
+
+```bash
+git submodule update --init               # Ensure sequence-visualizer submodule is initalized
+git fetch --tags                          # Ensure version tag is present
+cd frontend && pnpm install && pnpm build && cd ..      # Build front-end
+```
+
+Build source distribution and wheel:
+
+```bash
+uv build          # Builds dist/icon-<version>.tar.gz and dist/icon-<version>-py3-none-any.whl
+```
+
+Build standalone binary:
+
+```bash
+uv sync --extra server --group build
+uv run pyinstaller icon.spec   # builds dist/icon
+```
+
+
 ### SQLite
 
 ICON uses SQLite to store job history and device metadata.
