@@ -1,6 +1,6 @@
 [project]
 name = "icon"
-version = "0.2.0"
+dynamic = ["version"]
 description = "Ion CONtrol Experiment Control Software"
 readme = "README.md"
 authors = [
@@ -42,11 +42,27 @@ pycrystal = [
 icon-migrate-influxdb-schema = "icon.cli.migrate_influxdb_schema:cli"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.uv]
+cache-keys = [{ git = { commit = true, tags = true } }]
+
+[tool.hatch.build]
+exclude = ["node_modules"]
+artifacts = [
+    "src/icon/server/frontend/**",
+    "src/icon/server/frontend_visualizer/**",
+]
+
+[tool.hatch.build.targets.sdist]
+only-include = ["src/icon", "tests", "README.md", "LICENSE"]
 
 [dependency-groups]
 dev = [

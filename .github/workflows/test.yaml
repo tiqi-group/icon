@@ -19,7 +19,6 @@ jobs:
       - name: Set up pnpm and Node
         uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1
         with:
-          runtime: node@22
           working-directory: frontend
           cache: true
           require-lockfile: true
@@ -46,6 +45,8 @@ jobs:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Download UI assets
         uses: actions/download-artifact@v4
