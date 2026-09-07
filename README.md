@@ -57,7 +57,7 @@ If you prefer to run ICON from source, clone the repository, build the frontend 
 git clone --recursive https://github.com/tiqi-group/icon.git
 cd icon
 (cd frontend; pnpm install; pnpm build)
-uv sync --extra server --extra pycrystal
+uv sync --extra server
 uv run python -m icon.server
 ```
 <!--getting-started-end-->
