@@ -6,14 +6,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import pycrystal.database.local_cache
-import pycrystal.parameters
-from pycrystal.parameters import Parameter
-from pycrystal.utils.helpers import (
-    collect_experiment_metadata,
-    import_experiment_instance,
-)
-
 import icon.server.utils.git_helpers
 from icon.server.api.models.experiment_dict import (
     ExperimentMetadata,
@@ -80,6 +72,8 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
 
     @property
     def parameter_metadata(self) -> "ParameterMetadataDict":
+        from pycrystal.parameters import Parameter  # noqa: PLC0415
+
         parameter_registry = Parameter.registry.namespace_registry
         return {
             "all parameters": Parameter.registry.all_parameters,
@@ -96,6 +90,8 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
 
     @property
     def experiment_metadata(self) -> "ExperimentDict":
+        from pycrystal.utils.helpers import collect_experiment_metadata  # noqa: PLC0415
+
         return {
             name: ExperimentMetadata(**data)
             for name, data in collect_experiment_metadata(
@@ -126,6 +122,8 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         Returns:
             JSON string containing the generated sequence.
         """
+        from pycrystal.utils.helpers import import_experiment_instance  # noqa: PLC0415
+
         exp_instance = import_experiment_instance(exp_module_name, exp_instance_name)
 
         return exp_instance.pulse_sequence_str_from_args(
@@ -150,9 +148,13 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         Returns:
             Dictionary containing readout metadata for the experiment.
         """
+        import pycrystal.database.local_cache  # noqa: PLC0415
+        import pycrystal.parameters  # noqa: PLC0415
+
         pycrystal.parameters.Parameter.db = pycrystal.database.local_cache.LocalCache(
             key_val_dict=parameter_dict,
         )
+        from pycrystal.utils.helpers import import_experiment_instance  # noqa: PLC0415
 
         exp_instance = import_experiment_instance(exp_module_name, exp_instance_name)
         readout = exp_instance.get_readout_metadata(parameter_dict, LOG_LEVEL)
