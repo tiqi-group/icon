@@ -150,11 +150,11 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         """
         import pycrystal.database.local_cache  # noqa: PLC0415
         import pycrystal.parameters  # noqa: PLC0415
+        from pycrystal.utils.helpers import import_experiment_instance  # noqa: PLC0415
 
         pycrystal.parameters.Parameter.db = pycrystal.database.local_cache.LocalCache(
             key_val_dict=parameter_dict,
         )
-        from pycrystal.utils.helpers import import_experiment_instance  # noqa: PLC0415
 
         exp_instance = import_experiment_instance(exp_module_name, exp_instance_name)
         readout = exp_instance.get_readout_metadata(parameter_dict, LOG_LEVEL)

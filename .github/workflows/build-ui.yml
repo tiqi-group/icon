@@ -4,10 +4,14 @@ name: Build UI
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   build-ui:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
     steps:
       - uses: actions/checkout@v6
         with:

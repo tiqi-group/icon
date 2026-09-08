@@ -1,5 +1,6 @@
 emulator/
 output/
+*.db
 poetry.lock
 .python-version
 
@@ -149,6 +150,3 @@ cython_debug/
 /src/icon/server/frontend/
 /src/icon/server/frontend_visualizer/
 
-# ICON default files
-icon.db
-output

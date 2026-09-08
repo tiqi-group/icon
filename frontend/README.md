@@ -51,5 +51,5 @@ by the ICON backend.
 `frontend/sequence-visualizer` is a submodule pointing to the
 [ionpulse-sequence-visualiser](https://github.com/tiqi-group/ionpulse-sequence-visualiser).
 It is a standalone web application which renders hardware instructions as waveforms.
-The hardware instructions are picked up from `last_experiment_sequence` socket.io event
-emitted by ICON on every data point.
+The hardware instructions are picked up from ICON's `experiment_*` socket.io event
+which is emitted on every data point.
