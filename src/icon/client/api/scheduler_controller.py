@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from icon.client.api.helpers.notebook import in_notebook
-from icon.server.api.models.experiment import Experiment
 
 if TYPE_CHECKING:
     from icon.client.client import Client
@@ -82,8 +81,9 @@ class JobProxy:
         current_data: pd.DataFrame | None = None
         previous_length = 0
 
+        #TODO: Instead of this loop, consume the experiment_{} event to receive updates of a running experiment.
         while True:
-            current_data = self._client._experiment_job_data.get(self._job_id)
+            current_data = self._client._experiment_job_data.get(self._job_id) # type: ignore
             current_length = len(current_data.index) if current_data is not None else 0
             if current_length > previous_length:
                 logger.debug("Yielding new frame")
@@ -105,7 +105,7 @@ class SchedulerController:
     def submit_job(
         self,
         *,
-        experiment: Experiment,
+        experiment_id: str,
         priority: int,
         local_parameters_timestamp: datetime,
         # scan_info: ScanInfo,
@@ -114,7 +114,7 @@ class SchedulerController:
         job_id: int = self._client.trigger_method(
             "scheduler.submit_job",
             kwargs={
-                "experiment": experiment,
+                "experiment_id": experiment_id,
                 "priority": priority,
                 "local_parameters_timestamp": local_parameters_timestamp,
                 "repetitions": repetitions,
