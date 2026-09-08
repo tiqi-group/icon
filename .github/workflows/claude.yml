@@ -35,4 +35,6 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-
+          claude_args: |
+            --allowedTools "mcp__github__create_pending_pull_request_review,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review,mcp__github__get_pull_request_diff,mcp__github__get_pull_request_files,mcp__github_inline_comment__create_inline_comment,Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
+            --append-system-prompt "When reviewing a pull request, deliver every concrete code change as a GitHub suggested change the reviewer can commit from the PR, and batch them all into a single review. Use git diff to see what changed. Then call mcp__github__create_pending_pull_request_review once, add one comment per change with mcp__github__add_comment_to_pending_review (pass subjectType LINE, the file path, the line, or startLine plus line for a range, of the diff hunk you want changed, and a body whose suggestion block holds the exact replacement for that whole line range), and finish with mcp__github__submit_pending_pull_request_review using event COMMENT. If those tools are unavailable, fall back to mcp__github_inline_comment__create_inline_comment with confirmed set to true, one call per change. Only lines present in the PR diff can carry a suggestion; keep findings that cannot be expressed as an exact edit in the summary comment rather than as code blocks pretending to be suggestions."

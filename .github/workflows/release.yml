@@ -7,13 +7,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  # Classify tags into release and prerelease
-  #   vX.Y.Z        -> release      (build and publish release)
-  #   vX.Y.Z-*      -> prerelease   (build only, no release)
-  #   else          -> malformed    (fail)
+  # Trigger release only if the tag matches the pattern 'vX.Y.Z'.
+  # Any other tag will only build but not trigger release.
   tag-check:
     name: Classify tag
     runs-on: ubuntu-latest
@@ -28,23 +26,24 @@ jobs:
           if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "$TAG is a release tag - Build job with trigger a published release."
             echo "is_release=true" >> "$GITHUB_OUTPUT"
-          elif [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+- ]]; then
-            echo "$TAG is a prerelease tag - building only, no release."
-            echo "is_release=false" >> "$GITHUB_OUTPUT"
           else
-            echo "::error::Tag '$TAG' is neither vX.Y.Z nor vX.Y.Z-*."
-            exit 1
+            echo "$TAG is NOT a release tag - building only, no release."
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
           fi
+
+  build-ui:
+    uses: ./.github/workflows/build-ui.yml
 
   build:
     name: Build (${{ matrix.distro.name }})
     runs-on: ubuntu-latest
+    needs: build-ui
     strategy:
       fail-fast: false
       matrix:
         distro:
           # - { name: "ubuntu", image: "ubuntu:latest", suffix: "linux-ubuntu-amd64" }
-          - { name: "debian", image: "debian:latest", suffix: "linux-amd64" }
+          - { name: "debian", image: "debian:latest", suffix: "linux-amd64", python_dist: true }
 
     container:
       image: ${{ matrix.distro.image }}
@@ -60,48 +59,27 @@ jobs:
             openssh-client git ca-certificates curl binutils gh
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          submodules: recursive
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
-      - name: Set up pnpm and Node
-        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1
-        with:
-          runtime: node@22
-          working-directory: frontend
-          cache: true
-          require-lockfile: true
-
       - name: Install uv
         uses: astral-sh/setup-uv@v7
 
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: |
-            ${{ secrets.GITLAB_TIQI_RPC_SSH_KEY }}
-
-      - name: Configure SSH for GitLab
-        env:
-          SSH_KEY: ${{ secrets.GITLAB_TIQI_RPC_SSH_KEY }}
-        run: |
-          mkdir -p /root/.ssh && chmod 700 /root/.ssh
-          ssh-keyscan gitlab.phys.ethz.ch >> /root/.ssh/known_hosts
-
       - name: Sync build dependencies
-        env:
-          GL_DEPLOY_USER: ${{ secrets.GITLAB_DEPLOY_USER }}
-          GL_DEPLOY_TOKEN: ${{ secrets.GITLAB_DEPLOY_TOKEN }}
         run: |
-          uv sync --no-dev --extra server --extra pycrystal --group build
+          uv sync --locked --no-dev --extra server --group build
 
-      - name: Build frontend
-        working-directory: frontend
-        run: pnpm run build
+      - name: Download UI assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-assets
+          path: src/icon/server
 
       - name: Build with PyInstaller
         run: uv run pyinstaller icon.spec
@@ -118,10 +96,26 @@ jobs:
           name: ${{ matrix.distro.suffix }}
           path: out/*
 
+      - name: Build sdist & wheel
+        if: matrix.distro.python_dist
+        run: uv build
+
+      - name: Upload sdist & wheel
+        if: matrix.distro.python_dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: |
+            dist/*.tar.gz
+            dist/*.whl
+          if-no-files-found: error
+
   release:
     name: Create release & upload binaries
     runs-on: ubuntu-latest
     needs: [build, tag-check]
+    permissions:
+      contents: write
     if: needs.tag-check.outputs.is_release == 'true'
     steps:
       - name: Download all build artifacts

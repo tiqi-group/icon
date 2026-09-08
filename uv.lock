@@ -3,10 +3,10 @@ revision = 3
 requires-python = ">=3.11, <3.14"
 resolution-markers = [
     "python_full_version >= '3.12' and sys_platform == 'win32'",
-    "python_full_version < '3.12' and sys_platform == 'win32'",
     "python_full_version >= '3.12' and sys_platform == 'emscripten'",
-    "python_full_version < '3.12' and sys_platform == 'emscripten'",
     "python_full_version >= '3.12' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version < '3.12' and sys_platform == 'win32'",
+    "python_full_version < '3.12' and sys_platform == 'emscripten'",
     "python_full_version < '3.12' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
@@ -1015,7 +1015,6 @@ wheels = [
 
 [[package]]
 name = "icon"
-version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "pydase" },
@@ -1095,7 +1094,7 @@ requires-dist = [
     { name = "tiqi-zedboard", marker = "extra == 'zedboard'", git = "ssh://git@gitlab.phys.ethz.ch/tiqi-projects/drivers/tiqi-zedboard.git?rev=v1.3.0" },
     { name = "tqdm", marker = "extra == 'server'", specifier = ">=4.66.0" },
 ]
-provides-extras = ["server", "zedboard", "client", "pycrystal"]
+provides-extras = ["client", "pycrystal", "server", "zedboard"]
 
 [package.metadata.requires-dev]
 build = [{ name = "pyinstaller", specifier = ">=6.15.0" }]

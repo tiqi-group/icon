@@ -57,7 +57,7 @@ If you prefer to run ICON from source, clone the repository, build the frontend 
 git clone --recursive https://github.com/tiqi-group/icon.git
 cd icon
 (cd frontend; pnpm install; pnpm build)
-uv sync --extra server --extra pycrystal
+uv sync --extra server
 uv run python -m icon.server
 ```
 <!--getting-started-end-->
@@ -119,6 +119,33 @@ To run ICON from source, the UI packages must be built first:
 cd frontend
 pnpm install    # installs dependencies
 pnpm build      # builds the packages
+```
+
+
+### Distributables
+
+All three artifacts embed the built UI assets. The version is derived from the
+git tag.
+
+Prepare the build process:
+
+```bash
+git submodule update --init               # Ensure sequence-visualizer submodule is initalized
+git fetch --tags                          # Ensure version tag is present
+cd frontend && pnpm install && pnpm build && cd ..      # Build front-end
+```
+
+Build source distribution and wheel:
+
+```bash
+uv build          # Builds dist/icon-<version>.tar.gz and dist/icon-<version>-py3-none-any.whl
+```
+
+Build standalone binary:
+
+```bash
+uv sync --extra server --group build
+uv run pyinstaller icon.spec   # builds dist/icon
 ```
 
 

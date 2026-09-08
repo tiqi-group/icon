@@ -2,7 +2,7 @@
 
 import pydase, os, pathlib
 
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_submodules, copy_metadata
 
 pydase_path = os.path.dirname(pydase.__file__)
 
@@ -25,6 +25,7 @@ a = Analysis(
         ("src/icon/server/data_access/db_context/sqlite/alembic", "icon/server/data_access/db_context/sqlite/alembic"),
         (pydase_path, "pydase"),
         *icon_sources,
+        *copy_metadata("icon"),
     ],
     hiddenimports=[
         "engineio.async_drivers.aiohttp",
