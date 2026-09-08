@@ -32,16 +32,27 @@ jobs:
           - name: mypy
             env:
               UV_PROJECT_ENVIRONMENT: ${{ runner.temp }}/venv-mypy
-              MYPY_REPORT_DIR: ${{ runner.temp }}/mypy-reports
+              MYPY_TEXT_REPORTS: ${{ runner.temp }}/mypy-text
+              MYPY_HTML_REPORT: ${{ runner.temp }}/mypy-html
             run: |
               uv sync --extra server --extra client --locked
+              rc=0
               uv run --no-sync mypy \
-                --lineprecision-report "$MYPY_REPORT_DIR" \
-                --any-exprs-report "$MYPY_REPORT_DIR"
+                --lineprecision-report "$MYPY_TEXT_REPORTS" \
+                --any-exprs-report "$MYPY_TEXT_REPORTS" \
+                --html-report "$MYPY_HTML_REPORT" || rc=$?
 
-      - name: Upload mypy reports
+              for report in "$MYPY_TEXT_REPORTS"/*.txt; do
+                [ -f "$report" ] || continue
+                echo "::group::mypy report: $(basename "$report")"
+                cat "$report"
+                echo "::endgroup::"
+              done
+              exit $rc
+
+      - name: Upload mypy HTML report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mypy-reports
-          path: ${{ runner.temp }}/mypy-reports
+          name: mypy-html-report
+          path: ${{ runner.temp }}/mypy-html
