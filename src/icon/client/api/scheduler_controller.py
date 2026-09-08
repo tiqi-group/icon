@@ -36,13 +36,13 @@ class JobProxy:
         await self._client._sio.emit("get_experiment_data", self._job_id)
 
         # this has to stay here - otherwise, the notebooks won't show the plot
-        self._client._loop.create_task(self._run_plot())
+        self._client.event_loop.create_task(self._run_plot())
 
     def _start_plot(self) -> None:
         logger.info("Starting plot")
         self._getting_data = True
         connection_future = asyncio.run_coroutine_threadsafe(
-            self._subscribe_to_experiment_data_stream(), self._client._loop
+            self._subscribe_to_experiment_data_stream(), self._client.event_loop
         )
         connection_future.result()
 
@@ -50,7 +50,7 @@ class JobProxy:
         logger.info("Stopping plot")
         self._getting_data = False
         connection_future = asyncio.run_coroutine_threadsafe(
-            self._unsubscribe_from_experiment_data_stream(), self._client._loop
+            self._unsubscribe_from_experiment_data_stream(), self._client.event_loop
         )
         connection_future.result()
 
