@@ -514,7 +514,7 @@ def prepare_readout_metadata(
     h5file: h5py.File,
     *,
     job_id: int,
-    experiment_id: int,
+    experiment_id: str,
     number_of_shots: int,
     repetitions: int,
     readout_metadata: ReadoutMetadata,

@@ -73,7 +73,7 @@ def test_experiment_data_io() -> None:
         experiment_data_repository.prepare_readout_metadata(
             h5file,
             job_id=-1,
-            experiment_id=-2,
+            experiment_id="test.MockExperiment (MockExperiment)",
             number_of_shots=3,
             repetitions=1,
             readout_metadata=ReadoutMetadata(
