@@ -10,18 +10,9 @@ permissions:
   contents: read
 
 jobs:
-  ruff:
+  lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v6
-      - uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89 # v4.1.0
-      - run: ruff check
-      - run: ruff format --check
-
-  mypy:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
         with:
@@ -29,7 +20,28 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-      - name: Install dependencies
-        run: uv sync --extra server --extra client --locked
-      - name: Run mypy
-        run: uv run mypy
+
+      - parallel:
+          - name: ruff
+            env:
+              UV_PROJECT_ENVIRONMENT: ${{ runner.temp }}/venv-ruff
+            run: |
+              uv run --only-group dev --locked ruff check
+              uv run --only-group dev --locked ruff format --check
+
+          - name: mypy
+            env:
+              UV_PROJECT_ENVIRONMENT: ${{ runner.temp }}/venv-mypy
+              MYPY_REPORT_DIR: ${{ runner.temp }}/mypy-reports
+            run: |
+              uv sync --extra server --extra client --locked
+              uv run --no-sync mypy \
+                --lineprecision-report "$MYPY_REPORT_DIR" \
+                --any-exprs-report "$MYPY_REPORT_DIR"
+
+      - name: Upload mypy reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mypy-reports
+          path: ${{ runner.temp }}/mypy-reports
