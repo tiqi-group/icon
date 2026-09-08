@@ -81,9 +81,9 @@ class JobProxy:
         current_data: pd.DataFrame | None = None
         previous_length = 0
 
-        #TODO: Instead of this loop, consume the experiment_{} event to receive updates of a running experiment.
+        # TODO: Instead of this loop, consume the experiment_{} event to receive updates of a running experiment.
         while True:
-            current_data = self._client._experiment_job_data.get(self._job_id) # type: ignore
+            current_data = self._client._experiment_job_data.get(self._job_id)  # type: ignore
             current_length = len(current_data.index) if current_data is not None else 0
             if current_length > previous_length:
                 logger.debug("Yielding new frame")
