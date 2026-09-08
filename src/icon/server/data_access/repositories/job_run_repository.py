@@ -223,14 +223,15 @@ class JobRunRepository:
             logger.debug("Updated parameter update timestam for run %s", run)
 
     @staticmethod
-    def get_parameter_update_timestamp(*, run_id: int) -> datetime:
+    def get_parameter_update_timestamp(*, run_id: int) -> datetime | None:
         """Get the paramter update timestamp.
 
         Args:
             run_id: ID of the job.
 
         Returns:
-            The parameter update timestamp.
+            The parameter update timestamp, or None if no parameter update has
+            been recorded for this run yet.
         """
         with sqlalchemy.orm.Session(engine) as session:
             stmt = select(JobRun.parameter_update_timestamp).where(JobRun.id == run_id)
@@ -238,4 +239,6 @@ class JobRunRepository:
             timestamp = session.execute(stmt).scalar_one()
             logger.debug("Got parameter update timestamp for run %s", run_id)
 
+        if timestamp is None:
+            return None
         return timestamp.replace(tzinfo=UTC)
