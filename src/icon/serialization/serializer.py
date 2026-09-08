@@ -59,7 +59,7 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
             result = cls._serialize_data_service(obj, access_path=access_path)
 
         elif isinstance(obj, (list, tuple)):
-            result = cls._serialize_list(obj, access_path=access_path)
+            result = cls._serialize_list(list(obj), access_path=access_path)
 
         elif isinstance(obj, dict):
             result = cls._serialize_dict(obj, access_path=access_path)
@@ -102,7 +102,7 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
     ) -> SerializedPydanticModel:
         doc = get_attribute_doc(obj)
         dumped_model = obj.model_dump_json()
-        out: pydantic.BaseModel = {
+        out: SerializedPydanticModel = {
             "type": "pydantic.BaseModel",
             "name": f"{obj.__module__}.{type(obj).__name__}",
             "value": dumped_model,
