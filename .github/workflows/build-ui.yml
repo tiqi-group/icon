@@ -3,6 +3,12 @@ name: Build UI
 
 on:
   workflow_call:
+    inputs:
+      ref:
+        description: Ref to build. Empty means the ref that started the workflow.
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -15,6 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.ref }}
           submodules: recursive
 
       - name: Set up pnpm and Node

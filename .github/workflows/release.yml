@@ -5,6 +5,12 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag or commit SHA to build. Empty builds the ref selected above."
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -33,6 +39,8 @@ jobs:
 
   build-ui:
     uses: ./.github/workflows/build-ui.yml
+    with:
+      ref: ${{ inputs.ref }}
 
   build:
     name: Build (${{ matrix.distro.name }})
@@ -61,6 +69,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
 
       - name: Set up Python
@@ -81,21 +90,6 @@ jobs:
           name: ui-assets
           path: src/icon/server
 
-      - name: Build with PyInstaller
-        run: uv run pyinstaller icon.spec
-
-      - name: Package artifact
-        run: |
-          mkdir -p out
-          cp "dist/${BIN_NAME}" "out/${BIN_NAME}-${{ matrix.distro.suffix }}"
-          chmod +x "out/${BIN_NAME}-${{ matrix.distro.suffix }}"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.distro.suffix }}
-          path: out/*
-
       - name: Build sdist & wheel
         if: matrix.distro.python_dist
         run: uv build
@@ -110,6 +104,42 @@ jobs:
             dist/*.whl
           if-no-files-found: error
 
+      - name: Build binary with PyInstaller
+        run: uv run pyinstaller icon.spec
+
+      - name: Package binary
+        run: |
+          mkdir -p out
+          cp "dist/${BIN_NAME}" "out/${BIN_NAME}-${{ matrix.distro.suffix }}"
+          chmod +x "out/${BIN_NAME}-${{ matrix.distro.suffix }}"
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.distro.suffix }}
+          path: out/*
+
+      - name: Summary
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          {
+            echo "### Distributables from ${{ matrix.distro.name }}"
+            echo
+            echo "| artifact | size |"
+            echo "| --- | ---: |"
+            for artifact in out/* dist/*.tar.gz dist/*.whl; do
+              [ -f "$artifact" ] || continue
+              echo "| \`$(basename "$artifact")\` | $(du -h "$artifact" | cut -f1) |"
+            done
+            echo
+            if [[ "${{ github.ref }}" == refs/tags/* && "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "🚀 Publish as release \`$TAG\` 🚀"
+            else
+              echo "The tag \`$TAG\` is not a release tag (\`vX.Y.Z\`); the files stay workflow artifacts."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
   release:
     name: Create release & upload binaries
     runs-on: ubuntu-latest
@@ -118,9 +148,10 @@ jobs:
       contents: write
     if: needs.tag-check.outputs.is_release == 'true'
     steps:
-      - name: Download all build artifacts
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
+          merge-multiple: true
           path: dist_out
 
       - name: Publish GitHub Release
@@ -128,5 +159,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           files: |
-            dist_out/**/*
+            dist_out/icon-linux-*
+            dist_out/icon-*.tar.gz
+            dist_out/icon-*.whl
           generate_release_notes: true
