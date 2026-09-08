@@ -35,19 +35,22 @@ function hasDayBreak(data: string[]) {
   return !isNaN(first.getDay()) && first.getDay() != last.getDay();
 }
 
+const pad = (value: number) => String(value).padStart(2, "0");
+
 function formatTime(timestamp: string) {
   const date = new Date(timestamp);
-  const h = date.getHours();
-  const m = date.getMinutes();
-  const s = date.getSeconds();
+  const h = pad(date.getHours());
+  const m = pad(date.getMinutes());
+  const s = pad(date.getSeconds());
   return `${h}:${m}:${s}`;
 }
 
 function formatDateTime(timestamp: string) {
   const date = new Date(timestamp);
   const year = date.getFullYear();
-  const month = date.getMonth();
-  const day = date.getDate();
+  // getMonth() is zero-based
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
   const time = formatTime(timestamp);
   return `${year}-${month}-${day} ${time}`;
 }
