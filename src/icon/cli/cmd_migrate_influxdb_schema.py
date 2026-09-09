@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING, Any
 import click
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
-from typing_extensions import Self
 
+from icon.cli.lib_parameter import InfluxDBv1CachedSessionProvider
 from icon.config.config import get_config, set_config_path
 from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
     InfluxDBv1Session,
@@ -30,9 +30,6 @@ from icon.server.data_access.db_context.influxdb.parameters_backend import (
 )
 
 if TYPE_CHECKING:
-    import contextlib
-    from types import TracebackType
-
     from icon.server.data_access.experiment_data import DatabaseValueType
 
 logger = logging.getLogger(__name__)
@@ -88,38 +85,6 @@ Rollback:
 
 # A legacy parameter field key always contains the namespace specifier.
 _IDENTIFIER_MARKER = "namespace='"
-
-
-class InfluxDBv1CachedSession(InfluxDBv1Session):
-    """A cached InfluxDBv1Session that reuses a connection across calls."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.connect()
-
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_value: BaseException | None,
-        exc_traceback: TracebackType | None,
-    ) -> None:
-        pass
-
-
-class InfluxDBv1CachedSessionProvider:
-    """Provides cached InfluxDBv1Session instance."""
-
-    def __init__(self) -> None:
-        self.session = InfluxDBv1CachedSession()
-
-    def __call__(self) -> contextlib.AbstractContextManager[InfluxDBv1Session]:
-        return self.session
-
-    def close(self) -> None:
-        self.session.disconnect()
 
 
 @dataclass
