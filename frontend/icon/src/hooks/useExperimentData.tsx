@@ -45,10 +45,15 @@ export function useExperimentData(jobId: string | undefined) {
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    let stale = false;
+
     setLoading(true);
     setError(null);
     setExperimentData(emptyExperimentData);
-    if (!jobId) return;
+    if (!jobId) {
+      setLoading(false);
+      return;
+    }
 
     const dataPointEvent = `experiment_${jobId}`;
 
@@ -136,6 +141,8 @@ export function useExperimentData(jobId: string | undefined) {
     socket.on(fitEvent, handleFitEvent);
 
     runMethod("data.get_experiment_data_by_job_id", [], { job_id: jobId }, (ack) => {
+      if (stale) return;
+
       const deserialized = deserialize(ack as SerializedObject) as
         | Error
         | ExperimentData;
@@ -150,6 +157,7 @@ export function useExperimentData(jobId: string | undefined) {
     });
 
     return () => {
+      stale = true;
       socket.off(dataPointEvent, handleNewDataPoint);
       socket.off(metadataEvent, handleMetadata);
       socket.off(parameterValueEvent, handleValueEvent);

@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   CardContent,
+  CircularProgress,
   Grid,
   Typography,
   IconButton,
@@ -37,6 +38,33 @@ function getPlotTitle(scheduledTime?: string, experimentName?: string): string {
   return `${baseTime}_${experimentName || ""}`;
 }
 
+const StatusCard = ({
+  message,
+  showSpinner = false,
+}: {
+  message: string;
+  showSpinner?: boolean;
+}) => (
+  <Grid size={{ xs: 12 }}>
+    <Card>
+      <CardContent
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 2,
+          py: 6,
+        }}
+      >
+        {showSpinner && <CircularProgress size={24} />}
+        <Typography variant="body1" color="text.secondary">
+          {message}
+        </Typography>
+      </CardContent>
+    </Card>
+  </Grid>
+);
+
 export const JobView = ({
   jobId,
   onLoaded,
@@ -58,6 +86,8 @@ export const JobView = ({
   const [windowSize, setWindowSize] = useState<number | null>(null);
   const [yMin, setYMin] = useState<number | null>(null);
   const [yMax, setYMax] = useState<number | null>(null);
+
+  const hasRepetitions = (jobInfo?.repetitions ?? 0) > 1;
 
   const autoYBounds = useMemo(() => {
     if (!experimentData?.readouts?.result_channels) return { min: 0, max: 0 };
@@ -94,6 +124,16 @@ export const JobView = ({
   const isTruncated =
     experimentData.total_data_points > 0 &&
     loadedDataPoints < experimentData.total_data_points;
+
+  const hasPlotWindows =
+    (experimentData?.plot_windows?.shot_channels?.length ?? 0) > 0 ||
+    (experimentData?.plot_windows?.result_channels?.length ?? 0) > 0;
+
+  const jobIsFinished =
+    jobInfo?.status === JobStatus.PROCESSED ||
+    jobRunInfo?.status === JobRunStatus.DONE ||
+    jobRunInfo?.status === JobRunStatus.FAILED ||
+    jobRunInfo?.status === JobRunStatus.CANCELLED;
 
   const [clickedX, setClickedX] = useState<number | null>(null);
   const handleChartClick = useCallback((x: number) => setClickedX(x), []);
@@ -169,18 +209,27 @@ export const JobView = ({
     }
   }, [jobInfo]);
 
+  useEffect(() => setExperimentMetadata(null), [jobId]);
+
   useEffect(() => {
+    let stale = false;
+
     if (jobInfo?.experiment_source.experiment_id)
       runMethod(
         "experiments.get_metadata",
         [jobInfo?.experiment_source.experiment_id],
         {},
         (ack) => {
+          if (stale) return;
           setExperimentMetadata(
             deserialize(ack as SerializedObject) as ExperimentMetadata,
           );
         },
       );
+
+    return () => {
+      stale = true;
+    };
   }, [jobInfo]);
 
   useEffect(() => {
@@ -277,14 +326,20 @@ export const JobView = ({
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <Typography variant="body2">Show repetitions</Typography>
                 <Tooltip
-                  title={is1D ? "" : "Repetitions can only be shown for 1D scans"}
-                  disableHoverListener={is1D}
+                  title={
+                    is1D && hasRepetitions
+                      ? ""
+                      : is1D
+                        ? "Scan has no repetitions"
+                        : "Repetitions can only be shown for 1D scans"
+                  }
+                  disableHoverListener={is1D && hasRepetitions}
                 >
                   <span>
                     <Switch
-                      checked={showRepetitions}
+                      checked={is1D && hasRepetitions ? showRepetitions : false}
                       onChange={(_, v) => setShowRepetitions(v)}
-                      disabled={!is1D}
+                      disabled={!(is1D && hasRepetitions)}
                     />
                   </span>
                 </Tooltip>
@@ -391,6 +446,25 @@ export const JobView = ({
             </CardContent>
           </Card>
         </Grid>
+
+        {loading && <StatusCard message="Loading data..." showSpinner />}
+
+        {!loading &&
+          !experimentDataError &&
+          !hasPlotWindows &&
+          (jobIsFinished ? (
+            <StatusCard message="No data available for this job." />
+          ) : (
+            <StatusCard message="Waiting for data..." showSpinner />
+          ))}
+
+        {experimentDataError && (
+          <Grid size={{ xs: 12 }}>
+            <Alert severity="error">
+              Failed to load experiment data: {experimentDataError.message}
+            </Alert>
+          </Grid>
+        )}
 
         {isTruncated && (
           <Grid size={{ xs: 12 }}>
