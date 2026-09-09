@@ -1,42 +1,122 @@
-import { Dispatch, useEffect } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { runMethod, socket } from "../socket";
 import { deserialize } from "../utils/deserializer";
 import { Job } from "../types/Job";
-import { JobUpdate, Action } from "../contexts/JobsContext";
+import { JobListItem } from "../types/JobListItem";
+import {
+  JobRunUpdate,
+  JobUpdate,
+  JobsState,
+  ScheduledJobs,
+  jobToListItem,
+  reducer,
+} from "../contexts/JobsContext";
+import { JobRun } from "../types/JobRun";
 import { SerializedObject } from "../types/SerializedObject";
 
 interface NewDataEvent {
   job: Job;
-  scheduled_time: string;
 }
+
+interface NewJobRunEvent {
+  job_run: JobRun;
+}
+
+/** Number of finished jobs fetched per page. */
+export const JOB_PAGE_SIZE = 100;
+
+const toJobMap = (items: JobListItem[]): ScheduledJobs =>
+  Object.fromEntries(items.map((item) => [item.id, item]));
 
 /**
  * React hook that synchronizes the job state with the backend scheduler.
  *
- * This hook:
- * - Fetches the initial list of scheduled jobs using `scheduler.get_scheduled_jobs`.
- * - Listens for `new_experiment` events and dispatches `ADD_JOB` actions.
- * - Listens for `update_job` events and dispatches `UPDATE_JOB` actions.
- * - Cleans up socket listeners on unmount.
+ * Jobs are loaded in two parts:
+ * - `scheduler.get_active_jobs` returns every queued and running job.
+ * - `scheduler.get_job_list` returns finished jobs one page at a time, newest
+ *   first, paginated with a cursor on the job ID.
  *
- * @param dispatch - A React dispatch function for the jobs reducer (JobsContext).
+ * @returns The loaded jobs plus the loading flags and the `loadMore` callback
+ *   that fetches the next page of finished jobs.
  */
-export function useJobsSync(dispatch: Dispatch<Action>) {
+export function useJobsSync(): JobsState {
+  const [jobs, dispatch] = useReducer(reducer, {});
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+
+  /** Lowest finished job ID loaded so far; the cursor for the next page. */
+  const cursor = useRef<number | null>(null);
+  const requestInFlight = useRef(false);
+
+  const fetchPage = useCallback((beforeId: number | null) => {
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
+
+    const kwargs: Record<string, unknown> = { limit: JOB_PAGE_SIZE };
+    if (beforeId !== null) kwargs.before_id = beforeId;
+
+    runMethod("scheduler.get_job_list", [], kwargs, (ack) => {
+      requestInFlight.current = false;
+      setLoadingMore(false);
+      setLoading(false);
+
+      const page = deserialize(ack as SerializedObject);
+      if (page instanceof Error || !Array.isArray(page)) {
+        console.error("Failed to load jobs:", page);
+        setHasMore(false);
+        return;
+      }
+
+      const items = page as JobListItem[];
+      // A short page indicates tail
+      setHasMore(items.length === JOB_PAGE_SIZE);
+      if (items.length === 0) return;
+
+      cursor.current = items[items.length - 1].id;
+      dispatch({ type: "SET_JOBS", payload: toJobMap(items) });
+    });
+  }, []);
+
+  const loadMore = useCallback(() => {
+    if (requestInFlight.current || !hasMore) return;
+    setLoadingMore(true);
+    fetchPage(cursor.current);
+  }, [fetchPage, hasMore]);
+
   useEffect(() => {
-    runMethod("scheduler.get_scheduled_jobs", [], {}, (ack) => {
-      dispatch({ type: "SET_JOBS", payload: deserialize(ack as SerializedObject) });
+    runMethod("scheduler.get_active_jobs", [], {}, (ack) => {
+      const active = deserialize(ack as SerializedObject);
+      if (active instanceof Error || !Array.isArray(active)) {
+        console.error("Failed to load active jobs:", active);
+        return;
+      }
+      dispatch({ type: "SET_JOBS", payload: toJobMap(active as JobListItem[]) });
     });
 
-    socket.on("job.new", (data: NewDataEvent) =>
-      dispatch({ type: "ADD_JOB", payload: data.job }),
-    );
-    socket.on("job.update", (data: JobUpdate) =>
-      dispatch({ type: "UPDATE_JOB", payload: data }),
-    );
+    fetchPage(null);
+
+    const onNewJob = (data: NewDataEvent) =>
+      dispatch({ type: "ADD_JOB", payload: jobToListItem(data.job) });
+    const onJobUpdate = (data: JobUpdate) =>
+      dispatch({ type: "UPDATE_JOB", payload: data });
+    const onNewJobRun = (data: NewJobRunEvent) =>
+      dispatch({ type: "SET_JOB_RUN", payload: data.job_run });
+    const onJobRunUpdate = (data: JobRunUpdate) =>
+      dispatch({ type: "UPDATE_JOB_RUN", payload: data });
+
+    socket.on("job.new", onNewJob);
+    socket.on("job.update", onJobUpdate);
+    socket.on("job_run.new", onNewJobRun);
+    socket.on("job_run.update", onJobRunUpdate);
 
     return () => {
-      socket.off("job.new");
-      socket.off("job.update");
+      socket.off("job.new", onNewJob);
+      socket.off("job.update", onJobUpdate);
+      socket.off("job_run.new", onNewJobRun);
+      socket.off("job_run.update", onJobRunUpdate);
     };
-  }, [dispatch]);
+  }, [fetchPage]);
+
+  return { jobs, loading, loadingMore, hasMore, loadMore };
 }

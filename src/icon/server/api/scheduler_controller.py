@@ -12,6 +12,7 @@ from icon.server.api.models.scan_parameter import (
     scan_parameter_from_dict,
 )
 from icon.server.api.parameters_controller import ParametersController
+from icon.server.data_access.job_list_item import JobListItemDict
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
 from icon.server.data_access.models.sqlite.job import Job
@@ -26,6 +27,9 @@ from icon.server.data_access.repositories.job_run_repository import JobRunReposi
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
 )
+
+JOB_LIST_PAGE_SIZE = 100
+"""Default number of jobs returned in a `get_job_list` page."""
 
 
 class SchedulerController(pydase.DataService):
@@ -259,6 +263,41 @@ class SchedulerController(pydase.DataService):
                 status=status, start=start_date, stop=stop_date
             )
         }
+
+    def get_job_list(
+        self,
+        *,
+        before_id: int | None = None,
+        limit: int = JOB_LIST_PAGE_SIZE,
+    ) -> list[JobListItemDict]:
+        """Return one page of finished jobs, newest first.
+
+        Only the fields the job list renders are returned, which keeps a page
+        roughly 5x smaller on the wire than the equivalent `get_scheduled_jobs`
+        response.
+
+        Args:
+            before_id: Exclusive upper bound on the job ID. Pass the lowest ID of
+                the previous page to fetch the next one; omit it for the first page.
+            limit: Maximum number of jobs to return.
+
+        Returns:
+            List of job-list entries ordered by descending job ID. A result
+            shorter than `limit` means the end of the list has been reached.
+        """
+        return JobRepository.get_job_list(
+            statuses=[JobStatus.PROCESSED], before_id=before_id, limit=limit
+        )
+
+    def get_active_jobs(self) -> list[JobListItemDict]:
+        """Return every job that is queued or currently running, newest first.
+
+        Returns:
+            List of job-list entries ordered by descending job ID.
+        """
+        return JobRepository.get_job_list(
+            statuses=[JobStatus.PROCESSING, JobStatus.SUBMITTED]
+        )
 
     def get_job_by_id(self, *, job_id: int) -> Job:
         """Fetch a job with its experiment source and scan parameters.
