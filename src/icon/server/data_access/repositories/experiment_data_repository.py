@@ -37,8 +37,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-MOST_RECENT_RESULT_FILES = 10
-"""How many of the newest result files to search when no job is specified."""
+MOST_RECENT_JOB_RUNS = 10
+"""How many of the newest job runs to search when no job is specified."""
+
+
+def _result_filename(scheduled_time: datetime) -> str:
+    """Return the HDF5 filename for a run scheduled at *scheduled_time*."""
+    return f"{scheduled_time}.h5"
 
 
 def get_filename_by_job_id(job_id: int) -> str:
@@ -50,8 +55,19 @@ def get_filename_by_job_id(job_id: int) -> str:
     Returns:
         Filename derived from the job's scheduled time (e.g., "<iso>.h5").
     """
-    scheduled_time = JobRunRepository.get_scheduled_time_by_job_id(job_id=job_id)
-    return f"{scheduled_time}.h5"
+    return _result_filename(
+        JobRunRepository.get_scheduled_time_by_job_id(job_id=job_id)
+    )
+
+
+def _recent_result_paths(results_dir: Path) -> list[Path]:
+    """Return the newest result files, newest first."""
+    return [
+        results_dir / _result_filename(scheduled_time)
+        for scheduled_time in JobRunRepository.get_recent_scheduled_times(
+            limit=MOST_RECENT_JOB_RUNS
+        )
+    ]
 
 
 def resize_dataset(dataset: h5py.Dataset, next_index: int, axis: int) -> None:
@@ -451,8 +467,8 @@ class ExperimentDataRepository:
 
         Args:
             job_id: Job to read from. Defaults to the most recent job with
-                stored hardware instructions, looking no further back than
-                ``MOST_RECENT_RESULT_FILES`` result files.
+                stored hardware instructions, looking no further back than the
+                ``MOST_RECENT_JOB_RUNS`` most recent runs.
             index: Data point index within the job. Defaults to the last stored
                 entry. Instructions are stored deduplicated (one entry per
                 change), so the entry active at *index* is returned.
@@ -468,11 +484,7 @@ class ExperimentDataRepository:
             except NoResultFound:
                 return None
         else:
-            # Only the newest files are opened: the results directory grows
-            # without bound.
-            paths = sorted(results_dir.glob("*.h5"), reverse=True)[
-                :MOST_RECENT_RESULT_FILES
-            ]
+            paths = _recent_result_paths(results_dir)
 
         for path in paths:
             if not path.is_file():

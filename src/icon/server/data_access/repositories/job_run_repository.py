@@ -202,6 +202,28 @@ class JobRunRepository:
         return scheduled_time
 
     @staticmethod
+    def get_recent_scheduled_times(*, limit: int) -> Sequence[datetime]:
+        """Return the scheduled times of the most recent runs, newest first.
+
+        Args:
+            limit: Maximum number of scheduled times to return.
+
+        Returns:
+            Scheduled times ordered from newest to oldest.
+        """
+        with sqlalchemy.orm.Session(engine) as session:
+            stmt = (
+                select(JobRun.scheduled_time)
+                .where(JobRun.status != JobRunStatus.PENDING)
+                .order_by(JobRun.scheduled_time.desc())
+                .limit(limit)
+            )
+
+            scheduled_times = session.execute(stmt).scalars().all()
+            logger.debug("Got the %s most recent scheduled times", limit)
+        return scheduled_times
+
+    @staticmethod
     def set_parameter_update_timestamp(*, run_id: int, timestamp: datetime) -> None:
         """Set the paramter update timestamp.
 
