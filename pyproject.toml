@@ -41,7 +41,9 @@ pycrystal = [
 ]
 
 [project.scripts]
-icon-migrate-influxdb-schema = "icon.cli.migrate_influxdb_schema:cli"
+icon-migrate-influxdb-schema = "icon.cli.cmd_migrate_influxdb_schema:cli"
+icon-parameter-db = "icon.cli.cmd_parameter_db:cli"
+icon-experiment-library = "icon.cli.cmd_experiment_library:cli"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
