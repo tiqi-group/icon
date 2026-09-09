@@ -88,7 +88,9 @@ def test_experiment_data_io() -> None:
             parameters=[param],
         )
         for data_point in data_points:
-            experiment_data_repository.write_experiment_data_point(h5file, data_point)
+            experiment_data_repository.write_experiment_data_point(
+                h5file, data_point, job_id=-1
+            )
         experiment_data_minimal = experiment_data_repository.load_experiment_data(
             h5file
         )

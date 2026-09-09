@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import multiprocessing
 import re
 import time
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pydase
 import pytz
@@ -21,6 +22,10 @@ from icon.server.data_access.models.sqlite.scan_parameter import (
     contains_realtime_parameter,
 )
 from icon.server.data_access.repositories.device_repository import DeviceRepository
+from icon.server.data_access.repositories.experiment_data_repository import (
+    DeviceSnapshot,
+    ExperimentDataRepository,
+)
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
 from icon.server.hardware_processing.utils import extract_hardware_error_message
 from icon.server.post_processing.task import PostProcessingTask
@@ -38,6 +43,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 timezone = pytz.timezone(get_config().date.timezone)
+
+DEVICE_SNAPSHOT_TIMEOUT_SECONDS = 0.1
+"""Timeout for fetching a fresh `service_serialization` from a device -- must stay
+well under a data point's acquisition time so a slow or unreachable device can't
+stall the measurement. Called once per data point, or once per job, depending on
+`config.data.device_snapshot_frequency`."""
 
 
 def parse_parameter_id(param_id: str) -> tuple[str | None, str]:
@@ -65,6 +76,39 @@ def parse_parameter_id(param_id: str) -> tuple[str | None, str]:
     if match:
         return match[1], match[2]
     return None, param_id
+
+
+_NO_DIFF = object()
+"""Sentinel returned by `_diff_device_state` for a node with no changes."""
+
+
+def _diff_device_state(baseline: Any, current: Any) -> Any:
+    """Return the parts of `current` that differ from `baseline`.
+
+    Both are pydase ``SerializedObject`` nodes. Recurses into container nodes
+    (dict-valued: a "dict" node, or a device/component -- these all nest further
+    `SerializedObject`s under `"value"`) so unchanged branches are dropped
+    entirely; a changed leaf -- or a list-valued node, compared and kept as a
+    whole rather than diffed positionally -- is returned as-is. Returns
+    `_NO_DIFF` when nothing differs.
+    """
+    if current == baseline:
+        return _NO_DIFF
+
+    current_value = current.get("value") if isinstance(current, dict) else None
+    baseline_value = baseline.get("value") if isinstance(baseline, dict) else None
+
+    if isinstance(current_value, dict) and isinstance(baseline_value, dict):
+        diffed_children = {}
+        for key, child in current_value.items():
+            child_diff = _diff_device_state(baseline_value.get(key), child)
+            if child_diff is not _NO_DIFF:
+                diffed_children[key] = child_diff
+        if not diffed_children:
+            return _NO_DIFF
+        return {**current, "value": diffed_children}
+
+    return current
 
 
 def should_divert_task(
@@ -105,6 +149,9 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self._post_processing_queue = post_processing_queue
         self._manager = manager
         self._pydase_clients: dict[str, pydase.Client] = {}
+        self._device_state_baselines: dict[int, dict[str, dict[str, Any]]] = {}
+        """job_id -> {device_name: state at that device's first snapshot in this
+        job}, used to diff later snapshots against."""
 
         self._devices = devices
 
@@ -154,6 +201,95 @@ class HardwareProcessingWorker(multiprocessing.Process):
             f"Failed to set {access_path!r} of device {device.name!r} after "
             f"{device.retry_attempts} attempts."
         )
+
+    def _raw_client_call(
+        self, client: pydase.Client, event: str, data: Any, timeout: float
+    ) -> Any:
+        """Call a raw Socket.IO RPC event on a pydase client and wait for the reply.
+
+        `pydase.Client` has no public method to re-fetch a fresh
+        `service_serialization` on demand (only its internal `_handle_connect`
+        does that, once, on connect), so this reaches into its private
+        `_sio`/`_loop` to issue the same call ourselves, synchronously.
+        """
+        if client._loop is None:
+            raise RuntimeError(f"Client for {client._url!r} is not connected.")
+        future = asyncio.run_coroutine_threadsafe(
+            client._sio.call(event, data, timeout=timeout),
+            client._loop,
+        )
+        return future.result(timeout=timeout)
+
+    def _snapshot_connected_devices(self, job_id: int) -> None:
+        """Store the state of all enabled devices in the job's HDF5 file.
+
+        Fetches a fresh serialization from each device and appends it (as a JSON
+        string) to that device's snapshot history. A device's first snapshot in a
+        job stores its full state; every later snapshot for that device in the
+        same job stores only the branches that changed since that first snapshot
+        (an empty JSON object if nothing changed). Unreachable devices are
+        recorded with an error message instead of failing the measurement.
+        """
+        baselines = self._device_state_baselines.setdefault(job_id, {})
+        snapshots: list[DeviceSnapshot] = []
+        for device in DeviceRepository.get_devices_by_status(
+            status=DeviceStatus.ENABLED
+        ):
+            if device.name not in self._pydase_clients:
+                # Non-blocking on purpose: an unreachable device must not stall
+                # the snapshot (or the measurement).
+                self._pydase_clients[device.name] = pydase.Client(
+                    url=device.url,
+                    client_id="icon-hardware-worker",
+                    block_until_connected=False,
+                    auto_update_proxy=False,
+                )
+            client = self._pydase_clients[device.name]
+            timestamp = datetime.now(timezone).isoformat()
+            try:
+                state = self._raw_client_call(
+                    client,
+                    "service_serialization",
+                    None,
+                    DEVICE_SNAPSHOT_TIMEOUT_SECONDS,
+                )
+                if device.name not in baselines:
+                    baselines[device.name] = state
+                    snapshot_state = state
+                else:
+                    diff = _diff_device_state(baselines[device.name], state)
+                    snapshot_state = {} if diff is _NO_DIFF else diff
+                snapshots.append(
+                    DeviceSnapshot(
+                        name=device.name,
+                        url=device.url,
+                        timestamp=timestamp,
+                        state=snapshot_state,
+                    )
+                )
+            except Exception as e:
+                logger.warning(
+                    "Could not fetch state of device %r at %r for job %d: %s",
+                    device.name,
+                    device.url,
+                    job_id,
+                    e,
+                )
+                snapshots.append(
+                    DeviceSnapshot(
+                        name=device.name,
+                        url=device.url,
+                        timestamp=timestamp,
+                        state=None,
+                        error=str(e),
+                    )
+                )
+
+        if snapshots:
+            ExperimentDataRepository.write_device_snapshots_by_job_id(
+                job_id=job_id,
+                snapshots=snapshots,
+            )
 
     def _add_device(self, device: Device) -> None:
         self._pydase_clients[device.name] = pydase.Client(
@@ -217,8 +353,20 @@ class HardwareProcessingWorker(multiprocessing.Process):
             ):
                 task.outdated_tasks.put(task)
                 continue
+
+            job_id = task.pre_processing_task.job.id
+
             try:
                 self._set_pydase_service_values(scanned_params=task.scanned_params)
+
+                snapshot_frequency = get_config().data.device_snapshot_frequency
+                if snapshot_frequency == "data_point" or task.data_point_index == 0:
+                    try:
+                        self._snapshot_connected_devices(job_id=job_id)
+                    except Exception:
+                        logger.exception(
+                            "Failed to write device snapshots for job %d", job_id
+                        )
 
                 timestamp = datetime.now(timezone)
                 hardware_controller = self._devices.main_device()
