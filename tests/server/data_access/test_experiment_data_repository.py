@@ -1,4 +1,5 @@
 import dataclasses
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -125,12 +126,14 @@ def test_get_hardware_instructions(
     monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
     unknown_job_id = 42
 
-    def filename(job_id: int) -> str:
+    def resolve(job_id: int) -> Path:
         if job_id == unknown_job_id:
             raise NoResultFound
-        return f"job-{job_id}.h5"
+        return tmp_path / f"job-{job_id}.h5"
 
-    monkeypatch.setattr(experiment_data_repository, "get_filename_by_job_id", filename)
+    monkeypatch.setattr(
+        experiment_data_repository, "resolve_h5_path_by_job_id", resolve
+    )
 
     # Two jobs; instructions are stored deduplicated: the entry index marks the
     # data point at which the instructions changed.
@@ -187,3 +190,48 @@ def test_get_hardware_instructions_only_searches_recent_files(
     for i in range(1, limit + 1):
         (tmp_path / f"job-{i:02d}.h5").unlink()
     assert get() == "seq-old"
+
+
+def test_format_h5_filename_includes_job_id() -> None:
+    scheduled = datetime(2026, 8, 11, 13, 41, 0, 123456, tzinfo=UTC)
+    name = experiment_data_repository.format_h5_filename(scheduled, 42)
+    assert name == "2026-08-11T13-41-00.123456+0000_job42.h5"
+    assert ":" not in name
+
+
+def test_h5_date_subdir_is_year_month_day() -> None:
+    scheduled = datetime(2026, 8, 11, 13, 41, 0, tzinfo=UTC)
+    assert experiment_data_repository.h5_date_subdir(scheduled) == Path("2026/08/11")
+
+
+def test_resolve_h5_path_uses_dated_layout_for_new_files(tmp_path: Path) -> None:
+    scheduled = datetime(2026, 8, 11, 13, 41, 0, 123456, tzinfo=UTC)
+    path = experiment_data_repository.resolve_h5_path(
+        scheduled, 7, results_dir=tmp_path
+    )
+    assert path == tmp_path / "2026" / "08" / "11" / (
+        "2026-08-11T13-41-00.123456+0000_job7.h5"
+    )
+
+
+def test_get_hardware_instructions_searches_dated_subdirectories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path)))
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+    nested = tmp_path / "2026" / "09" / "04"
+    nested.mkdir(parents=True)
+    _write_instruction_file(nested / "run.h5", [(0, "seq-nested")])
+
+    get = experiment_data_repository.ExperimentDataRepository.get_hardware_instructions
+    assert get() == "seq-nested"
+
+
+def test_resolve_h5_path_falls_back_to_flat_safe_name(tmp_path: Path) -> None:
+    scheduled = datetime(2026, 8, 11, 13, 41, 0, 123456, tzinfo=UTC)
+    safe_root = tmp_path / "2026-08-11T13-41-00.123456+0000.h5"
+    safe_root.write_bytes(b"x")
+    assert (
+        experiment_data_repository.resolve_h5_path(scheduled, 7, results_dir=tmp_path)
+        == safe_root
+    )
