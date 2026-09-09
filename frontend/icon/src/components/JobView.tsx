@@ -209,18 +209,27 @@ export const JobView = ({
     }
   }, [jobInfo]);
 
+  useEffect(() => setExperimentMetadata(null), [jobId]);
+
   useEffect(() => {
+    let stale = false;
+
     if (jobInfo?.experiment_source.experiment_id)
       runMethod(
         "experiments.get_metadata",
         [jobInfo?.experiment_source.experiment_id],
         {},
         (ack) => {
+          if (stale) return;
           setExperimentMetadata(
             deserialize(ack as SerializedObject) as ExperimentMetadata,
           );
         },
       );
+
+    return () => {
+      stale = true;
+    };
   }, [jobInfo]);
 
   useEffect(() => {
