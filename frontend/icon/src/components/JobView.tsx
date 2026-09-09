@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   CardContent,
+  CircularProgress,
   Grid,
   Typography,
   IconButton,
@@ -36,6 +37,33 @@ function getPlotTitle(scheduledTime?: string, experimentName?: string): string {
   const baseTime = scheduledTime.split("+")[0].replace("T", " ");
   return `${baseTime}_${experimentName || ""}`;
 }
+
+const StatusCard = ({
+  message,
+  showSpinner = false,
+}: {
+  message: string;
+  showSpinner?: boolean;
+}) => (
+  <Grid size={{ xs: 12 }}>
+    <Card>
+      <CardContent
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 2,
+          py: 6,
+        }}
+      >
+        {showSpinner && <CircularProgress size={24} />}
+        <Typography variant="body1" color="text.secondary">
+          {message}
+        </Typography>
+      </CardContent>
+    </Card>
+  </Grid>
+);
 
 export const JobView = ({
   jobId,
@@ -96,6 +124,16 @@ export const JobView = ({
   const isTruncated =
     experimentData.total_data_points > 0 &&
     loadedDataPoints < experimentData.total_data_points;
+
+  const hasPlotWindows =
+    (experimentData?.plot_windows?.shot_channels?.length ?? 0) > 0 ||
+    (experimentData?.plot_windows?.result_channels?.length ?? 0) > 0;
+
+  const jobIsFinished =
+    jobInfo?.status === JobStatus.PROCESSED ||
+    jobRunInfo?.status === JobRunStatus.DONE ||
+    jobRunInfo?.status === JobRunStatus.FAILED ||
+    jobRunInfo?.status === JobRunStatus.CANCELLED;
 
   const [clickedX, setClickedX] = useState<number | null>(null);
   const handleChartClick = useCallback((x: number) => setClickedX(x), []);
@@ -399,6 +437,25 @@ export const JobView = ({
             </CardContent>
           </Card>
         </Grid>
+
+        {loading && <StatusCard message="Loading data..." showSpinner />}
+
+        {!loading &&
+          !experimentDataError &&
+          !hasPlotWindows &&
+          (jobIsFinished ? (
+            <StatusCard message="No data available for this job." />
+          ) : (
+            <StatusCard message="Waiting for data..." showSpinner />
+          ))}
+
+        {experimentDataError && (
+          <Grid size={{ xs: 12 }}>
+            <Alert severity="error">
+              Failed to load experiment data: {experimentDataError.message}
+            </Alert>
+          </Grid>
+        )}
 
         {isTruncated && (
           <Grid size={{ xs: 12 }}>

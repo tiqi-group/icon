@@ -48,7 +48,10 @@ export function useExperimentData(jobId: string | undefined) {
     setLoading(true);
     setError(null);
     setExperimentData(emptyExperimentData);
-    if (!jobId) return;
+    if (!jobId) {
+      setLoading(false);
+      return;
+    }
 
     const dataPointEvent = `experiment_${jobId}`;
 
