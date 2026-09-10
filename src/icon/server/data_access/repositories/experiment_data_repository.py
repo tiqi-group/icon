@@ -1,11 +1,12 @@
+from __future__ import annotations
+
+import errno
 import json
 import logging
 import threading
 import time
-from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -33,7 +34,8 @@ from icon.server.data_access.repositories.job_run_repository import JobRunReposi
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Generator, Sequence
+    from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -828,20 +830,110 @@ def get_result_channels_dataset(
 
 
 POLL_INTERVAL = 0.05
+MAX_POLL_INTERVAL = 0.5
 
-_HDF5_GLOBAL_LOCK = threading.RLock()
+_file_locks: dict[str, threading.RLock] = {}
+"""Holding one process-wide lock for each result file, forcing sequential reads per files per process."""
+
+def _is_file_lock_error(exc: OSError) -> bool:
+    """Return whether `exc` is HDF5 failing to acquire the OS file lock."""
+    if exc.errno in {errno.EAGAIN, errno.EWOULDBLOCK, errno.EDEADLK}:
+        return True
+    return exc.errno is None and "unable to lock file" in str(exc).lower()
+
+
+def _lock_for(path: Path) -> threading.RLock:
+    """Return the lock guarding `path`, creating it on first use."""
+    return _file_locks.setdefault(str(path.resolve()), threading.RLock())
+
+
+def _open_when_unlocked(
+    path: Path, mode: str, *, deadline: float, **kwargs: Any
+) -> h5py.File:
+    """Open `path`, retrying while another process holds the OS file lock.
+
+    Args:
+        path: Path to the HDF5 file.
+        mode: Passed to `h5py.File`.
+        deadline: bounds the wait to an absolute time (monotonic) in seconds.
+        kwargs: passed to `h5py.File`.
+    """
+    interval = POLL_INTERVAL
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            h5file = h5py.File(str(path), mode, **kwargs)
+        except OSError as exc:
+            if not _is_file_lock_error(exc):
+                raise
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(
+                    f"Timed out waiting for the HDF5 file lock "
+                    f"on {path} (mode {mode!r}, {attempt} attempts)."
+                ) from exc
+            logger.debug(
+                "HDF5 file %s (%r) is locked; retrying in %.2f s.",
+                path,
+                mode,
+                min(interval, remaining),
+            )
+            time.sleep(min(interval, remaining))
+            interval = min(interval * 2, MAX_POLL_INTERVAL)
+        else:
+            if attempt > 1:
+                logger.info("Opened HDF5 file %s (%r) after %d attempts.", path, mode, attempt)
+            return h5file
 
 
 @contextmanager
-def h5_open(path: Path, mode: str, **kwargs: Any) -> Iterator[h5py.File]:
-    with _HDF5_GLOBAL_LOCK:
-        while True:
-            try:
-                with h5py.File(str(path), mode, **kwargs) as h5file:
-                    yield h5file
-                break
-            except (OSError, FileNotFoundError):
-                time.sleep(POLL_INTERVAL)
+def h5_open(
+    path: Path, mode: str, *, timeout: float | None = None, **kwargs: Any
+) -> Generator[h5py.File]:
+    """Open an HDF5 file under a process-wide per-file lock.
+
+    Opens of the same file are serialised within this process by a per-file
+    lock; different files proceed in parallel. The OS-native HDF5 lock may still
+    be held by another process, in which case the open is retried with a capped
+    backoff. Every other failure is permanent and raised immediately.
+
+    The per-file lock is required because libhdf5 produces a segfault under certain
+    sequence of operations on the same file from within the same process,
+    see https://github.com/h5py/h5py/issues/2920.
+
+    Args:
+        path: Path of the HDF5 file.
+        mode: Mode passed to `h5py.File`.
+        timeout: Seconds to wait in total, for the in-process lock and the file
+            lock together. Defaults to `data.h5_open_timeout_seconds` from the
+            configuration.
+        kwargs: Additional arguments passed to `h5py.File`.
+
+    Yields:
+        The open `h5py.File`.
+
+    Raises:
+        TimeoutError: The file could not be opened within `timeout`.
+        OSError: The file could not be opened for any other reason.
+    """
+    if timeout is None:
+        timeout = get_config().data.h5_open_timeout_seconds
+    deadline = time.monotonic() + timeout
+
+    file_lock = _lock_for(path)
+    if not file_lock.acquire(timeout=timeout):
+        raise TimeoutError(
+            f"Timed out after {timeout} s waiting for in-process access to {path} "
+            f"(mode {mode!r})."
+        )
+    try:
+        with _open_when_unlocked(
+            path, mode, deadline=deadline, **kwargs
+        ) as h5file:
+            yield h5file
+    finally:
+        file_lock.release()
 
 
 def _read_fits_from_hdf5(
