@@ -90,6 +90,50 @@ def resize_dataset(dataset: h5py.Dataset, next_index: int, axis: int) -> None:
     dataset.resize(next_index + 1, axis)
 
 
+def _parameter_value_unchanged(
+    dataset: h5py.Dataset,
+    value: str | float | bool,  # noqa: FBT001
+) -> bool:
+    """Return whether `value` equals the dataset's last stored entry."""
+    if dataset.shape[0] == 0:
+        return False
+    last_value = dataset[-1]["value"]
+    match value:
+        case str():
+            return last_value.decode() == value
+        case _:
+            return last_value == value
+
+
+def _make_parameter_dataset_extensible(
+    parameters_group: h5py.Group, param_id: str, dtype: Any
+) -> h5py.Dataset:
+    """Replace a fixed-size parameter dataset with an extensible copy.
+
+    Parameter datasets are created contiguous to save space. On the
+    rare event of a parameter update, it is copied into a new
+    extensible dataset.
+
+    Args:
+        parameters_group: The file's ``parameters`` group.
+        param_id: Name of the dataset to replace.
+        dtype: Dtype for the replacement dataset.
+
+    Returns:
+        The extensible dataset, holding the entries of the old one.
+    """
+    oldval = cast("h5py.Dataset", parameters_group[param_id])[:]
+    del parameters_group[param_id]
+    dataset = parameters_group.create_dataset(
+        param_id,
+        shape=(len(oldval) + 1,),
+        maxshape=(None,),
+        dtype=dtype,
+    )
+    dataset[: len(oldval)] = oldval
+    return dataset
+
+
 def write_hardware_instructions_to_dataset(
     h5file: h5py.File,
     data_point_index: int,
@@ -385,23 +429,23 @@ class ExperimentDataRepository:
                 dtype = [("timestamp", "S26"), ("value", get_hdf5_dtype(value))]
 
                 if param_id in parameters_group:
-                    ds: h5py.Dataset = parameters_group[param_id]
-                    if ds.shape[0] > 0:
-                        last_entry = ds[-1]
-                        last_value = last_entry["value"]
-                        if isinstance(value, str):
-                            if last_value.decode() == value:
-                                continue
-                        elif last_value == value:
-                            continue
+                    ds = cast("h5py.Dataset", parameters_group[param_id])
+                    if _parameter_value_unchanged(ds, value):
+                        continue
 
                     index = ds.shape[0]
-                    resize_dataset(ds, next_index=index, axis=0)
+                    if ds.chunks is None:
+                        # ds is fixed-size. Replace it with resizeable copy of itself.
+                        ds = _make_parameter_dataset_extensible(
+                            parameters_group, param_id, dtype
+                        )
+                    else:
+                        resize_dataset(ds, next_index=index, axis=0)
                 else:
+                    # create fixed sized dataset which gets replaced with resizeable dataset on demand.
                     ds = parameters_group.create_dataset(
                         param_id,
                         shape=(1,),
-                        maxshape=(None,),
                         dtype=dtype,
                     )
                     index = 0
