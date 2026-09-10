@@ -4,10 +4,12 @@ import logging
 import multiprocessing
 from typing import TYPE_CHECKING
 
+from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataRepository,
 )
 from icon.server.data_access.repositories.job_run_repository import (
+    JobRunRepository,
     job_run_cancelled_or_failed,
 )
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
@@ -38,7 +40,18 @@ class PostProcessingWorker(multiprocessing.Process):
             ):
                 continue
 
-            ExperimentDataRepository.write_experiment_data_by_job_id(
-                job_id=task.pre_processing_task.job.id,
-                data_point=task.data_point,
-            )
+            try:
+                ExperimentDataRepository.write_experiment_data_by_job_id(
+                    job_id=task.pre_processing_task.job.id,
+                    data_point=task.data_point,
+                )
+            except Exception as e:
+                logger.exception(
+                    "Post-processing of job with id '%s' failed",
+                    task.pre_processing_task.job.id,
+                )
+                JobRunRepository.update_run_by_id(
+                    run_id=task.pre_processing_task.job_run.id,
+                    status=JobRunStatus.FAILED,
+                    log=f"Post-processing error: {e}",
+                )
