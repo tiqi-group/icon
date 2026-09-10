@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
@@ -31,6 +31,18 @@ import { pauseJob } from "../utils/pauseJob";
 import { resumeJob } from "../utils/resumeJob";
 import HistogramPlot from "./jobView/HistogramPlot";
 import FitPanel from "./jobView/FitPanel";
+
+const PLOT_CARD_CONTENT_SX = {
+  padding: 1,
+  "&:last-child": { paddingBottom: 1 },
+};
+
+const plotCardHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "flex-end",
+  minHeight: 30,
+};
 
 function getPlotTitle(scheduledTime?: string, experimentName?: string): string {
   if (!scheduledTime) return experimentName || "";
@@ -476,15 +488,21 @@ export const JobView = ({
         )}
 
         {experimentData?.plot_windows?.shot_channels?.map((win) => (
-          <Grid size={{ xs: 12, sm: 12, lg: 4 }} key={`shot-${win.index}`}>
-            <Card>
-              <CardContent sx={{ padding: 1 }}>
-                <div style={{ display: "flex", alignItems: "center" }}>
+          <Grid size={{ xs: 12, sm: 12, lg: 6 }} key={`shot-${win.index}`}>
+            <Card
+              sx={{
+                height: expandedShotChannels[win.name] === false ? "auto" : "100%",
+              }}
+            >
+              <CardContent sx={PLOT_CARD_CONTENT_SX}>
+                <div style={plotCardHeaderStyle}>
                   {expandedShotChannels[win.name] === false && (
-                    <Typography variant="h6">{win.name}</Typography>
+                    <Typography variant="subtitle1" noWrap sx={{ mr: "auto", pl: 0.5 }}>
+                      {win.name}
+                    </Typography>
                   )}
-                  <div style={{ flexGrow: 1 }} />
                   <IconButton
+                    size="small"
                     title={
                       expandedShotChannels[win.name] === false ? "Expand" : "Collapse"
                     }
@@ -516,14 +534,20 @@ export const JobView = ({
 
         {experimentData?.plot_windows?.result_channels?.map((win) => (
           <Grid size={{ xs: 12, sm: 12, lg: 6 }} key={`result-${win.index}`}>
-            <Card>
-              <CardContent sx={{ padding: 1 }}>
-                <div style={{ display: "flex", alignItems: "center" }}>
-                  {!expandedResultChannels[win.name] && (
-                    <Typography variant="h6">{win.name}</Typography>
+            <Card
+              sx={{
+                height: expandedResultChannels[win.name] === false ? "auto" : "100%",
+              }}
+            >
+              <CardContent sx={PLOT_CARD_CONTENT_SX}>
+                <div style={plotCardHeaderStyle}>
+                  {expandedResultChannels[win.name] === false && (
+                    <Typography variant="subtitle1" noWrap sx={{ mr: "auto", pl: 0.5 }}>
+                      {win.name}
+                    </Typography>
                   )}
-                  <div style={{ flexGrow: 1 }} />
                   <IconButton
+                    size="small"
                     title={
                       expandedResultChannels[win.name] === false ? "Expand" : "Collapse"
                     }
