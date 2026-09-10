@@ -429,6 +429,7 @@ class ExperimentDataRepository:
         job_id: int,
         max_transfer_bytes: int = 50_000_000,
         include_hardware_instructions: bool = False,
+        include_all_shots: bool = False,
     ) -> ExperimentData:
         """Load stored data for a job from its HDF5 file.
 
@@ -445,6 +446,9 @@ class ExperimentDataRepository:
                 into ``hardware_instructions``.  Defaults to False — those blobs are
                 large (~27 KB each, one per changed point) and are omitted
                 from the default RPC response.
+            include_all_shots: If True, return the raw shots of every data point.
+                Defaults to False, which returns only the newest data point's
+                shots.
 
         Returns:
             Experiment data payload suitable for the API.
@@ -461,6 +465,7 @@ class ExperimentDataRepository:
                 h5file,
                 max_transfer_bytes,
                 include_hardware_instructions=include_hardware_instructions,
+                include_all_shots=include_all_shots,
             )
 
     @staticmethod
@@ -648,6 +653,7 @@ def load_experiment_data(
     max_transfer_bytes: int = 50_000_000,
     *,
     include_hardware_instructions: bool = False,
+    include_all_shots: bool = False,
 ) -> ExperimentData:
     """Load stored data for a job from its HDF5 file.
 
@@ -660,7 +666,11 @@ def load_experiment_data(
         h5file: File to load from.
         max_transfer_bytes: Approximate cap on the serialised payload
             size in bytes.  Defaults to 50 MB.
-        include_hardware_instructions: Wether to include hardware instructions
+        include_hardware_instructions: Whether to include hardware instructions.
+        include_all_shots: If True, return the raw shots of every data point.
+            Defaults to False, which returns only the newest data point's
+            shots.
+
     Returns:
         Experiment data payload suitable for the API.
     """
@@ -677,7 +687,7 @@ def load_experiment_data(
     # Estimate bytes per data point from HDF5 metadata
     bytes_per_point = estimate_bytes_per_data_point(
         total,
-        shot_channels_group,
+        shot_channels_group if include_all_shots else None,
         result_channel_dataset,
         vector_channels_group,
         scan_parameters,
@@ -732,11 +742,17 @@ def load_experiment_data(
             PlotWindowMetadata(**d)
             for d in (json.loads(plot_metadata) if plot_metadata else [])
         ]
+        shot_start_index = (
+            start_index if include_all_shots else max(start_index, total - 1)
+        )
         data.readouts.shot_channels = {
-            key: dict(enumerate(value[start_index:].tolist(), start=start_index))  # type: ignore
+            key: dict(
+                enumerate(  # type: ignore[call-overload]
+                    value[shot_start_index:].tolist(), start=shot_start_index
+                )
+            )
             for key, value in cast(
-                "Sequence[tuple[str, h5py.Dataset]]",
-                shot_channels_group.items(),
+                "Sequence[tuple[str, h5py.Dataset]]", shot_channels_group.items()
             )
         }
 
