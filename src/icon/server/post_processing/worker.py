@@ -28,7 +28,7 @@ class PostProcessingWorker(multiprocessing.Process):
 
     @handle_keyboard_interrupt(logger)
     def run(self) -> None:
-        logger.info("Pre-processing worker started")
+        logger.info("Post-processing worker started")
 
         while True:
             task = self._post_processing_queue.get()
