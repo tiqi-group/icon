@@ -42,6 +42,13 @@ logger = logging.getLogger(__name__)
 MOST_RECENT_JOB_RUNS = 10
 """How many of the newest job runs to search when no job is specified."""
 
+# TODO: Revisit the compression strategy. It matters most for the hardware description but
+#   variable length datatypes are not compressed.
+_common_hdf5_dataset_params = {
+    "compression": "gzip",
+    "compression_opts": 4,
+}
+
 
 def _result_filename(scheduled_time: datetime) -> str:
     """Return the HDF5 filename for a run scheduled at *scheduled_time*."""
@@ -105,8 +112,7 @@ def write_hardware_instructions_to_dataset(
         maxshape=(None,),
         chunks=True,
         dtype=hw_instructions_dtype,
-        compression="gzip",
-        compression_opts=9,
+        **_common_hdf5_dataset_params,
     )
 
     index = hw_instructions_dataset.shape[0]
@@ -152,8 +158,7 @@ def write_scan_parameters_and_timestamp_to_dataset(
         maxshape=(None, 1),
         chunks=True,
         dtype=scan_parameter_dtype,
-        compression="gzip",
-        compression_opts=9,
+        **_common_hdf5_dataset_params,
     )
 
     if data_point_index >= number_of_data_points:
@@ -225,10 +230,9 @@ def write_shot_channels_to_datasets(
             key,
             shape=(number_of_data_points, number_of_shots),
             maxshape=(None, number_of_shots),
-            chunks=True,
             dtype=np.float64,
-            compression="gzip",
-            compression_opts=9,
+            chunks=True,
+            **_common_hdf5_dataset_params,
         )
 
         if data_point_index >= number_of_data_points:
@@ -253,12 +257,12 @@ def write_vector_channels_to_datasets(
     vector_group = h5file.require_group("vector_channels")
     for channel_name, vector in vector_channels.items():
         channel_group = vector_group.require_group(channel_name)
-        if str(data_point_index) not in channel_group:
+        # Don't create a dataset for empty vector data.
+        if str(data_point_index) not in channel_group and vector:
             channel_group.create_dataset(
                 str(data_point_index),
                 data=vector,
-                compression="gzip",
-                compression_opts=9,
+                **_common_hdf5_dataset_params,
             )
 
 
@@ -557,10 +561,9 @@ def prepare_readout_metadata(
         "scan_parameters",
         shape=(0, 1),
         maxshape=(None, 1),
-        chunks=True,
         dtype=scan_parameter_dtype,
-        compression="gzip",
-        compression_opts=9,
+        chunks=True,
+        **_common_hdf5_dataset_params,
     )
 
     for parameter in parameters:
@@ -822,10 +825,9 @@ def get_result_channels_dataset(
         "result_channels",
         shape=(number_of_data_points,),
         maxshape=(None,),
-        chunks=True,
         dtype=result_dtype,
-        compression="gzip",
-        compression_opts=9,
+        chunks=True,
+        **_common_hdf5_dataset_params,
     )
 
 
