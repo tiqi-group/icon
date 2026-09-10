@@ -29,6 +29,7 @@ const ParameterPage = () => {
             key={namespace}
             disableGutters
             sx={{ "&:before": { display: "none" } }}
+            slotProps={{ transition: { unmountOnExit: true } }}
           >
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
               <div>
