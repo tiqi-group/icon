@@ -49,7 +49,7 @@ export function useJobsSync(): JobsState {
   const cursor = useRef<number | null>(null);
   const requestInFlight = useRef(false);
 
-  const fetchPage = useCallback((beforeId: number | null) => {
+  const fetchPage = useCallback((beforeId: number | null, advanceCursor = true) => {
     if (requestInFlight.current) return;
     requestInFlight.current = true;
 
@@ -69,11 +69,13 @@ export function useJobsSync(): JobsState {
       }
 
       const items = page as JobListItem[];
-      // A short page indicates tail
-      setHasMore(items.length === JOB_PAGE_SIZE);
+      if (advanceCursor) {
+        // A short page indicates tail
+        setHasMore(items.length === JOB_PAGE_SIZE);
+      }
       if (items.length === 0) return;
 
-      cursor.current = items[items.length - 1].id;
+      if (advanceCursor) cursor.current = items[items.length - 1].id;
       dispatch({ type: "SET_JOBS", payload: toJobMap(items) });
     });
   }, []);
@@ -84,7 +86,7 @@ export function useJobsSync(): JobsState {
     fetchPage(cursor.current);
   }, [fetchPage, hasMore]);
 
-  useEffect(() => {
+  const loadJobs = useCallback(() => {
     runMethod("scheduler.get_active_jobs", [], {}, (ack) => {
       const active = deserialize(ack as SerializedObject);
       if (active instanceof Error || !Array.isArray(active)) {
@@ -94,7 +96,12 @@ export function useJobsSync(): JobsState {
       dispatch({ type: "SET_JOBS", payload: toJobMap(active as JobListItem[]) });
     });
 
-    fetchPage(null);
+    fetchPage(null, cursor.current === null);
+  }, [fetchPage]);
+
+  useEffect(() => {
+    // While disconnected, the "connect" handler below does the initial load instead.
+    if (socket.connected) loadJobs();
 
     const onNewJob = (data: NewDataEvent) =>
       dispatch({ type: "ADD_JOB", payload: jobToListItem(data.job) });
@@ -105,18 +112,20 @@ export function useJobsSync(): JobsState {
     const onJobRunUpdate = (data: JobRunUpdate) =>
       dispatch({ type: "UPDATE_JOB_RUN", payload: data });
 
+    socket.on("connect", loadJobs);
     socket.on("job.new", onNewJob);
     socket.on("job.update", onJobUpdate);
     socket.on("job_run.new", onNewJobRun);
     socket.on("job_run.update", onJobRunUpdate);
 
     return () => {
+      socket.off("connect", loadJobs);
       socket.off("job.new", onNewJob);
       socket.off("job.update", onJobUpdate);
       socket.off("job_run.new", onNewJobRun);
       socket.off("job_run.update", onJobRunUpdate);
     };
-  }, [fetchPage]);
+  }, [loadJobs]);
 
   return { jobs, loading, loadingMore, hasMore, loadMore };
 }
