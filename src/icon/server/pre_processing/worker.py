@@ -17,6 +17,9 @@ import psutil
 import pytz
 
 from icon.config.config import get_config
+from icon.server.data_access.db_context.influxdb.parameters_backend import (
+    get_specifiers_from_parameter_identifier,
+)
 from icon.server.data_access.experiment_data import DatabaseValueType
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.scan_parameter import (
@@ -58,6 +61,14 @@ ScanCombination = frozenset[tuple[str, DatabaseValueType]]
 SCAN_COMPLETION_POLL_INTERVAL = 0.1
 """Seconds to wait between completion checks once every data point of a regular scan
 has been handed to the hardware worker."""
+
+GLOBAL_NAMESPACE_SEGMENT = "globals"
+"""Module path segment identifying the experiment library's global parameters.
+
+pycrystal derives a parameter's namespace from where it is declared: a parameter
+declared inside an experiment instance gets ``<module>.<ClassName>.<instance name>``
+Global parameters live in the library's ``globals`` package, e.g.
+``experiment_library.globals.global_parameters``."""
 
 
 class ParamUpdateMode(str, Enum):
@@ -163,6 +174,16 @@ class ExperimentIdentifier:
         return f"{self.module_name}.{self.class_name}.{self.instance_name}"
 
 
+def parameter_namespace(parameter_id: str) -> str:
+    """Return the namespace a parameter identifier is scoped to (empty if it has none)."""
+    return get_specifiers_from_parameter_identifier(parameter_id).get("namespace", "")
+
+
+def is_global_parameter(parameter_id: str) -> bool:
+    """Whether a parameter is a global one rather than scoped to an experiment."""
+    return GLOBAL_NAMESPACE_SEGMENT in parameter_namespace(parameter_id).split(".")
+
+
 class PreProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
@@ -261,6 +282,8 @@ class PreProcessingWorker(multiprocessing.Process):
         )
 
         namespace = ExperimentIdentifier.from_str(job.experiment_source.experiment_id)
+        # Clear the worker's parameter dict for the new job
+        self._parameter_dict = {}
         # empty update queue
         self._handle_parameter_updates(pre_processing_task, namespace=namespace)
 
@@ -304,6 +327,18 @@ class PreProcessingWorker(multiprocessing.Process):
         for _ in jobs:
             self._regenerate_outdated_jobs(client, namespace)
 
+    def _latest_parameters(self, *, before: str | None) -> dict[str, DatabaseValueType]:
+        """Return every known parameter value, as of ``before`` or as of now.
+
+        Without a ``before`` timestamp the parameter snapshot from the SRM is preferred.
+        """
+        if before is None:
+            snapshot = dict(self._manager.parameters_dict)
+            if snapshot:
+                return snapshot
+
+        return ParametersRepository.get_influxdb_parameters(before=before)
+
     def _update_parameter_dict(
         self,
         pre_processing_task: PreProcessingTask,
@@ -312,6 +347,9 @@ class PreProcessingWorker(multiprocessing.Process):
         mode: ParamUpdateMode = ParamUpdateMode.LOCALS_FROM_TS_GLOBALS_LATEST,
     ) -> None:
         """Update self._parameter_dict according to the requested mode.
+
+        The current Jobs' self._parameter_dict contains the global parameters as defined
+        in the experiment library's global namespaces and the experiment's local parameters.
 
         Args:
             pre_processing_task: Preprocessing task
@@ -352,9 +390,13 @@ class PreProcessingWorker(multiprocessing.Process):
             locals_before = pre_processing_task.local_parameters_timestamp
             globals_before = None
 
-        global_values = ParametersRepository.get_influxdb_parameters(
-            before=globals_before,
-        )
+        global_values = {
+            parameter_id: value
+            for parameter_id, value in self._latest_parameters(
+                before=globals_before
+            ).items()
+            if is_global_parameter(parameter_id)
+        }
         local_values = ParametersRepository.get_influxdb_parameters(
             before=locals_before,
             namespace=str(namespace),
