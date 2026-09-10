@@ -853,6 +853,7 @@ MAX_POLL_INTERVAL = 0.5
 _file_locks: dict[str, threading.RLock] = {}
 """Holding one process-wide lock for each result file, forcing sequential reads per files per process."""
 
+
 def _is_file_lock_error(exc: OSError) -> bool:
     """Return whether `exc` is HDF5 failing to acquire the OS file lock."""
     if exc.errno in {errno.EAGAIN, errno.EWOULDBLOCK, errno.EDEADLK}:
@@ -892,7 +893,7 @@ def _open_when_unlocked(
                     f"on {path} (mode {mode!r}, {attempt} attempts)."
                 ) from exc
             logger.debug(
-                "HDF5 file %s (%r) is locked; retrying in %.2f s.",
+                "HDF5 file %s (mode=%s) is locked; retrying in %.2f s.",
                 path,
                 mode,
                 min(interval, remaining),
@@ -901,7 +902,12 @@ def _open_when_unlocked(
             interval = min(interval * 2, MAX_POLL_INTERVAL)
         else:
             if attempt > 1:
-                logger.info("Opened HDF5 file %s (%r) after %d attempts.", path, mode, attempt)
+                logger.info(
+                    "Opened HDF5 file %s (mode=%s) after %d attempts.",
+                    path,
+                    mode,
+                    attempt,
+                )
             return h5file
 
 
@@ -946,9 +952,7 @@ def h5_open(
             f"(mode {mode!r})."
         )
     try:
-        with _open_when_unlocked(
-            path, mode, deadline=deadline, **kwargs
-        ) as h5file:
+        with _open_when_unlocked(path, mode, deadline=deadline, **kwargs) as h5file:
             yield h5file
     finally:
         file_lock.release()

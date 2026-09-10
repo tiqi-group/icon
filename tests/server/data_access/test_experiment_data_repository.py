@@ -7,6 +7,7 @@ import h5py
 import pytest
 from sqlalchemy.exc import NoResultFound
 
+from icon.config import latest
 from icon.server.data_access.experiment_data import (
     ExperimentData,
     ExperimentDataPoint,
@@ -90,10 +91,10 @@ def test_experiment_data_io() -> None:
         for data_point in data_points:
             experiment_data_repository.write_experiment_data_point(h5file, data_point)
         experiment_data_minimal = experiment_data_repository.load_experiment_data(
-            h5file
+            h5file, include_all_shots=True
         )
         experiment_data_full = experiment_data_repository.load_experiment_data(
-            h5file, include_hardware_instructions=True
+            h5file, include_hardware_instructions=True, include_all_shots=True
         )
     assert experiment_data_minimal == dataclasses.replace(
         expected_experiment_data, hardware_instructions=[]
@@ -136,7 +137,7 @@ def _fake_recent_runs(
 def test_get_hardware_instructions(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    config = SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path)))
+    config = SimpleNamespace(data=latest.DataConfiguration(results_dir=str(tmp_path)))
     monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
     unknown_job_id = 42
 
@@ -177,7 +178,9 @@ def test_get_hardware_instructions(
     monkeypatch.setattr(
         experiment_data_repository,
         "get_config",
-        lambda: SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path / "x"))),
+        lambda: SimpleNamespace(
+            data=latest.DataConfiguration(results_dir=str(tmp_path / "x"))
+        ),
     )
     assert get() is None
 
@@ -185,7 +188,7 @@ def test_get_hardware_instructions(
 def test_get_hardware_instructions_only_searches_recent_runs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    config = SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path)))
+    config = SimpleNamespace(data=latest.DataConfiguration(results_dir=str(tmp_path)))
     monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
 
     limit = experiment_data_repository.MOST_RECENT_JOB_RUNS
@@ -209,7 +212,7 @@ def test_get_hardware_instructions_only_searches_recent_runs(
 def test_get_hardware_instructions_skips_runs_without_a_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    config = SimpleNamespace(data=SimpleNamespace(results_dir=str(tmp_path)))
+    config = SimpleNamespace(data=latest.DataConfiguration(results_dir=str(tmp_path)))
     monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
 
     # The newest run's file was archived or never written; the search continues.
