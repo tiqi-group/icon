@@ -10,6 +10,7 @@ import {
   ToggleButtonGroup,
 } from "@mui/material";
 import { useContext, useMemo } from "react";
+import { useParameter } from "../../hooks/useParameter";
 import { ParameterStoreContext } from "../../contexts/ParameterStoreContext";
 import { DeviceInfoContext } from "../../contexts/DeviceInfoContext";
 import { ExperimentsContext } from "../../contexts/ExperimentsContext";
@@ -158,6 +159,13 @@ export const ParameterCard = ({
     const rawValue = parameterStore?.get(param.id);
     return typeof rawValue === "number" ? rawValue : fallback;
   };
+
+  const [liveValue] = useParameter(param.id);
+  const midpoint = (param.generation.start + param.generation.stop) / 2;
+  const spanCentreText =
+    typeof liveValue === "number"
+      ? `Centred on current value: ${roundFloatNoise(liveValue)}`
+      : `Centred on ${roundFloatNoise(midpoint)}`;
 
   const handleInputModeChange = (
     _: React.MouseEvent,
@@ -375,6 +383,7 @@ export const ParameterCard = ({
                 type="number"
                 fullWidth
                 value={Math.abs(span)}
+                helperText={spanCentreText}
                 onChange={(e) => {
                   const newSpan = Math.abs(Number(e.target.value));
                   const center = liveCenter(
