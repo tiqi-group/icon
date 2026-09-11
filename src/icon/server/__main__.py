@@ -57,8 +57,10 @@ def start_server() -> None:
     from icon.server.pre_processing.worker import PreProcessingWorker
     from icon.server.scheduler.scheduler import Scheduler
     from icon.server.web_server.sio_setup import patch_sio_setup
+    from icon.server.web_server.visualiser import patch_web_server
 
     patch_sio_setup()
+    patch_web_server()
     patch_serialization_methods()
     run_migrations()
 

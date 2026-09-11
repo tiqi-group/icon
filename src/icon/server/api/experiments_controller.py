@@ -1,10 +1,11 @@
 import logging
+from dataclasses import asdict
+from typing import Any
 
 import pydase
 
 from icon.server.api.models.experiment_dict import (
     ExperimentDict,
-    ExperimentMetadata,
 )
 from icon.server.api.parameters_controller import get_added_removed_and_updated_keys
 from icon.server.web_server.socketio_emit_queue import emit_queue
@@ -25,17 +26,17 @@ class ExperimentsController(pydase.DataService):
         self._experiments: ExperimentDict = {}
         self.hardware_description: str = ""
 
-    def get_experiments(self) -> ExperimentDict:
+    def get_experiments(self) -> dict[str, dict[str, Any]]:
         """Return the current experiment metadata.
 
         Returns:
             Mapping of experiment IDs to their metadata.
         """
-        return self._experiments
+        return {key: vars(val) for key, val in self._experiments.items()}
 
-    def get_metadata(self, experiment_id: str) -> ExperimentMetadata:
+    def get_metadata(self, experiment_id: str) -> dict[str, Any]:
         """Serve experiment metadata for experiment id `experiment_id`."""
-        return self._experiments[experiment_id]
+        return vars(self._experiments[experiment_id])
 
     def _update_experiment_metadata(self, new_experiments: ExperimentDict) -> None:
         """Replace experiment metadata and emit an update event if changed.
@@ -58,7 +59,9 @@ class ExperimentsController(pydase.DataService):
             emit_queue.put(
                 {
                     "event": "experiments.update",
-                    "data": new_experiments,
+                    "data": {
+                        name: asdict(data) for name, data in new_experiments.items()
+                    },
                 }
             )
 

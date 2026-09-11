@@ -18,7 +18,7 @@ class HardwareConfig(BaseModel):
     port: int = 6007
 
 
-class ServiceConfig(BaseConfig):  # type: ignore[misc]
+class ServiceConfig(BaseConfig):  # type: ignore[misc, metaclass]
     version: int = __version__
     experiment_library: ExperimentLibraryConfig = ExperimentLibraryConfig()
     databases: DatabaseConfig = DatabaseConfig()

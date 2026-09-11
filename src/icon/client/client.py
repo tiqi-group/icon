@@ -111,6 +111,17 @@ class Client(pydase.Client):
         self.experiments = ExperimentsController(self)
         self.parameters = ParametersController(self)
 
+    @property
+    def event_loop(self) -> asyncio.AbstractEventLoop:
+        """The event loop this client's socketio connection runs on.
+
+        Raises:
+            RuntimeError: If the client is not connected.
+        """
+        if self._loop is None:
+            raise RuntimeError(f"Client '{self._url}' is not connected.")
+        return self._loop
+
     async def _handle_connect(self) -> None:
         logger.debug("Connected to '%s' ...", self._url)
 
@@ -124,14 +135,14 @@ class Client(pydase.Client):
     def get_value(self, full_access_path: str) -> Any:
         return get_value(
             sio_client=self._sio,
-            loop=self._loop,
+            loop=self.event_loop,
             access_path=full_access_path,
         )
 
     def update_value(self, full_access_path: str, new_value: Any) -> Any:
         return update_value(
             sio_client=self._sio,
-            loop=self._loop,
+            loop=self.event_loop,
             access_path=full_access_path,
             value=new_value,
         )
@@ -145,7 +156,7 @@ class Client(pydase.Client):
     ) -> Any:
         return trigger_method(
             sio_client=self._sio,
-            loop=self._loop,
+            loop=self.event_loop,
             access_path=full_access_path,
             args=args or [],
             kwargs=kwargs or {},

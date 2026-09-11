@@ -6,15 +6,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import pycrystal.database.local_cache
-import pycrystal.parameters
-from pycrystal.parameters import Parameter
-from pycrystal.utils.helpers import (
-    collect_experiment_metadata,
-    import_experiment_instance,
-)
-
 import icon.server.utils.git_helpers
+from icon.server.api.models.experiment_dict import (
+    ExperimentMetadata,
+)
 from icon.server.data_access.experiment_data import PlotWindowMetadata, ReadoutMetadata
 from icon.server.data_access.experiment_library_client import ExperimentLibraryClient
 from icon.server.data_access.venv_experiment_library_client import (
@@ -52,6 +47,7 @@ class AsyncPyCrystalClient(VEnvExperimentLibraryClient):
         )
         self.repo = GitRepo(repo_url=repo, local_path=checkout_path).clone()
         self.experiment_library_module = experiment_library_module
+        self.dev_mode = True
 
     def checkout_revision(self, revision: str | None) -> str | None:
         self.repo.checkout(revision)
@@ -59,12 +55,15 @@ class AsyncPyCrystalClient(VEnvExperimentLibraryClient):
 
     @contextmanager
     def isolated(self) -> Iterator[ExperimentLibraryClient]:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            yield type(self)(
-                checkout_path=tmp_dir,
-                repo=self.repo.repo_url,
-                experiment_library_module=self.experiment_library_module,
-            )
+        if self.dev_mode:
+            yield self
+        else:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                yield type(self)(
+                    checkout_path=tmp_dir,
+                    repo=self.repo.repo_url,
+                    experiment_library_module=self.experiment_library_module,
+                )
 
 
 class PyCrystalClient(BlockingExperimentLibraryClient):
@@ -73,6 +72,8 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
 
     @property
     def parameter_metadata(self) -> "ParameterMetadataDict":
+        from pycrystal.parameters import Parameter  # noqa: PLC0415
+
         parameter_registry = Parameter.registry.namespace_registry
         return {
             "all parameters": Parameter.registry.all_parameters,
@@ -89,7 +90,14 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
 
     @property
     def experiment_metadata(self) -> "ExperimentDict":
-        return collect_experiment_metadata(self.experiment_library_module)
+        from pycrystal.utils.helpers import collect_experiment_metadata  # noqa: PLC0415
+
+        return {
+            name: ExperimentMetadata(**data)
+            for name, data in collect_experiment_metadata(
+                self.experiment_library_module
+            ).items()
+        }
 
     @experiment_metadata.setter
     def experiment_metadata(self, value: "ExperimentDict") -> None:  # noqa: ARG002
@@ -114,6 +122,8 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         Returns:
             JSON string containing the generated sequence.
         """
+        from pycrystal.utils.helpers import import_experiment_instance  # noqa: PLC0415
+
         exp_instance = import_experiment_instance(exp_module_name, exp_instance_name)
 
         return exp_instance.pulse_sequence_str_from_args(
@@ -138,6 +148,10 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         Returns:
             Dictionary containing readout metadata for the experiment.
         """
+        import pycrystal.database.local_cache  # noqa: PLC0415
+        import pycrystal.parameters  # noqa: PLC0415
+        from pycrystal.utils.helpers import import_experiment_instance  # noqa: PLC0415
+
         pycrystal.parameters.Parameter.db = pycrystal.database.local_cache.LocalCache(
             key_val_dict=parameter_dict,
         )

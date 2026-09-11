@@ -1,4 +1,6 @@
+import logging
 import re
+import threading
 from typing import Any, cast
 
 from pydase.data_service.data_service_observer import DataServiceObserver
@@ -12,10 +14,16 @@ from pydase.utils.serialization.types import SerializedObject
 from icon.server.data_access.experiment_data import DatabaseValueType
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
+logger = logging.getLogger(__name__)
+
 
 def is_scannable_parameter(serialized_object: SerializedObject) -> bool:
     """Is this serialized object scannable through icon?"""
-    return serialized_object["type"] in ("float", "int", "Quantity")
+    return not serialized_object["readonly"] and serialized_object["type"] in (
+        "float",
+        "int",
+        "Quantity",
+    )
 
 
 def get_scannable_params_list(
@@ -57,27 +65,59 @@ def get_device_name(full_access_path: str) -> str | None:
 def device_structure_changed(
     new_value: Any, cached_value_dict: SerializedObject
 ) -> bool:
-    return dump(new_value)["type"] != cached_value_dict["type"] or not isinstance(
-        new_value, DatabaseValueType
+    # Check isinstance first: it is cheap, while dump() can be expensive for large
+    # values (e.g. arrays streamed by a device).
+    return not isinstance(new_value, DatabaseValueType) or (
+        dump(new_value)["type"] != cached_value_dict["type"]
     )
 
 
-def emit_scannable_device_params_change(
-    observer: DataServiceObserver,
-    full_access_path: str,
-    value: Any,
-    cached_value_dict: SerializedObject,
-) -> None:
-    device_name = get_device_name(full_access_path)
+_last_scannable_params: dict[str, list[str]] = {}
+"""Last emitted scannable parameter lists keyed by device name.
 
-    if not device_structure_changed(value, cached_value_dict) or device_name is None:
+Devices streaming non-scalar values (lists, arrays) pass the structure-change check
+on every single update. Caching the previous result lets us skip the `device.update`
+broadcast unless the scannable parameters actually changed, which otherwise floods
+every connected client and freezes the UI.
+"""
+
+_DEBOUNCE_SECONDS = 0.5
+"""Quiet period before recomputing scannable parameters after a structure change.
+
+Some devices (e.g. Fastino) rebuild whole public lists on every parameter write:
+a single update produces a burst of dozens of structural changes, and the scannable
+parameters transiently change while the list is cleared and refilled. Debouncing
+avoids walking the device tree and emitting transient parameter lists for every
+event in the burst; only the settled state is compared and emitted.
+"""
+
+_pending_recompute_timers: dict[str, threading.Timer] = {}
+_timer_lock = threading.Lock()
+
+
+def _recompute_and_emit(observer: DataServiceObserver, device_name: str) -> None:
+    with _timer_lock:
+        _pending_recompute_timers.pop(device_name, None)
+
+    device_proxies: dict[str, SerializedObject] = cast(
+        "Any", observer.state_manager.cache_value
+    )["devices"]["value"]["device_proxies"]["value"]
+
+    try:
+        scannable_params = get_scannable_params_list(device_proxies[device_name])
+    except KeyError:
+        # Device was removed/disabled in the meantime.
+        _last_scannable_params.pop(device_name, None)
+        return
+    except Exception:
+        logger.exception(
+            "Failed recomputing scannable parameters for device %r", device_name
+        )
         return
 
-    scannable_params = get_scannable_params_list(
-        observer.state_manager.cache_value["devices"]["value"]["device_proxies"][
-            "value"
-        ][device_name]
-    )
+    if _last_scannable_params.get(device_name) == scannable_params:
+        return
+    _last_scannable_params[device_name] = scannable_params
 
     emit_queue.put(
         {
@@ -90,3 +130,27 @@ def emit_scannable_device_params_change(
             },
         }
     )
+
+
+def emit_scannable_device_params_change(
+    observer: DataServiceObserver,
+    full_access_path: str,
+    value: Any,
+    cached_value_dict: SerializedObject,
+) -> None:
+    device_name = get_device_name(full_access_path)
+
+    if device_name is None or not device_structure_changed(value, cached_value_dict):
+        return
+
+    with _timer_lock:
+        if device_name in _pending_recompute_timers:
+            # A recompute is already scheduled; it reads the current cache when it
+            # fires, so later changes in this burst are picked up automatically.
+            return
+        timer = threading.Timer(
+            _DEBOUNCE_SECONDS, _recompute_and_emit, args=(observer, device_name)
+        )
+        timer.daemon = True
+        _pending_recompute_timers[device_name] = timer
+        timer.start()

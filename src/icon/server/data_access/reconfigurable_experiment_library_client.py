@@ -31,7 +31,7 @@ def load_client(
         exp_lib_client_class = getattr(exp_lib_client_module, client_class)
         logger.info("Using experiment library client %s.%s", module, client_class)
         return exp_lib_client_class(**client_args)
-    except (ValueError, ImportError, AttributeError) as e:
+    except (ValueError, ImportError, AttributeError, TypeError) as e:
         raise ReloadError(
             "Experiment library client is misconfigured.\n"
             f"configured module: {module}\n"

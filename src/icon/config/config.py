@@ -2,6 +2,7 @@ import logging
 import os
 from contextlib import suppress
 from pathlib import Path, PosixPath
+from typing import Any
 
 import yaml
 from confz import BaseConfig, FileSource
@@ -13,7 +14,7 @@ _ENV_KEY = "ICON_CONFIG"
 
 logger = logging.getLogger("config")
 
-VERSIONS: dict[int, BaseConfig] = {
+VERSIONS: dict[int, type[BaseConfig]] = {
     cfg.__version__: cfg.ServiceConfig for cfg in (v1, v2, latest)
 }
 
@@ -46,7 +47,7 @@ def get_config() -> latest.ServiceConfig:
     schema = VERSIONS.get(config_version)
     if schema is None:
         raise RuntimeError(f"Unsupported configuration version: {config_version}")
-    config = schema(config_sources=FileSource(source))
+    config: Any = schema(config_sources=FileSource(source))
     original_config_version = config.version
     while config.version < latest.__version__:
         config = migration_by_version[config.version](config)

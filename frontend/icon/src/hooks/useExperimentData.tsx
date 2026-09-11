@@ -1,0 +1,169 @@
+import { useEffect, useState } from "react";
+import { runMethod, socket } from "../socket";
+import {
+  ExperimentData,
+  ExperimentDataPoint,
+  FitResult,
+  ParameterValue,
+} from "../types/ExperimentData";
+import { SerializedObject } from "../types/SerializedObject";
+import { deserialize } from "../utils/deserializer";
+
+const emptyExperimentData: ExperimentData = {
+  plot_windows: {
+    result_channels: [],
+    shot_channels: [],
+    vector_channels: [],
+  },
+  readouts: {
+    shot_channels: {},
+    result_channels: {},
+    vector_channels: {},
+  },
+  scan_parameters: {},
+  hardware_instructions: [],
+  parameters: {},
+  total_data_points: 0,
+  fits: {},
+};
+
+/**
+ * Hook to fetch and subscribe to experiment data for a given job ID.
+ *
+ * - Fetches initial experiment data via RPC.
+ * - Subscribes to live updates via WebSocket and merges new data.
+ * - Updates hardware_instructions only when the sequence changes.
+ * - Captures any fetch error in `experimentDataError`.
+ *
+ * @param jobId - The job ID to fetch and subscribe to.
+ * @returns The current experiment data and any fetch error.
+ */
+export function useExperimentData(jobId: string | undefined) {
+  const [experimentData, setExperimentData] =
+    useState<ExperimentData>(emptyExperimentData);
+  const [experimentDataError, setError] = useState<Error | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    let stale = false;
+
+    setLoading(true);
+    setError(null);
+    setExperimentData(emptyExperimentData);
+    if (!jobId) {
+      setLoading(false);
+      return;
+    }
+
+    const dataPointEvent = `experiment_${jobId}`;
+
+    const handleNewDataPoint = (data: ExperimentDataPoint) => {
+      setError(null);
+      setExperimentData((prev) => {
+        const shot_channels = { ...prev.readouts.shot_channels };
+        for (const [channel, value] of Object.entries(data.readouts.shot_channels)) {
+          (shot_channels[channel] ??= {})[data.index] = value;
+        }
+
+        const result_channels = { ...prev.readouts.result_channels };
+        for (const [channel, value] of Object.entries(data.readouts.result_channels)) {
+          (result_channels[channel] ??= {})[data.index] = value;
+        }
+
+        const vector_channels = { ...prev.readouts.vector_channels };
+        for (const [channel, value] of Object.entries(data.readouts.vector_channels)) {
+          (vector_channels[channel] ??= {})[data.index] = value;
+        }
+
+        const scan_parameters = { ...prev.scan_parameters };
+        for (const [param, value] of Object.entries(data.scan_params)) {
+          (scan_parameters[param] ??= {})[data.index] = value;
+        }
+        (scan_parameters["timestamp"] ??= {})[data.index] = data.timestamp;
+
+        const hardware_instructions = [...prev.hardware_instructions];
+        const lastEntry = hardware_instructions.at(-1);
+        if (!lastEntry || lastEntry[1] !== data.hardware_instructions) {
+          hardware_instructions.push([data.index, data.hardware_instructions]);
+        }
+
+        return {
+          ...prev,
+          readouts: {
+            shot_channels,
+            result_channels,
+            vector_channels,
+          },
+          scan_parameters,
+          hardware_instructions,
+          total_data_points: prev.total_data_points + 1,
+        };
+      });
+    };
+
+    const metadataEvent = `experiment_${jobId}_metadata`;
+
+    const handleMetadata = (data: {
+      readout_metadata: ExperimentData["plot_windows"];
+    }) => {
+      console.info("Got experiment metadata");
+      console.info(data.readout_metadata);
+      setExperimentData((prev) => {
+        return { ...prev, plot_windows: data.readout_metadata };
+      });
+    };
+
+    const parameterValueEvent = `experiment_params_${jobId}`;
+    const handleValueEvent = (valueUpdates: Record<string, ParameterValue>) => {
+      setExperimentData((prev) => {
+        return { ...prev, parameters: { ...prev.parameters, ...valueUpdates } };
+      });
+    };
+
+    const fitEvent = `experiment_fit_${jobId}`;
+    const handleFitEvent = (data: FitResult & { deleted?: boolean }) => {
+      setExperimentData((prev) => {
+        if (data.deleted) {
+          const { [data.result_channel]: _removed, ...rest } = prev.fits;
+          void _removed;
+          return { ...prev, fits: rest };
+        }
+        return {
+          ...prev,
+          fits: { ...prev.fits, [data.result_channel]: data },
+        };
+      });
+    };
+
+    socket.on(dataPointEvent, handleNewDataPoint);
+    socket.on(metadataEvent, handleMetadata);
+    socket.on(parameterValueEvent, handleValueEvent);
+    socket.on(fitEvent, handleFitEvent);
+
+    runMethod("data.get_experiment_data_by_job_id", [], { job_id: jobId }, (ack) => {
+      if (stale) return;
+
+      const deserialized = deserialize(ack as SerializedObject) as
+        | Error
+        | ExperimentData;
+
+      if (deserialized instanceof Error) {
+        console.info("Failed to fetch job run:", deserialized);
+        setError(deserialized);
+      } else {
+        setExperimentData(deserialized);
+      }
+      setLoading(false);
+    });
+
+    return () => {
+      stale = true;
+      socket.off(dataPointEvent, handleNewDataPoint);
+      socket.off(metadataEvent, handleMetadata);
+      socket.off(parameterValueEvent, handleValueEvent);
+      socket.off(fitEvent, handleFitEvent);
+    };
+  }, [jobId]);
+
+  return { experimentData, experimentDataError, loading };
+}

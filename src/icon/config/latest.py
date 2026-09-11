@@ -74,7 +74,7 @@ class HardwareConfig(BaseModel):
     devices: list[DeviceConfig] = []
 
 
-class ServiceConfig(BaseConfig):  # type: ignore[misc]
+class ServiceConfig(BaseConfig):  # type: ignore[misc, metaclass]
     version: int = __version__
     experiment_library: ExperimentLibraryConfig = ExperimentLibraryConfig()
     databases: DatabaseConfig = DatabaseConfig()

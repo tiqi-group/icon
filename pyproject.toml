@@ -1,12 +1,12 @@
 [project]
 name = "icon"
-version = "0.2.0"
+dynamic = ["version"]
 description = "Ion CONtrol Experiment Control Software"
 readme = "README.md"
 authors = [
     { name = "Mose Müller", email = "mosemueller@gmail.com" }
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.11,<3.14"
 dependencies = [
     "pydase>=0.10.21",
     "pytz>=2024.2",
@@ -15,15 +15,15 @@ dependencies = [
 [project.optional-dependencies]
 server = [
     "alembic>=1.14.0",
+    "click>=8.1.0",
     "influxdb>=5.3.2",
+    "msgpack>=1.0.5,<2",
     "scipy>=1.14.0",
     "sqlalchemy>=2.0.36",
     "tables>=3.10.1",
     "h5py>=3.12.1",
     "psutil>=7.0.0",
-]
-zedboard = [
-    "tiqi-zedboard @ git+ssh://git@gitlab.phys.ethz.ch/tiqi-projects/drivers/tiqi-zedboard.git@v1.3.0",
+    "tqdm>=4.66.0",
 ]
 client = [
     "ipympl>=0.9.5",
@@ -31,20 +31,53 @@ client = [
     "notebook>=7.3.1",
     "pandas>=2.2.3",
 ]
+# tiqi-zedboard only required when using tiqizedboard_controller.py
+zedboard = [
+    "tiqi-zedboard @ git+ssh://git@gitlab.phys.ethz.ch/tiqi-projects/drivers/tiqi-zedboard.git@v1.3.0",
+]
+# Only required when using PyCrystalClient without the venv executor
 pycrystal = [
     "pycrystal @ git+ssh://git@gitlab.phys.ethz.ch/tiqi-projects/ionpulse-python-sdk/pycrystal.git@v2.3.0",
 ]
 
+[project.scripts]
+icon-migrate-influxdb-schema = "icon.cli.migrate_influxdb_schema:cli"
+
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.hatch.metadata]
 allow-direct-references = true
 
+[tool.hatch.version]
+source = "vcs"
+
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
+
+[tool.hatch.build]
+exclude = ["node_modules"]
+
+# Bundle fronted artifacts into wheel in case of `uv build --wheel` or `pip install .`
+[tool.hatch.build.targets.wheel]
+artifacts = [
+    "src/icon/server/frontend/**",
+    "src/icon/server/frontend_visualizer/**",
+]
+
+# Bundle frontend artifacts into sdist in case of `uv build`.
+# Force-include checks for presence.
+[tool.hatch.build.targets.sdist.force-include]
+"src/icon/server/frontend" = "src/icon/server/frontend"
+"src/icon/server/frontend_visualizer" = "src/icon/server/frontend_visualizer"
+
+[tool.hatch.build.targets.sdist]
+only-include = ["src/icon", "tests", "README.md", "LICENSE"]
+
 [dependency-groups]
 dev = [
-    "mypy>=1.13.0",
+    "mypy[reports]>=1.13.0",
     "pyright>=1.1.391",
     "pytest>=8.3.4",
     "pytest-asyncio>=0.25.0",
@@ -55,6 +88,7 @@ dev = [
     "types-pytz>=2024.2.0.20241003",
     "types-pyyaml>=6.0.12.20250402",
     "types-requests>=2.32.0.20250328",
+    "types-tqdm>=4.68.0.20260608",
 ]
 build = [
     "pyinstaller>=6.15.0",
@@ -69,18 +103,14 @@ docs = [
 
 [tool.pyright]
 include = ["src/icon", "tests"]
-exclude = [
-    "src/icon/server/data_access/templates/"
-]
 typeCheckingMode = "basic"
 
 
 [tool.ruff]
-target-version = "py310" # Always generate Python 3.10-compatible code
+target-version = "py310"
 extend-exclude = [
-    "docs", 
-    "frontend", 
-    "src/icon/server/data_access/templates/"
+    "docs",
+    "frontend"
 ]
 
 [tool.ruff.lint]
@@ -128,6 +158,9 @@ ignore = [
 "tests/**" = [
     "S101",     # assert
 ]
+"src/icon/cli/**" = [
+    "FBT001",   # boolean positional arg (click passes flag options positionally)
+]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 7
@@ -137,12 +170,15 @@ convention = "google"
 
 [tool.mypy]
 files = ["src/", "tests/"]
-exclude = ["templates/.*\\.py"]
 disallow_untyped_defs = true
 disallow_untyped_calls = true
 disallow_incomplete_defs = true
 disallow_any_generics = true
 check_untyped_defs = true
+disable_error_code = ["import-untyped"]
+
+[[tool.mypy.overrides]]
+module = ["tiqi_zedboard.*", "pycrystal.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
