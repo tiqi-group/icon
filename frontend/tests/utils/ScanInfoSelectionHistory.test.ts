@@ -134,6 +134,26 @@ describe("ScanInfoSelectionHistory.handleParamUpdate", () => {
         pattern: "scatter",
       });
     });
+
+    it("keeps a parameter's own Start/Stop range when recentring it in Center/Span mode", () => {
+      // A has only been used in Start/Stop mode, so it has no otherModeSpec yet.
+      const history = record(
+        emptyScanInfoHistory,
+        param("E", "grp", "A", gen(10, 20, 5)),
+      );
+      const current: ScanParameterInfo = {
+        ...param("E", "grp", "B", gen(0, 1)),
+        generation: { ...gen(0, 1), inputMode: "spanCenter" },
+      };
+
+      const { updatedParam } = mkMgr(history).handleParamUpdate(
+        current,
+        { id: "A" },
+        30,
+      );
+      expect(updatedParam.generation).toMatchObject({ start: 25, stop: 35, points: 5 });
+      expect(updatedParam.generation.otherModeSpec).toEqual(gen(10, 20, 5));
+    });
   });
 
   describe("namespace change", () => {

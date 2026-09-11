@@ -53,19 +53,18 @@ const alignLeafToMode = (
   const leafMode = leaf.inputMode ?? "startStop";
   if (leafMode === targetMode) return leaf;
 
-  const swapped = leaf.otherModeSpec;
-  if (!swapped) return { ...leaf, inputMode: targetMode };
-
-  return {
-    ...swapped,
-    inputMode: targetMode,
-    otherModeSpec: {
-      start: leaf.start,
-      stop: leaf.stop,
-      points: leaf.points,
-      pattern: leaf.pattern,
-    },
+  const ownModeSpec = {
+    start: leaf.start,
+    stop: leaf.stop,
+    points: leaf.points,
+    pattern: leaf.pattern,
   };
+  // No snapshot yet: reuse the numbers, but keep a copy as the other mode's own.
+  if (!leaf.otherModeSpec) {
+    return { ...leaf, inputMode: targetMode, otherModeSpec: ownModeSpec };
+  }
+
+  return { ...leaf.otherModeSpec, inputMode: targetMode, otherModeSpec: ownModeSpec };
 };
 
 /**
