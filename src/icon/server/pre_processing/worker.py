@@ -33,6 +33,7 @@ from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
     job_run_cancelled_or_failed,
     run_cancelled_or_failed,
+    try_update_run_by_id,
 )
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
@@ -234,13 +235,14 @@ class PreProcessingWorker(multiprocessing.Process):
                         "JobRun with id '%s' finished", pre_processing_task.job_run.id
                     )
 
-                    if JobRunRepository.get_run_by_job_id(
-                        job_id=pre_processing_task.job.id
-                    ).status in (JobRunStatus.PROCESSING, JobRunStatus.PAUSED):
-                        JobRunRepository.update_run_by_id(
-                            run_id=pre_processing_task.job_run.id,
-                            status=JobRunStatus.DONE,
-                        )
+                    JobRunRepository.update_run_by_id(
+                        run_id=pre_processing_task.job_run.id,
+                        status=JobRunStatus.DONE,
+                        only_if_status=(
+                            JobRunStatus.PROCESSING,
+                            JobRunStatus.PAUSED,
+                        ),
+                    )
 
                     try_auto_fit(
                         job_id=pre_processing_task.job.id,
@@ -251,14 +253,15 @@ class PreProcessingWorker(multiprocessing.Process):
                         "JobRun with id '%s' failed", pre_processing_task.job_run.id
                     )
 
-                    if JobRunRepository.get_run_by_job_id(
-                        job_id=pre_processing_task.job.id
-                    ).status in (JobRunStatus.PROCESSING, JobRunStatus.PAUSED):
-                        JobRunRepository.update_run_by_id(
-                            run_id=pre_processing_task.job_run.id,
-                            status=JobRunStatus.FAILED,
-                            log=str(e),
-                        )
+                    try_update_run_by_id(
+                        run_id=pre_processing_task.job_run.id,
+                        status=JobRunStatus.FAILED,
+                        log=str(e),
+                        only_if_status=(
+                            JobRunStatus.PROCESSING,
+                            JobRunStatus.PAUSED,
+                        ),
+                    )
                 finally:
                     JobRepository.update_job_status(
                         job=pre_processing_task.job, status=JobStatus.PROCESSED

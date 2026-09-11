@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 import sqlalchemy.orm
 from sqlalchemy import select, update
+from sqlalchemy.exc import NoResultFound
 
 from icon.server.data_access.db_context.sqlite import engine
 from icon.server.data_access.models.enums import JobRunStatus
@@ -85,25 +86,34 @@ class JobRunRepository:
         run_id: int,
         status: JobRunStatus,
         log: str | None = None,
-    ) -> JobRun:
+        only_if_status: Sequence[JobRunStatus] | None = None,
+    ) -> JobRun | None:
         """Update a job run by ID and emit an update event.
 
         Args:
             run_id: The ID of the job run to update.
             status: New status of the run.
             log: Optional log message (e.g. failure reason).
+            only_if_status: Apply the update only if current status is in the list.
 
         Returns:
-            The updated job run.
+            The updated job run, or None when the current status is non of the
+            `only_if_status` statuses.
         """
         with sqlalchemy.orm.Session(engine) as session:
-            stmt = (
-                update(JobRun)
-                .where(JobRun.id == run_id)
-                .values(status=status, log=log)
-                .returning(JobRun)
-            )
-            run = session.execute(stmt).scalar_one()
+            stmt = update(JobRun).where(JobRun.id == run_id)
+            if only_if_status is not None:
+                stmt = stmt.where(JobRun.status.in_(only_if_status))
+
+            run = session.execute(
+                stmt.values(status=status, log=log).returning(JobRun)
+            ).scalar_one_or_none()
+
+            if run is None:
+                if only_if_status is None:
+                    raise NoResultFound(f"No job run with id {run_id}")
+                return None
+
             session.commit()
 
             logger.debug("Updated run %s", run)
@@ -264,3 +274,33 @@ class JobRunRepository:
         if timestamp is None:
             return None
         return timestamp.replace(tzinfo=UTC)
+
+
+def try_update_run_by_id(
+    *,
+    run_id: int,
+    status: JobRunStatus,
+    log: str | None = None,
+    only_if_status: Sequence[JobRunStatus] | None = None,
+) -> JobRun | None:
+    """Update a job run, logging any failure instead of raising.
+
+    Args:
+        run_id: ID of the job run to update.
+        status: New status of the run.
+        log: Optional log message (e.g. failure reason).
+        only_if_status: Apply the update only while the stored status is one of
+            these; see `JobRunRepository.update_run_by_id`.
+
+    Returns:
+        The updated job run, or None when the update failed or did not apply.
+    """
+    try:
+        return JobRunRepository.update_run_by_id(
+            run_id=run_id, status=status, log=log, only_if_status=only_if_status
+        )
+    except Exception:
+        logger.exception(
+            "Failed to update run '%s' to status '%s'", run_id, status.value
+        )
+        return None

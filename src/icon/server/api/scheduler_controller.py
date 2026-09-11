@@ -186,16 +186,16 @@ class SchedulerController(pydase.DataService):
         if job.status in (JobStatus.PROCESSING, JobStatus.SUBMITTED):
             JobRepository.update_job_status(job=job, status=JobStatus.PROCESSED)
             job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
-            if job_run.status in (
-                JobRunStatus.PENDING,
-                JobRunStatus.PROCESSING,
-                JobRunStatus.PAUSED,
-            ):
-                JobRunRepository.update_run_by_id(
-                    run_id=job_run.id,
-                    status=JobRunStatus.CANCELLED,
-                    log="Cancelled through user interaction.",
-                )
+            JobRunRepository.update_run_by_id(
+                run_id=job_run.id,
+                status=JobRunStatus.CANCELLED,
+                log="Cancelled through user interaction.",
+                only_if_status=(
+                    JobRunStatus.PENDING,
+                    JobRunStatus.PROCESSING,
+                    JobRunStatus.PAUSED,
+                ),
+            )
 
     def pause_job(self, *, job_id: int) -> None:
         """Pause a running job.
@@ -211,12 +211,12 @@ class SchedulerController(pydase.DataService):
             job_id: ID of the job to pause.
         """
         job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
-        if job_run.status == JobRunStatus.PROCESSING:
-            JobRunRepository.update_run_by_id(
-                run_id=job_run.id,
-                status=JobRunStatus.PAUSED,
-                log="Paused through user interaction.",
-            )
+        JobRunRepository.update_run_by_id(
+            run_id=job_run.id,
+            status=JobRunStatus.PAUSED,
+            log="Paused through user interaction.",
+            only_if_status=(JobRunStatus.PROCESSING,),
+        )
 
     def resume_job(self, *, job_id: int) -> None:
         """Resume a paused job.
@@ -231,11 +231,11 @@ class SchedulerController(pydase.DataService):
             job_id: ID of the job to resume.
         """
         job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
-        if job_run.status == JobRunStatus.PAUSED:
-            JobRunRepository.update_run_by_id(
-                run_id=job_run.id,
-                status=JobRunStatus.PROCESSING,
-            )
+        JobRunRepository.update_run_by_id(
+            run_id=job_run.id,
+            status=JobRunStatus.PROCESSING,
+            only_if_status=(JobRunStatus.PAUSED,),
+        )
 
     def get_scheduled_jobs(
         self,
