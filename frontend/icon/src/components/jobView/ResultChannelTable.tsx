@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import {
+  Box,
   Table,
   TableBody,
   TableCell,
@@ -11,16 +12,30 @@ import {
 } from "@mui/material";
 import { ExperimentData } from "../../types/ExperimentData";
 import { ScanParameter } from "../../types/ScanParameter";
+import { formatDateTime, formatTime, hasDayBreak } from "../../utils/timeUtils";
 
 const TIMESTAMP_KEY = "timestamp";
 const MAX_ROWS = 200;
+
+// Clamp header labels to one line. Unlike nowrap, this lets a column shrink below its
+// label, so labels only get an ellipsis once the table runs out of room.
+const headerLabelSx = {
+  display: "-webkit-box",
+  WebkitLineClamp: 1,
+  WebkitBoxOrient: "vertical",
+  overflow: "hidden",
+  whiteSpace: "normal",
+  wordBreak: "break-all",
+} as const;
 
 function formatCell(value: number | boolean | string | undefined): string {
   if (value === undefined) return "—";
   if (typeof value === "number") {
     if (!Number.isFinite(value)) return String(value);
     // Show a compact but precise representation for floats.
-    return Number.isInteger(value) ? String(value) : value.toPrecision(6);
+    return Number.isInteger(value)
+      ? String(value)
+      : String(Number(value.toPrecision(6)));
   }
   return String(value);
 }
@@ -79,21 +94,36 @@ export const ResultChannelTable = ({
   // Only render the most recent rows, like the plot does for its window size.
   const rowIndices = allIndices.slice(-Math.min(windowSize ?? MAX_ROWS, MAX_ROWS));
 
+  const timestamps = experimentData.scan_parameters[TIMESTAMP_KEY];
+  const formatTimestamp = hasDayBreak(
+    rowIndices.map((idx) => String(timestamps?.[idx])),
+  )
+    ? formatDateTime
+    : formatTime;
+
   return (
     <>
       <TableContainer component={Paper} sx={{ maxHeight: 400, overflow: "auto" }}>
-        <Table stickyHeader size="small">
+        <Table
+          stickyHeader
+          size="small"
+          sx={{ "& .MuiTableCell-root": { px: 1, whiteSpace: "nowrap" } }}
+        >
           <TableHead>
             <TableRow>
               <TableCell>#</TableCell>
-              {scanParamKeys.map((key) => (
-                <TableCell key={`param-${key}`}>
-                  {key === TIMESTAMP_KEY ? "timestamp" : (scanParamLabel[key] ?? key)}
-                </TableCell>
-              ))}
+              {scanParamKeys.map((key) => {
+                const label =
+                  key === TIMESTAMP_KEY ? "timestamp" : (scanParamLabel[key] ?? key);
+                return (
+                  <TableCell key={`param-${key}`} title={label}>
+                    <Box sx={headerLabelSx}>{label}</Box>
+                  </TableCell>
+                );
+              })}
               {channelNames.map((channel) => (
-                <TableCell key={`channel-${channel}`} align="right">
-                  {channel}
+                <TableCell key={`channel-${channel}`} align="right" title={channel}>
+                  <Box sx={headerLabelSx}>{channel}</Box>
                 </TableCell>
               ))}
             </TableRow>
@@ -104,11 +134,16 @@ export const ResultChannelTable = ({
               return (
                 <TableRow key={idx}>
                   <TableCell>{idx}</TableCell>
-                  {scanParamKeys.map((paramKey) => (
-                    <TableCell key={`param-${paramKey}`}>
-                      {formatCell(experimentData.scan_parameters[paramKey]?.[key])}
-                    </TableCell>
-                  ))}
+                  {scanParamKeys.map((paramKey) => {
+                    const value = experimentData.scan_parameters[paramKey]?.[key];
+                    return (
+                      <TableCell key={`param-${paramKey}`}>
+                        {paramKey === TIMESTAMP_KEY && value !== undefined
+                          ? formatTimestamp(String(value))
+                          : formatCell(value)}
+                      </TableCell>
+                    );
+                  })}
                   {channelNames.map((channel) => (
                     <TableCell key={`channel-${channel}`} align="right">
                       {formatCell(
