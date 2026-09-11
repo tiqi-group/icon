@@ -4,8 +4,15 @@ import { ReactECharts, ReactEChartsProps } from "./ReactEcharts";
 import { EChartsOption } from "echarts";
 import type { ECharts } from "echarts/core";
 import { useNotifications } from "@toolpad/core";
-import { copyEChartsToClipboard } from "../utils/copyEChartsToClipboard";
 import { ScanParameter } from "../types/ScanParameter";
+import {
+  CHART_AXIS_NAME,
+  CHART_GRID,
+  CHART_LEGEND,
+  CHART_TEXT_STYLE,
+  chartTitle,
+  chartToolbox,
+} from "../utils/chartLayout";
 import { buildResultChannelChartSeries } from "../utils/buildResultChannelChartSeries";
 
 interface ResultChannelPlotProps {
@@ -105,8 +112,7 @@ const ResultChannelPlot = ({
 
     let xAxisData: string[] | number[];
     const xAxis: EChartsOption["xAxis"] = {
-      nameLocation: "middle",
-      nameGap: 25,
+      ...CHART_AXIS_NAME,
       minorTick: { show: true },
       minorSplitLine: { show: true },
       min: "dataMin",
@@ -118,8 +124,7 @@ const ResultChannelPlot = ({
     };
     const yAxis: EChartsOption["yAxis"] = {
       name: "counts",
-      nameLocation: "middle",
-      nameGap: 35,
+      ...CHART_AXIS_NAME,
       minorTick: { show: true },
       minorSplitLine: { show: true },
       scale: true,
@@ -131,15 +136,7 @@ const ResultChannelPlot = ({
         ? { max: yRange.max }
         : {}),
     };
-    const title = {
-      text: titleText,
-      left: "center",
-      subtext: subtitle,
-      subtextStyle: {
-        lineHeight: 0,
-      },
-      top: "-1%",
-    };
+    const title = chartTitle(titleText, subtitle);
     let chartSeries: EChartsOption["series"] = [];
     const nOrdinaryParameters =
       scanParameters.length -
@@ -305,19 +302,15 @@ const ResultChannelPlot = ({
 
       return {
         title,
+        textStyle: CHART_TEXT_STYLE,
+        toolbox: chartToolbox(chart, notifications.show),
         legend: {
+          ...CHART_LEGEND,
           selectedMode: "single",
-          top: 40,
-          left: "center",
           selected: legendSelected,
         },
-        grid: {
-          left: 30,
-          right: 160,
-          bottom: 20,
-          top: 70,
-          containLabel: true,
-        },
+        // leave room on the right for the colour bar and its labels
+        grid: { ...CHART_GRID, right: 88 },
         tooltip: {
           trigger: "item",
           formatter: (params: {
@@ -346,8 +339,7 @@ const ResultChannelPlot = ({
         xAxis: {
           name: xScan.name,
           type: "category",
-          nameLocation: "middle",
-          nameGap: 25,
+          ...CHART_AXIS_NAME,
           ...(xCategories ? { data: xCategories } : {}),
           ...(xScan.realtime
             ? timeAxisProps(xScanValues as string[])
@@ -356,8 +348,7 @@ const ResultChannelPlot = ({
         yAxis: {
           name: yScan.name,
           type: "category",
-          nameLocation: "middle",
-          nameGap: 45,
+          ...CHART_AXIS_NAME,
           ...(yCategories ? { data: yCategories } : {}),
           ...(yScan.realtime
             ? timeAxisProps(yScanValues as string[])
@@ -370,8 +361,10 @@ const ResultChannelPlot = ({
             show: true,
             calculable: true,
             orient: "vertical",
-            right: 10,
-            top: "center",
+            right: 8,
+            top: "middle",
+            itemWidth: 14,
+            textStyle: { fontSize: 11 },
             min: vmMin,
             max: vmMax,
             inRange: { color: ["#313695", "#1483d5", "#73bf7f", "#fcbe3d", "#ffff00"] },
@@ -404,32 +397,12 @@ const ResultChannelPlot = ({
 
     return {
       title,
-      textStyle: { fontFamily: "sans-serif", fontSize: 12 },
+      textStyle: CHART_TEXT_STYLE,
       tooltip: { trigger: "axis" },
-      toolbox: {
-        top: -6,
-        feature: {
-          dataZoom: { yAxisIndex: "none" },
-          myCopyToClipboard: {
-            show: true,
-            title: "Copy to Clipboard",
-            icon: "path://M48.7643 38.2962H100.5807a6.0158 6.0158 0 0 1 6.0158 6.0158V115.2992a6.0158 6.0158 0 0 1-6.0158 6.0158H48.7643a6.0158 6.0158 0 0 1-6.0158-6.0158V44.312a6.0158 6.0158 0 0 1 6.0158-6.0158zM31.3642 21.6047c-3.3328 0-6.0162 2.6829-6.0162 6.0157v70.9874c0 3.3328 2.6834 6.0157 6.0162 6.0157H42.7485V44.3119c0-3.3328 2.6829-6.0157 6.0157-6.0157h40.4322V27.6204c0-3.3328-2.6829-6.0157-6.0157-6.0157z",
-            onclick: () => copyEChartsToClipboard(chart, notifications.show),
-          },
-        },
-      },
+      toolbox: chartToolbox(chart, notifications.show),
       animation: false,
-      legend: {
-        top: 40,
-        left: "right",
-      },
-      grid: {
-        left: 30,
-        right: 20,
-        bottom: 20,
-        top: 75,
-        containLabel: true,
-      },
+      legend: CHART_LEGEND,
+      grid: CHART_GRID,
       xAxis,
       yAxis,
       series: chartSeries,
@@ -446,6 +419,8 @@ const ResultChannelPlot = ({
     fits,
     channelNames,
     selectedChannel,
+    chart,
+    notifications.show,
   ]);
 
   const updateChart = useCallback(

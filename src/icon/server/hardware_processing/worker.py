@@ -21,7 +21,10 @@ from icon.server.data_access.models.sqlite.scan_parameter import (
     contains_realtime_parameter,
 )
 from icon.server.data_access.repositories.device_repository import DeviceRepository
-from icon.server.data_access.repositories.job_run_repository import JobRunRepository
+from icon.server.data_access.repositories.job_run_repository import (
+    JobRunRepository,
+    try_update_run_by_id,
+)
 from icon.server.hardware_processing.utils import extract_hardware_error_message
 from icon.server.post_processing.task import PostProcessingTask
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
@@ -245,7 +248,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 self._post_processing_queue.put(post_processing_task)
             except Exception as e:
                 logger.exception("pydase error")
-                JobRunRepository.update_run_by_id(
+                try_update_run_by_id(
                     run_id=task.pre_processing_task.job_run.id,
                     status=JobRunStatus.FAILED,
                     log=extract_hardware_error_message(e),

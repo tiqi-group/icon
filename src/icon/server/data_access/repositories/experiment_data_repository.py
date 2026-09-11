@@ -1,13 +1,15 @@
+import errno
+import itertools
 import json
 import logging
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 import h5py  # type: ignore
 import numpy as np
@@ -32,13 +34,34 @@ from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
-if TYPE_CHECKING:
-    from collections.abc import Sequence
-
 logger = logging.getLogger(__name__)
 
-MOST_RECENT_RESULT_FILES = 10
-"""How many of the newest result files to search when no job is specified."""
+MOST_RECENT_JOB_RUNS = 10
+"""How many of the newest job runs to search when no job is specified."""
+
+_common_hdf5_dataset_params = {
+    "compression": "gzip",
+    "compression_opts": 4,
+}
+
+
+class OSFileLockError(OSError):
+    """Raised when an HDF5 file is locked by another process."""
+
+
+_H5_FILE_OPEN_POLL_INTERVAL = 0.05
+"""Initial wait between attempts to open a locked HDF5 file."""
+
+_H5_FILE_OPEN_MAX_POLL_INTERVAL = 0.5
+"""Cap on the exponential backoff between HDF5 file open attempts."""
+
+_file_locks: dict[str, threading.RLock] = {}
+"""Holding one process-wide lock for each result file, forcing sequential reads per file per process."""
+
+
+def _result_filename(scheduled_time: datetime) -> str:
+    """Return the HDF5 filename for a run scheduled at `scheduled_time`."""
+    return f"{scheduled_time}.h5"
 
 
 def get_filename_by_job_id(job_id: int) -> str:
@@ -50,8 +73,19 @@ def get_filename_by_job_id(job_id: int) -> str:
     Returns:
         Filename derived from the job's scheduled time (e.g., "<iso>.h5").
     """
-    scheduled_time = JobRunRepository.get_scheduled_time_by_job_id(job_id=job_id)
-    return f"{scheduled_time}.h5"
+    return _result_filename(
+        JobRunRepository.get_scheduled_time_by_job_id(job_id=job_id)
+    )
+
+
+def _recent_result_paths(results_dir: Path) -> list[Path]:
+    """Return the newest result files, newest first."""
+    return [
+        results_dir / _result_filename(scheduled_time)
+        for scheduled_time in JobRunRepository.get_recent_scheduled_times(
+            limit=MOST_RECENT_JOB_RUNS
+        )
+    ]
 
 
 def resize_dataset(dataset: h5py.Dataset, next_index: int, axis: int) -> None:
@@ -63,6 +97,47 @@ def resize_dataset(dataset: h5py.Dataset, next_index: int, axis: int) -> None:
         axis: Axis along which to grow.
     """
     dataset.resize(next_index + 1, axis)
+
+
+def _parameter_value_unchanged(
+    dataset: h5py.Dataset,
+    value: str | float | bool,  # noqa: FBT001
+) -> bool:
+    """Return whether `value` equals the dataset's last stored entry."""
+    if dataset.shape[0] == 0:
+        return False
+    last_value = dataset[-1]["value"]
+    if isinstance(value, str):
+        return last_value.decode() == value
+    return last_value == value
+
+
+def _make_parameter_dataset_extensible(
+    parameters_group: h5py.Group, param_id: str
+) -> h5py.Dataset:
+    """Replace a fixed-size parameter dataset with an extensible copy.
+
+    Parameter datasets are created contiguous to save space. On the
+    rare event of a parameter update, it is copied into a new
+    extensible dataset.
+
+    Args:
+        parameters_group: The file's ``parameters`` group.
+        param_id: Name of the dataset to replace.
+
+    Returns:
+        The extensible dataset, holding the entries of the old one.
+    """
+    oldval = cast("h5py.Dataset", parameters_group[param_id])[:]
+    del parameters_group[param_id]
+    dataset = parameters_group.create_dataset(
+        param_id,
+        shape=(len(oldval) + 1,),
+        maxshape=(None,),
+        dtype=oldval.dtype,
+    )
+    dataset[: len(oldval)] = oldval
+    return dataset
 
 
 def write_hardware_instructions_to_dataset(
@@ -87,8 +162,7 @@ def write_hardware_instructions_to_dataset(
         maxshape=(None,),
         chunks=True,
         dtype=hw_instructions_dtype,
-        compression="gzip",
-        compression_opts=9,
+        **_common_hdf5_dataset_params,
     )
 
     index = hw_instructions_dataset.shape[0]
@@ -134,8 +208,7 @@ def write_scan_parameters_and_timestamp_to_dataset(
         maxshape=(None, 1),
         chunks=True,
         dtype=scan_parameter_dtype,
-        compression="gzip",
-        compression_opts=9,
+        **_common_hdf5_dataset_params,
     )
 
     if data_point_index >= number_of_data_points:
@@ -207,10 +280,9 @@ def write_shot_channels_to_datasets(
             key,
             shape=(number_of_data_points, number_of_shots),
             maxshape=(None, number_of_shots),
-            chunks=True,
             dtype=np.float64,
-            compression="gzip",
-            compression_opts=9,
+            chunks=True,
+            **_common_hdf5_dataset_params,
         )
 
         if data_point_index >= number_of_data_points:
@@ -235,12 +307,12 @@ def write_vector_channels_to_datasets(
     vector_group = h5file.require_group("vector_channels")
     for channel_name, vector in vector_channels.items():
         channel_group = vector_group.require_group(channel_name)
-        if str(data_point_index) not in channel_group:
+        # Don't create a dataset for empty vector data.
+        if str(data_point_index) not in channel_group and vector:
             channel_group.create_dataset(
                 str(data_point_index),
                 data=vector,
-                compression="gzip",
-                compression_opts=9,
+                **_common_hdf5_dataset_params,
             )
 
 
@@ -363,23 +435,23 @@ class ExperimentDataRepository:
                 dtype = [("timestamp", "S26"), ("value", get_hdf5_dtype(value))]
 
                 if param_id in parameters_group:
-                    ds: h5py.Dataset = parameters_group[param_id]
-                    if ds.shape[0] > 0:
-                        last_entry = ds[-1]
-                        last_value = last_entry["value"]
-                        if isinstance(value, str):
-                            if last_value.decode() == value:
-                                continue
-                        elif last_value == value:
-                            continue
+                    ds = cast("h5py.Dataset", parameters_group[param_id])
+                    if _parameter_value_unchanged(ds, value):
+                        continue
 
                     index = ds.shape[0]
-                    resize_dataset(ds, next_index=index, axis=0)
+                    if ds.chunks is None:
+                        # ds is fixed-size. Replace it with resizeable copy of itself.
+                        ds = _make_parameter_dataset_extensible(
+                            parameters_group, param_id
+                        )
+                    else:
+                        resize_dataset(ds, next_index=index, axis=0)
                 else:
+                    # create fixed sized dataset which gets replaced with resizeable dataset on demand.
                     ds = parameters_group.create_dataset(
                         param_id,
                         shape=(1,),
-                        maxshape=(None,),
                         dtype=dtype,
                     )
                     index = 0
@@ -407,6 +479,7 @@ class ExperimentDataRepository:
         job_id: int,
         max_transfer_bytes: int = 50_000_000,
         include_hardware_instructions: bool = False,
+        include_all_shots: bool = False,
     ) -> ExperimentData:
         """Load stored data for a job from its HDF5 file.
 
@@ -423,6 +496,9 @@ class ExperimentDataRepository:
                 into ``hardware_instructions``.  Defaults to False — those blobs are
                 large (~27 KB each, one per changed point) and are omitted
                 from the default RPC response.
+            include_all_shots: If True, return the raw shots of every data point.
+                Defaults to False, which returns only the newest data point's
+                shots.
 
         Returns:
             Experiment data payload suitable for the API.
@@ -439,6 +515,7 @@ class ExperimentDataRepository:
                 h5file,
                 max_transfer_bytes,
                 include_hardware_instructions=include_hardware_instructions,
+                include_all_shots=include_all_shots,
             )
 
     @staticmethod
@@ -451,8 +528,8 @@ class ExperimentDataRepository:
 
         Args:
             job_id: Job to read from. Defaults to the most recent job with
-                stored hardware instructions, looking no further back than
-                ``MOST_RECENT_RESULT_FILES`` result files.
+                stored hardware instructions, looking no further back than the
+                ``MOST_RECENT_JOB_RUNS`` most recent runs.
             index: Data point index within the job. Defaults to the last stored
                 entry. Instructions are stored deduplicated (one entry per
                 change), so the entry active at *index* is returned.
@@ -468,11 +545,7 @@ class ExperimentDataRepository:
             except NoResultFound:
                 return None
         else:
-            # Only the newest files are opened: the results directory grows
-            # without bound.
-            paths = sorted(results_dir.glob("*.h5"), reverse=True)[
-                :MOST_RECENT_RESULT_FILES
-            ]
+            paths = _recent_result_paths(results_dir)
 
         for path in paths:
             if not path.is_file():
@@ -543,10 +616,9 @@ def prepare_readout_metadata(
         "scan_parameters",
         shape=(0, 1),
         maxshape=(None, 1),
-        chunks=True,
         dtype=scan_parameter_dtype,
-        compression="gzip",
-        compression_opts=9,
+        chunks=True,
+        **_common_hdf5_dataset_params,
     )
 
     for parameter in parameters:
@@ -631,6 +703,7 @@ def load_experiment_data(
     max_transfer_bytes: int = 50_000_000,
     *,
     include_hardware_instructions: bool = False,
+    include_all_shots: bool = False,
 ) -> ExperimentData:
     """Load stored data for a job from its HDF5 file.
 
@@ -643,7 +716,11 @@ def load_experiment_data(
         h5file: File to load from.
         max_transfer_bytes: Approximate cap on the serialised payload
             size in bytes.  Defaults to 50 MB.
-        include_hardware_instructions: Wether to include hardware instructions
+        include_hardware_instructions: Whether to include hardware instructions.
+        include_all_shots: If True, return the raw shots of every data point.
+            Defaults to False, which returns only the newest data point's
+            shots.
+
     Returns:
         Experiment data payload suitable for the API.
     """
@@ -660,7 +737,7 @@ def load_experiment_data(
     # Estimate bytes per data point from HDF5 metadata
     bytes_per_point = estimate_bytes_per_data_point(
         total,
-        shot_channels_group,
+        shot_channels_group if include_all_shots else None,
         result_channel_dataset,
         vector_channels_group,
         scan_parameters,
@@ -715,11 +792,17 @@ def load_experiment_data(
             PlotWindowMetadata(**d)
             for d in (json.loads(plot_metadata) if plot_metadata else [])
         ]
+        shot_start_index = (
+            start_index if include_all_shots else max(start_index, total - 1)
+        )
         data.readouts.shot_channels = {
-            key: dict(enumerate(value[start_index:].tolist(), start=start_index))  # type: ignore
+            key: dict(
+                enumerate(  # type: ignore[call-overload]
+                    value[shot_start_index:].tolist(), start=shot_start_index
+                )
+            )
             for key, value in cast(
-                "Sequence[tuple[str, h5py.Dataset]]",
-                shot_channels_group.items(),
+                "Sequence[tuple[str, h5py.Dataset]]", shot_channels_group.items()
             )
         }
 
@@ -808,28 +891,138 @@ def get_result_channels_dataset(
         "result_channels",
         shape=(number_of_data_points,),
         maxshape=(None,),
-        chunks=True,
         dtype=result_dtype,
-        compression="gzip",
-        compression_opts=9,
+        chunks=True,
+        **_common_hdf5_dataset_params,
     )
 
 
-POLL_INTERVAL = 0.05
+@contextmanager
+def _in_process_lock(path: Path, timeout: float) -> Generator[None]:
+    """Acquire the process-wide lock guarding `path`.
 
-_HDF5_GLOBAL_LOCK = threading.RLock()
+    The lock is required because libhdf5 produces a segfault under certain
+    sequences of operations on the same file from within one process,
+    see https://github.com/h5py/h5py/issues/2920.
+
+    Args:
+        path: Path of the HDF5 file to guard.
+        timeout: Seconds to wait for the lock.
+
+    Raises:
+        TimeoutError: The lock was not acquired within `timeout`.
+    """
+    lock = _file_locks.setdefault(str(path.resolve()), threading.RLock())
+    if not lock.acquire(timeout=timeout):
+        raise TimeoutError(
+            f"Timed out after {timeout} s waiting for in-process access to {path}."
+        )
+    try:
+        yield
+    finally:
+        lock.release()
+
+
+def _h5_open_with_retry(
+    path: Path, mode: str, *, deadline: float, **kwargs: Any
+) -> h5py.File:
+    """Open `path`, retrying while another process holds the OS file lock.
+
+    Args:
+        path: Path to the HDF5 file.
+        mode: Passed to `h5py.File`.
+        deadline: Bounds the wait to an absolute time (monotonic) in seconds.
+        kwargs: Passed to `h5py.File`.
+
+    Returns:
+        The open `h5py.File`.
+
+    Raises:
+        TimeoutError: The OS file lock was still held at `deadline`.
+        OSError: The file could not be opened for any other reason.
+    """
+    interval = _H5_FILE_OPEN_POLL_INTERVAL
+    for attempt in itertools.count(1):
+        try:
+            h5file = _h5_open_once(path, mode, **kwargs)
+            break
+        except OSFileLockError as exc:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(
+                    f"Timed out waiting for the HDF5 file lock "
+                    f"on {path} (mode {mode!r}, {attempt} attempts)."
+                ) from exc
+            logger.debug(
+                "HDF5 file %s (mode=%s) is locked; retrying in %.2f s.",
+                path,
+                mode,
+                min(interval, remaining),
+            )
+            time.sleep(min(interval, remaining))
+            interval = min(interval * 2, _H5_FILE_OPEN_MAX_POLL_INTERVAL)
+
+    if attempt > 1:
+        logger.info(
+            "Opened HDF5 file %s (mode=%s) after %d attempts.", path, mode, attempt
+        )
+    return h5file
+
+
+def _is_file_lock_error(exc: OSError) -> bool:
+    """Return whether `exc` is HDF5 failing to acquire the OS file lock."""
+    if exc.errno in {errno.EAGAIN, errno.EWOULDBLOCK, errno.EDEADLK}:
+        return True
+    return exc.errno is None and "unable to lock file" in str(exc).lower()
+
+
+def _h5_open_once(path: Path, mode: str, **kwargs: Any) -> h5py.File:
+    try:
+        h5file = h5py.File(str(path), mode, **kwargs)
+    except OSError as exc:
+        if _is_file_lock_error(exc):
+            raise OSFileLockError(
+                f"HDF5 file {path} is locked by another process (mode {mode!r})."
+            ) from exc
+        raise
+    return h5file
 
 
 @contextmanager
-def h5_open(path: Path, mode: str, **kwargs: Any) -> Iterator[h5py.File]:
-    with _HDF5_GLOBAL_LOCK:
-        while True:
-            try:
-                with h5py.File(str(path), mode, **kwargs) as h5file:
-                    yield h5file
-                break
-            except (OSError, FileNotFoundError):
-                time.sleep(POLL_INTERVAL)
+def h5_open(
+    path: Path, mode: str, *, timeout: float | None = None, **kwargs: Any
+) -> Generator[h5py.File]:
+    """Open an HDF5 file under a process-wide per-file lock.
+
+    Opens of the same file are serialised within this process by a per-file
+    lock; different files proceed in parallel. The OS-native HDF5 lock may still
+    be held by another process, in which case the open is retried with a capped
+    backoff. Every other failure is permanent and raised immediately.
+
+    Args:
+        path: Path of the HDF5 file.
+        mode: Mode passed to `h5py.File`.
+        timeout: Seconds to wait in total, for the in-process lock and the file
+            lock together. Defaults to `data.h5_open_timeout_seconds` from the
+            configuration.
+        kwargs: Additional arguments passed to `h5py.File`.
+
+    Yields:
+        The open `h5py.File`.
+
+    Raises:
+        TimeoutError: The file could not be opened within `timeout` due to locking.
+        OSError: The file could not be opened for any other reason.
+    """
+    if timeout is None:
+        timeout = get_config().data.h5_open_timeout_seconds
+    deadline = time.monotonic() + timeout
+
+    with (
+        _in_process_lock(path, timeout=timeout),
+        _h5_open_with_retry(path, mode, deadline=deadline, **kwargs) as h5file,
+    ):
+        yield h5file
 
 
 def _read_fits_from_hdf5(

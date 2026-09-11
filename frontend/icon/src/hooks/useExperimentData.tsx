@@ -143,9 +143,16 @@ export function useExperimentData(jobId: string | undefined) {
     runMethod("data.get_experiment_data_by_job_id", [], { job_id: jobId }, (ack) => {
       if (stale) return;
 
-      const deserialized = deserialize(ack as SerializedObject) as
-        | Error
-        | ExperimentData;
+      const serialized = ack as SerializedObject;
+      // TODO: This is a temporary workaround to avoid stalling the server's event loop
+      //   with the costly serialization of large experiment data.
+      // For now, the controller sends the payload as a JSON string, so parse it directly
+      // instead of walking it with the generic deserializer. Errors still come
+      // back as a serialized exception and go through the deserializer.
+      const deserialized: Error | ExperimentData =
+        serialized.type === "str"
+          ? (JSON.parse(serialized.value) as ExperimentData)
+          : (deserialize(serialized) as Error | ExperimentData);
 
       if (deserialized instanceof Error) {
         console.info("Failed to fetch job run:", deserialized);

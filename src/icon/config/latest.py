@@ -13,6 +13,9 @@ class HealthCheckConfig(BaseModel):
 
 class DataConfiguration(BaseModel):
     results_dir: str = str(Path.cwd() / "output")
+    h5_open_timeout_seconds: float = 30.0
+    """How long to keep retrying an HDF5 result file that is locked by another
+    process before giving up."""
 
 
 class ExperimentLibraryConfig(BaseModel):
