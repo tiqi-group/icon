@@ -1,5 +1,6 @@
 import { GroupsByNamespace } from "../hooks/useParameterDisplayGroups";
 import { Store } from "../stores/parmeterStore";
+import { ParameterMetadata } from "../types/ExperimentMetadata";
 import { ScanParameterInfo } from "../types/ScanParameterInfo";
 
 export interface ScanParameterBounds {
@@ -39,6 +40,23 @@ export const refreshSpanCenterParameters = (
     };
   });
 
+const getScanParameterMetadata = (
+  param: ScanParameterInfo,
+  parameterDisplayGroups: GroupsByNamespace,
+): ParameterMetadata | undefined => {
+  if (
+    !param.namespace ||
+    !param.deviceNameOrDisplayGroup ||
+    param.namespace === "Devices" ||
+    param.namespace === "Real Time"
+  ) {
+    return undefined;
+  }
+  return parameterDisplayGroups[
+    `${param.namespace} (${param.deviceNameOrDisplayGroup})`
+  ]?.[param.id];
+};
+
 /**
  * Looks up the allowed value range of a scan parameter from the display group
  * metadata (as provided by the experiment library).
@@ -53,21 +71,24 @@ export const getScanParameterBounds = (
   param: ScanParameterInfo,
   parameterDisplayGroups: GroupsByNamespace,
 ): ScanParameterBounds => {
-  if (
-    !param.namespace ||
-    !param.deviceNameOrDisplayGroup ||
-    param.namespace === "Devices" ||
-    param.namespace === "Real Time"
-  ) {
-    return { min: null, max: null };
-  }
-  const group =
-    parameterDisplayGroups[`${param.namespace} (${param.deviceNameOrDisplayGroup})`];
-  const metadata = group?.[param.id];
+  const metadata = getScanParameterMetadata(param, parameterDisplayGroups);
   return {
     min: metadata?.min_value ?? null,
     max: metadata?.max_value ?? null,
   };
+};
+
+/** Returns a scan parameter's display name, falling back to its ID. */
+export const getScanParameterDisplayName = (
+  param: ScanParameterInfo,
+  parameterDisplayGroups: GroupsByNamespace,
+): string =>
+  getScanParameterMetadata(param, parameterDisplayGroups)?.display_name ?? param.id;
+
+export const clampToBounds = (value: number, bounds: ScanParameterBounds): number => {
+  if (bounds.min !== null && value < bounds.min) return bounds.min;
+  if (bounds.max !== null && value > bounds.max) return bounds.max;
+  return value;
 };
 
 /**

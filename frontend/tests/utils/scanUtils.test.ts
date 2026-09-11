@@ -4,9 +4,15 @@ import {
   getScanIndex,
   isScannableParameterType,
   refreshSpanCenterParameters,
+  getScanParameterBounds,
+  getScanParameterDisplayName,
+  clampToBounds,
 } from "../../src/utils/scanUtils";
 import { ScanParameterInfo } from "../../src/types/ScanParameterInfo";
-import { ParameterValueType } from "../../src/types/ExperimentMetadata";
+import {
+  ParameterMetadata,
+  ParameterValueType,
+} from "../../src/types/ExperimentMetadata";
 
 describe("scanUtils: makeScannedParamKey", () => {
   it("returns the id unchanged for experiment parameters", () => {
@@ -100,6 +106,53 @@ describe("scanUtils: refreshSpanCenterParameters", () => {
     const parameters = [param("p1", "spanCenter", 10, 20)];
     expect(refreshSpanCenterParameters(parameters, storeOf({}))).toEqual(parameters);
     expect(refreshSpanCenterParameters(parameters, null)).toEqual(parameters);
+  });
+});
+
+describe("scanUtils: getScanParameterBounds / getScanParameterDisplayName", () => {
+  const metadata: ParameterMetadata = {
+    display_name: "pulse time",
+    unit: "us",
+    default_value: 30,
+    min_value: 10,
+    max_value: null,
+  };
+  // Same metadata under device and realtime keys, to check those are never looked up.
+  const groups = {
+    "E (grp)": { p1: metadata },
+    "Devices (grp)": { p1: metadata },
+    "Real Time (grp)": { p1: metadata },
+  };
+  const param = (namespace: string, id = "p1"): ScanParameterInfo => ({
+    id,
+    namespace,
+    deviceNameOrDisplayGroup: "grp",
+    generation: { start: 0, stop: 1, points: 2, pattern: "linear" },
+  });
+
+  it("reads bounds and display name from the parameter's display group", () => {
+    expect(getScanParameterBounds(param("E"), groups)).toEqual({ min: 10, max: null });
+    expect(getScanParameterDisplayName(param("E"), groups)).toBe("pulse time");
+  });
+
+  it("has no bounds and uses the id for unknown, device and realtime parameters", () => {
+    for (const p of [param("E", "unknown"), param("Devices"), param("Real Time")]) {
+      expect(getScanParameterBounds(p, groups)).toEqual({ min: null, max: null });
+      expect(getScanParameterDisplayName(p, groups)).toBe(p.id);
+    }
+  });
+});
+
+describe("scanUtils: clampToBounds", () => {
+  it("clamps out-of-range values to the nearest bound", () => {
+    expect(clampToBounds(8, { min: 10, max: 20 })).toBe(10);
+    expect(clampToBounds(25, { min: 10, max: 20 })).toBe(20);
+    expect(clampToBounds(15, { min: 10, max: 20 })).toBe(15);
+  });
+
+  it("does not clamp against a missing bound", () => {
+    expect(clampToBounds(-1e9, { min: null, max: 20 })).toBe(-1e9);
+    expect(clampToBounds(1e9, { min: 10, max: null })).toBe(1e9);
   });
 });
 

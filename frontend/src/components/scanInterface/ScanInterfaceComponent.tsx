@@ -15,6 +15,7 @@ import { ParameterStoreContext } from "../../contexts/ParameterStoreContext";
 import { useScanContext } from "../../hooks/useScanContext";
 import {
   getScanParameterBounds,
+  getScanParameterDisplayName,
   refreshSpanCenterParameters,
 } from "../../utils/scanUtils";
 import { submitJob } from "../../utils/submitJob";
@@ -120,8 +121,11 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
         parameterBounds,
       );
       if (clampedParamIds.length > 0) {
+        const clampedNames = parametersToSubmit
+          .filter((param) => clampedParamIds.includes(param.id))
+          .map((param) => getScanParameterDisplayName(param, parameterDisplayGroups));
         notifications.show(
-          `Job submitted, but the requested range for ${clampedParamIds.join(", ")} exceeded the parameter's bounds and was clamped.`,
+          `Job submitted, but the requested range for ${clampedNames.join(", ")} exceeded the parameter's bounds and was clamped.`,
           { severity: "warning", autoHideDuration: 8000 },
         );
       } else {

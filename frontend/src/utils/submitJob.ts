@@ -3,7 +3,7 @@ import { runMethod } from "../socket";
 import { SerializedInteger } from "../types/SerializedObject";
 import { ScanPattern } from "../types/ScanParameterInfo";
 import { deserialize } from "./deserializer";
-import { ScanParameterBounds } from "./scanUtils";
+import { ScanParameterBounds, clampToBounds } from "./scanUtils";
 import { openJobWindow } from "./windowUtils";
 
 interface ScanParameterArgument {
@@ -42,12 +42,6 @@ const generateScanValues = (
       return [...base, ...base.reverse()];
     }
   }
-};
-
-const clampToBounds = (value: number, bounds: ScanParameterBounds): number => {
-  if (bounds.min !== null && value < bounds.min) return bounds.min;
-  if (bounds.max !== null && value > bounds.max) return bounds.max;
-  return value;
 };
 
 export const submitJob = (
