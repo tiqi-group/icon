@@ -1,14 +1,15 @@
-from __future__ import annotations
-
 import errno
+import itertools
 import json
 import logging
 import threading
 import time
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 import h5py  # type: ignore
 import numpy as np
@@ -33,25 +34,31 @@ from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
-if TYPE_CHECKING:
-    from collections.abc import Generator, Sequence
-    from datetime import datetime
-
 logger = logging.getLogger(__name__)
 
 MOST_RECENT_JOB_RUNS = 10
 """How many of the newest job runs to search when no job is specified."""
 
-# TODO: Revisit the compression strategy. It matters most for the hardware description but
-#   variable length datatypes are not compressed.
 _common_hdf5_dataset_params = {
     "compression": "gzip",
     "compression_opts": 4,
 }
 
+class OSFileLockError(OSError):
+    """Raised when an HDF5 file is locked by another process."""
+
+_H5_FILE_OPEN_POLL_INTERVAL = 0.05
+"""Initial wait between attempts to open a locked HDF5 file."""
+
+_H5_FILE_OPEN_MAX_POLL_INTERVAL = 0.5
+"""Cap on the exponential backoff between HDF5 file open attempts."""
+
+_file_locks: dict[str, threading.RLock] = {}
+"""Holding one process-wide lock for each result file, forcing sequential reads per file per process."""
+
 
 def _result_filename(scheduled_time: datetime) -> str:
-    """Return the HDF5 filename for a run scheduled at *scheduled_time*."""
+    """Return the HDF5 filename for a run scheduled at `scheduled_time`."""
     return f"{scheduled_time}.h5"
 
 
@@ -98,11 +105,9 @@ def _parameter_value_unchanged(
     if dataset.shape[0] == 0:
         return False
     last_value = dataset[-1]["value"]
-    match value:
-        case str():
-            return last_value.decode() == value
-        case _:
-            return last_value == value
+    if isinstance(value, str):
+        return last_value.decode() == value
+    return last_value == value
 
 
 def _make_parameter_dataset_extensible(
@@ -891,26 +896,33 @@ def get_result_channels_dataset(
     )
 
 
-POLL_INTERVAL = 0.05
-MAX_POLL_INTERVAL = 0.5
+@contextmanager
+def _in_process_lock(path: Path, timeout: float) -> Generator[None]:
+    """Acquire the process-wide lock guarding `path`.
 
-_file_locks: dict[str, threading.RLock] = {}
-"""Holding one process-wide lock for each result file, forcing sequential reads per files per process."""
+    The lock is required because libhdf5 produces a segfault under certain
+    sequences of operations on the same file from within one process,
+    see https://github.com/h5py/h5py/issues/2920.
+
+    Args:
+        path: Path of the HDF5 file to guard.
+        timeout: Seconds to wait for the lock.
+
+    Raises:
+        TimeoutError: The lock was not acquired within `timeout`.
+    """
+    lock = _file_locks.setdefault(str(path.resolve()), threading.RLock())
+    if not lock.acquire(timeout=timeout):
+        raise TimeoutError(
+            f"Timed out after {timeout} s waiting for in-process access to {path}."
+        )
+    try:
+        yield
+    finally:
+        lock.release()
 
 
-def _is_file_lock_error(exc: OSError) -> bool:
-    """Return whether `exc` is HDF5 failing to acquire the OS file lock."""
-    if exc.errno in {errno.EAGAIN, errno.EWOULDBLOCK, errno.EDEADLK}:
-        return True
-    return exc.errno is None and "unable to lock file" in str(exc).lower()
-
-
-def _lock_for(path: Path) -> threading.RLock:
-    """Return the lock guarding `path`, creating it on first use."""
-    return _file_locks.setdefault(str(path.resolve()), threading.RLock())
-
-
-def _open_when_unlocked(
+def _h5_open_with_retry(
     path: Path, mode: str, *, deadline: float, **kwargs: Any
 ) -> h5py.File:
     """Open `path`, retrying while another process holds the OS file lock.
@@ -918,18 +930,22 @@ def _open_when_unlocked(
     Args:
         path: Path to the HDF5 file.
         mode: Passed to `h5py.File`.
-        deadline: bounds the wait to an absolute time (monotonic) in seconds.
-        kwargs: passed to `h5py.File`.
+        deadline: Bounds the wait to an absolute time (monotonic) in seconds.
+        kwargs: Passed to `h5py.File`.
+
+    Returns:
+        The open `h5py.File`.
+
+    Raises:
+        TimeoutError: The OS file lock was still held at `deadline`.
+        OSError: The file could not be opened for any other reason.
     """
-    interval = POLL_INTERVAL
-    attempt = 0
-    while True:
-        attempt += 1
+    interval = _H5_FILE_OPEN_POLL_INTERVAL
+    for attempt in itertools.count(1):
         try:
-            h5file = h5py.File(str(path), mode, **kwargs)
-        except OSError as exc:
-            if not _is_file_lock_error(exc):
-                raise
+            h5file = _h5_open_once(path, mode, **kwargs)
+            break
+        except OSFileLockError as exc:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError(
@@ -943,16 +959,32 @@ def _open_when_unlocked(
                 min(interval, remaining),
             )
             time.sleep(min(interval, remaining))
-            interval = min(interval * 2, MAX_POLL_INTERVAL)
-        else:
-            if attempt > 1:
-                logger.info(
-                    "Opened HDF5 file %s (mode=%s) after %d attempts.",
-                    path,
-                    mode,
-                    attempt,
-                )
-            return h5file
+            interval = min(interval * 2, _H5_FILE_OPEN_MAX_POLL_INTERVAL)
+
+    if attempt > 1:
+        logger.info(
+            "Opened HDF5 file %s (mode=%s) after %d attempts.", path, mode, attempt
+        )
+    return h5file
+
+
+def _is_file_lock_error(exc: OSError) -> bool:
+    """Return whether `exc` is HDF5 failing to acquire the OS file lock."""
+    if exc.errno in {errno.EAGAIN, errno.EWOULDBLOCK, errno.EDEADLK}:
+        return True
+    return exc.errno is None and "unable to lock file" in str(exc).lower()
+
+
+def _h5_open_once(path: Path, mode: str, **kwargs: Any) -> h5py.File:
+    try:
+        h5file = h5py.File(str(path), mode, **kwargs)
+    except OSError as exc:
+        if _is_file_lock_error(exc):
+            raise OSFileLockError(
+                f"HDF5 file {path} is locked by another process (mode {mode!r})."
+            ) from exc
+        raise
+    return h5file
 
 
 @contextmanager
@@ -966,10 +998,6 @@ def h5_open(
     be held by another process, in which case the open is retried with a capped
     backoff. Every other failure is permanent and raised immediately.
 
-    The per-file lock is required because libhdf5 produces a segfault under certain
-    sequence of operations on the same file from within the same process,
-    see https://github.com/h5py/h5py/issues/2920.
-
     Args:
         path: Path of the HDF5 file.
         mode: Mode passed to `h5py.File`.
@@ -982,24 +1010,18 @@ def h5_open(
         The open `h5py.File`.
 
     Raises:
-        TimeoutError: The file could not be opened within `timeout`.
+        TimeoutError: The file could not be opened within `timeout` due to locking.
         OSError: The file could not be opened for any other reason.
     """
     if timeout is None:
         timeout = get_config().data.h5_open_timeout_seconds
     deadline = time.monotonic() + timeout
 
-    file_lock = _lock_for(path)
-    if not file_lock.acquire(timeout=timeout):
-        raise TimeoutError(
-            f"Timed out after {timeout} s waiting for in-process access to {path} "
-            f"(mode {mode!r})."
-        )
-    try:
-        with _open_when_unlocked(path, mode, deadline=deadline, **kwargs) as h5file:
-            yield h5file
-    finally:
-        file_lock.release()
+    with (
+        _in_process_lock(path, timeout=timeout),
+        _h5_open_with_retry(path, mode, deadline=deadline, **kwargs) as h5file,
+    ):
+        yield h5file
 
 
 def _read_fits_from_hdf5(
