@@ -289,14 +289,19 @@ class SchedulerController(pydase.DataService):
             statuses=[JobStatus.PROCESSED], before_id=before_id, limit=limit
         )
 
-    def get_active_jobs(self) -> list[JobListItemDict]:
-        """Return every job that is queued or currently running, newest first.
+    def get_active_jobs(
+        self, *, limit: int = JOB_LIST_PAGE_SIZE
+    ) -> list[JobListItemDict]:
+        """Return the queued and currently running jobs, newest first.
+
+        Args:
+            limit: Maximum number of jobs to return.
 
         Returns:
             List of job-list entries ordered by descending job ID.
         """
         return JobRepository.get_job_list(
-            statuses=[JobStatus.PROCESSING, JobStatus.SUBMITTED]
+            statuses=[JobStatus.PROCESSING, JobStatus.SUBMITTED], limit=limit
         )
 
     def get_job_by_id(self, *, job_id: int) -> Job:
