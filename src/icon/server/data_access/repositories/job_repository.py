@@ -256,12 +256,11 @@ class JobRepository:
                 return []
 
             job_ids = [row.id for row in rows]
-            lowest, highest = min(job_ids), max(job_ids)
 
             scan_parameter_counts: dict[int, int] = dict(
                 session.execute(
                     select(ScanParameter.job_id, func.count(ScanParameter.id))
-                    .where(ScanParameter.job_id.between(lowest, highest))
+                    .where(ScanParameter.job_id.in_(job_ids))
                     .group_by(ScanParameter.job_id)
                 ).all()  # type: ignore[arg-type]
             )
@@ -270,7 +269,7 @@ class JobRepository:
                 run.job_id: (run.id, run.status)
                 for run in session.execute(
                     select(JobRun.job_id, JobRun.id, JobRun.status)
-                    .where(JobRun.job_id.between(lowest, highest))
+                    .where(JobRun.job_id.in_(job_ids))
                     .order_by(JobRun.scheduled_time.asc())
                 ).all()
             }
