@@ -580,6 +580,7 @@ export const JobView = ({
                       experimentData={experimentData}
                       channelNames={win.channel_names}
                       scanParameters={jobInfo?.scan_parameters}
+                      windowSize={is2D ? null : windowSize}
                     />
                   ) : (
                     <ResultChannelPlot

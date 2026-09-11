@@ -7,11 +7,13 @@ import {
   TableHead,
   TableRow,
   Paper,
+  Typography,
 } from "@mui/material";
 import { ExperimentData } from "../../types/ExperimentData";
 import { ScanParameter } from "../../types/ScanParameter";
 
 const TIMESTAMP_KEY = "timestamp";
+const MAX_ROWS = 200;
 
 function formatCell(value: number | boolean | string | undefined): string {
   if (value === undefined) return "—";
@@ -35,10 +37,12 @@ export const ResultChannelTable = ({
   experimentData,
   channelNames,
   scanParameters,
+  windowSize = null,
 }: {
   experimentData: ExperimentData;
   channelNames: string[];
   scanParameters?: ScanParameter[];
+  windowSize?: number | null;
 }) => {
   // Human-readable label for a scan-parameter key, falling back to the raw key.
   const scanParamLabel = useMemo(() => {
@@ -60,7 +64,7 @@ export const ResultChannelTable = ({
   }, [experimentData.scan_parameters]);
 
   // Row indices: union of data-point indices present across this window's channels.
-  const rowIndices = useMemo(() => {
+  const allIndices = useMemo(() => {
     const indices = new Set<number>();
     for (const channel of channelNames) {
       const channelData = experimentData.readouts.result_channels?.[channel];
@@ -72,46 +76,58 @@ export const ResultChannelTable = ({
     return Array.from(indices).sort((a, b) => a - b);
   }, [experimentData.readouts.result_channels, channelNames]);
 
+  // Only render the most recent rows, like the plot does for its window size.
+  const rowIndices = allIndices.slice(-Math.min(windowSize ?? MAX_ROWS, MAX_ROWS));
+
   return (
-    <TableContainer component={Paper} sx={{ maxHeight: 400, overflow: "auto" }}>
-      <Table stickyHeader size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>#</TableCell>
-            {scanParamKeys.map((key) => (
-              <TableCell key={`param-${key}`}>
-                {key === TIMESTAMP_KEY ? "timestamp" : (scanParamLabel[key] ?? key)}
-              </TableCell>
-            ))}
-            {channelNames.map((channel) => (
-              <TableCell key={`channel-${channel}`} align="right">
-                {channel}
-              </TableCell>
-            ))}
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {rowIndices.map((idx) => {
-            const key = String(idx);
-            return (
-              <TableRow key={idx}>
-                <TableCell>{idx}</TableCell>
-                {scanParamKeys.map((paramKey) => (
-                  <TableCell key={`param-${paramKey}`}>
-                    {formatCell(experimentData.scan_parameters[paramKey]?.[key])}
-                  </TableCell>
-                ))}
-                {channelNames.map((channel) => (
-                  <TableCell key={`channel-${channel}`} align="right">
-                    {formatCell(experimentData.readouts.result_channels[channel]?.[key])}
-                  </TableCell>
-                ))}
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </TableContainer>
+    <>
+      <TableContainer component={Paper} sx={{ maxHeight: 400, overflow: "auto" }}>
+        <Table stickyHeader size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>#</TableCell>
+              {scanParamKeys.map((key) => (
+                <TableCell key={`param-${key}`}>
+                  {key === TIMESTAMP_KEY ? "timestamp" : (scanParamLabel[key] ?? key)}
+                </TableCell>
+              ))}
+              {channelNames.map((channel) => (
+                <TableCell key={`channel-${channel}`} align="right">
+                  {channel}
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {rowIndices.map((idx) => {
+              const key = String(idx);
+              return (
+                <TableRow key={idx}>
+                  <TableCell>{idx}</TableCell>
+                  {scanParamKeys.map((paramKey) => (
+                    <TableCell key={`param-${paramKey}`}>
+                      {formatCell(experimentData.scan_parameters[paramKey]?.[key])}
+                    </TableCell>
+                  ))}
+                  {channelNames.map((channel) => (
+                    <TableCell key={`channel-${channel}`} align="right">
+                      {formatCell(
+                        experimentData.readouts.result_channels[channel]?.[key],
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
+      {rowIndices.length < allIndices.length && (
+        <Typography variant="caption" color="text.secondary">
+          Showing last {rowIndices.length} of {allIndices.length} rows
+        </Typography>
+      )}
+    </>
   );
 };
 
