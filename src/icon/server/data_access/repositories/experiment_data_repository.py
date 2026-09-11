@@ -44,8 +44,10 @@ _common_hdf5_dataset_params = {
     "compression_opts": 4,
 }
 
+
 class OSFileLockError(OSError):
     """Raised when an HDF5 file is locked by another process."""
+
 
 _H5_FILE_OPEN_POLL_INTERVAL = 0.05
 """Initial wait between attempts to open a locked HDF5 file."""
@@ -111,7 +113,7 @@ def _parameter_value_unchanged(
 
 
 def _make_parameter_dataset_extensible(
-    parameters_group: h5py.Group, param_id: str, dtype: Any
+    parameters_group: h5py.Group, param_id: str
 ) -> h5py.Dataset:
     """Replace a fixed-size parameter dataset with an extensible copy.
 
@@ -122,7 +124,6 @@ def _make_parameter_dataset_extensible(
     Args:
         parameters_group: The file's ``parameters`` group.
         param_id: Name of the dataset to replace.
-        dtype: Dtype for the replacement dataset.
 
     Returns:
         The extensible dataset, holding the entries of the old one.
@@ -133,7 +134,7 @@ def _make_parameter_dataset_extensible(
         param_id,
         shape=(len(oldval) + 1,),
         maxshape=(None,),
-        dtype=dtype,
+        dtype=oldval.dtype,
     )
     dataset[: len(oldval)] = oldval
     return dataset
@@ -442,7 +443,7 @@ class ExperimentDataRepository:
                     if ds.chunks is None:
                         # ds is fixed-size. Replace it with resizeable copy of itself.
                         ds = _make_parameter_dataset_extensible(
-                            parameters_group, param_id, dtype
+                            parameters_group, param_id
                         )
                     else:
                         resize_dataset(ds, next_index=index, axis=0)
