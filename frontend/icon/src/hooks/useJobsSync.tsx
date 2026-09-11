@@ -111,8 +111,14 @@ export function useJobsSync(): JobsState {
       dispatch({ type: "SET_JOB_RUN", payload: data.job_run });
     const onJobRunUpdate = (data: JobRunUpdate) =>
       dispatch({ type: "UPDATE_JOB_RUN", payload: data });
+    // Reset response pending state on disconnect
+    const onDisconnect = () => {
+      requestInFlight.current = false;
+      setLoadingMore(false);
+    };
 
     socket.on("connect", loadJobs);
+    socket.on("disconnect", onDisconnect);
     socket.on("job.new", onNewJob);
     socket.on("job.update", onJobUpdate);
     socket.on("job_run.new", onNewJobRun);
@@ -120,6 +126,7 @@ export function useJobsSync(): JobsState {
 
     return () => {
       socket.off("connect", loadJobs);
+      socket.off("disconnect", onDisconnect);
       socket.off("job.new", onNewJob);
       socket.off("job.update", onJobUpdate);
       socket.off("job_run.new", onNewJobRun);
