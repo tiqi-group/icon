@@ -144,8 +144,9 @@ export function useExperimentData(jobId: string | undefined) {
       if (stale) return;
 
       const serialized = ack as SerializedObject;
-      // TODO: This is a temporary workaround to avoid stalling the server's event loop
-      //   with the costly serialization of large experiment data.
+      // TODO(abeitler): This is a temporary workaround to avoid stalling the server's
+      //   event loop with the costly serialization of large experiment data.
+      //   see: #179
       // For now, the controller sends the payload as a JSON string, so parse it directly
       // instead of walking it with the generic deserializer. Errors still come
       // back as a serialized exception and go through the deserializer.
