@@ -1,9 +1,16 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
+import sqlalchemy
+import sqlalchemy.orm
 
 from icon.server.api.scheduler_controller import SchedulerController
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
+from icon.server.data_access.models.sqlite import (
+    Job,
+    JobRun,
+)
+from tests.server.conftest import SeedJob
 
 
 @pytest.fixture
@@ -14,11 +21,23 @@ def controller() -> SchedulerController:
     )
 
 
-def _mock_job_run(status: JobRunStatus, run_id: int = 42) -> MagicMock:
-    run = MagicMock()
-    run.id = run_id
-    run.status = status
-    return run
+def _run_status(engine: sqlalchemy.engine.Engine, run_id: int) -> JobRunStatus:
+    with sqlalchemy.orm.Session(engine) as session:
+        run = session.get(JobRun, run_id)
+        assert run is not None
+        return run.status
+
+
+def _job_status(engine: sqlalchemy.engine.Engine, job_id: int) -> JobStatus:
+    with sqlalchemy.orm.Session(engine) as session:
+        job = session.get(Job, job_id)
+        assert job is not None
+        return job.status
+
+
+# The status guard lives in the UPDATE statement rather than in an `if` in the
+# controller, so these run against the real repositories: a mocked repository
+# would accept `only_if_status` and ignore it, leaving nothing to assert.
 
 
 @pytest.mark.parametrize(
@@ -32,26 +51,20 @@ def _mock_job_run(status: JobRunStatus, run_id: int = 42) -> MagicMock:
         (JobRunStatus.FAILED, False),
     ],
 )
-@patch("icon.server.api.scheduler_controller.JobRunRepository")
 def test_pause_job_guards_by_status(
-    mock_job_run_repo: MagicMock,
     run_status: JobRunStatus,
     *,
     should_update: bool,
     controller: SchedulerController,
+    database: sqlalchemy.engine.Engine,
+    seed_job: SeedJob,
 ) -> None:
-    mock_job_run_repo.get_run_by_job_id.return_value = _mock_job_run(run_status)
+    job_id, run_id = seed_job(job_status=JobStatus.PROCESSING, run_status=run_status)
 
-    controller.pause_job(job_id=1)
+    controller.pause_job(job_id=job_id)
 
-    if should_update:
-        mock_job_run_repo.update_run_by_id.assert_called_once_with(
-            run_id=42,
-            status=JobRunStatus.PAUSED,
-            log="Paused through user interaction.",
-        )
-    else:
-        mock_job_run_repo.update_run_by_id.assert_not_called()
+    expected = JobRunStatus.PAUSED if should_update else run_status
+    assert _run_status(database, run_id) == expected
 
 
 @pytest.mark.parametrize(
@@ -65,25 +78,20 @@ def test_pause_job_guards_by_status(
         (JobRunStatus.FAILED, False),
     ],
 )
-@patch("icon.server.api.scheduler_controller.JobRunRepository")
 def test_resume_job_guards_by_status(
-    mock_job_run_repo: MagicMock,
     run_status: JobRunStatus,
     *,
     should_update: bool,
     controller: SchedulerController,
+    database: sqlalchemy.engine.Engine,
+    seed_job: SeedJob,
 ) -> None:
-    mock_job_run_repo.get_run_by_job_id.return_value = _mock_job_run(run_status)
+    job_id, run_id = seed_job(job_status=JobStatus.PROCESSING, run_status=run_status)
 
-    controller.resume_job(job_id=1)
+    controller.resume_job(job_id=job_id)
 
-    if should_update:
-        mock_job_run_repo.update_run_by_id.assert_called_once_with(
-            run_id=42,
-            status=JobRunStatus.PROCESSING,
-        )
-    else:
-        mock_job_run_repo.update_run_by_id.assert_not_called()
+    expected = JobRunStatus.PROCESSING if should_update else run_status
+    assert _run_status(database, run_id) == expected
 
 
 @pytest.mark.parametrize(
@@ -97,28 +105,61 @@ def test_resume_job_guards_by_status(
         (JobRunStatus.FAILED, False),
     ],
 )
-@patch("icon.server.api.scheduler_controller.JobRepository")
-@patch("icon.server.api.scheduler_controller.JobRunRepository")
-def test_cancel_job_cancels_paused_runs(
-    mock_job_run_repo: MagicMock,
-    mock_job_repo: MagicMock,
+def test_cancel_job_guards_by_run_status(
     run_status: JobRunStatus,
     *,
     should_cancel: bool,
     controller: SchedulerController,
+    database: sqlalchemy.engine.Engine,
+    seed_job: SeedJob,
 ) -> None:
-    mock_job = MagicMock()
-    mock_job.status = JobStatus.PROCESSING
-    mock_job_repo.get_job_by_id.return_value = mock_job
-    mock_job_run_repo.get_run_by_job_id.return_value = _mock_job_run(run_status)
+    job_id, run_id = seed_job(job_status=JobStatus.PROCESSING, run_status=run_status)
 
-    controller.cancel_job(job_id=1)
+    controller.cancel_job(job_id=job_id)
 
-    if should_cancel:
-        mock_job_run_repo.update_run_by_id.assert_called_once_with(
-            run_id=42,
-            status=JobRunStatus.CANCELLED,
-            log="Cancelled through user interaction.",
-        )
-    else:
-        mock_job_run_repo.update_run_by_id.assert_not_called()
+    expected = JobRunStatus.CANCELLED if should_cancel else run_status
+    assert _run_status(database, run_id) == expected
+    # The job itself is retired either way: it is no longer active.
+    assert _job_status(database, job_id) == JobStatus.PROCESSED
+
+
+@pytest.mark.parametrize(
+    ("job_status", "should_cancel"),
+    [
+        (JobStatus.SUBMITTED, True),
+        (JobStatus.PROCESSING, True),
+        (JobStatus.PROCESSED, False),
+    ],
+)
+def test_cancel_job_leaves_finished_jobs_alone(
+    job_status: JobStatus,
+    *,
+    should_cancel: bool,
+    controller: SchedulerController,
+    database: sqlalchemy.engine.Engine,
+    seed_job: SeedJob,
+) -> None:
+    """The job-level branch is the controller's own; only the run guard moved."""
+    job_id, run_id = seed_job(job_status=job_status, run_status=JobRunStatus.PROCESSING)
+
+    controller.cancel_job(job_id=job_id)
+
+    expected = JobRunStatus.CANCELLED if should_cancel else JobRunStatus.PROCESSING
+    assert _run_status(database, run_id) == expected
+
+
+def test_cancel_job_records_the_reason(
+    controller: SchedulerController,
+    database: sqlalchemy.engine.Engine,
+    seed_job: SeedJob,
+) -> None:
+    job_id, run_id = seed_job(
+        job_status=JobStatus.PROCESSING, run_status=JobRunStatus.PROCESSING
+    )
+
+    controller.cancel_job(job_id=job_id)
+
+    with sqlalchemy.orm.Session(database) as session:
+        run = session.get(JobRun, run_id)
+        assert run is not None
+        assert run.log == "Cancelled through user interaction."

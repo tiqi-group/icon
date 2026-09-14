@@ -4,18 +4,43 @@ from collections.abc import Sequence
 
 import pytz
 import sqlalchemy.orm
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from icon.config.config import get_config
 from icon.server.data_access.db_context.sqlite import engine
-from icon.server.data_access.models.enums import JobStatus
+from icon.server.data_access.job_list_item import JobListItemDict
+from icon.server.data_access.models.enums import JobRunStatus, JobStatus
+from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
 from icon.server.data_access.models.sqlite.job import Job
+from icon.server.data_access.models.sqlite.job_run import JobRun
+from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 logger = logging.getLogger(__name__)
 
 timezone = pytz.timezone(get_config().date.timezone)
+
+
+def _job_list_item(
+    *,
+    job_id: int,
+    created: datetime.datetime,
+    status: JobStatus,
+    experiment_id: str,
+    num_scan_parameters: int,
+    run: tuple[int, JobRunStatus] | None,
+) -> JobListItemDict:
+    """Build a job list item from raw column values."""
+    return {
+        "id": job_id,
+        "created": SQLAlchemyDictEncoder.encode(created),
+        "status": status.value,
+        "experiment_id": experiment_id,
+        "num_scan_parameters": num_scan_parameters,
+        "run_id": run[0] if run is not None else None,
+        "run_status": run[1].value if run is not None else None,
+    }
 
 
 class JobRepository:
@@ -185,6 +210,81 @@ class JobRepository:
                 stmt = stmt.where(Job.created < stop)
 
             return session.execute(stmt).unique().scalars().all()
+
+    @staticmethod
+    def get_job_list(
+        *,
+        statuses: Sequence[JobStatus] | None = None,
+        before_id: int | None = None,
+        limit: int | None = None,
+    ) -> list[JobListItemDict]:
+        """List jobs as lightweight `JobListItemDict` items.
+
+        Pagination is cursor-based on `Job.id`.
+
+        Args:
+            statuses: Optional status filter; jobs matching any of the given
+                statuses are returned.
+            before_id: Exclusive upper bound on the job ID; pass the lowest ID of
+                the previous page to fetch the next one.
+            limit: Maximum number of jobs to return.
+
+        Returns:
+            Job list entries ordered by descending job ID.
+        """
+        stmt = (
+            select(
+                Job.id,
+                Job.created,
+                Job.status,
+                ExperimentSource.experiment_id,
+            )
+            .join(ExperimentSource, Job.experiment_source_id == ExperimentSource.id)
+            .order_by(Job.id.desc())
+        )
+
+        if statuses is not None:
+            stmt = stmt.where(Job.status.in_(statuses))
+        if before_id is not None:
+            stmt = stmt.where(Job.id < before_id)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+
+        with sqlalchemy.orm.Session(engine) as session:
+            rows = session.execute(stmt).all()
+            if not rows:
+                return []
+
+            job_ids = [row.id for row in rows]
+
+            scan_parameter_counts: dict[int, int] = dict(
+                session.execute(
+                    select(ScanParameter.job_id, func.count(ScanParameter.id))
+                    .where(ScanParameter.job_id.in_(job_ids))
+                    .group_by(ScanParameter.job_id)
+                ).all()  # type: ignore[arg-type]
+            )
+
+            latest_runs: dict[int, tuple[int, JobRunStatus]] = {
+                run.job_id: (run.id, run.status)
+                for run in session.execute(
+                    select(JobRun.job_id, JobRun.id, JobRun.status)
+                    .where(JobRun.job_id.in_(job_ids))
+                    .order_by(JobRun.scheduled_time.asc())
+                ).all()
+            }
+
+        return [
+            _job_list_item(
+                job_id=row.id,
+                created=row.created,
+                status=row.status,
+                experiment_id=row.experiment_id,
+                num_scan_parameters=scan_parameter_counts.get(row.id, 0),
+                run=latest_runs.get(row.id),
+            )
+            for row in rows
+        ]
 
     @staticmethod
     def get_job_by_id(
