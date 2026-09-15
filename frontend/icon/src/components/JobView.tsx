@@ -47,6 +47,12 @@ const plotCardHeaderStyle: React.CSSProperties = {
   minHeight: 30,
 };
 
+function changedByStepper(
+  event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+): boolean {
+  return !(event.nativeEvent as InputEvent).inputType;
+}
+
 function getPlotTitle(scheduledTime?: string, experimentName?: string): string {
   if (!scheduledTime) return experimentName || "";
   const baseTime = scheduledTime.split("+")[0].replace("T", " ");
@@ -397,7 +403,7 @@ export const JobView = ({
                     const val = e.target.value;
                     if (val === "") {
                       setWindowSize(null);
-                    } else if (windowSize === null) {
+                    } else if (windowSize === null && changedByStepper(e)) {
                       setWindowSize(dataLength > 0 ? dataLength : 1);
                     } else {
                       const num = Number(val);
@@ -424,7 +430,7 @@ export const JobView = ({
                     const val = e.target.value;
                     if (val === "") {
                       setYMin(null);
-                    } else if (yMin === null) {
+                    } else if (yMin === null && changedByStepper(e)) {
                       setYMin(Math.floor(autoYBounds.min));
                     } else {
                       setYMin(Number(val));
@@ -448,7 +454,7 @@ export const JobView = ({
                     const val = e.target.value;
                     if (val === "") {
                       setYMax(null);
-                    } else if (yMax === null) {
+                    } else if (yMax === null && changedByStepper(e)) {
                       setYMax(Math.ceil(autoYBounds.max));
                     } else {
                       setYMax(Number(val));
