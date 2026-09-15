@@ -1,4 +1,5 @@
 import asyncio
+import json
 from dataclasses import asdict
 from typing import Any
 
@@ -28,7 +29,8 @@ class ExperimentDataController(pydase.DataService):
         max_transfer_bytes: int = 50_000_000,
         *,
         include_hardware_instructions: bool = False,
-    ) -> dict[str, Any]:
+        include_all_shots: bool = False,
+    ) -> str:
         """Return experiment data for a given job.
 
         Args:
@@ -42,10 +44,14 @@ class ExperimentDataController(pydase.DataService):
                 because those strings dominate the payload for large scans
                 (~tens of MB) and are not needed for plotting/fitting; live
                 updates still carry ``hardware_instructions`` per data point.
+            include_all_shots: If True, include the raw shots of every data
+                point.  Defaults to False, which returns only the newest data
+                point's shots because one array per point per channel dominates
+                the payload; live updates still carry the shots of each new
+                data point.
 
         Returns:
-            The experiment data linked to the job as a dict resulting
-            from serializing an
+            The experiment data linked to the job as a JSON string representing an
             [ExperimentData][icon.server.data_access.repositories.experiment_data_repository.ExperimentData]
             instance.
         """
@@ -54,8 +60,11 @@ class ExperimentDataController(pydase.DataService):
             job_id=job_id,
             max_transfer_bytes=max_transfer_bytes,
             include_hardware_instructions=include_hardware_instructions,
+            include_all_shots=include_all_shots,
         )
-        return asdict(result)
+        # TODO: workaround for avoiding the costly serialization which stalls the event loop for large objects.
+        #   Packing as JSON string makes it opaque to the serializer.
+        return json.dumps(asdict(result))
 
     async def get_hardware_instructions(
         self,
