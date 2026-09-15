@@ -217,20 +217,18 @@ export const JobView = ({
         `resultChannelsState_${jobInfo.experiment_source_id}`,
       );
 
-      if (storedShotChannelsState) {
-        setExpandedShotChannels(JSON.parse(storedShotChannelsState));
-      }
+      setExpandedShotChannels(
+        storedShotChannelsState ? JSON.parse(storedShotChannelsState) : {},
+      );
 
-      if (storedResultChannelsState) {
-        setExpandedResultChannels(JSON.parse(storedResultChannelsState));
-      }
+      setExpandedResultChannels(
+        storedResultChannelsState ? JSON.parse(storedResultChannelsState) : {},
+      );
 
       const storedResultViewMode = localStorage.getItem(
         `resultViewMode_${jobInfo.experiment_source_id}`,
       );
-      if (storedResultViewMode) {
-        setResultViewMode(JSON.parse(storedResultViewMode));
-      }
+      setResultViewMode(storedResultViewMode ? JSON.parse(storedResultViewMode) : {});
 
       const storedWindowSize = localStorage.getItem(
         `windowSize_${jobInfo.experiment_source_id}`,
