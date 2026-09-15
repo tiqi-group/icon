@@ -91,8 +91,9 @@ export const ResultChannelTable = ({
     return Array.from(indices).sort((a, b) => a - b);
   }, [experimentData.readouts.result_channels, channelNames]);
 
-  // Only render the most recent rows, like the plot does for its window size.
-  const rowIndices = allIndices.slice(-Math.min(windowSize ?? MAX_ROWS, MAX_ROWS));
+  const rowIndices = allIndices
+    .slice(-Math.min(windowSize ?? MAX_ROWS, MAX_ROWS))
+    .reverse();
 
   const timestamps = experimentData.scan_parameters[TIMESTAMP_KEY];
   const formatTimestamp = hasDayBreak(
