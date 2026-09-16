@@ -1,6 +1,7 @@
 data:
   results_dir: /home/mose/work/repositories/icon_github/output
 databases:
+  backend: influxdbv1
   influxdbv1:
     database: testing
     headers: {}
@@ -11,6 +12,13 @@ databases:
     ssl: false
     username: tester
     verify_ssl: false
+  influxdbv2:
+    bucket: testing
+    measurement: Experiment Parameters
+    org: ''
+    token: ''
+    url: http://localhost:8086
+    verify_ssl: true
 date:
   timezone: Europe/Zurich
   set_value_timeout_seconds: 300
