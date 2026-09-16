@@ -12,6 +12,8 @@ import {
 import { useNotifications } from "@toolpad/core";
 import { useScanContext } from "../../hooks/useScanContext";
 import { submitJob } from "../../utils/submitJob";
+import { scanValueCount } from "../../utils/scanUtils";
+import { ScanMode } from "../../types/enums";
 import ScanParameterTable from "./ScanParameterTable";
 
 interface ScanInterfaceProps {
@@ -24,6 +26,12 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
 
   const isContinuousScan = scanInfoState.parameters.every(
     (p) => p.namespace === "Real Time" && p.n_scan_points === 0,
+  );
+
+  // Realtime parameters are scanned as an outer loop, so the scan mode only governs
+  // how the remaining ("stepped") parameters are combined.
+  const steppedParameters = scanInfoState.parameters.filter(
+    (p) => p.namespace !== "Real Time",
   );
 
   useEffect(() => {
@@ -82,6 +90,19 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
         valid = false;
         break;
       }
+    }
+
+    // A correlated scan steps through all parameters at once, so they must supply the
+    // same number of scan values.
+    if (
+      valid &&
+      scanInfoState.scanMode === ScanMode.CORRELATED &&
+      new Set(steppedParameters.map((p) => scanValueCount(p.generation))).size > 1
+    ) {
+      newErrors.parameters =
+        "A correlated scan requires the same number of scan values for every scan " +
+        "parameter";
+      valid = false;
     }
 
     setErrors(newErrors);
@@ -178,6 +199,24 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
             }}
           />
         </Tooltip>
+
+        <FormControl size="small">
+          <InputLabel>Scan Mode</InputLabel>
+          <Select
+            label="Scan Mode"
+            size="small"
+            value={scanInfoState.scanMode}
+            onChange={(e) =>
+              dispatchScanInfoStateUpdate({
+                type: "SET_SCAN_MODE",
+                payload: e.target.value as ScanMode,
+              })
+            }
+          >
+            <MenuItem value={ScanMode.MESH}>Mesh Scan</MenuItem>
+            <MenuItem value={ScanMode.CORRELATED}>Correlated Scan</MenuItem>
+          </Select>
+        </FormControl>
 
         {errors.parameters && (
           <div style={{ color: "var(--mui-palette-error-main)", fontSize: "0.875rem" }}>
