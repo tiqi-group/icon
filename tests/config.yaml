@@ -21,6 +21,7 @@ databases:
     verify_ssl: true
 date:
   timezone: Europe/Zurich
+devices:
   set_value_timeout_seconds: 300
 experiment_library:
   client_args:
