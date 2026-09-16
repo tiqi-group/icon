@@ -1,4 +1,5 @@
 import importlib
+import inspect
 import logging
 import tempfile
 from collections.abc import Iterator
@@ -131,6 +132,143 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             n_shots,
             LOG_LEVEL,
         )
+
+    @staticmethod
+    def run_experiment_post_processing(
+        *,
+        exp_module_name: str,
+        exp_instance_name: str,
+        parameter_dict: "dict[str, DatabaseValueType]",
+        result_channels: dict[str, float],
+        post_processing_output: list[float],
+        shot_channels: dict[str, list[int]] | None = None,
+    ) -> dict[str, Any]:
+        """Run an experiment's optional ``post_processing`` method.
+
+        The experiment's parameters are backed by a LocalCache initialised from
+        `parameter_dict`; any values the experiment writes back (e.g. servo
+        feedback via ``Parameter.set_value``) are collected by diffing the cache
+        afterwards. Result channels the experiment adds or modifies in
+        `result_channels` (e.g. a servo's tracked value) are collected the same
+        way and returned under "updated_result_channels".
+
+        After ``post_processing``, the experiment's optional
+        ``termination_condition(result_channels)`` is evaluated on the same
+        instance; if it returns True the caller is asked to stop the job via
+        the "terminate" key.
+
+        Args:
+            exp_module_name: Module name of the experiment.
+            exp_instance_name: Name of the experiment instance.
+            parameter_dict: Mapping of parameter IDs to values.
+            result_channels: Result channel values of the processed data point.
+            post_processing_output: Post-processing state returned by the
+                previous call for this job (empty list on the first call).
+                Only passed on to ``post_processing`` if that method actually
+                accepts it -- see below.
+            shot_channels: Per-shot counts of the processed data point. Only
+                passed on to ``post_processing`` if that method declares a
+                ``shot_channels`` parameter -- see below. Needed by experiments
+                that derive result channels from individual shots (e.g. sorting
+                one detection's shots by another detection's outcome), which the
+                averaged/summed `result_channels` cannot express.
+
+        Returns:
+            Dictionary with keys:
+            - "has_post_processing": whether the experiment defines any
+              per-data-point processing (``post_processing`` and/or
+              ``termination_condition``).
+            - "updated_parameters": parameter IDs/values changed by the method.
+            - "updated_result_channels": result channels added or modified by
+              the method.
+            - "post_processing_output": state to pass into the next call.
+            - "db_upload_interval": database upload interval in seconds, or
+              None if the experiment does not define the parameter.
+            - "terminate": whether the experiment's ``termination_condition``
+              requested the job to be stopped.
+        """
+        import pycrystal.database.local_cache  # noqa: PLC0415
+        import pycrystal.parameters  # noqa: PLC0415
+        from ionpulse_sequence_generator import Units  # noqa: PLC0415
+        from pycrystal.utils.helpers import import_experiment_instance  # noqa: PLC0415
+
+        cache_dict: dict[str, DatabaseValueType] = dict(parameter_dict)
+        pycrystal.parameters.Parameter.db = pycrystal.database.local_cache.LocalCache(
+            key_val_dict=cache_dict,
+        )
+
+        exp_instance = import_experiment_instance(exp_module_name, exp_instance_name)
+
+        has_post_processing = hasattr(exp_instance, "post_processing")
+        has_termination_condition = hasattr(exp_instance, "termination_condition")
+
+        if not has_post_processing and not has_termination_condition:
+            return {
+                "has_post_processing": False,
+                "updated_parameters": {},
+                "updated_result_channels": {},
+                "post_processing_output": post_processing_output,
+                "db_upload_interval": None,
+                "terminate": False,
+            }
+
+        original_result_channels = dict(result_channels)
+
+        if has_post_processing:
+            # Optional arguments are passed by keyword only to experiments that
+            # name them, and are not counted towards the positional arguments
+            # below, so adding one here cannot change how existing
+            # post_processing methods are called.
+            post_processing_signature = inspect.signature(exp_instance.post_processing)
+            keyword_args: dict[str, Any] = {}
+            if "shot_channels" in post_processing_signature.parameters:
+                keyword_args["shot_channels"] = shot_channels or {}
+
+            positional_parameters = [
+                name
+                for name in post_processing_signature.parameters
+                if name not in keyword_args
+            ]
+            if len(positional_parameters) >= 2:  # noqa: PLR2004
+                post_processing_output = exp_instance.post_processing(
+                    result_channels, post_processing_output, **keyword_args
+                )
+            else:
+                post_processing_output = exp_instance.post_processing(
+                    result_channels, **keyword_args
+                )
+
+        terminate = False
+        if has_termination_condition:
+            terminate = bool(exp_instance.termination_condition(result_channels))
+
+        updated_parameters = {
+            key: value
+            for key, value in cache_dict.items()
+            if key not in parameter_dict or parameter_dict[key] != value
+        }
+
+        updated_result_channels = {
+            key: value
+            for key, value in result_channels.items()
+            if key not in original_result_channels
+            or original_result_channels[key] != value
+        }
+
+        db_upload_interval: float | None = None
+        if hasattr(exp_instance, "db_upload_interval"):
+            # Convert explicitly so the interval is independent of the
+            # parameter's display unit.
+            db_upload_interval = float(exp_instance.db_upload_interval().value(Units.s))
+
+        return {
+            "has_post_processing": True,
+            "updated_parameters": updated_parameters,
+            "updated_result_channels": updated_result_channels,
+            "post_processing_output": list(post_processing_output or []),
+            "db_upload_interval": db_upload_interval,
+            "terminate": terminate,
+        }
 
     @staticmethod
     def get_experiment_readout_metadata(
