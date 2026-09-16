@@ -1,4 +1,4 @@
-import { JobStatus } from "./enums";
+import { JobStatus, ScanMode } from "./enums";
 import { ExperimentSource } from "./ExperimentSource";
 import { ScanParameter } from "./ScanParameter";
 
@@ -14,6 +14,7 @@ export interface Job {
   parent_job_id?: number | null;
   priority: number;
   repetitions: number;
+  scan_mode: ScanMode;
   scan_parameters: ScanParameter[];
   status: JobStatus;
 }

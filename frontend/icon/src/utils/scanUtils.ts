@@ -1,3 +1,58 @@
+import { ScanParameterGenerationSpec } from "../types/ScanParameterGenerationSpec";
+import { ScanPattern } from "../types/ScanParameterInfo";
+
+/**
+ * Generates the scan values a parameter is stepped through, in scan order.
+ *
+ * @param start - First value of the range.
+ * @param stop - Last value of the range.
+ * @param points - Number of points the range is divided into.
+ * @param pattern - Order in which the range is walked.
+ * @returns The scan values in the order they are scanned.
+ */
+export const generateScanValues = (
+  start: number,
+  stop: number,
+  points: number,
+  pattern: ScanPattern,
+) => {
+  const linspace = (n: number) =>
+    Array.from({ length: n }, (_, i) => start + (i * (stop - start)) / (n - 1));
+
+  switch (pattern) {
+    case "linear":
+      return linspace(points);
+    case "scatter":
+      return linspace(points).sort(() => Math.random() - 0.5);
+    case "centred": {
+      const base = linspace(points);
+      const mid = Math.floor((points - 1) / 2);
+      const order = [mid];
+      for (let k = 1; order.length < points; k++) {
+        if (mid - k >= 0) order.push(mid - k);
+        if (mid + k < points) order.push(mid + k);
+      }
+      return order.map((i) => base[i]);
+    }
+    case "forwardReverse": {
+      const base = linspace(points);
+      return [...base, ...base.reverse()];
+    }
+  }
+};
+
+/**
+ * Number of scan values `generateScanValues` produces for a generation spec.
+ *
+ * The forward-and-reverse pattern walks the range twice, so it yields twice as many
+ * values as `points`; every other pattern yields exactly `points` values.
+ *
+ * @param generation - The generation spec of a scan parameter.
+ * @returns The number of values the parameter is scanned over.
+ */
+export const scanValueCount = (generation: ScanParameterGenerationSpec): number =>
+  generation.pattern === "forwardReverse" ? generation.points * 2 : generation.points;
+
 /**
  * Constructs a unique key for identifying a scanned parameter.
  *

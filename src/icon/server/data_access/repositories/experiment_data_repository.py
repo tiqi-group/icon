@@ -361,6 +361,7 @@ class ExperimentDataRepository:
                 local_parameter_timestamp=local_parameter_timestamp,
                 parameters=parameters or [],
             )
+            h5file.attrs["scan_mode"] = job.scan_mode.value
 
         metadata_key_remap = {
             "readout_channel_windows": "result_channels",
