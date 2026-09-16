@@ -23,7 +23,7 @@ server = [
     "scipy>=1.14.0",
     "sqlalchemy>=2.0.36",
     "tables>=3.10.1",
-    "h5py>=3.12.1",
+    "h5py>=3.16.0",
     "psutil>=7.0.0",
     "tqdm>=4.66.0",
 ]
