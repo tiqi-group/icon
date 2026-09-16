@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from icon.server.api.models.experiment_dict import ExperimentMetadata
+from icon.server.data_access.models.enums import ScanMode
 from icon.server.data_access.models.sqlite.now import now
 
 if TYPE_CHECKING:
@@ -367,6 +368,7 @@ class ExperimentProxy:
         local_parameters_timestamp: datetime | None = None,
         git_commit_hash: str | None = None,
         auto_calibration: bool = False,
+        scan_mode: ScanMode | str = ScanMode.MESH,
     ) -> ExperimentJobProxy:
         """Schedule an experiment scan.
 
@@ -394,6 +396,13 @@ class ExperimentProxy:
             auto_calibration:
                 Defines whether the parameter fits defined by the experiment should be
                 applied automatically.
+            scan_mode:
+                How multiple scan parameters are combined into data points.
+                `ScanMode.MESH` (default) scans the cartesian product of all scan
+                parameters, yielding one data point per combination.
+                `ScanMode.CORRELATED` steps through all scan parameters
+                simultaneously, yielding a one-dimensional list of data points. It
+                requires every scan parameter to define the same number of values.
 
         Returns:
             ExperimentJobProxy: Proxy object for the scheduled experiment job.
@@ -426,6 +435,7 @@ class ExperimentProxy:
                 "number_of_shots": number_of_shots,
                 "git_commit_hash": git_commit_hash,
                 "auto_calibration": auto_calibration,
+                "scan_mode": ScanMode(scan_mode).value,
             },
         )
         return ExperimentJobProxy(client=self._client, job_id=job_id)

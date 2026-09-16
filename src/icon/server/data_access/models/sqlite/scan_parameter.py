@@ -121,3 +121,27 @@ def receive_before_insert(
 
 def contains_realtime_parameter(params: list[ScanParameter]) -> bool:
     return any(sp.realtime for sp in params)
+
+
+def validate_correlated_scan_values(params: list[ScanParameter]) -> None:
+    """Ensures all scan parameters of a correlated scan define the same number of values.
+
+    Realtime parameters are ignored: they are not stepped through together with the
+    other scan parameters.
+
+    Args:
+        params: The scan parameters of a correlated scan.
+
+    Raises:
+        ValueError: If the parameters do not all define the same number of scan values.
+    """
+    stepped_params = [param for param in params if not param.realtime]
+    lengths = {len(param.scan_values) for param in stepped_params}
+    if len(lengths) > 1:
+        details = ", ".join(
+            f"{param.name!r} ({len(param.scan_values)})" for param in stepped_params
+        )
+        raise ValueError(
+            "A correlated scan requires the same number of scan values for every scan "
+            f"parameter, got: {details}"
+        )

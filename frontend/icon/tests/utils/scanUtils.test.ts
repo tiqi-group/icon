@@ -3,7 +3,10 @@ import {
   extractScannedParamId,
   getScanIndex,
   isScannableParameterType,
+  generateScanValues,
+  scanValueCount,
 } from "../../src/utils/scanUtils";
+import { ScanParameterGenerationSpec } from "../../src/types/ScanParameterGenerationSpec";
 
 describe("scanUtils: makeScannedParamKey", () => {
   it("returns the id unchanged for experiment parameters", () => {
@@ -72,5 +75,36 @@ describe("scanUtils: isScannableParameterType", () => {
   it("accepts numeric/other parameter types", () => {
     expect(isScannableParameterType("p param_type='ParameterTypes.FLOAT'")).toBe(true);
     expect(isScannableParameterType("plain_param_id")).toBe(true);
+  });
+});
+
+const generationSpec = (
+  overrides: Partial<ScanParameterGenerationSpec> = {},
+): ScanParameterGenerationSpec => ({
+  start: 0,
+  stop: 1,
+  points: 5,
+  pattern: "linear",
+  ...overrides,
+});
+
+describe("scanUtils: scanValueCount", () => {
+  it("returns the number of points for patterns that walk the range once", () => {
+    for (const pattern of ["linear", "scatter", "centred"] as const) {
+      expect(scanValueCount(generationSpec({ pattern }))).toBe(5);
+    }
+  });
+
+  it("doubles the count for the forward-and-reverse pattern", () => {
+    expect(scanValueCount(generationSpec({ pattern: "forwardReverse" }))).toBe(10);
+  });
+
+  it("matches the number of values generateScanValues actually produces", () => {
+    for (const pattern of ["linear", "scatter", "centred", "forwardReverse"] as const) {
+      const spec = generationSpec({ pattern });
+      expect(
+        generateScanValues(spec.start, spec.stop, spec.points, spec.pattern),
+      ).toHaveLength(scanValueCount(spec));
+    }
   });
 });

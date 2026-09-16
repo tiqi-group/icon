@@ -4,6 +4,7 @@ import {
   defaultParameter,
   ScanInfoState,
 } from "../../src/hooks/useScanInfoState";
+import { ScanMode } from "../../src/types/enums";
 
 class LocalStorageMock {
   store: Record<string, string> = {};
@@ -85,6 +86,20 @@ describe("useScanInfoState reducer", () => {
     const saved = JSON.parse(store.getItem(STORAGE_KEY) as string);
     expect(saved.history.selectionTree.lastKey).toEqual(TEST_NAMESPACE);
     expect(Object.keys(saved.history.selectionTree.children)).toContain(TEST_NAMESPACE);
+  });
+
+  it("defaults to a mesh scan", () => {
+    expect(baseState().scanMode).toBe(ScanMode.MESH);
+  });
+
+  it("SET_SCAN_MODE updates scanMode and persists it", () => {
+    const next = run(baseState(), {
+      type: "SET_SCAN_MODE",
+      payload: ScanMode.CORRELATED,
+    });
+    expect(next.scanMode).toBe(ScanMode.CORRELATED);
+    const saved = JSON.parse(store.getItem(STORAGE_KEY) as string);
+    expect(saved.scanMode).toBe(ScanMode.CORRELATED);
   });
 
   it("persists the new state to localStorage", () => {
