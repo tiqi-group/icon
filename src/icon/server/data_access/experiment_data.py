@@ -135,6 +135,22 @@ class ParameterValue:
 
 
 @dataclass
+class DeviceSnapshot:
+    """Full state of a connected device at the time of a measurement."""
+
+    name: str
+    """Device name (as registered in the devices table)."""
+    url: str
+    """pydase service URL of the device."""
+    timestamp: str
+    """Snapshot timestamp (ISO string)."""
+    state: dict[str, Any] | None
+    """Raw pydase ``SerializedObject`` tree for the device, or None if unreachable."""
+    error: str | None = None
+    """Error message if the device state could not be fetched."""
+
+
+@dataclass
 class ExperimentData:
     """Container for all experiment data returned to the API."""
 
