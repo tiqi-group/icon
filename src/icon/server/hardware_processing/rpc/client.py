@@ -8,6 +8,7 @@ NOTIFICATION := [2, method: str, params]
 from __future__ import annotations
 
 import logging
+import math
 import reprlib
 import time
 from collections import deque
@@ -16,6 +17,9 @@ from enum import IntEnum
 from typing import Any, Final
 
 from icon.server.hardware_processing.rpc.connection import (
+    DEFAULT_KEEPALIVE_COUNT,
+    DEFAULT_KEEPALIVE_IDLE,
+    DEFAULT_KEEPALIVE_INTERVAL,
     Connection,
     FramedConnection,
     MsgPackRecord,
@@ -110,6 +114,7 @@ class MsgPackRPCClient:
         framed: bool = True,
         lock_timeout: float = DEFAULT_LOCK_ACQUSITION_TIME,
         notification_buffer: int = DEFAULT_NOTIFICATION_BUFFER,
+        dead_peer_timeout: float | None = None,
     ) -> None:
         self._timeout = timeout
         self._msgid = 0
@@ -119,8 +124,27 @@ class MsgPackRPCClient:
         )
         self._dropped = 0
 
+        # ``dead_peer_timeout``: how long the peer may stay completely silent (no
+        # ACKs, no keepalive replies) before the kernel declares the connection dead.
+        # The connection's default budget is 25 s, shorter than one data point of a
+        # long experiment: the RFSoC firmware runs a data point inside its TCP receive
+        # callback and does not service its network stack until the point is done.
+        connection_kwargs: dict[str, Any] = {}
+        if dead_peer_timeout is not None:
+            connection_kwargs["user_timeout"] = dead_peer_timeout
+            connection_kwargs["keepalive_count"] = max(
+                DEFAULT_KEEPALIVE_COUNT,
+                math.ceil(
+                    (dead_peer_timeout - DEFAULT_KEEPALIVE_IDLE)
+                    / DEFAULT_KEEPALIVE_INTERVAL
+                ),
+            )
         self._connection = (FramedConnection if framed else Connection)(
-            hostname, port, timeout=timeout, lock_timeout=lock_timeout
+            hostname,
+            port,
+            timeout=timeout,
+            lock_timeout=lock_timeout,
+            **connection_kwargs,
         )
 
     def __repr__(self) -> str:

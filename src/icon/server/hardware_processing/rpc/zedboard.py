@@ -51,8 +51,15 @@ class Zedboard:
         port: int = 6007,
         timeout: float | None = 5,
     ) -> None:
+        # A data point is one RPC call during which the firmware answers no TCP at
+        # all, so the connection must tolerate silence for as long as a call may take
+        # (long points, recrystallisation restarts).
         self._client = MsgPackRPCClient(
-            hostname=hostname, port=port, timeout=timeout, framed=True
+            hostname=hostname,
+            port=port,
+            timeout=timeout,
+            framed=True,
+            dead_peer_timeout=timeout,
         )
 
     def __repr__(self) -> str:
