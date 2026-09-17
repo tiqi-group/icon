@@ -78,9 +78,9 @@ class VirtualEnvironment:
                 raise RuntimeError("Venv subprocess timed out after 60 s") from None
 
             if logger is not None:
-                if stdout:
+                if stdout.strip():
                     logger.warning(stdout.decode())
-                if stderr:
+                if stderr.strip():
                     logger.error(stderr.decode())
 
             if proc.returncode != 0:
