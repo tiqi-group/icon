@@ -32,7 +32,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger("experiment_library")
 logging.getLogger("pycrystal").setLevel(logging.ERROR)
 logging.getLogger("ionpulse_sequence_generator").setLevel(logging.ERROR)
-LOG_LEVEL = logging.INFO
+# Debug level written into the sequence JSON header; the RFSoC firmware acts on it.
+# At INFO (20) the firmware echoes every readout event of every shot and every
+# system_features token (including the ~10 kB recrystallisation program) to its
+# serial console, which costs ~0.6 s + ~1.7 s per data point. Use INFO/DEBUG only when
+# debugging the firmware over serial. Only 10/20/30/40 are valid: the firmware maps
+# the level with an exact-match switch and silences its own log for anything else.
+LOG_LEVEL = logging.WARNING
 
 
 class AsyncPyCrystalClient(VEnvExperimentLibraryClient):
