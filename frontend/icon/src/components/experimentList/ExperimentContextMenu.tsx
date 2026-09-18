@@ -24,8 +24,9 @@ export const ExperimentContextMenu = ({
   onAssign,
   onNewGroup,
 }: ExperimentContextMenuProps) => {
+  const experimentIds = menu?.experimentIds ?? [];
   const currentGroups = new Set(
-    (menu?.experimentIds ?? []).map((id) => assignments[id] ?? DEFAULT_GROUP),
+    experimentIds.map((id) => assignments[id] ?? DEFAULT_GROUP),
   );
   // A group that already holds all of the experiments is not offered
   const isCurrent = (group: string) =>
@@ -36,10 +37,21 @@ export const ExperimentContextMenu = ({
     <Menu
       open={menu !== null}
       onClose={onClose}
+      // A right click while the menu is open closes it instead of showing the browser menu
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
       anchorReference="anchorPosition"
       anchorPosition={menu ? { top: menu.mouseY, left: menu.mouseX } : undefined}
       transitionDuration={0}
     >
+      {experimentIds.length > 1 && (
+        <ListSubheader sx={{ lineHeight: "32px" }}>
+          {experimentIds.length} experiments
+        </ListSubheader>
+      )}
+      {experimentIds.length > 1 && <Divider />}
       {targetGroups.length > 0 && (
         <ListSubheader sx={{ lineHeight: "32px" }}>Add to group</ListSubheader>
       )}

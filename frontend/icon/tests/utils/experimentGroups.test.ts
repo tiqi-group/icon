@@ -5,6 +5,7 @@ import {
   ExperimentGroupsState,
   assignToGroup,
   emptyExperimentGroupsState,
+  getExperimentRange,
   groupExperiments,
   parseExperimentGroupsState,
   removeGroup,
@@ -173,5 +174,27 @@ describe("experimentGroups: parseExperimentGroupsState", () => {
     expect(parseExperimentGroupsState('{"assignments":[]}')).toEqual(
       emptyExperimentGroupsState,
     );
+  });
+});
+
+describe("experimentGroups: getExperimentRange", () => {
+  const ids = [id("a"), id("b"), id("c"), id("d")];
+
+  it("includes both ends in either direction", () => {
+    expect(getExperimentRange(ids, id("b"), id("d"))).toEqual([
+      id("b"),
+      id("c"),
+      id("d"),
+    ]);
+    expect(getExperimentRange(ids, id("d"), id("b"))).toEqual([
+      id("b"),
+      id("c"),
+      id("d"),
+    ]);
+  });
+
+  it("falls back to the target if the start is not in the list", () => {
+    expect(getExperimentRange(ids, id("gone"), id("c"))).toEqual([id("c")]);
+    expect(getExperimentRange(ids, "", id("c"))).toEqual([id("c")]);
   });
 });

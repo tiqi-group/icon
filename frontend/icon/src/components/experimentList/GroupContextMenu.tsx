@@ -22,6 +22,11 @@ export const GroupContextMenu = ({
   <Menu
     open={menu !== null}
     onClose={onClose}
+    // A right click while the menu is open closes it instead of showing the browser menu
+    onContextMenu={(event) => {
+      event.preventDefault();
+      onClose();
+    }}
     anchorReference="anchorPosition"
     anchorPosition={menu ? { top: menu.mouseY, left: menu.mouseX } : undefined}
     transitionDuration={0}

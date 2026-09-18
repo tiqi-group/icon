@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, MouseEvent, useMemo, useRef, useState } from "react";
 import {
   Collapse,
   List,
@@ -22,6 +22,7 @@ import {
   DEFAULT_GROUP_LABEL,
   ExperimentGroup,
   assignToGroup,
+  getExperimentRange,
   groupExperiments,
   removeGroup,
   renameGroup,
@@ -49,6 +50,10 @@ export const ExperimentList = ({
   );
   const [groupMenu, setGroupMenu] = useState<GroupMenuState | null>(null);
   const [renamingGroup, setRenamingGroup] = useState<string | null>(null);
+  // Experiments marked with ctrl or shift click as the target of the context menu
+  const [marked, setMarked] = useState<string[]>([]);
+  // Start of the range marked by a shift click
+  const anchor = useRef<string | null>(null);
 
   const groups = useMemo(
     () => groupExperiments(Object.keys(experiments), groupsState.assignments),
@@ -60,20 +65,65 @@ export const ExperimentList = ({
   // The default group gets no heading if it is the only group
   const hasGroups = groupNames.length > 0;
 
+  const visibleIds = groups
+    .filter((group) => !hasGroups || !groupsState.collapsed.includes(group.name))
+    .flatMap((group) => group.experimentIds);
+  // Only marks that are visible count
+  const markedIds = visibleIds.filter((id) => marked.includes(id));
+
+  const handleExperimentClick = (event: MouseEvent, experimentId: string) => {
+    if (event.shiftKey) {
+      setMarked(
+        getExperimentRange(
+          visibleIds,
+          anchor.current ?? selectedExperiment,
+          experimentId,
+        ),
+      );
+      return;
+    }
+    anchor.current = experimentId;
+    if (event.ctrlKey || event.metaKey) {
+      setMarked((prev) =>
+        prev.includes(experimentId)
+          ? prev.filter((id) => id !== experimentId)
+          : [...prev, experimentId],
+      );
+      return;
+    }
+    setMarked([]);
+    onSelect(experimentId);
+  };
+
+  const handleExperimentContextMenu = (event: MouseEvent, experimentId: string) => {
+    event.preventDefault();
+    const isMarked = markedIds.includes(experimentId);
+    if (!isMarked) setMarked([]);
+    setExperimentMenu({
+      mouseX: event.clientX,
+      mouseY: event.clientY,
+      experimentIds: isMarked ? markedIds : [experimentId],
+    });
+  };
+
   const renderExperiment = (experimentId: string) => (
     <ListItemButton
       key={experimentId}
       selected={selectedExperiment === experimentId}
-      onClick={() => onSelect(experimentId)}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        setExperimentMenu({
-          mouseX: event.clientX,
-          mouseY: event.clientY,
-          experimentIds: [experimentId],
-        });
+      onClick={(event) => handleExperimentClick(event, experimentId)}
+      onContextMenu={(event) => handleExperimentContextMenu(event, experimentId)}
+      // Keep a shift click from selecting text
+      onMouseDown={(event) => {
+        if (event.shiftKey) event.preventDefault();
       }}
-      sx={hasGroups ? { pl: 5.5 } : undefined}
+      sx={{
+        ...(hasGroups && { pl: 5.5 }),
+        ...(markedIds.includes(experimentId) && {
+          bgcolor: "action.selected",
+          "&:hover": { bgcolor: "action.selected" },
+          boxShadow: "inset 3px 0 0 var(--mui-palette-primary-main)",
+        }),
+      }}
     >
       <ListItemText
         primary={getExperimentNameFromExperimentId(experimentId)}
@@ -150,6 +200,7 @@ export const ExperimentList = ({
           const experimentIds = experimentMenu?.experimentIds ?? [];
           updateGroups((state) => assignToGroup(state, experimentIds, group));
           setExperimentMenu(null);
+          setMarked([]);
         }}
         onNewGroup={() => {
           setNewGroupExperimentIds(experimentMenu?.experimentIds ?? []);
@@ -165,6 +216,7 @@ export const ExperimentList = ({
           onSubmit={(name) => {
             updateGroups((state) => assignToGroup(state, newGroupExperimentIds, name));
             setNewGroupExperimentIds(null);
+            setMarked([]);
           }}
         />
       )}

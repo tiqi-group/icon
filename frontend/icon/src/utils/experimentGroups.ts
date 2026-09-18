@@ -171,3 +171,12 @@ export function toggleCollapsed(
       : [...state.collapsed, group],
   };
 }
+
+/** Returns the IDs from one ID to the other, both included, in the order of the list. */
+export function getExperimentRange(ids: string[], from: string, to: string): string[] {
+  const start = ids.indexOf(from);
+  const end = ids.indexOf(to);
+  if (end === -1) return [];
+  if (start === -1) return [to];
+  return ids.slice(Math.min(start, end), Math.max(start, end) + 1);
+}
