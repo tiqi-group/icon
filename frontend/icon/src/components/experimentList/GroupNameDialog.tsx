@@ -11,6 +11,7 @@ import { validateGroupName } from "../../utils/experimentGroups";
 
 interface GroupNameDialogProps {
   title: string;
+  submitLabel: string;
   initialName?: string;
   /** Names of the other groups. */
   existingNames: string[];
@@ -20,6 +21,7 @@ interface GroupNameDialogProps {
 
 export const GroupNameDialog = ({
   title,
+  submitLabel,
   initialName = "",
   existingNames,
   onClose,
@@ -44,7 +46,6 @@ export const GroupNameDialog = ({
           <TextField
             autoFocus
             fullWidth
-            size="small"
             margin="dense"
             label="Name"
             value={name}
@@ -57,7 +58,7 @@ export const GroupNameDialog = ({
         <DialogActions>
           <Button onClick={onClose}>Cancel</Button>
           <Button type="submit" disabled={error !== null || !changed}>
-            OK
+            {submitLabel}
           </Button>
         </DialogActions>
       </form>

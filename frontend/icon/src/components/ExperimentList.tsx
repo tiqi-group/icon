@@ -14,6 +14,7 @@ import {
   ExperimentContextMenu,
   ExperimentMenuState,
 } from "./experimentList/ExperimentContextMenu";
+import { GroupContextMenu, GroupMenuState } from "./experimentList/GroupContextMenu";
 import { GroupNameDialog } from "./experimentList/GroupNameDialog";
 import { getExperimentNameFromExperimentId } from "../utils/experimentUtils";
 import {
@@ -22,6 +23,8 @@ import {
   ExperimentGroup,
   assignToGroup,
   groupExperiments,
+  removeGroup,
+  renameGroup,
   toggleCollapsed,
 } from "../utils/experimentGroups";
 
@@ -44,15 +47,17 @@ export const ExperimentList = ({
   const [newGroupExperimentIds, setNewGroupExperimentIds] = useState<string[] | null>(
     null,
   );
+  const [groupMenu, setGroupMenu] = useState<GroupMenuState | null>(null);
+  const [renamingGroup, setRenamingGroup] = useState<string | null>(null);
 
   const groups = useMemo(
     () => groupExperiments(Object.keys(experiments), groupsState.assignments),
     [experiments, groupsState.assignments],
   );
-  // The default group gets no heading if it is the only group
   const groupNames = groups
     .map((group) => group.name)
     .filter((name) => name !== DEFAULT_GROUP);
+  // The default group gets no heading if it is the only group
   const hasGroups = groupNames.length > 0;
 
   const renderExperiment = (experimentId: string) => (
@@ -83,6 +88,18 @@ export const ExperimentList = ({
       <Fragment key={group.name}>
         <ListItemButton
           onClick={() => updateGroups((state) => toggleCollapsed(state, group.name))}
+          onContextMenu={
+            group.name === DEFAULT_GROUP
+              ? undefined
+              : (event) => {
+                  event.preventDefault();
+                  setGroupMenu({
+                    mouseX: event.clientX,
+                    mouseY: event.clientY,
+                    group: group.name,
+                  });
+                }
+          }
         >
           <ListItemIcon sx={{ minWidth: 28 }}>
             {collapsed ? (
@@ -142,11 +159,38 @@ export const ExperimentList = ({
       {newGroupExperimentIds && (
         <GroupNameDialog
           title="New group"
+          submitLabel="Create"
           existingNames={groupNames}
           onClose={() => setNewGroupExperimentIds(null)}
           onSubmit={(name) => {
             updateGroups((state) => assignToGroup(state, newGroupExperimentIds, name));
             setNewGroupExperimentIds(null);
+          }}
+        />
+      )}
+      <GroupContextMenu
+        menu={groupMenu}
+        onClose={() => setGroupMenu(null)}
+        onRename={() => {
+          setRenamingGroup(groupMenu?.group ?? null);
+          setGroupMenu(null);
+        }}
+        onRemove={() => {
+          const group = groupMenu?.group;
+          if (group !== undefined) updateGroups((state) => removeGroup(state, group));
+          setGroupMenu(null);
+        }}
+      />
+      {renamingGroup !== null && (
+        <GroupNameDialog
+          title="Rename group"
+          submitLabel="Rename"
+          initialName={renamingGroup}
+          existingNames={groupNames.filter((name) => name !== renamingGroup)}
+          onClose={() => setRenamingGroup(null)}
+          onSubmit={(name) => {
+            updateGroups((state) => renameGroup(state, renamingGroup, name));
+            setRenamingGroup(null);
           }}
         />
       )}
