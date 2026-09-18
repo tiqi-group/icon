@@ -40,21 +40,27 @@ logger = logging.getLogger(__name__)
 MOST_RECENT_JOB_RUNS = 10
 """How many of the newest job runs to search when no job is specified."""
 
+
 class _Hdf5DatasetCommonParams(TypedDict):
     """Common parameters for HDF5 Datasets."""
+
     compression: str
     compression_opts: int
+
 
 _common_hdf5_dataset_params: _Hdf5DatasetCommonParams = {
     "compression": "gzip",
     "compression_opts": 4,
 }
 
+
 class _Hdf5FileCreateParams(TypedDict):
     """HDF5 file properties, which h5py only accepts at creation."""
+
     fs_strategy: str
     fs_persist: bool
     fs_page_size: int
+
 
 _hdf5_file_create_params: _Hdf5FileCreateParams = {
     "fs_strategy": "page",
@@ -62,13 +68,16 @@ _hdf5_file_create_params: _Hdf5FileCreateParams = {
     "fs_page_size": 65536,
 }
 
+
 class HDF5FileMode(StrEnum):
     """HDF5 File modes - see https://docs.h5py.org/en/stable/high/file.html#opening-creating-files."""
-    READ_ONLY = "r"               # Read-only, file must exist (default)
-    READ_WRITE_OR_FAIL = "r+"     # Read/write, fail if not exists
-    READ_WRITE_OR_CREATE = "a"    # Read/write if exists, create otherwise
-    CREATE_OR_FAIL = "w-"         # Create file, fail if exists
-    CREATE_OR_TRUNCATE = "w"      # Create file, truncate if exists
+
+    READ_ONLY = "r"  # Read-only, file must exist (default)
+    READ_WRITE_OR_FAIL = "r+"  # Read/write, fail if not exists
+    READ_WRITE_OR_CREATE = "a"  # Read/write if exists, create otherwise
+    CREATE_OR_FAIL = "w-"  # Create file, fail if exists
+    CREATE_OR_TRUNCATE = "w"  # Create file, truncate if exists
+
 
 class OSFileLockError(OSError):
     """Raised when an HDF5 file is locked by another process."""
@@ -352,10 +361,7 @@ class ExperimentDataRepository:
     """
 
     @staticmethod
-    def initialize_for_job_id(
-        *,
-        job_id: int
-    ) -> None:
+    def initialize_for_job_id(*, job_id: int) -> None:
         """Create the file.
 
         Args:
@@ -365,7 +371,6 @@ class ExperimentDataRepository:
         h5_path = Path(get_config().data.results_dir) / filename
         with h5_open(h5_path, HDF5FileMode.CREATE_OR_FAIL, **_hdf5_file_create_params):
             pass
-
 
     @staticmethod
     def update_metadata_by_job_id(
