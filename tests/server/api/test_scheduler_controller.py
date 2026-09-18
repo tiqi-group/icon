@@ -7,7 +7,6 @@ from icon.server.api.models.parameter_metadata import ParameterMetadata
 from icon.server.api.models.scan_parameter import (
     DatabaseParameter,
     RealtimeParameter,
-    ScanParameter,
 )
 from icon.server.api.scheduler_controller import SchedulerController
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
@@ -145,50 +144,65 @@ def _parameter_metadata(
 
 
 @pytest.mark.parametrize(
-    ("min_value", "max_value", "values", "expected"),
+    ("min_value", "max_value", "values"),
     [
-        (0.0, 100.0, [0.0, 50.0, 100.0], [0.0, 50.0, 100.0]),
-        (0.0, 100.0, [-0.5, 50.0], [0.0, 50.0]),
-        (0.0, 100.0, [50.0, 100.5], [50.0, 100.0]),
-        (0.0, 100.0, [-20.0, 50.0, 120.0], [0.0, 50.0, 100.0]),
-        (None, 100.0, [-1e9, 100.5], [-1e9, 100.0]),
-        (0.0, None, [-0.5, 1e9], [0.0, 1e9]),
-        (None, None, [-1e9, 1e9], [-1e9, 1e9]),
-        # Non-numeric values are left untouched.
-        (0.0, 100.0, [True, "a string"], [True, "a string"]),
-        # Clamping preserves the value's type (int stays int).
-        (0.0, 100.0, [-5, 50, 120], [0, 50, 100]),
+        (0.0, 100.0, [0.0, 50.0, 100.0]),
+        (None, 100.0, [-1e9, 100.0]),
+        (0.0, None, [0.0, 1e9]),
+        (None, None, [-1e9, 1e9]),
+        # Non-numeric values are not checked.
+        (0.0, 100.0, [True, "a string"]),
     ],
 )
-def test_clamp_scan_values_to_bounds(
+def test_scan_values_within_bounds_are_accepted(
     min_value: float | None,
     max_value: float | None,
     values: list[Any],
-    expected: list[Any],
     controller: SchedulerController,
 ) -> None:
     controller._parameters_controller._all_parameter_metadata = {
         "wait_time": _parameter_metadata(min_value, max_value)
     }
-    param = DatabaseParameter(id="wait_time", values=values)
-    scan_parameters: list[ScanParameter] = [param]
 
-    controller._clamp_scan_values_to_bounds(scan_parameters=scan_parameters)
-
-    assert param.values == expected
-    assert [type(value) for value in param.values] == [
-        type(value) for value in expected
-    ]
+    controller._check_scan_values_within_bounds(
+        scan_parameters=[DatabaseParameter(id="wait_time", values=values)]
+    )
 
 
-def test_clamp_scan_values_without_metadata_leaves_values_untouched(
+@pytest.mark.parametrize(
+    ("min_value", "max_value", "values"),
+    [
+        (0.0, 100.0, [-0.5, 50.0]),
+        (0.0, 100.0, [50.0, 100.5]),
+        (None, 100.0, [100.5]),
+        (0.0, None, [-0.5]),
+        (0.0, 100.0, [50, 120]),
+    ],
+)
+def test_scan_values_outside_bounds_are_rejected(
+    min_value: float | None,
+    max_value: float | None,
+    values: list[Any],
+    controller: SchedulerController,
+) -> None:
+    controller._parameters_controller._all_parameter_metadata = {
+        "wait_time": _parameter_metadata(min_value, max_value)
+    }
+
+    with pytest.raises(ValueError, match="'Wait Time' is outside its bounds"):
+        controller._check_scan_values_within_bounds(
+            scan_parameters=[DatabaseParameter(id="wait_time", values=values)]
+        )
+
+
+def test_scan_values_without_metadata_are_not_checked(
     controller: SchedulerController,
 ) -> None:
     controller._parameters_controller._all_parameter_metadata = {}
-    param = DatabaseParameter(id="unknown_device_param", values=[-1e9, 1e9])
 
-    controller._clamp_scan_values_to_bounds(
-        scan_parameters=[param, RealtimeParameter(n_scan_points=0)]
+    controller._check_scan_values_within_bounds(
+        scan_parameters=[
+            DatabaseParameter(id="unknown_device_param", values=[-1e9, 1e9]),
+            RealtimeParameter(n_scan_points=0),
+        ]
     )
-
-    assert param.values == [-1e9, 1e9]

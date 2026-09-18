@@ -60,29 +60,29 @@ class SchedulerController(pydase.DataService):
         return parameter_id
 
     @staticmethod
-    def _clamp_value(
+    def _is_outside_bounds(
         *,
         value: float | bool | str,
         min_value: float | None,
         max_value: float | None,
-    ) -> float | bool | str:
+    ) -> bool:
         if isinstance(value, bool) or not isinstance(value, int | float):
-            return value
-        if min_value is not None and value < min_value:
-            return type(value)(min_value)
-        if max_value is not None and value > max_value:
-            return type(value)(max_value)
-        return value
+            return False
+        return (min_value is not None and value < min_value) or (
+            max_value is not None and value > max_value
+        )
 
-    def _clamp_scan_values_to_bounds(
+    def _check_scan_values_within_bounds(
         self, *, scan_parameters: list[ScanParameter]
     ) -> None:
-        """Clamp numeric scan values into their parameter's min/max metadata range.
+        """Raise if a numeric scan value is outside its parameter's min/max range.
 
-        Out-of-range values are snapped to the nearest bound so the scan still runs,
-        restricted to the allowed range. Parameters without metadata (e.g. device
-        parameters) or without configured bounds are left untouched, as are
-        non-numeric values (booleans, strings).
+        Parameters without metadata (e.g. device parameters) or without configured
+        bounds are not checked, and neither are non-numeric values (booleans,
+        strings).
+
+        Raises:
+            ValueError: If a scan value is outside its parameter's bounds.
         """
         for param in scan_parameters:
             if isinstance(param, RealtimeParameter):
@@ -92,12 +92,14 @@ class SchedulerController(pydase.DataService):
                 continue
             min_value = metadata["min_value"]
             max_value = metadata["max_value"]
-            if min_value is None and max_value is None:
-                continue
-            param.values = [
-                self._clamp_value(value=value, min_value=min_value, max_value=max_value)
-                for value in param.values
-            ]
+            for value in param.values:
+                if self._is_outside_bounds(
+                    value=value, min_value=min_value, max_value=max_value
+                ):
+                    raise ValueError(
+                        f"Scan value {value} for {metadata['display_name']!r} is "
+                        f"outside its bounds (min {min_value}, max {max_value})"
+                    )
 
     async def submit_job(
         self,
@@ -173,7 +175,7 @@ class SchedulerController(pydase.DataService):
             )
             for param in scan_parameters
         ]
-        self._clamp_scan_values_to_bounds(scan_parameters=concretized_params)
+        self._check_scan_values_within_bounds(scan_parameters=concretized_params)
         realtime_params = [
             param
             for param in concretized_params
