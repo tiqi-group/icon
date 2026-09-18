@@ -22,8 +22,9 @@ import { useJobInfo } from "../hooks/useJobInfo";
 import { runMethod } from "../socket";
 import { ExperimentMetadata } from "../types/ExperimentMetadata";
 import { SerializedObject } from "../types/SerializedObject";
-import { JobRunStatus, JobStatus, ScanMode } from "../types/enums";
+import { JobRunStatus, JobStatus } from "../types/enums";
 import { deserialize } from "../utils/deserializer";
+import { isCorrelatedScan } from "../utils/scanDimensionality";
 import { updateJobParams } from "../utils/updateJobParams";
 import { cancelJob } from "../utils/cancelJob";
 import { pauseJob } from "../utils/pauseJob";
@@ -54,9 +55,7 @@ export const JobView = ({
   const { experimentData, experimentDataError, loading } = useExperimentData(jobId);
   // A correlated scan steps through all of its parameters at once and yields a
   // one-dimensional list of data points, so it is presented like a 1D scan.
-  const isCorrelated =
-    jobInfo?.scan_mode === ScanMode.CORRELATED &&
-    !(jobInfo?.scan_parameters?.some((param) => param.realtime) ?? false);
+  const isCorrelated = isCorrelatedScan(jobInfo?.scan_parameters, jobInfo?.scan_mode);
   const is1D = (jobInfo?.scan_parameters?.length ?? 0) === 1 || isCorrelated;
   const is2D = (jobInfo?.scan_parameters?.length ?? 0) >= 2 && !isCorrelated;
 

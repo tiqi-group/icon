@@ -8,6 +8,7 @@ import { copyEChartsToClipboard } from "../utils/copyEChartsToClipboard";
 import { ScanParameter } from "../types/ScanParameter";
 import { ScanMode } from "../types/enums";
 import { buildResultChannelChartSeries } from "../utils/buildResultChannelChartSeries";
+import { isCorrelatedScan } from "../utils/scanDimensionality";
 
 interface ResultChannelPlotProps {
   experimentData: ExperimentData;
@@ -83,11 +84,8 @@ const ResultChannelPlot = ({
 
   // A correlated scan steps through all of its parameters at once and produces a
   // one-dimensional list of data points, so it is drawn as a line rather than as a
-  // heatmap. A realtime parameter is scanned as an outer loop and keeps its own axis.
-  const isCorrelatedMultiParam =
-    scanMode === ScanMode.CORRELATED &&
-    scanParameters.length > 1 &&
-    !scanParameters.some((param) => param.realtime);
+  // heatmap.
+  const isCorrelatedMultiParam = isCorrelatedScan(scanParameters, scanMode);
   const isOneDimensional = scanParameters.length === 1 || isCorrelatedMultiParam;
   const is2D = scanParameters.length === 2 && !isCorrelatedMultiParam;
 
