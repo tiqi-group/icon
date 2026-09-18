@@ -210,7 +210,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 job_id=task.pre_processing_task.job.id,
             )
             if job_run.status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
-                task.processed_data_points.put(task)
+                task.scan_progress.complete(task.pre_processing_task.job_run.id)
                 continue
 
             if should_divert_task(
@@ -254,4 +254,4 @@ class HardwareProcessingWorker(multiprocessing.Process):
                     log=extract_hardware_error_message(e),
                 )
             finally:
-                task.processed_data_points.put(task)
+                task.scan_progress.complete(task.pre_processing_task.job_run.id)
