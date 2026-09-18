@@ -26,7 +26,7 @@ class ExperimentDataController(pydase.DataService):
     async def get_experiment_data_by_job_id(
         self,
         job_id: int,
-        max_transfer_bytes: int = 50_000_000,
+        max_transfer_bytes: int = 4_000_000,
         *,
         include_hardware_instructions: bool = False,
         include_all_shots: bool = False,
