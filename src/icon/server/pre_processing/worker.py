@@ -284,6 +284,8 @@ class PreProcessingWorker(multiprocessing.Process):
             status=JobRunStatus.PROCESSING,
         )
 
+        ExperimentDataRepository.initialize_for_job_id(job_id=job.id)
+
         namespace = ExperimentIdentifier.from_str(job.experiment_source.experiment_id)
         # Clear the worker's parameter dict for the new job
         self._parameter_dict = {}

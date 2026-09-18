@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, TypedDict, cast
 
 import h5py  # type: ignore
 import numpy as np
@@ -39,9 +39,26 @@ logger = logging.getLogger(__name__)
 MOST_RECENT_JOB_RUNS = 10
 """How many of the newest job runs to search when no job is specified."""
 
-_common_hdf5_dataset_params = {
+class _Hdf5DatasetCommonParams(TypedDict):
+    """Common parameters for HDF5 Datasets."""
+    compression: str
+    compression_opts: int
+
+_common_hdf5_dataset_params: _Hdf5DatasetCommonParams = {
     "compression": "gzip",
     "compression_opts": 4,
+}
+
+class _Hdf5FileCreateParams(TypedDict):
+    """HDF5 file properties, which h5py only accepts at creation."""
+    fs_strategy: str
+    fs_persist: bool
+    fs_page_size: int
+
+_hdf5_file_create_params: _Hdf5FileCreateParams = {
+    "fs_strategy": "page",
+    "fs_persist": True,
+    "fs_page_size": 65536,
 }
 
 
@@ -321,7 +338,26 @@ class ExperimentDataRepository:
 
     Manages HDF5 file creation and updates (metadata, results, parameters), with
     hdf5-level locking to support concurrent writers.
+
+    Initialize the data container for a new job by calling :meth:`initialize_for_job_id`.
+    Initialization is required before any read/write operation is triggered.
     """
+
+    @staticmethod
+    def initialize_for_job_id(
+        *,
+        job_id: int
+    ) -> None:
+        """Create the file.
+
+        Args:
+            job_id: Job identifier.
+        """
+        filename = get_filename_by_job_id(job_id)
+        h5_path = Path(get_config().data.results_dir) / filename
+        with h5_open(h5_path, "w-", **_hdf5_file_create_params):
+            pass
+
 
     @staticmethod
     def update_metadata_by_job_id(
@@ -417,7 +453,6 @@ class ExperimentDataRepository:
     ) -> None:
         """Append parameter updates under the 'parameters' group.
 
-        Creates a dataset per parameter storing (timestamp, value) entries.
         Appends only when the value changed from the last entry.
 
         Args:
