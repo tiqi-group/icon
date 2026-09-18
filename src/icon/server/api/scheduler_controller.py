@@ -63,6 +63,48 @@ class SchedulerController(pydase.DataService):
             return metadata["display_name"]
         return parameter_id
 
+    @staticmethod
+    def _is_outside_bounds(
+        *,
+        value: float | bool | str,
+        min_value: float | None,
+        max_value: float | None,
+    ) -> bool:
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            return False
+        return (min_value is not None and value < min_value) or (
+            max_value is not None and value > max_value
+        )
+
+    def _check_scan_values_within_bounds(
+        self, *, scan_parameters: list[ScanParameter]
+    ) -> None:
+        """Raise if a numeric scan value is outside its parameter's min/max range.
+
+        Parameters without metadata (e.g. device parameters) or without configured
+        bounds are not checked, and neither are non-numeric values (booleans,
+        strings).
+
+        Raises:
+            ValueError: If a scan value is outside its parameter's bounds.
+        """
+        for param in scan_parameters:
+            if isinstance(param, RealtimeParameter):
+                continue
+            metadata = self._parameters_controller._all_parameter_metadata.get(param.id)
+            if metadata is None:
+                continue
+            min_value = metadata["min_value"]
+            max_value = metadata["max_value"]
+            for value in param.values:
+                if self._is_outside_bounds(
+                    value=value, min_value=min_value, max_value=max_value
+                ):
+                    raise ValueError(
+                        f"Scan value {value} for {metadata['display_name']!r} is "
+                        f"outside its bounds (min {min_value}, max {max_value})"
+                    )
+
     async def submit_job(
         self,
         *,
@@ -137,6 +179,7 @@ class SchedulerController(pydase.DataService):
             )
             for param in scan_parameters
         ]
+        self._check_scan_values_within_bounds(scan_parameters=concretized_params)
         realtime_params = [
             param
             for param in concretized_params

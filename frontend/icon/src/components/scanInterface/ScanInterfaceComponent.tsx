@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import {
   Select,
   MenuItem,
@@ -10,7 +10,14 @@ import {
   Tooltip,
 } from "@mui/material";
 import { useNotifications } from "@toolpad/core";
+import { ParameterDisplayGroupsContext } from "../../contexts/ParameterDisplayGroupsContext";
+import { ParameterStoreContext } from "../../contexts/ParameterStoreContext";
 import { useScanContext } from "../../hooks/useScanContext";
+import {
+  getScanParameterBounds,
+  getScanParameterDisplayName,
+  refreshSpanCenterParameters,
+} from "../../utils/scanUtils";
 import { submitJob } from "../../utils/submitJob";
 import ScanParameterTable from "./ScanParameterTable";
 
@@ -19,6 +26,8 @@ interface ScanInterfaceProps {
 }
 const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
   const { scanInfoState, dispatchScanInfoStateUpdate } = useScanContext();
+  const { parameterDisplayGroups } = useContext(ParameterDisplayGroupsContext);
+  const parameterStore = useContext(ParameterStoreContext);
   const notifications = useNotifications();
   const [submitDisabled, setSubmitDisabled] = useState(false);
 
@@ -78,7 +87,10 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
         break;
       }
       if (param.generation.stop - param.generation.start == 0) {
-        newErrors.parameters = "Start and stop cannot be the same";
+        newErrors.parameters =
+          (param.generation.inputMode ?? "startStop") === "spanCenter"
+            ? "Span cannot be zero"
+            : "Start and stop cannot be the same";
         valid = false;
         break;
       }
@@ -92,11 +104,36 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
     event.preventDefault();
 
     if (validateForm()) {
-      submitJob(experimentId, scanInfoState);
-      notifications.show("Job submitted", {
-        severity: "success",
-        autoHideDuration: 3000,
-      });
+      // Refresh Span-mode parameters from the latest live value right before
+      // submitting, so the executed scan is centred on what's current right now
+      // rather than whatever the value happened to be when Span was last edited.
+      const parametersToSubmit = refreshSpanCenterParameters(
+        scanInfoState.parameters,
+        parameterStore,
+      );
+
+      const parameterBounds = parametersToSubmit.map((param) =>
+        getScanParameterBounds(param, parameterDisplayGroups),
+      );
+      const { clampedParamIds } = submitJob(
+        experimentId,
+        { ...scanInfoState, parameters: parametersToSubmit },
+        parameterBounds,
+      );
+      if (clampedParamIds.length > 0) {
+        const clampedNames = parametersToSubmit
+          .filter((param) => clampedParamIds.includes(param.id))
+          .map((param) => getScanParameterDisplayName(param, parameterDisplayGroups));
+        notifications.show(
+          `Job submitted, but the requested range for ${clampedNames.join(", ")} exceeded the parameter's bounds and was clamped.`,
+          { severity: "warning", autoHideDuration: 8000 },
+        );
+      } else {
+        notifications.show("Job submitted", {
+          severity: "success",
+          autoHideDuration: 3000,
+        });
+      }
       setSubmitDisabled(true);
       setTimeout(() => setSubmitDisabled(false), 1000);
     }
