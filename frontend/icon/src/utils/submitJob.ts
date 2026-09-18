@@ -19,8 +19,12 @@ const generateScanValues = (
   points: number,
   pattern: ScanPattern,
 ) => {
+  // Interpolate from both ends so start and stop are exact and never overshoot.
   const linspace = (n: number) =>
-    Array.from({ length: n }, (_, i) => start + (i * (stop - start)) / (n - 1));
+    Array.from({ length: n }, (_, i) => {
+      const t = i / (n - 1);
+      return start * (1 - t) + stop * t;
+    });
 
   switch (pattern) {
     case "linear":
