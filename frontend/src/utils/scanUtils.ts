@@ -2,12 +2,37 @@ import { ScanParameterGenerationSpec } from "../types/ScanParameterGenerationSpe
 import { ScanPattern } from "../types/ScanParameterInfo";
 
 /**
+ * Generates a random permutation of the indices [0, points), using the Fisher-Yates
+ * shuffle.
+ *
+ * Used as the visiting order for the "scatter" pattern. Callers that need several
+ * parameters to be scattered in lockstep (e.g. a correlated scan) should generate this
+ * once and share it across those parameters, rather than letting each parameter draw
+ * its own independent order.
+ *
+ * @param points - Number of indices to shuffle.
+ * @returns A random permutation of [0, 1, ..., points - 1].
+ */
+export const generateScatterOrder = (points: number): number[] => {
+  const order = Array.from({ length: points }, (_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
+};
+
+/**
  * Generates the scan values a parameter is stepped through, in scan order.
  *
  * @param start - First value of the range.
  * @param stop - Last value of the range.
  * @param points - Number of points the range is divided into.
  * @param pattern - Order in which the range is walked.
+ * @param scatterOrder - For the "scatter" pattern, the order in which the linearly
+ *   spaced values are visited. Defaults to a freshly generated random order. Pass an
+ *   explicit order (from `generateScatterOrder`) when several parameters must be
+ *   scattered in the same order, e.g. the parameters of a correlated scan.
  * @returns The scan values in the order they are scanned.
  */
 export const generateScanValues = (
@@ -15,6 +40,7 @@ export const generateScanValues = (
   stop: number,
   points: number,
   pattern: ScanPattern,
+  scatterOrder?: number[],
 ) => {
   const linspace = (n: number) =>
     Array.from({ length: n }, (_, i) => start + (i * (stop - start)) / (n - 1));
@@ -22,8 +48,11 @@ export const generateScanValues = (
   switch (pattern) {
     case "linear":
       return linspace(points);
-    case "scatter":
-      return linspace(points).sort(() => Math.random() - 0.5);
+    case "scatter": {
+      const values = linspace(points);
+      const order = scatterOrder ?? generateScatterOrder(points);
+      return order.map((i) => values[i]);
+    }
     case "centred": {
       const base = linspace(points);
       const mid = Math.floor((points - 1) / 2);

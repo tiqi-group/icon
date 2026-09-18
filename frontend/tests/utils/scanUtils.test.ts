@@ -4,6 +4,7 @@ import {
   getScanIndex,
   isScannableParameterType,
   generateScanValues,
+  generateScatterOrder,
   scanValueCount,
 } from "../../src/utils/scanUtils";
 import { ScanParameterGenerationSpec } from "../../src/types/ScanParameterGenerationSpec";
@@ -105,6 +106,41 @@ describe("scanUtils: scanValueCount", () => {
       expect(
         generateScanValues(spec.start, spec.stop, spec.points, spec.pattern),
       ).toHaveLength(scanValueCount(spec));
+    }
+  });
+});
+
+describe("scanUtils: generateScatterOrder", () => {
+  it("returns a permutation of [0, points)", () => {
+    const order = generateScatterOrder(20);
+    expect(order).toHaveLength(20);
+    expect([...order].sort((a, b) => a - b)).toEqual(
+      Array.from({ length: 20 }, (_, i) => i),
+    );
+  });
+});
+
+describe("scanUtils: generateScanValues scatter pattern", () => {
+  it("visits the linearly spaced values in the order given by scatterOrder", () => {
+    const order = [2, 0, 3, 1];
+    expect(generateScanValues(0, 3, 4, "scatter", order)).toEqual([2, 0, 3, 1]);
+  });
+
+  it("keeps two parameters linearly paired when scattered with a shared order", () => {
+    // Sharing the same scatterOrder across parameters is what a correlated scan must
+    // do: each parameter is visited in the same shuffled sequence of underlying
+    // linear indices, so the i-th scan step always pairs the i-th linear point of
+    // every parameter, just in a scattered (non-monotonic) order.
+    const order = generateScatterOrder(6);
+    const a = generateScanValues(0, 5, 6, "scatter", order);
+    const b = generateScanValues(10, 20, 6, "scatter", order);
+
+    const aLinear = generateScanValues(0, 5, 6, "linear");
+    const bLinear = generateScanValues(10, 20, 6, "linear");
+
+    for (let i = 0; i < order.length; i++) {
+      expect(a[i]).toBeCloseTo(aLinear[order[i]]);
+      expect(b[i]).toBeCloseTo(bLinear[order[i]]);
     }
   });
 });

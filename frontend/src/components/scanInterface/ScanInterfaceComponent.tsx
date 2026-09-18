@@ -92,6 +92,18 @@ const ScanInterface = ({ experimentId }: ScanInterfaceProps) => {
       }
     }
 
+    // A correlated scan steps through all parameters at once, so they must all be
+    // scanned with the same pattern.
+    if (
+      valid &&
+      scanInfoState.scanMode === ScanMode.CORRELATED &&
+      new Set(steppedParameters.map((p) => p.generation.pattern)).size > 1
+    ) {
+      newErrors.parameters =
+        "A correlated scan requires the same scan pattern for every scan parameter";
+      valid = false;
+    }
+
     // A correlated scan steps through all parameters at once, so they must supply the
     // same number of scan values.
     if (
