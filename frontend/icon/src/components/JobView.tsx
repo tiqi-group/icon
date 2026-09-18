@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
@@ -12,9 +12,12 @@ import {
   TextField,
   Tooltip,
   Divider,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
 import { ExpandLess, ExpandMore, RestartAlt } from "@mui/icons-material";
 import ResultChannelPlot from "../components/ResultChannelPlot";
+import ResultChannelTable from "./jobView/ResultChannelTable";
 import { JobStatusIndicator } from "../components/JobStatusIndicator";
 import { ParameterGroupDisplay } from "../components/ParameterGroupDisplay";
 import { useExperimentData } from "../hooks/useExperimentData";
@@ -31,6 +34,24 @@ import { pauseJob } from "../utils/pauseJob";
 import { resumeJob } from "../utils/resumeJob";
 import HistogramPlot from "./jobView/HistogramPlot";
 import FitPanel from "./jobView/FitPanel";
+
+const PLOT_CARD_CONTENT_SX = {
+  padding: 1,
+  "&:last-child": { paddingBottom: 1 },
+};
+
+const plotCardHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "flex-end",
+  minHeight: 30,
+};
+
+function changedByStepper(
+  event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+): boolean {
+  return !(event.nativeEvent as InputEvent).inputType;
+}
 
 function getPlotTitle(scheduledTime?: string, experimentName?: string): string {
   if (!scheduledTime) return experimentName || "";
@@ -154,6 +175,20 @@ export const JobView = ({
     Record<string, boolean>
   >({});
 
+  // Per-result-window view mode: "plot" (default) or "table".
+  const [resultViewMode, setResultViewMode] = useState<
+    Record<string, "plot" | "table">
+  >({});
+
+  const setResultWindowView = (name: string, mode: "plot" | "table") => {
+    const newState = { ...resultViewMode, [name]: mode };
+    setResultViewMode(newState);
+    localStorage.setItem(
+      `resultViewMode_${jobInfo?.experiment_source_id}`,
+      JSON.stringify(newState),
+    );
+  };
+
   const toggleShotChannel = (name: string) => {
     const newState = {
       ...expandedShotChannels,
@@ -188,13 +223,18 @@ export const JobView = ({
         `resultChannelsState_${jobInfo.experiment_source_id}`,
       );
 
-      if (storedShotChannelsState) {
-        setExpandedShotChannels(JSON.parse(storedShotChannelsState));
-      }
+      setExpandedShotChannels(
+        storedShotChannelsState ? JSON.parse(storedShotChannelsState) : {},
+      );
 
-      if (storedResultChannelsState) {
-        setExpandedResultChannels(JSON.parse(storedResultChannelsState));
-      }
+      setExpandedResultChannels(
+        storedResultChannelsState ? JSON.parse(storedResultChannelsState) : {},
+      );
+
+      const storedResultViewMode = localStorage.getItem(
+        `resultViewMode_${jobInfo.experiment_source_id}`,
+      );
+      setResultViewMode(storedResultViewMode ? JSON.parse(storedResultViewMode) : {});
 
       const storedWindowSize = localStorage.getItem(
         `windowSize_${jobInfo.experiment_source_id}`,
@@ -363,7 +403,7 @@ export const JobView = ({
                     const val = e.target.value;
                     if (val === "") {
                       setWindowSize(null);
-                    } else if (windowSize === null) {
+                    } else if (windowSize === null && changedByStepper(e)) {
                       setWindowSize(dataLength > 0 ? dataLength : 1);
                     } else {
                       const num = Number(val);
@@ -390,7 +430,7 @@ export const JobView = ({
                     const val = e.target.value;
                     if (val === "") {
                       setYMin(null);
-                    } else if (yMin === null) {
+                    } else if (yMin === null && changedByStepper(e)) {
                       setYMin(Math.floor(autoYBounds.min));
                     } else {
                       setYMin(Number(val));
@@ -414,7 +454,7 @@ export const JobView = ({
                     const val = e.target.value;
                     if (val === "") {
                       setYMax(null);
-                    } else if (yMax === null) {
+                    } else if (yMax === null && changedByStepper(e)) {
                       setYMax(Math.ceil(autoYBounds.max));
                     } else {
                       setYMax(Number(val));
@@ -476,15 +516,21 @@ export const JobView = ({
         )}
 
         {experimentData?.plot_windows?.shot_channels?.map((win) => (
-          <Grid size={{ xs: 12, sm: 12, lg: 4 }} key={`shot-${win.index}`}>
-            <Card>
-              <CardContent sx={{ padding: 1 }}>
-                <div style={{ display: "flex", alignItems: "center" }}>
+          <Grid size={{ xs: 12, sm: 12, lg: 6 }} key={`shot-${win.index}`}>
+            <Card
+              sx={{
+                height: expandedShotChannels[win.name] === false ? "auto" : "100%",
+              }}
+            >
+              <CardContent sx={PLOT_CARD_CONTENT_SX}>
+                <div style={plotCardHeaderStyle}>
                   {expandedShotChannels[win.name] === false && (
-                    <Typography variant="h6">{win.name}</Typography>
+                    <Typography variant="subtitle1" noWrap sx={{ mr: "auto", pl: 0.5 }}>
+                      {win.name}
+                    </Typography>
                   )}
-                  <div style={{ flexGrow: 1 }} />
                   <IconButton
+                    size="small"
                     title={
                       expandedShotChannels[win.name] === false ? "Expand" : "Collapse"
                     }
@@ -516,14 +562,35 @@ export const JobView = ({
 
         {experimentData?.plot_windows?.result_channels?.map((win) => (
           <Grid size={{ xs: 12, sm: 12, lg: 6 }} key={`result-${win.index}`}>
-            <Card>
-              <CardContent sx={{ padding: 1 }}>
-                <div style={{ display: "flex", alignItems: "center" }}>
-                  {!expandedResultChannels[win.name] && (
-                    <Typography variant="h6">{win.name}</Typography>
+            <Card
+              sx={{
+                height: expandedResultChannels[win.name] === false ? "auto" : "100%",
+              }}
+            >
+              <CardContent sx={PLOT_CARD_CONTENT_SX}>
+                <div style={plotCardHeaderStyle}>
+                  {expandedResultChannels[win.name] === false && (
+                    <Typography variant="subtitle1" noWrap sx={{ mr: "auto", pl: 0.5 }}>
+                      {win.name}
+                    </Typography>
                   )}
                   <div style={{ flexGrow: 1 }} />
+                  {expandedResultChannels[win.name] !== false && (
+                    <ToggleButtonGroup
+                      size="small"
+                      exclusive
+                      value={resultViewMode[win.name] ?? "plot"}
+                      onChange={(_, mode) => {
+                        if (mode) setResultWindowView(win.name, mode);
+                      }}
+                      sx={{ mr: 1 }}
+                    >
+                      <ToggleButton value="plot">Plot</ToggleButton>
+                      <ToggleButton value="table">Table</ToggleButton>
+                    </ToggleButtonGroup>
+                  )}
                   <IconButton
+                    size="small"
                     title={
                       expandedResultChannels[win.name] === false ? "Expand" : "Collapse"
                     }
@@ -536,25 +603,33 @@ export const JobView = ({
                     )}
                   </IconButton>
                 </div>
-                {expandedResultChannels[win.name] !== false && (
-                  <ResultChannelPlot
-                    experimentData={experimentData}
-                    channelNames={win.channel_names}
-                    loading={loading}
-                    title={win.name}
-                    subtitle={getPlotTitle(
-                      jobRunInfo?.scheduled_time,
-                      experimentMetadata?.constructor_kwargs?.name,
-                    )}
-                    repetitions={jobInfo?.repetitions}
-                    showRepetitions={showRepetitions}
-                    scanParameters={jobInfo?.scan_parameters}
-                    windowSize={windowSize}
-                    yRange={{ min: yMin, max: yMax }}
-                    fits={showFitPanel && is1D ? experimentData.fits : undefined}
-                    onChartClick={showFitPanel && is1D ? handleChartClick : undefined}
-                  />
-                )}
+                {expandedResultChannels[win.name] !== false &&
+                  (resultViewMode[win.name] === "table" ? (
+                    <ResultChannelTable
+                      experimentData={experimentData}
+                      channelNames={win.channel_names}
+                      scanParameters={jobInfo?.scan_parameters}
+                      windowSize={is2D ? null : windowSize}
+                    />
+                  ) : (
+                    <ResultChannelPlot
+                      experimentData={experimentData}
+                      channelNames={win.channel_names}
+                      loading={loading}
+                      title={win.name}
+                      subtitle={getPlotTitle(
+                        jobRunInfo?.scheduled_time,
+                        experimentMetadata?.constructor_kwargs?.name,
+                      )}
+                      repetitions={jobInfo?.repetitions}
+                      showRepetitions={showRepetitions}
+                      scanParameters={jobInfo?.scan_parameters}
+                      windowSize={windowSize}
+                      yRange={{ min: yMin, max: yMax }}
+                      fits={showFitPanel && is1D ? experimentData.fits : undefined}
+                      onChartClick={showFitPanel && is1D ? handleChartClick : undefined}
+                    />
+                  ))}
               </CardContent>
             </Card>
           </Grid>

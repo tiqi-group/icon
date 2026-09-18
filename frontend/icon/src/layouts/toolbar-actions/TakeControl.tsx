@@ -6,6 +6,7 @@ import Stack from "@mui/material/Stack";
 import { ThemeSwitcher } from "@toolpad/core/DashboardLayout";
 import { socket } from "../../socket";
 import { useControlState } from "../../hooks/useControlState";
+import { ConnectionIndicator } from "../../components/ConnectionIndicator";
 
 export function ToolbarActionsTakeControl() {
   const { controllingSid, socketioSID } = useControlState();
@@ -21,7 +22,8 @@ export function ToolbarActionsTakeControl() {
   };
 
   return (
-    <Stack direction="row" spacing={1}>
+    <Stack direction="row" spacing={1} alignItems="center">
+      <ConnectionIndicator />
       <Tooltip title={hasControl ? "Release Control" : "Take Control"}>
         <IconButton color="inherit" onClick={handleClick}>
           {hasControl ? <LockIcon /> : <LockOpenIcon />}

@@ -26,8 +26,8 @@ export const JobStatusIndicator = ({
         style={{
           display: "flex",
           alignItems: "center",
-          width: 15,
-          height: 15,
+          width: 10,
+          height: 10,
           borderRadius: "50%",
           backgroundColor: status ? statusColorMap[status] : "grey",
           marginRight: 8,

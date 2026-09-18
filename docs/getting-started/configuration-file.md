@@ -13,6 +13,15 @@
     results_dir: /my/results/output/dir/
   ```
 
+    A result file may be locked by another process (for instance an analysis
+    script opening the same file). ICON waits for such a lock to be released
+    and gives up after `h5_open_timeout_seconds`, which defaults to `30.0`:
+
+    ```yaml
+    data:
+      h5_open_timeout_seconds: 60.0
+    ```
+
 * **SQLite** - stores metadata about jobs and devices. By default, ICON will create `icon.db` in the current working directory. You can override this path in the config file:
 
     ```yaml

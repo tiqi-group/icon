@@ -11,7 +11,7 @@ import { ExperimentsContext } from "./contexts/ExperimentsContext";
 import { SvgIcon } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { ParameterDisplayGroupsContext } from "./contexts/ParameterDisplayGroupsContext";
-import { reducer, JobsContext } from "./contexts/JobsContext";
+import { JobsContext } from "./contexts/JobsContext";
 import { ParameterStoreProvider } from "./contexts/ParameterStoreContext";
 import { useJobsSync } from "./hooks/useJobsSync";
 import { deviceInfoReducer, DeviceInfoContext } from "./contexts/DeviceInfoContext";
@@ -78,14 +78,13 @@ export const BRANDING = {
 };
 
 export default function App() {
-  const [scheduledJobs, schedulerDispatch] = useReducer(reducer, {});
   const [deviceInfo, deviceInfoDispatch] = useReducer(deviceInfoReducer, {});
   const parameterStore = useParameterStore();
   const { parameterDisplayGroups, parameterNamespaceToDisplayGroups } =
     useParameterDisplayGroups();
   const experiments = useExperiments();
 
-  useJobsSync(schedulerDispatch);
+  const scheduledJobs = useJobsSync();
   useDeviceInfoSync(deviceInfoDispatch);
 
   return (
