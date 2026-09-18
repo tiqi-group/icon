@@ -8,6 +8,7 @@ from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
@@ -61,6 +62,13 @@ _hdf5_file_create_params: _Hdf5FileCreateParams = {
     "fs_page_size": 65536,
 }
 
+class HDF5FileMode(StrEnum):
+    """HDF5 File modes - see https://docs.h5py.org/en/stable/high/file.html#opening-creating-files."""
+    READ_ONLY = "r"               # Read-only, file must exist (default)
+    READ_WRITE_OR_FAIL = "r+"     # Read/write, fail if not exists
+    READ_WRITE_OR_CREATE = "a"    # Read/write if exists, create otherwise
+    CREATE_OR_FAIL = "w-"         # Create file, fail if exists
+    CREATE_OR_TRUNCATE = "w"      # Create file, truncate if exists
 
 class OSFileLockError(OSError):
     """Raised when an HDF5 file is locked by another process."""
@@ -355,7 +363,7 @@ class ExperimentDataRepository:
         """
         filename = get_filename_by_job_id(job_id)
         h5_path = Path(get_config().data.results_dir) / filename
-        with h5_open(h5_path, "w-", **_hdf5_file_create_params):
+        with h5_open(h5_path, HDF5FileMode.CREATE_OR_FAIL, **_hdf5_file_create_params):
             pass
 
 
@@ -386,7 +394,7 @@ class ExperimentDataRepository:
         h5_path = Path(get_config().data.results_dir) / filename
         job = JobRepository.get_job_by_id(job_id=job_id, load_experiment_source=True)
 
-        with h5_open(h5_path, "a") as h5file:
+        with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_CREATE) as h5file:
             prepare_readout_metadata(
                 h5file,
                 job_id=job_id,
@@ -433,7 +441,7 @@ class ExperimentDataRepository:
         filename = get_filename_by_job_id(job_id)
         h5_path = Path(get_config().data.results_dir) / filename
 
-        with h5_open(h5_path, "a") as h5file:
+        with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_CREATE) as h5file:
             write_experiment_data_point(h5file, data_point)
         logger.debug("Appended data to %s", h5_path)
 
@@ -463,7 +471,7 @@ class ExperimentDataRepository:
         filename = get_filename_by_job_id(job_id)
         h5_path = Path(get_config().data.results_dir) / filename
         parameter_updates = {}
-        with h5_open(h5_path, "a") as h5file:
+        with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_CREATE) as h5file:
             parameters_group = h5file.require_group("parameters")
 
             for param_id, value in parameter_values.items():
@@ -545,7 +553,7 @@ class ExperimentDataRepository:
             logger.warning("The file %s does not exist.", h5_path)
             return ExperimentData()
 
-        with h5_open(h5_path, "r") as h5file:
+        with h5_open(h5_path, HDF5FileMode.READ_ONLY) as h5file:
             return load_experiment_data(
                 h5file,
                 max_transfer_bytes,
@@ -598,7 +606,7 @@ def _read_hardware_instructions(path: Path, *, index: int | None) -> str | None:
     each and a scan stores one per change, so reading the whole dataset to
     return a single sequence would transfer megabytes.
     """
-    with h5_open(path, "r") as h5file:
+    with h5_open(path, HDF5FileMode.READ_ONLY) as h5file:
         dataset = h5file.get("hardware_instructions")
         if not isinstance(dataset, h5py.Dataset) or dataset.shape[0] == 0:
             return None
@@ -959,7 +967,7 @@ def _in_process_lock(path: Path, timeout: float) -> Generator[None]:
 
 
 def _h5_open_with_retry(
-    path: Path, mode: str, *, deadline: float, **kwargs: Any
+    path: Path, mode: HDF5FileMode, *, deadline: float, **kwargs: Any
 ) -> h5py.File:
     """Open `path`, retrying while another process holds the OS file lock.
 
@@ -1011,7 +1019,7 @@ def _is_file_lock_error(exc: OSError) -> bool:
     return exc.errno is None and "unable to lock file" in str(exc).lower()
 
 
-def _h5_open_once(path: Path, mode: str, **kwargs: Any) -> h5py.File:
+def _h5_open_once(path: Path, mode: HDF5FileMode, **kwargs: Any) -> h5py.File:
     try:
         h5file = h5py.File(str(path), mode, **kwargs)
     except OSError as exc:
@@ -1025,7 +1033,7 @@ def _h5_open_once(path: Path, mode: str, **kwargs: Any) -> h5py.File:
 
 @contextmanager
 def h5_open(
-    path: Path, mode: str, *, timeout: float | None = None, **kwargs: Any
+    path: Path, mode: HDF5FileMode, *, timeout: float | None = None, **kwargs: Any
 ) -> Generator[h5py.File]:
     """Open an HDF5 file under a process-wide per-file lock.
 
@@ -1091,7 +1099,7 @@ def write_fit_result_by_job_id(
     """
     filename = get_filename_by_job_id(job_id)
     h5_path = Path(get_config().data.results_dir) / filename
-    with h5_open(h5_path, "a") as h5file:
+    with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_CREATE) as h5file:
         fits_group = h5file.require_group("fits")
         channel = fit_result.result_channel
         if channel in fits_group:
@@ -1114,7 +1122,7 @@ def get_fit_results_by_job_id(*, job_id: int) -> dict[str, FitResult]:
     if not h5_path.exists():
         return {}
 
-    with h5_open(h5_path, "r") as h5file:
+    with h5_open(h5_path, HDF5FileMode.READ_ONLY) as h5file:
         return _read_fits_from_hdf5(h5file)
 
 
@@ -1127,7 +1135,7 @@ def delete_fit_result_by_job_id(*, job_id: int, result_channel: str) -> None:
     """
     filename = get_filename_by_job_id(job_id)
     h5_path = Path(get_config().data.results_dir) / filename
-    with h5_open(h5_path, "a") as h5file:
+    with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_CREATE) as h5file:
         if "fits" in h5file and result_channel in h5file["fits"]:
             del h5file["fits"][result_channel]
 
