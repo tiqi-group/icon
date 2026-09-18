@@ -21,11 +21,8 @@ from icon.server.data_access.repositories import (
     job_repository,
     job_run_repository,
 )
-from tests.server.worker_harness import InspectableSRM
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
-
     from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 
 _REPOSITORY_MODULES = (
@@ -82,14 +79,3 @@ def seed_job(database: sqlalchemy.engine.Engine) -> SeedJob:
             return job.id, run.id
 
     return _seed
-
-
-@pytest.fixture
-def manager() -> Iterator[InspectableSRM]:
-    """A running shared resource manager, shut down again after the test."""
-    mgr = InspectableSRM()
-    mgr.start_srm()
-    try:
-        yield mgr
-    finally:
-        mgr.shutdown()
