@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("experiment_library")
 logging.getLogger("pycrystal").setLevel(logging.ERROR)
 logging.getLogger("ionpulse_sequence_generator").setLevel(logging.ERROR)
-LOG_LEVEL = logging.INFO
+LOG_LEVEL = logging.WARNING
 
 
 class AsyncPyCrystalClient(VEnvExperimentLibraryClient):
