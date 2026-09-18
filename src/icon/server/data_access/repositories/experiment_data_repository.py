@@ -930,8 +930,9 @@ def get_hdf5_dtype(
 
 
 def get_result_channels_dataset(
-    h5file: h5py.File, result_channels: list[str], number_of_data_points: int = 1
+    h5file: h5py.File, result_channels: list[str], number_of_data_points: int = 0
 ) -> h5py.Dataset:
+    """Return the 'result_channels' dataset, creating it if it does not exist yet."""
     sorted_result_channels = sorted(result_channels)
     result_dtype = np.dtype([(key, np.float64) for key in sorted_result_channels])
 
