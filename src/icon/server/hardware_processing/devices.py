@@ -50,15 +50,19 @@ class Devices:
             },
         )
 
-    def reload(self) -> None:
+    def reload(self, *, retry_disconnected: bool = False) -> None:
         reloaded_devices = self.__reloader.reload_changed()
         py_ids = {id(dev) for dev in reloaded_devices}
         # Reconnect changed / new / disconnected:
         for dev in self.__devices.values():
             if isinstance(dev.controller, HardwareController) and (
-                id(dev) in py_ids or not dev.controller.connected
+                id(dev) in py_ids
+                or (retry_disconnected and not dev.controller.connected)
             ):
                 dev.controller.connect()
+
+    def retry_disconnected(self) -> None:
+        self.reload(retry_disconnected=True)
 
     def __getitem__(self, dev_id: str) -> Hardware:
         self.reload()
