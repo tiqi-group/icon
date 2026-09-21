@@ -40,6 +40,9 @@ logger = logging.getLogger(__name__)
 MOST_RECENT_JOB_RUNS = 10
 """How many of the newest job runs to search when no job is specified."""
 
+DEFAULT_MAX_TRANSFER_BYTES = 4_000_000
+"""Approximate cap on the serialised payload of one data request."""
+
 
 class _Hdf5DatasetCommonParams(TypedDict):
     """Common parameters for HDF5 Datasets."""
@@ -521,7 +524,7 @@ class ExperimentDataRepository:
     def get_experiment_data_by_job_id(
         *,
         job_id: int,
-        max_transfer_bytes: int = 50_000_000,
+        max_transfer_bytes: int = DEFAULT_MAX_TRANSFER_BYTES,
         include_hardware_instructions: bool = False,
         include_all_shots: bool = False,
     ) -> ExperimentData:
@@ -535,7 +538,7 @@ class ExperimentDataRepository:
         Args:
             job_id: Job identifier.
             max_transfer_bytes: Approximate cap on the serialised payload
-                size in bytes.  Defaults to 50 MB.
+                size in bytes.  Defaults to 4 MB.
             include_hardware_instructions: If True, load ``hardware_instructions`` entries
                 into ``hardware_instructions``.  Defaults to False — those blobs are
                 large (~27 KB each, one per changed point) and are omitted
@@ -744,7 +747,7 @@ def write_experiment_data_point(
 
 def load_experiment_data(
     h5file: h5py.File,
-    max_transfer_bytes: int = 50_000_000,
+    max_transfer_bytes: int = DEFAULT_MAX_TRANSFER_BYTES,
     *,
     include_hardware_instructions: bool = False,
     include_all_shots: bool = False,
@@ -759,7 +762,7 @@ def load_experiment_data(
     Args:
         h5file: File to load from.
         max_transfer_bytes: Approximate cap on the serialised payload
-            size in bytes.  Defaults to 50 MB.
+            size in bytes.  Defaults to 4 MB.
         include_hardware_instructions: Whether to include hardware instructions.
         include_all_shots: If True, return the raw shots of every data point.
             Defaults to False, which returns only the newest data point's

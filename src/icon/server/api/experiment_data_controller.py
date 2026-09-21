@@ -26,7 +26,7 @@ class ExperimentDataController(pydase.DataService):
     async def get_experiment_data_by_job_id(
         self,
         job_id: int,
-        max_transfer_bytes: int = 4_000_000,
+        max_transfer_bytes: int,
         *,
         include_hardware_instructions: bool = False,
         include_all_shots: bool = False,
@@ -38,7 +38,7 @@ class ExperimentDataController(pydase.DataService):
             max_transfer_bytes: Approximate cap on the serialised payload
                 size in bytes.  The number of data points loaded is
                 derived from HDF5 metadata so that the response stays
-                within this budget.  Defaults to 50 MB.
+                within this budget.
             include_hardware_instructions: If True, include per-point pulse
                 ``hardware_instructions`` blobs in the response.  Defaults to False
                 because those strings dominate the payload for large scans
