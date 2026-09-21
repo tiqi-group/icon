@@ -72,11 +72,16 @@ _hdf5_file_create_params: _Hdf5FileCreateParams = {
 class HDF5FileMode(StrEnum):
     """HDF5 File modes - see https://docs.h5py.org/en/stable/high/file.html#opening-creating-files."""
 
-    READ_ONLY = "r"  # Read-only, file must exist (default)
-    READ_WRITE_OR_FAIL = "r+"  # Read/write, fail if not exists
-    READ_WRITE_OR_CREATE = "a"  # Read/write if exists, create otherwise
-    CREATE_OR_FAIL = "w-"  # Create file, fail if exists
-    CREATE_OR_TRUNCATE = "w"  # Create file, truncate if exists
+    READ_ONLY = "r"
+    """Read-only, file must exist (default)"""
+    READ_WRITE_OR_FAIL = "r+"
+    """Read/write, fail if not exists"""
+    READ_WRITE_OR_CREATE = "a"
+    """Read/write if exists, create otherwise"""
+    CREATE_OR_FAIL = "w-"
+    """Create file, fail if exists"""
+    CREATE_OR_TRUNCATE = "w"
+    """Create file, truncate if exists"""
 
 
 class OSFileLockError(OSError):
