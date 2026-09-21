@@ -395,7 +395,7 @@ class ExperimentDataRepository:
         h5_path = Path(get_config().data.results_dir) / filename
         job = JobRepository.get_job_by_id(job_id=job_id, load_experiment_source=True)
 
-        with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_CREATE) as h5file:
+        with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
             prepare_readout_metadata(
                 h5file,
                 job_id=job_id,
@@ -442,7 +442,7 @@ class ExperimentDataRepository:
         filename = get_filename_by_job_id(job_id)
         h5_path = Path(get_config().data.results_dir) / filename
 
-        with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_CREATE) as h5file:
+        with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
             write_experiment_data_point(h5file, data_point)
         logger.debug("Appended data to %s", h5_path)
 
@@ -472,7 +472,7 @@ class ExperimentDataRepository:
         filename = get_filename_by_job_id(job_id)
         h5_path = Path(get_config().data.results_dir) / filename
         parameter_updates = {}
-        with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_CREATE) as h5file:
+        with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
             parameters_group = h5file.require_group("parameters")
 
             for param_id, value in parameter_values.items():
@@ -1100,7 +1100,7 @@ def write_fit_result_by_job_id(
     """
     filename = get_filename_by_job_id(job_id)
     h5_path = Path(get_config().data.results_dir) / filename
-    with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_CREATE) as h5file:
+    with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
         fits_group = h5file.require_group("fits")
         channel = fit_result.result_channel
         if channel in fits_group:
@@ -1136,7 +1136,7 @@ def delete_fit_result_by_job_id(*, job_id: int, result_channel: str) -> None:
     """
     filename = get_filename_by_job_id(job_id)
     h5_path = Path(get_config().data.results_dir) / filename
-    with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_CREATE) as h5file:
+    with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
         if "fits" in h5file and result_channel in h5file["fits"]:
             del h5file["fits"][result_channel]
 
