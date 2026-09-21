@@ -320,6 +320,7 @@ class PreProcessingWorker(multiprocessing.Process):
             readout_metadata=readout_metadata,
         )
 
+        self._scan_progress.start(pre_processing_task.job_run.id)
         jobs = (
             self._handle_realtime_scan(
                 pre_processing_task, client=client, src_dir=src_dir, namespace=namespace
@@ -496,12 +497,10 @@ class PreProcessingWorker(multiprocessing.Process):
                 "No scan combinations to process: check that 'repetitions' >= 1 "
                 "and all scan parameters have at least one scan value."
             )
-        run_id = pre_processing_task.job_run.id
-        self._scan_progress.start(run_id)
         for combination in enumerate(scan_parameter_value_combinations):
             self._data_points_to_process.put(combination)
 
-        while self._scan_progress.completed(run_id) != len(
+        while self._scan_progress.completed(pre_processing_task.job_run.id) != len(
             scan_parameter_value_combinations
         ):
             self._handle_parameter_updates(pre_processing_task, namespace)
