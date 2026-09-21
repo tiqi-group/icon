@@ -56,9 +56,12 @@ def cancel_job(
         sqlalchemy.orm.Session(engine, expire_on_commit=False) as session,
         session.begin(),
     ):
-        session.execute(
-            update(Job).where(Job.id == job_id).values(status=JobStatus.PROCESSED)
-        )
+        updated_job_id = session.execute(
+            update(Job)
+            .where(Job.id == job_id)
+            .values(status=JobStatus.PROCESSED)
+            .returning(Job.id)
+        ).scalar_one_or_none()
 
         run = session.execute(
             update(JobRun)
@@ -75,15 +78,16 @@ def cancel_job(
         run_status.value,
     )
 
-    emit_queue.put(
-        {
-            "event": "job.update",
-            "data": {
-                "job_id": job_id,
-                "updated_properties": {"status": JobStatus.PROCESSED.value},
-            },
-        }
-    )
+    if updated_job_id is not None:
+        emit_queue.put(
+            {
+                "event": "job.update",
+                "data": {
+                    "job_id": job_id,
+                    "updated_properties": {"status": JobStatus.PROCESSED.value},
+                },
+            }
+        )
 
     if run is not None:
         emit_queue.put(
