@@ -225,10 +225,8 @@ class PreProcessingWorker(multiprocessing.Process):
             while True:
                 pre_processing_task = self._queue.get()
 
-                for _ in consume_queue(self._data_points_to_process):
-                    pass
-                for _ in consume_queue(self._outdated_tasks):
-                    pass
+                clear_queue(self._data_points_to_process)
+                clear_queue(self._outdated_tasks)
 
                 try:
                     self._process_task(
@@ -673,6 +671,11 @@ def consume_queue(q: multiprocessing.Queue[T] | queue.Queue[T]) -> Iterator[T]:
             yield q.get(block=False)
         except queue.Empty:
             return
+
+
+def clear_queue(q: multiprocessing.Queue[T] | queue.Queue[T]) -> None:
+    for _ in consume_queue(q):
+        pass
 
 
 def freeze_dict(combination: dict[str, DatabaseValueType]) -> ScanCombination:
