@@ -13,17 +13,17 @@ interface ScanParameterArgument {
   n_scan_points?: number;
 }
 
-const generateScanValues = (
+export const generateScanValues = (
   start: number,
   stop: number,
   points: number,
   pattern: ScanPattern,
 ) => {
-  // Interpolate from both ends so start and stop are exact and never overshoot.
   const linspace = (n: number) =>
     Array.from({ length: n }, (_, i) => {
-      const t = i / (n - 1);
-      return start * (1 - t) + stop * t;
+      if (i === 0) return start;
+      if (i === n - 1) return stop;
+      return start + (i * (stop - start)) / (n - 1);
     });
 
   switch (pattern) {
