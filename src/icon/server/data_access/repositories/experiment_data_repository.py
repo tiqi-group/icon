@@ -54,21 +54,6 @@ _common_hdf5_dataset_params: _Hdf5DatasetCommonParams = {
 }
 
 
-class _Hdf5FileCreateParams(TypedDict):
-    """HDF5 file properties, which h5py only accepts at creation."""
-
-    fs_strategy: str
-    fs_persist: bool
-    fs_page_size: int
-
-
-_hdf5_file_create_params: _Hdf5FileCreateParams = {
-    "fs_strategy": "page",
-    "fs_persist": True,
-    "fs_page_size": 65536,
-}
-
-
 class HDF5FileMode(StrEnum):
     """HDF5 File modes - see https://docs.h5py.org/en/stable/high/file.html#opening-creating-files."""
 
@@ -374,7 +359,13 @@ class ExperimentDataRepository:
         """
         filename = get_filename_by_job_id(job_id)
         h5_path = Path(get_config().data.results_dir) / filename
-        with h5_open(h5_path, HDF5FileMode.CREATE_OR_FAIL, **_hdf5_file_create_params):
+        with h5_open(
+            h5_path,
+            HDF5FileMode.CREATE_OR_FAIL,
+            fs_strategy="page",
+            fs_persist=True,
+            fs_page_size=65536,
+        ):
             pass
 
     @staticmethod
