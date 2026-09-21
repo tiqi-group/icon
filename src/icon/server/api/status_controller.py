@@ -67,7 +67,7 @@ class StatusController(pydase.DataService):
 
         Emits a `"status.hardware"` event to the Socket.IO queue.
         """
-        await asyncio.to_thread(self.__devices.reload)
+        await asyncio.to_thread(self.__devices.retry_disconnected)
 
         status: HardwareStatus = {
             dev_id: (
