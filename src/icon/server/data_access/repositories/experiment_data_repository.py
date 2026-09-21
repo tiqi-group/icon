@@ -862,10 +862,9 @@ def load_experiment_data(
         ]
         data.readouts.vector_channels = {
             channel_name: {
-                int(data_point): vector_dataset[:].tolist()
-                for data_point, vector_dataset in cast(
-                    "Sequence[tuple[str, h5py.Dataset]]", vector_group.items()
-                )
+                int(name): cast("h5py.Dataset", vector_group[name])[:].tolist()
+                for name in vector_group
+                if int(name) >= start_index
             }
             for channel_name, vector_group in cast(
                 "Sequence[tuple[str, h5py.Group]]",
@@ -1165,12 +1164,14 @@ def estimate_bytes_per_data_point(
         if ds is not None
     )
 
-    # Add vector channel size (average across all data points)
-    total_vector_bytes = sum(
-        dataset.shape[0] * dataset.dtype.itemsize
-        for channel_group in (vector_channels_group or {}).values()
-        for dataset in cast("h5py.Group", channel_group).values()
-    )
+    total_vector_bytes = 0
+    for channel_group in (vector_channels_group or {}).values():
+        vectors = cast("h5py.Group", channel_group)
+        sample_name = next(iter(vectors), None)
+        if sample_name is None:
+            continue
+        sample = cast("h5py.Dataset", vectors[sample_name])
+        total_vector_bytes += sample.shape[0] * sample.dtype.itemsize * len(vectors)
     if total > 0:
         bytes_per_point += total_vector_bytes // total
     # JSON serialisation roughly doubles the raw size
