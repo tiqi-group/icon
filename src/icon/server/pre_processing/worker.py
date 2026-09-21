@@ -500,7 +500,7 @@ class PreProcessingWorker(multiprocessing.Process):
         for combination in enumerate(scan_parameter_value_combinations):
             self._data_points_to_process.put(combination)
 
-        while self._scan_progress.completed(pre_processing_task.job_run.id) != len(
+        while self._scan_progress.completed(pre_processing_task.job_run.id) < len(
             scan_parameter_value_combinations
         ):
             self._handle_parameter_updates(pre_processing_task, namespace)
