@@ -5,8 +5,9 @@ import time
 from typing import Any
 
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
-from icon.server.data_access.models.sqlite.job_run import JobRun
+from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.models.sqlite.now import now
+from icon.server.data_access.repositories import job_transactions
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
@@ -41,7 +42,7 @@ def initialise_job_tables() -> None:
             "during scheduler initialization (likely abandoned due to a server restart).",
             job.id,
         )
-        JobRepository.update_job_status(job=job, status=JobStatus.PROCESSED)
+        JobRepository.update_job_status(job_id=job.id, status=JobStatus.PROCESSED)
 
 
 def should_exit() -> bool:
@@ -58,6 +59,37 @@ class Scheduler(multiprocessing.Process):
         self.kwargs = kwargs
         self._pre_processing_queue = pre_processing_queue
 
+    def _dispatch(self, job_: Job) -> None:
+        dispatched = job_transactions.dispatch_job(job_id=job_.id)
+
+        if dispatched is None:
+            logger.info("Job %s not in SUBMITTED state. Skipping it.", job_.id)
+            return
+
+        job, run = dispatched
+
+        try:
+            self._pre_processing_queue.put(
+                PreProcessingTask(
+                    job=job,
+                    job_run=run,
+                    git_commit_hash=job.git_commit_hash,
+                    scan_parameters=job.scan_parameters,
+                    local_parameters_timestamp=job.local_parameters_timestamp.astimezone(
+                        tz=now().tzinfo
+                    ).isoformat(),
+                    priority=job.priority,
+                    auto_calibration=job.auto_calibration,
+                    debug_mode=job.debug_mode,
+                    repetitions=job.repetitions,
+                )
+            )
+        except Exception:
+            logger.exception("Failed to queue job %s, failing it", job_.id)
+            job_transactions.fail_job(
+                job_id=job_.id, log="Failed to queue the pre-processing task."
+            )
+
     @handle_keyboard_interrupt(logger)
     def run(self) -> None:
         initialise_job_tables()
@@ -68,42 +100,9 @@ class Scheduler(multiprocessing.Process):
                 )
                 for job_ in jobs:
                     try:
-                        job = JobRepository.update_job_status(
-                            job=job_, status=JobStatus.PROCESSING
-                        )
-                        timestamp = now()
-                        timezone = timestamp.tzinfo
-                        run = JobRun(job_id=job.id, scheduled_time=timestamp)
-                        run = JobRunRepository.insert_run(run=run)
-
-                        self._pre_processing_queue.put(
-                            PreProcessingTask(
-                                job=job,
-                                job_run=run,
-                                git_commit_hash=job.git_commit_hash,
-                                scan_parameters=job.scan_parameters,
-                                local_parameters_timestamp=job.local_parameters_timestamp.astimezone(
-                                    tz=timezone
-                                ).isoformat(),
-                                priority=job.priority,
-                                auto_calibration=job.auto_calibration,
-                                debug_mode=job.debug_mode,
-                                repetitions=job.repetitions,
-                            )
-                        )
+                        self._dispatch(job_)
                     except Exception:
-                        logger.exception(
-                            "Failed to dispatch job %s, reverting to SUBMITTED",
-                            job_.id,
-                        )
-                        try:
-                            JobRepository.update_job_status(
-                                job=job_, status=JobStatus.SUBMITTED
-                            )
-                        except Exception:
-                            logger.exception(
-                                "Failed to revert job %s back to SUBMITTED", job_.id
-                            )
+                        logger.exception("Failed to dispatch job %s", job_.id)
             except Exception:
                 logger.exception("Unexpected error in scheduler loop")
             time.sleep(0.1)

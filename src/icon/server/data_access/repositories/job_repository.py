@@ -134,24 +134,24 @@ class JobRepository:
         return job
 
     @staticmethod
-    def update_job_status(*, job: Job, status: JobStatus) -> Job:
+    def update_job_status(*, job_id: int, status: JobStatus) -> Job:
         """Update a job's status and emit an update event.
 
         Args:
-            job: Job to update (identified by its `id`).
+            job_id: ID of the job to update.
             status: New job status.
 
         Returns:
             The updated job with relationships loaded.
         """
         with sqlalchemy.orm.Session(engine) as session:
-            session.execute(update(Job).where(Job.id == job.id).values(status=status))
+            session.execute(update(Job).where(Job.id == job_id).values(status=status))
             session.commit()
 
             job = (
                 session.execute(
                     select(Job)
-                    .where(Job.id == job.id)
+                    .where(Job.id == job_id)
                     .options(
                         sqlalchemy.orm.joinedload(Job.experiment_source),
                         sqlalchemy.orm.joinedload(Job.scan_parameters),
@@ -168,7 +168,7 @@ class JobRepository:
             {
                 "event": "job.update",
                 "data": {
-                    "job_id": job.id,
+                    "job_id": job_id,
                     "updated_properties": {"status": status.value},
                 },
             }

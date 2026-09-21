@@ -268,7 +268,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     )
                 finally:
                     JobRepository.update_job_status(
-                        job=pre_processing_task.job, status=JobStatus.PROCESSED
+                        job_id=pre_processing_task.job.id, status=JobStatus.PROCESSED
                     )
 
     def _process_task(
@@ -278,15 +278,13 @@ class PreProcessingWorker(multiprocessing.Process):
     ) -> None:
         job = pre_processing_task.job
 
-        if job_run_cancelled_or_failed(
-            job_id=job.id,
-        ):
-            return
-
-        JobRunRepository.update_run_by_id(
+        claimed = JobRunRepository.update_run_by_id(
             run_id=pre_processing_task.job_run.id,
             status=JobRunStatus.PROCESSING,
+            only_if_status=(JobRunStatus.PENDING,),
         )
+        if claimed is None:
+            return
 
         ExperimentDataRepository.initialize_for_job_id(job_id=job.id)
 
