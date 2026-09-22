@@ -7,6 +7,7 @@ import numpy as np
 import pydase
 
 from icon.server.data_access.repositories.experiment_data_repository import (
+    DEFAULT_MAX_TRANSFER_BYTES,
     ExperimentDataRepository,
     delete_fit_result_by_job_id,
     write_fit_result_by_job_id,
@@ -26,7 +27,7 @@ class ExperimentDataController(pydase.DataService):
     async def get_experiment_data_by_job_id(
         self,
         job_id: int,
-        max_transfer_bytes: int = 50_000_000,
+        max_transfer_bytes: int = DEFAULT_MAX_TRANSFER_BYTES,
         *,
         include_hardware_instructions: bool = False,
         include_all_shots: bool = False,
@@ -38,7 +39,8 @@ class ExperimentDataController(pydase.DataService):
             max_transfer_bytes: Approximate cap on the serialised payload
                 size in bytes.  The number of data points loaded is
                 derived from HDF5 metadata so that the response stays
-                within this budget.  Defaults to 50 MB.
+                within this budget.  Defaults to
+                ``DEFAULT_MAX_TRANSFER_BYTES``.
             include_hardware_instructions: If True, include per-point pulse
                 ``hardware_instructions`` blobs in the response.  Defaults to False
                 because those strings dominate the payload for large scans

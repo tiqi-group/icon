@@ -20,6 +20,7 @@ from icon.server.data_access.repositories import (
     experiment_source_repository,
     job_repository,
     job_run_repository,
+    job_transactions,
 )
 
 if TYPE_CHECKING:
@@ -30,6 +31,7 @@ _REPOSITORY_MODULES = (
     experiment_source_repository,
     job_repository,
     job_run_repository,
+    job_transactions,
 )
 
 

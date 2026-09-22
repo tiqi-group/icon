@@ -9,7 +9,6 @@ from sqlalchemy.exc import NoResultFound
 from icon.server.data_access.db_context.sqlite import engine
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.data_access.models.sqlite.job_run import JobRun
-from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 logger = logging.getLogger(__name__)
@@ -49,36 +48,10 @@ def job_run_cancelled_or_failed(job_id: int) -> bool:
 class JobRunRepository:
     """Repository for `JobRun` entities.
 
-    Provides methods to insert, update, and query job runs from the database.
-    Emits Socket.IO events when job runs are created or updated.
+    Provides methods to update and query job runs from the database. Runs are
+    created by `job_transactions.dispatch_job`.
+    Emits Socket.IO events when job runs are updated.
     """
-
-    @staticmethod
-    def insert_run(*, run: JobRun) -> JobRun:
-        """Insert a new job run and emit a creation event.
-
-        Args:
-            run: The job run instance to persist.
-
-        Returns:
-            The persisted job run with generated fields populated.
-        """
-        with sqlalchemy.orm.Session(engine) as session:
-            session.add(run)
-            session.commit()
-            session.refresh(run)
-            logger.debug("Created new run %s", run)
-
-        emit_queue.put(
-            {
-                "event": "job_run.new",
-                "data": {
-                    "job_run": SQLAlchemyDictEncoder.encode(obj=run),
-                },
-            }
-        )
-
-        return run
 
     @staticmethod
     def update_run_by_id(

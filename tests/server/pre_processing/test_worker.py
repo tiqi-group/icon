@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.hardware_processing.worker import should_divert_task
 from icon.server.pre_processing.worker import PreProcessingWorker
+from icon.server.shared_resource_manager import ScanProgress
 
 if TYPE_CHECKING:
     from icon.server.hardware_processing.task import HardwareProcessingTask
@@ -18,6 +19,8 @@ PARAM_UPDATE_TS = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
 # The SQLite column is stored without tzinfo (as UTC); mirror that for divert checks.
 NAIVE_TS = PARAM_UPDATE_TS.replace(tzinfo=None)
 NUM_TASKS = 2  # tasks placed in the queue per test
+RUN_ID = 1  # the job run the worker is currently scanning
+STALE_RUN_ID = 99  # a job run that finished before the current one started
 UPDATED_FREQ = 2.0  # parameter value after a calibration during a pause
 MAX_ROUNDS = 5  # bound on consumer<->hardware round-trips before we call it a loop
 
@@ -36,6 +39,7 @@ class _FakeTask:
         hardware_instructions: bytes = b"ORIGINAL",
         *,
         realtime: bool = False,
+        run_id: int = RUN_ID,
     ) -> None:
         self.created = created
         self.priority = 0
@@ -46,6 +50,7 @@ class _FakeTask:
         scan_parameters = _scan_parameters(realtime=realtime)
         self.pre_processing_task = SimpleNamespace(
             scan_parameters=scan_parameters,
+            job_run=SimpleNamespace(id=run_id),
             job=SimpleNamespace(
                 id=1,
                 number_of_shots=100,
@@ -62,11 +67,12 @@ def _fake_task(
     hardware_instructions: bytes = b"ORIGINAL",
     *,
     realtime: bool = False,
+    run_id: int = RUN_ID,
 ) -> HardwareProcessingTask:
     """A _FakeTask typed as the real task, so the strongly-typed queues accept it."""
     return cast(
         "HardwareProcessingTask",
-        _FakeTask(created, hardware_instructions, realtime=realtime),
+        _FakeTask(created, hardware_instructions, realtime=realtime, run_id=run_id),
     )
 
 
@@ -74,7 +80,8 @@ def _make_worker() -> tuple[PreProcessingWorker, list[HardwareProcessingTask]]:
     worker = PreProcessingWorker.__new__(PreProcessingWorker)
     worker._parameter_dict = {}
     worker._outdated_tasks = queue.PriorityQueue()
-    worker._processed_data_points = queue.Queue()
+    worker._scan_progress = ScanProgress()
+    worker._scan_progress.start(RUN_ID)
     submitted: list[HardwareProcessingTask] = []
 
     def _submit(*, task: HardwareProcessingTask) -> None:
@@ -161,7 +168,7 @@ def test_regenerate_drops_cancelled_tasks() -> None:
 
     assert submitted == []
     assert generate.call_count == 0
-    assert worker._processed_data_points.qsize() == NUM_TASKS
+    assert worker._scan_progress.completed(RUN_ID) == NUM_TASKS
     assert worker._outdated_tasks.qsize() == 0
 
 

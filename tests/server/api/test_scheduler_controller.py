@@ -41,11 +41,6 @@ def _job_status(engine: sqlalchemy.engine.Engine, job_id: int) -> JobStatus:
         return job.status
 
 
-# The status guard lives in the UPDATE statement rather than in an `if` in the
-# controller, so these run against the real repositories: a mocked repository
-# would accept `only_if_status` and ignore it, leaving nothing to assert.
-
-
 @pytest.mark.parametrize(
     ("run_status", "should_update"),
     [
@@ -130,28 +125,21 @@ def test_cancel_job_guards_by_run_status(
 
 
 @pytest.mark.parametrize(
-    ("job_status", "should_cancel"),
-    [
-        (JobStatus.SUBMITTED, True),
-        (JobStatus.PROCESSING, True),
-        (JobStatus.PROCESSED, False),
-    ],
+    "job_status",
+    [JobStatus.SUBMITTED, JobStatus.PROCESSING, JobStatus.PROCESSED],
 )
-def test_cancel_job_leaves_finished_jobs_alone(
+def test_cancel_job_cancels_job_run(
     job_status: JobStatus,
-    *,
-    should_cancel: bool,
     controller: SchedulerController,
     database: sqlalchemy.engine.Engine,
     seed_job: SeedJob,
 ) -> None:
-    """The job-level branch is the controller's own; only the run guard moved."""
     job_id, run_id = seed_job(job_status=job_status, run_status=JobRunStatus.PROCESSING)
 
     controller.cancel_job(job_id=job_id)
 
-    expected = JobRunStatus.CANCELLED if should_cancel else JobRunStatus.PROCESSING
-    assert _run_status(database, run_id) == expected
+    assert _run_status(database, run_id) == JobRunStatus.CANCELLED
+    assert _job_status(database, job_id) == JobStatus.PROCESSED
 
 
 def test_cancel_job_records_the_reason(

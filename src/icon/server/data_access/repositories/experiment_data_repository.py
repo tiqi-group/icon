@@ -8,8 +8,9 @@ from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import datetime
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, TypedDict, cast
 
 import h5py  # type: ignore
 import numpy as np
@@ -39,10 +40,36 @@ logger = logging.getLogger(__name__)
 MOST_RECENT_JOB_RUNS = 10
 """How many of the newest job runs to search when no job is specified."""
 
-_common_hdf5_dataset_params = {
+DEFAULT_MAX_TRANSFER_BYTES = 4_000_000
+"""Approximate cap on the serialised payload of one data request."""
+
+
+class _Hdf5DatasetCommonParams(TypedDict):
+    """Common parameters for HDF5 Datasets."""
+
+    compression: str
+    compression_opts: int
+
+
+_common_hdf5_dataset_params: _Hdf5DatasetCommonParams = {
     "compression": "gzip",
     "compression_opts": 4,
 }
+
+
+class HDF5FileMode(StrEnum):
+    """HDF5 File modes - see https://docs.h5py.org/en/stable/high/file.html#opening-creating-files."""
+
+    READ_ONLY = "r"
+    """Read-only, file must exist (default)"""
+    READ_WRITE_OR_FAIL = "r+"
+    """Read/write, fail if not exists"""
+    READ_WRITE_OR_CREATE = "a"
+    """Read/write if exists, create otherwise"""
+    CREATE_OR_FAIL = "w-"
+    """Create file, fail if exists"""
+    CREATE_OR_TRUNCATE = "w"
+    """Create file, truncate if exists"""
 
 
 class OSFileLockError(OSError):
@@ -321,7 +348,28 @@ class ExperimentDataRepository:
 
     Manages HDF5 file creation and updates (metadata, results, parameters), with
     hdf5-level locking to support concurrent writers.
+
+    Initialize the data container for a new job by calling :meth:`initialize_for_job_id`.
+    Initialization is required before any read/write operation is triggered.
     """
+
+    @staticmethod
+    def initialize_for_job_id(*, job_id: int) -> None:
+        """Create the file.
+
+        Args:
+            job_id: Job identifier.
+        """
+        filename = get_filename_by_job_id(job_id)
+        h5_path = Path(get_config().data.results_dir) / filename
+        with h5_open(
+            h5_path,
+            HDF5FileMode.CREATE_OR_FAIL,
+            fs_strategy="page",
+            fs_persist=True,
+            fs_page_size=65536,
+        ):
+            pass
 
     @staticmethod
     def update_metadata_by_job_id(
@@ -350,7 +398,7 @@ class ExperimentDataRepository:
         h5_path = Path(get_config().data.results_dir) / filename
         job = JobRepository.get_job_by_id(job_id=job_id, load_experiment_source=True)
 
-        with h5_open(h5_path, "a") as h5file:
+        with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
             prepare_readout_metadata(
                 h5file,
                 job_id=job_id,
@@ -397,7 +445,7 @@ class ExperimentDataRepository:
         filename = get_filename_by_job_id(job_id)
         h5_path = Path(get_config().data.results_dir) / filename
 
-        with h5_open(h5_path, "a") as h5file:
+        with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
             write_experiment_data_point(h5file, data_point)
         logger.debug("Appended data to %s", h5_path)
 
@@ -417,7 +465,6 @@ class ExperimentDataRepository:
     ) -> None:
         """Append parameter updates under the 'parameters' group.
 
-        Creates a dataset per parameter storing (timestamp, value) entries.
         Appends only when the value changed from the last entry.
 
         Args:
@@ -428,7 +475,7 @@ class ExperimentDataRepository:
         filename = get_filename_by_job_id(job_id)
         h5_path = Path(get_config().data.results_dir) / filename
         parameter_updates = {}
-        with h5_open(h5_path, "a") as h5file:
+        with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
             parameters_group = h5file.require_group("parameters")
 
             for param_id, value in parameter_values.items():
@@ -477,7 +524,7 @@ class ExperimentDataRepository:
     def get_experiment_data_by_job_id(
         *,
         job_id: int,
-        max_transfer_bytes: int = 50_000_000,
+        max_transfer_bytes: int = DEFAULT_MAX_TRANSFER_BYTES,
         include_hardware_instructions: bool = False,
         include_all_shots: bool = False,
     ) -> ExperimentData:
@@ -491,7 +538,7 @@ class ExperimentDataRepository:
         Args:
             job_id: Job identifier.
             max_transfer_bytes: Approximate cap on the serialised payload
-                size in bytes.  Defaults to 50 MB.
+                size in bytes.  Defaults to 4 MB.
             include_hardware_instructions: If True, load ``hardware_instructions`` entries
                 into ``hardware_instructions``.  Defaults to False — those blobs are
                 large (~27 KB each, one per changed point) and are omitted
@@ -510,7 +557,7 @@ class ExperimentDataRepository:
             logger.warning("The file %s does not exist.", h5_path)
             return ExperimentData()
 
-        with h5_open(h5_path, "r") as h5file:
+        with h5_open(h5_path, HDF5FileMode.READ_ONLY) as h5file:
             return load_experiment_data(
                 h5file,
                 max_transfer_bytes,
@@ -563,7 +610,7 @@ def _read_hardware_instructions(path: Path, *, index: int | None) -> str | None:
     each and a scan stores one per change, so reading the whole dataset to
     return a single sequence would transfer megabytes.
     """
-    with h5_open(path, "r") as h5file:
+    with h5_open(path, HDF5FileMode.READ_ONLY) as h5file:
         dataset = h5file.get("hardware_instructions")
         if not isinstance(dataset, h5py.Dataset) or dataset.shape[0] == 0:
             return None
@@ -700,7 +747,7 @@ def write_experiment_data_point(
 
 def load_experiment_data(
     h5file: h5py.File,
-    max_transfer_bytes: int = 50_000_000,
+    max_transfer_bytes: int = DEFAULT_MAX_TRANSFER_BYTES,
     *,
     include_hardware_instructions: bool = False,
     include_all_shots: bool = False,
@@ -715,7 +762,7 @@ def load_experiment_data(
     Args:
         h5file: File to load from.
         max_transfer_bytes: Approximate cap on the serialised payload
-            size in bytes.  Defaults to 50 MB.
+            size in bytes.  Defaults to 4 MB.
         include_hardware_instructions: Whether to include hardware instructions.
         include_all_shots: If True, return the raw shots of every data point.
             Defaults to False, which returns only the newest data point's
@@ -814,10 +861,9 @@ def load_experiment_data(
         ]
         data.readouts.vector_channels = {
             channel_name: {
-                int(data_point): vector_dataset[:].tolist()
-                for data_point, vector_dataset in cast(
-                    "Sequence[tuple[str, h5py.Dataset]]", vector_group.items()
-                )
+                int(name): cast("h5py.Dataset", vector_group[name])[:].tolist()
+                for name in vector_group
+                if int(name) >= start_index
             }
             for channel_name, vector_group in cast(
                 "Sequence[tuple[str, h5py.Group]]",
@@ -882,8 +928,9 @@ def get_hdf5_dtype(
 
 
 def get_result_channels_dataset(
-    h5file: h5py.File, result_channels: list[str], number_of_data_points: int = 1
+    h5file: h5py.File, result_channels: list[str], number_of_data_points: int = 0
 ) -> h5py.Dataset:
+    """Return the 'result_channels' dataset, creating it if it does not exist yet."""
     sorted_result_channels = sorted(result_channels)
     result_dtype = np.dtype([(key, np.float64) for key in sorted_result_channels])
 
@@ -924,7 +971,7 @@ def _in_process_lock(path: Path, timeout: float) -> Generator[None]:
 
 
 def _h5_open_with_retry(
-    path: Path, mode: str, *, deadline: float, **kwargs: Any
+    path: Path, mode: HDF5FileMode, *, deadline: float, **kwargs: Any
 ) -> h5py.File:
     """Open `path`, retrying while another process holds the OS file lock.
 
@@ -976,7 +1023,7 @@ def _is_file_lock_error(exc: OSError) -> bool:
     return exc.errno is None and "unable to lock file" in str(exc).lower()
 
 
-def _h5_open_once(path: Path, mode: str, **kwargs: Any) -> h5py.File:
+def _h5_open_once(path: Path, mode: HDF5FileMode, **kwargs: Any) -> h5py.File:
     try:
         h5file = h5py.File(str(path), mode, **kwargs)
     except OSError as exc:
@@ -990,7 +1037,7 @@ def _h5_open_once(path: Path, mode: str, **kwargs: Any) -> h5py.File:
 
 @contextmanager
 def h5_open(
-    path: Path, mode: str, *, timeout: float | None = None, **kwargs: Any
+    path: Path, mode: HDF5FileMode, *, timeout: float | None = None, **kwargs: Any
 ) -> Generator[h5py.File]:
     """Open an HDF5 file under a process-wide per-file lock.
 
@@ -1056,7 +1103,7 @@ def write_fit_result_by_job_id(
     """
     filename = get_filename_by_job_id(job_id)
     h5_path = Path(get_config().data.results_dir) / filename
-    with h5_open(h5_path, "a") as h5file:
+    with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
         fits_group = h5file.require_group("fits")
         channel = fit_result.result_channel
         if channel in fits_group:
@@ -1079,7 +1126,7 @@ def get_fit_results_by_job_id(*, job_id: int) -> dict[str, FitResult]:
     if not h5_path.exists():
         return {}
 
-    with h5_open(h5_path, "r") as h5file:
+    with h5_open(h5_path, HDF5FileMode.READ_ONLY) as h5file:
         return _read_fits_from_hdf5(h5file)
 
 
@@ -1092,7 +1139,7 @@ def delete_fit_result_by_job_id(*, job_id: int, result_channel: str) -> None:
     """
     filename = get_filename_by_job_id(job_id)
     h5_path = Path(get_config().data.results_dir) / filename
-    with h5_open(h5_path, "a") as h5file:
+    with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
         if "fits" in h5file and result_channel in h5file["fits"]:
             del h5file["fits"][result_channel]
 
@@ -1116,12 +1163,14 @@ def estimate_bytes_per_data_point(
         if ds is not None
     )
 
-    # Add vector channel size (average across all data points)
-    total_vector_bytes = sum(
-        dataset.shape[0] * dataset.dtype.itemsize
-        for channel_group in (vector_channels_group or {}).values()
-        for dataset in cast("h5py.Group", channel_group).values()
-    )
+    total_vector_bytes = 0
+    for channel_group in (vector_channels_group or {}).values():
+        vectors = cast("h5py.Group", channel_group)
+        sample_name = next(iter(vectors), None)
+        if sample_name is None:
+            continue
+        sample = cast("h5py.Dataset", vectors[sample_name])
+        total_vector_bytes += sample.shape[0] * sample.dtype.itemsize * len(vectors)
     if total > 0:
         bytes_per_point += total_vector_bytes // total
     # JSON serialisation roughly doubles the raw size
