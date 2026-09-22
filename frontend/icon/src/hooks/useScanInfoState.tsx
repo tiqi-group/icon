@@ -23,7 +23,12 @@ export type ScanInfoAction =
   | { type: "SET_SCAN_MODE"; payload: ScanMode }
   | { type: "ADD_PARAMETER" }
   | { type: "REMOVE_PARAMETER"; index: number }
-  | { type: "UPDATE_PARAMETER"; index: number; payload: Partial<ScanParameterInfo> };
+  | {
+      type: "UPDATE_PARAMETER";
+      index: number;
+      payload: Partial<ScanParameterInfo>;
+      recenterOn?: number;
+    };
 
 const defaultParameterGenerationSpec: ScanParameterGenerationSpec = {
   start: 0,
@@ -103,7 +108,11 @@ export const reducer =
         const { updatedParam, updatedScanInfoHistory } = new ScanInfoSelectionHistory(
           () => defaultParameterGenerationSpec,
           state.history,
-        ).handleParamUpdate(state.parameters[action.index], action.payload);
+        ).handleParamUpdate(
+          state.parameters[action.index],
+          action.payload,
+          action.recenterOn,
+        );
         newState = {
           ...state,
           parameters: state.parameters.map((p, i) =>

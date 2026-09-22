@@ -52,7 +52,10 @@ if TYPE_CHECKING:
     from icon.server.data_access.models.sqlite.job import Job
     from icon.server.data_access.models.sqlite.job_run import JobRun
     from icon.server.pre_processing.task import PreProcessingTask
-    from icon.server.shared_resource_manager import SharedResourceManager
+    from icon.server.shared_resource_manager import (
+        ScanProgress,
+        SharedResourceManager,
+    )
     from icon.server.utils.types import UpdateQueue
 
 logger = logging.getLogger(__name__)
@@ -217,12 +220,11 @@ class PreProcessingWorker(multiprocessing.Process):
         self._hw_processing_queue = hardware_processing_queue
         self._worker_number = worker_number
         self._manager = manager
-        # Queues to communicate with the hardware worker:
         self._data_points_to_process: queue.Queue[
             tuple[int, dict[str, DatabaseValueType]]
-        ]
-        self._processed_data_points: queue.Queue[HardwareProcessingTask]
+        ] = queue.Queue()
         self._parameter_dict: dict[str, DatabaseValueType] = {}
+        self._scan_progress: ScanProgress = manager.ScanProgress()
         self._outdated_tasks: queue.PriorityQueue[HardwareProcessingTask] = (
             manager.PriorityQueue()
         )
@@ -239,8 +241,8 @@ class PreProcessingWorker(multiprocessing.Process):
             while True:
                 pre_processing_task = self._queue.get()
 
-                self._data_points_to_process = self._manager.Queue()
-                self._processed_data_points = self._manager.Queue()
+                clear_queue(self._data_points_to_process)
+                clear_queue(self._outdated_tasks)
 
                 try:
                     self._process_task(
@@ -280,7 +282,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     )
                 finally:
                     JobRepository.update_job_status(
-                        job=pre_processing_task.job, status=JobStatus.PROCESSED
+                        job_id=pre_processing_task.job.id, status=JobStatus.PROCESSED
                     )
 
     def _process_task(
@@ -290,15 +292,15 @@ class PreProcessingWorker(multiprocessing.Process):
     ) -> None:
         job = pre_processing_task.job
 
-        if job_run_cancelled_or_failed(
-            job_id=job.id,
-        ):
-            return
-
-        JobRunRepository.update_run_by_id(
+        claimed = JobRunRepository.update_run_by_id(
             run_id=pre_processing_task.job_run.id,
             status=JobRunStatus.PROCESSING,
+            only_if_status=(JobRunStatus.PENDING,),
         )
+        if claimed is None:
+            return
+
+        ExperimentDataRepository.initialize_for_job_id(job_id=job.id)
 
         namespace = ExperimentIdentifier.from_str(job.experiment_source.experiment_id)
         # Clear the worker's parameter dict for the new job
@@ -334,6 +336,7 @@ class PreProcessingWorker(multiprocessing.Process):
             readout_metadata=readout_metadata,
         )
 
+        self._scan_progress.start(pre_processing_task.job_run.id)
         jobs = (
             self._handle_realtime_scan(
                 pre_processing_task, client=client, src_dir=src_dir, namespace=namespace
@@ -513,7 +516,7 @@ class PreProcessingWorker(multiprocessing.Process):
         for combination in enumerate(scan_parameter_value_combinations):
             self._data_points_to_process.put(combination)
 
-        while self._processed_data_points.qsize() != len(
+        while self._scan_progress.completed(pre_processing_task.job_run.id) < len(
             scan_parameter_value_combinations
         ):
             self._handle_parameter_updates(pre_processing_task, namespace)
@@ -565,8 +568,7 @@ class PreProcessingWorker(multiprocessing.Process):
             scanned_params=data_point,
             src_dir=src_dir,
             hardware_instructions=hardware_instructions,
-            processed_data_points=self._processed_data_points,
-            data_points_to_process=self._data_points_to_process,
+            scan_progress=self._scan_progress,
             outdated_tasks=self._outdated_tasks,
             created=datetime.now(timezone),
         )
@@ -594,10 +596,10 @@ class PreProcessingWorker(multiprocessing.Process):
                 self._outdated_tasks.put(task)
                 break
             # The job was cancelled (or failed) while this task was outstanding.
-            # Account for it directly so the scan loop's qsize check can complete,
-            # instead of regenerating it and bouncing it through the hardware worker.
+            # Count it as finished directly so the scan loop can complete, instead
+            # of regenerating it and bouncing it through the hardware worker.
             if job_run.status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
-                self._processed_data_points.put(task)
+                self._scan_progress.complete(task.pre_processing_task.job_run.id)
                 continue
             # Only stale tasks (parameters changed since the task was built) need
             # fresh hardware instructions. Pause-diverted tasks keep their valid hardware instructions as-is.
@@ -684,6 +686,11 @@ def consume_queue(q: multiprocessing.Queue[T] | queue.Queue[T]) -> Iterator[T]:
             yield q.get(block=False)
         except queue.Empty:
             return
+
+
+def clear_queue(q: multiprocessing.Queue[T] | queue.Queue[T]) -> None:
+    for _ in consume_queue(q):
+        pass
 
 
 def freeze_dict(combination: dict[str, DatabaseValueType]) -> ScanCombination:

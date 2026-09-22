@@ -104,7 +104,7 @@ def test_write_device_snapshots_by_job_id(results_dir: Path, job_filename: str) 
         ],
     )
 
-    with edr.h5_open(results_dir / job_filename, "r") as h5file:
+    with edr.h5_open(results_dir / job_filename, edr.HDF5FileMode.READ_ONLY) as h5file:
         params = h5file["devices"]["dac"]["parameters"]
         assert params.attrs["voltage"] == voltage
         assert params.attrs["enabled"]
@@ -135,7 +135,7 @@ def test_write_device_snapshots_by_job_id(results_dir: Path, job_filename: str) 
         ],
     )
 
-    with edr.h5_open(results_dir / job_filename, "r") as h5file:
+    with edr.h5_open(results_dir / job_filename, edr.HDF5FileMode.READ_ONLY) as h5file:
         dac = h5file["devices"]["dac"]
         assert dac.attrs["timestamp"] == "2026-07-17T10:05:00"
         assert dac["parameters"].attrs["voltage"] == updated_voltage
@@ -172,7 +172,7 @@ def test_write_device_snapshots_by_job_id_expands_json_string_field(
         ],
     )
 
-    with edr.h5_open(results_dir / job_filename, "r") as h5file:
+    with edr.h5_open(results_dir / job_filename, edr.HDF5FileMode.READ_ONLY) as h5file:
         params = h5file["devices"]["dac"]["parameters"]
         assert params.attrs["name"] == "my_dac"
         assert params.attrs["not_json"] == "[not actually json"

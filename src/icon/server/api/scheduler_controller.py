@@ -18,6 +18,7 @@ from icon.server.data_access.models.sqlite.experiment_source import ExperimentSo
 from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.models.sqlite.job_run import JobRun
 from icon.server.data_access.models.sqlite.now import now
+from icon.server.data_access.repositories import job_transactions
 from icon.server.data_access.repositories.device_repository import DeviceRepository
 from icon.server.data_access.repositories.experiment_source_repository import (
     ExperimentSourceRepository,
@@ -87,6 +88,48 @@ class SchedulerController(pydase.DataService):
             device_id=DeviceRepository.get_device_by_name(name=param.device_name).id,
         )
 
+    @staticmethod
+    def _is_outside_bounds(
+        *,
+        value: float | bool | str,
+        min_value: float | None,
+        max_value: float | None,
+    ) -> bool:
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            return False
+        return (min_value is not None and value < min_value) or (
+            max_value is not None and value > max_value
+        )
+
+    def _check_scan_values_within_bounds(
+        self, *, scan_parameters: list[ScanParameter]
+    ) -> None:
+        """Raise if a numeric scan value is outside its parameter's min/max range.
+
+        Parameters without metadata (e.g. device parameters) or without configured
+        bounds are not checked, and neither are non-numeric values (booleans,
+        strings).
+
+        Raises:
+            ValueError: If a scan value is outside its parameter's bounds.
+        """
+        for param in scan_parameters:
+            if isinstance(param, RealtimeParameter):
+                continue
+            metadata = self._parameters_controller._all_parameter_metadata.get(param.id)
+            if metadata is None:
+                continue
+            min_value = metadata["min_value"]
+            max_value = metadata["max_value"]
+            for value in param.values:
+                if self._is_outside_bounds(
+                    value=value, min_value=min_value, max_value=max_value
+                ):
+                    raise ValueError(
+                        f"Scan value {value} for {metadata['display_name']!r} is "
+                        f"outside its bounds (min {min_value}, max {max_value})"
+                    )
+
     async def submit_job(
         self,
         *,
@@ -150,6 +193,7 @@ class SchedulerController(pydase.DataService):
             )
             for param in scan_parameters
         ]
+        self._check_scan_values_within_bounds(scan_parameters=concretized_params)
         realtime_params = [
             param
             for param in concretized_params
@@ -193,30 +237,19 @@ class SchedulerController(pydase.DataService):
         return job.id
 
     def cancel_job(self, *, job_id: int) -> None:
-        """Cancel a queued or running job.
+        """Cancel a job.
 
         The following status updates are performed:
 
-        - Job: PROCESSING/SUBMITTED → PROCESSED
-        - JobRun: PENDING/PROCESSING → CANCELLED
+        - Job: → PROCESSED
+        - JobRun: PENDING/PROCESSING/PAUSED → CANCELLED
 
         Args:
             job_id: ID of the job to cancel.
         """
-        job = JobRepository.get_job_by_id(job_id=job_id)
-        if job.status in (JobStatus.PROCESSING, JobStatus.SUBMITTED):
-            JobRepository.update_job_status(job=job, status=JobStatus.PROCESSED)
-            job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
-            JobRunRepository.update_run_by_id(
-                run_id=job_run.id,
-                status=JobRunStatus.CANCELLED,
-                log="Cancelled through user interaction.",
-                only_if_status=(
-                    JobRunStatus.PENDING,
-                    JobRunStatus.PROCESSING,
-                    JobRunStatus.PAUSED,
-                ),
-            )
+        job_transactions.cancel_job(
+            job_id=job_id, log="Cancelled through user interaction."
+        )
 
     def pause_job(self, *, job_id: int) -> None:
         """Pause a running job.

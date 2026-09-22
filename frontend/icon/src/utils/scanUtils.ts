@@ -1,57 +1,96 @@
+import { GroupsByNamespace } from "../hooks/useParameterDisplayGroups";
 import { ScanParameterGenerationSpec } from "../types/ScanParameterGenerationSpec";
-import { ScanPattern } from "../types/ScanParameterInfo";
+import { Store } from "../stores/parmeterStore";
+import { ParameterMetadata } from "../types/ExperimentMetadata";
+import { ScanParameterInfo } from "../types/ScanParameterInfo";
+
+export interface ScanParameterBounds {
+  min: number | null;
+  max: number | null;
+}
 
 /**
- * Generates the scan values a parameter is stepped through, in scan order.
+ * Refreshes Span-mode parameters' start/stop from each parameter's current live
+ * value, keeping the remembered span. Span mode never stores a "center" — it's
+ * always the parameter's live value, looked up here fresh (typically right before
+ * submitting a job) rather than reused from whenever the span was last edited.
  *
- * @param start - First value of the range.
- * @param stop - Last value of the range.
- * @param points - Number of points the range is divided into.
- * @param pattern - Order in which the range is walked.
- * @returns The scan values in the order they are scanned.
+ * Parameters not in Span mode, or whose live value isn't known/numeric, are
+ * returned unchanged.
+ *
+ * @param parameters - The scan parameters to refresh.
+ * @param parameterStore - Store to read live parameter values from.
+ * @returns A new parameters array with Span-mode entries re-centred.
  */
-export const generateScanValues = (
-  start: number,
-  stop: number,
-  points: number,
-  pattern: ScanPattern,
-) => {
-  const linspace = (n: number) =>
-    Array.from({ length: n }, (_, i) => start + (i * (stop - start)) / (n - 1));
+export const refreshSpanCenterParameters = (
+  parameters: ScanParameterInfo[],
+  parameterStore: Pick<Store, "get"> | null,
+): ScanParameterInfo[] =>
+  parameters.map((param) => {
+    if ((param.generation.inputMode ?? "startStop") !== "spanCenter") return param;
+    const liveValue = parameterStore?.get(param.id);
+    if (typeof liveValue !== "number") return param;
+    const span = Math.abs(param.generation.stop - param.generation.start);
+    return {
+      ...param,
+      generation: {
+        ...param.generation,
+        start: liveValue - span / 2,
+        stop: liveValue + span / 2,
+      },
+    };
+  });
 
-  switch (pattern) {
-    case "linear":
-      return linspace(points);
-    case "scatter":
-      return linspace(points).sort(() => Math.random() - 0.5);
-    case "centred": {
-      const base = linspace(points);
-      const mid = Math.floor((points - 1) / 2);
-      const order = [mid];
-      for (let k = 1; order.length < points; k++) {
-        if (mid - k >= 0) order.push(mid - k);
-        if (mid + k < points) order.push(mid + k);
-      }
-      return order.map((i) => base[i]);
-    }
-    case "forwardReverse": {
-      const base = linspace(points);
-      return [...base, ...base.reverse()];
-    }
+const getScanParameterMetadata = (
+  param: ScanParameterInfo,
+  parameterDisplayGroups: GroupsByNamespace,
+): ParameterMetadata | undefined => {
+  if (
+    !param.namespace ||
+    !param.deviceNameOrDisplayGroup ||
+    param.namespace === "Devices" ||
+    param.namespace === "Real Time"
+  ) {
+    return undefined;
   }
+  return parameterDisplayGroups[
+    `${param.namespace} (${param.deviceNameOrDisplayGroup})`
+  ]?.[param.id];
 };
 
 /**
- * Number of scan values `generateScanValues` produces for a generation spec.
+ * Looks up the allowed value range of a scan parameter from the display group
+ * metadata (as provided by the experiment library).
  *
- * The forward-and-reverse pattern walks the range twice, so it yields twice as many
- * values as `points`; every other pattern yields exactly `points` values.
+ * Device and realtime parameters carry no range metadata, so their bounds are null.
  *
- * @param generation - The generation spec of a scan parameter.
- * @returns The number of values the parameter is scanned over.
+ * @param param - The scan parameter to look up.
+ * @param parameterDisplayGroups - Display group metadata keyed by "namespace (group)".
+ * @returns The parameter's min/max bounds, null when unbounded or unknown.
  */
-export const scanValueCount = (generation: ScanParameterGenerationSpec): number =>
-  generation.pattern === "forwardReverse" ? generation.points * 2 : generation.points;
+export const getScanParameterBounds = (
+  param: ScanParameterInfo,
+  parameterDisplayGroups: GroupsByNamespace,
+): ScanParameterBounds => {
+  const metadata = getScanParameterMetadata(param, parameterDisplayGroups);
+  return {
+    min: metadata?.min_value ?? null,
+    max: metadata?.max_value ?? null,
+  };
+};
+
+/** Returns a scan parameter's display name, falling back to its ID. */
+export const getScanParameterDisplayName = (
+  param: ScanParameterInfo,
+  parameterDisplayGroups: GroupsByNamespace,
+): string =>
+  getScanParameterMetadata(param, parameterDisplayGroups)?.display_name ?? param.id;
+
+export const clampToBounds = (value: number, bounds: ScanParameterBounds): number => {
+  if (bounds.min !== null && value < bounds.min) return bounds.min;
+  if (bounds.max !== null && value > bounds.max) return bounds.max;
+  return value;
+};
 
 /**
  * Constructs a unique key for identifying a scanned parameter.
@@ -134,3 +173,15 @@ export function isScannableParameterType(paramId: string): boolean {
 
   return true;
 }
+
+/**
+ * Number of scan values `generateScanValues` produces for a generation spec.
+ *
+ * The forward-and-reverse pattern walks the range twice, so it yields twice as many
+ * values as `points`; every other pattern yields exactly `points` values.
+ *
+ * @param generation - The generation spec of a scan parameter.
+ * @returns The number of values the parameter is scanned over.
+ */
+export const scanValueCount = (generation: ScanParameterGenerationSpec): number =>
+  generation.pattern === "forwardReverse" ? generation.points * 2 : generation.points;

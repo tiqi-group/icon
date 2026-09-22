@@ -25,10 +25,9 @@ export const ScanParameterTable = () => {
         display: "flex",
         flexDirection: "column",
         width: "400px",
-        maxHeight: "600px",
       }}
     >
-      <TableContainer component={Paper} sx={{ overflowY: "auto", maxHeight: "450px" }}>
+      <TableContainer component={Paper}>
         <Table stickyHeader size="small">
           <TableHead>
             <TableRow>

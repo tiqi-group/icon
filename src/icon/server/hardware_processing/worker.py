@@ -278,7 +278,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 job_id=task.pre_processing_task.job.id,
             )
             if job_run.status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
-                task.processed_data_points.put(task)
+                task.scan_progress.complete(task.pre_processing_task.job_run.id)
                 continue
 
             if should_divert_task(
@@ -326,11 +326,11 @@ class HardwareProcessingWorker(multiprocessing.Process):
 
                 self._post_processing_queue.put(post_processing_task)
             except Exception as e:
-                logger.exception("pydase error")
+                logger.exception("Error in hardware worker.")
                 try_update_run_by_id(
                     run_id=task.pre_processing_task.job_run.id,
                     status=JobRunStatus.FAILED,
                     log=extract_hardware_error_message(e),
                 )
             finally:
-                task.processed_data_points.put(task)
+                task.scan_progress.complete(task.pre_processing_task.job_run.id)
