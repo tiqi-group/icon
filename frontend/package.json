@@ -1,16 +1,23 @@
 {
   "name": "icon-frontend",
   "private": true,
-  "packageManager": "pnpm@12.3.4",
+  "workspaces": [
+    "icon",
+    "sequence-visualizer"
+  ],
   "devEngines": {
-      "runtime": { "name": "node", "version": "26", "onFail": "download" }
+    "runtime": {
+      "name": "node",
+      "version": ">=22.12",
+      "onFail": "download"
+    }
   },
   "scripts": {
-    "dev": "pnpm --filter icon run dev",
-    "build": "pnpm run \"/^build:/\"",
-    "build:icon": "pnpm --fail-if-no-match --filter icon run build",
-    "build:visualizer": "pnpm --fail-if-no-match --filter ./sequence-visualizer run build --outDir ../../src/icon/server/frontend_visualizer --emptyOutDir",
-    "lint": "pnpm --filter icon run lint",
-    "test": "pnpm --filter icon run test"
+    "dev": "npm --workspace=icon run dev",
+    "build": "npm run build:icon && npm run build:visualizer",
+    "build:icon": "npm --workspace=icon run build",
+    "build:visualizer": "npm --workspace=sequence-visualizer run build -- --outDir ../../src/icon/server/frontend_visualizer --emptyOutDir",
+    "lint": "npm --workspace=icon run lint",
+    "test": "npm --workspace=icon run test"
   }
 }

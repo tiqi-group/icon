@@ -1,7 +1,8 @@
 # Frontend
 
-The frontend code is organized as a [pnpm workspace](https://pnpm.io/workspaces)
-holding two packages.
+The frontend code is organized as a workspace holding two packages. The workspace
+is declared both in `package.json` (`workspaces`, used by npm) and in
+`pnpm-workspace.yaml` (used by pnpm), keep the two lists in sync.
 
 Project structure:
 
@@ -29,14 +30,14 @@ To run ICON from source, the UI packages must be built first:
 
 ```bash
 cd frontend
-pnpm install    # installs dependencies
-pnpm build      # builds the packages
+npm install      # installs dependencies (or: pnpm install | yarn install | bun install)
+npm run build    # builds the packages   (or: pnpm build   | yarn build   | bun run build)
 ```
 
-`pnpm build` builds both packages into `src/icon/server/frontend/` and
+`build` builds both packages into `src/icon/server/frontend/` and
 `src/icon/server/frontend_visualizer/`.
 
-`pnpm dev` runs a vite dev server which listens for code changes.
+`dev` runs a vite dev server which listens for code changes.
 
 ## The ICON frontend
 

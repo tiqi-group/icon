@@ -27,13 +27,14 @@ jobs:
       - name: Set up pnpm and Node
         uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1
         with:
+          version: 12.3.4
           working-directory: frontend
           cache: true
           require-lockfile: true
 
       - name: Build UI assets
         working-directory: frontend
-        run: pnpm run build
+        run: pnpm run '/^build:/'
 
       - name: Upload UI assets
         uses: actions/upload-artifact@v4
