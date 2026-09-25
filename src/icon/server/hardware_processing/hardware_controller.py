@@ -21,6 +21,19 @@ class HardwareController:
     def connected(self) -> bool:
         raise NotImplementedError("Must be implemented by a derived class")
 
+    @property
+    def display_name(self) -> str:
+        """Representative name which also must be available when the device is not reachable.
+
+        The return value should uniquely identify a device to an end user (e.g. ip adress, port).
+        """
+        arg_repr = ", ".join(f"{key}={val}" for key, val in vars(self).items())
+        return f"{type(self).__name__}({arg_repr})"
+
+    def query_device_id(self) -> str | None:
+        """Query the id from a connected device."""
+        raise NotImplementedError("Must be implemented by a derived class")
+
     def send(self, data: str) -> None:
         raise NotImplementedError("Must be implemented by a derived class")
 
@@ -37,12 +50,23 @@ class HardwareController:
 class FallbackHardwareController(HardwareController):
     """Noop hardware controller."""
 
+    def __init__(self, device_id: str = "FallbackHardware") -> None:
+        self._device_id = device_id
+
     def connect(self) -> None:
         pass
 
     @property
     def connected(self) -> bool:
         return True
+
+    @property
+    def display_name(self) -> str:
+        """Representative name which also must be available when the device is not reachable."""
+        return self._device_id
+
+    def query_device_id(self) -> str | None:
+        return self._device_id
 
     def send(self, data: str) -> None:
         pass
