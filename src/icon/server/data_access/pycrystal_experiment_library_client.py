@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import icon.server.utils.git_helpers
-from icon.config.config import get_config
 from icon.server.api.models.experiment_dict import (
     ExperimentMetadata,
 )
@@ -214,7 +213,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             readout_metadata = exp_instance.get_readout_metadata(
                 parameter_dict, LOG_LEVEL
             )
-            main_device_id = get_config().hardware.devices[0].id
+            main_device_id = self.device_order[0]
             readout_per_device = [(main_device_id, readout_metadata)]
 
         def plot_window_metadata(data: Any) -> "PlotWindowMetadata":

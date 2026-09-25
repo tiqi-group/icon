@@ -22,14 +22,18 @@ logger = logging.getLogger(__name__)
 class ZedboardController(HardwareController):
     """Zedboard Hardware Controller relying on the tiqi_zedboard client."""
 
-    def __init__(self, *, host: str, port: int, timeout: int = 5) -> None:
+    def __init__(
+        self, *, device_id: str, host: str, port: int, timeout: int = 5
+    ) -> None:
         """Initialise the controller.
 
         Args:
+            device_id: Hardware identifier (must match the identifier of the device)
             host: Hostname of the Zedboard.
             port: Port the Zedboard RPC server listens on.
             timeout: RPC timeout in seconds for calls such as runExperiment. Configurable in the config file.
         """
+        self._device_id = device_id
         self._host = host
         self._port = port
         self._timeout = timeout
@@ -50,6 +54,14 @@ class ZedboardController(HardwareController):
             and getattr(self._zedboard, "_client", None) is not None
             and not is_socket_closed(self._zedboard._client._socket)
         )
+
+    @property
+    def display_name(self) -> str:
+        """Representative name which also must be available when the device is not reachable."""
+        return f"TIQIZedboard@{self._host}:{self._port}"
+
+    def query_device_id(self) -> str | None:
+        return self._device_id
 
     def _update_zedboard_sequence(self, *, sequence: str) -> None:
         if self._zedboard is not None:
