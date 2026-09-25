@@ -85,7 +85,7 @@ class APIService(pydase.DataService):
         )
         """Controller for triggering update events for jobs across multiple worker
         processes."""
-        self.status = StatusController(devices)
+        self.status = StatusController(devices, experiment_library_client)
         """Controller for system status monitoring."""
         self._experiment_library_client = experiment_library_client
 

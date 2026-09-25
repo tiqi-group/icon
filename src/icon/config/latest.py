@@ -66,7 +66,6 @@ class ServerConfig(BaseModel):
 
 
 class DeviceConfig(BaseModel):
-    id: str
     controller_module: str
     controller_class: str
     args: dict[str, Any]
