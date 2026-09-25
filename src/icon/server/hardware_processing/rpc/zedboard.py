@@ -213,11 +213,15 @@ class ZedboardSeqRunner(Zedboard):
 
     _SEQ_PAGE_NAME = "sequence JSON parser"
     _SEQ_PARAM_NAME = "Sequence JSON"
+    _DEVICE_NAME_PARAM_NAME = "Device Name"
 
     _page_id: int
     """Page id for the sequence parser page."""
     _param_id: int
     """Parameter id for the JSON Sequence parameter."""
+
+    device_name: str
+    """Device Name as configured in the remote parameter."""
 
     def connect(self) -> None:
         """Connect to the device and discover configuration values."""
@@ -251,6 +255,13 @@ class ZedboardSeqRunner(Zedboard):
             (params[pid] for pid in _param_ids),
             lambda x: x[1][0],
         )
+
+        (_, device_name), _ = _lookup_by_name(
+            self._DEVICE_NAME_PARAM_NAME,
+            (params[pid] for pid in _param_ids),
+            lambda x: x[1][0],
+        )
+        self.device_name = str(device_name)
 
         self._page_id, self._param_id = page_id, param_id
 

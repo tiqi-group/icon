@@ -7,14 +7,15 @@ import { SerializedDict } from "../types/SerializedObject";
 import { deserialize } from "../utils/deserializer";
 import { useConfiguration } from "../hooks/useConfiguration";
 import { InfluxDBStatusCard } from "../components/statusCards/InfluxDBStatus";
-import { HardwareStatusCard } from "../components/statusCards/HardwareStatus";
+import {
+  HardwareStatusCard,
+  HardwareStatus,
+} from "../components/statusCards/HardwareStatus";
 import { DevicesStatusCard } from "../components/statusCards/DevicesStatus";
-import { HardwareError } from "../types/HardwareStatus";
 
-type HardwareStatus = Record<string, boolean | HardwareError>;
 interface Status {
   influxdb: boolean;
-  hardware: HardwareStatus;
+  hardware: HardwareStatus[];
 }
 
 export default function DashboardPage() {
@@ -22,18 +23,19 @@ export default function DashboardPage() {
   const configuration = useConfiguration();
 
   const [influxReachable, setInfluxReachable] = useState<boolean>(false);
-  const [hardwareStatus, setSHardwaretatus] = useState<HardwareStatus>({});
+  const [hardwareStatus, setHardwaretatus] = useState<HardwareStatus[]>([]);
 
   useEffect(() => {
     runMethod("status.get_status", [], {}, (response) => {
       const status = deserialize(response as SerializedDict) as Status;
+      console.log(status);
       setInfluxReachable(status.influxdb);
-      setSHardwaretatus(status.hardware);
+      setHardwaretatus(status.hardware);
     });
 
     socket.on("status.influxdb", (status: boolean) => setInfluxReachable(status));
-    socket.on("status.hardware", (status: Record<string, boolean>) =>
-      setSHardwaretatus(status),
+    socket.on("status.hardware", (status: HardwareStatus[]) =>
+      setHardwaretatus(status),
     );
     return () => {
       socket.off("status.influxdb");
@@ -71,15 +73,9 @@ export default function DashboardPage() {
                 gap: "1.5em",
               }}
             >
-              {configuration?.hardware?.devices.map((dev) => {
-                return (
-                  <HardwareStatusCard
-                    key={dev.id}
-                    hardwareStatus={hardwareStatus[dev.id]}
-                    configuration={dev}
-                  />
-                );
-              })}
+              {hardwareStatus.map((dev) => (
+                <HardwareStatusCard device={dev} />
+              ))}
             </CardContent>
           </Card>
         </Grid>
