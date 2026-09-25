@@ -76,10 +76,10 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
     def device_order(self) -> list[str]:
         import ionpulse_sequence_generator  # noqa: PLC0415
 
-        # Populate `ionpulse_sequence_generator.System`:
-        importlib.import_module(self.experiment_library_module)
-        sys = ionpulse_sequence_generator.System()
-        devices: dict[str, Any] = sys._devices
+        hardware = importlib.import_module(
+            self.experiment_library_module + ".hardware_description.hardware"
+        )
+        devices: dict[str, Any] = hardware.System()._devices
 
         # Main devices first:
         sorted_devices = sorted(
