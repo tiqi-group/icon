@@ -16,6 +16,9 @@ from enum import IntEnum
 from typing import Any, Final
 
 from icon.server.hardware_processing.rpc.connection import (
+    DEFAULT_KEEPALIVE_COUNT,
+    DEFAULT_KEEPALIVE_ENABLE,
+    DEFAULT_KEEPALIVE_IDLE,
     Connection,
     FramedConnection,
     MsgPackRecord,
@@ -99,6 +102,8 @@ class MsgPackRPCClient:
         lock_timeout: How long a call waits for another thread's round trip to finish.
         notification_buffer: How many pushed notifications to retain in the buffer.
             Oldest are dropped first.
+        keepalive_enable: Enable OS-level keepalive probes for this client connection. Keepalive budget is
+            twice of `timeout` and at least twice of `DEFAULT_KEEPALIVE_IDLE`.
     """
 
     def __init__(
@@ -110,6 +115,7 @@ class MsgPackRPCClient:
         framed: bool = True,
         lock_timeout: float = DEFAULT_LOCK_ACQUSITION_TIME,
         notification_buffer: int = DEFAULT_NOTIFICATION_BUFFER,
+        keepalive_enable: bool = DEFAULT_KEEPALIVE_ENABLE,
     ) -> None:
         self._timeout = timeout
         self._msgid = 0
@@ -119,8 +125,18 @@ class MsgPackRPCClient:
         )
         self._dropped = 0
 
+        _keepalive_idle = DEFAULT_KEEPALIVE_IDLE
+        if timeout is not None:
+            _keepalive_idle = round(max(timeout, DEFAULT_KEEPALIVE_IDLE))
+
         self._connection = (FramedConnection if framed else Connection)(
-            hostname, port, timeout=timeout, lock_timeout=lock_timeout
+            hostname,
+            port,
+            timeout=timeout,
+            lock_timeout=lock_timeout,
+            keepalive_enable=keepalive_enable,
+            keepalive_idle=_keepalive_idle,
+            keepalive_interval=round(_keepalive_idle / DEFAULT_KEEPALIVE_COUNT),
         )
 
     def __repr__(self) -> str:

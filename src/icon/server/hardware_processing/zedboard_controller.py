@@ -21,6 +21,7 @@ class ZedboardController(HardwareController):
         port: int,
         timeout: int = 5,
         cached: bool = True,
+        keepalive_enable: bool = True,
     ) -> None:
         """Initialise the controller.
 
@@ -32,13 +33,19 @@ class ZedboardController(HardwareController):
             cached: Whether to read the channel names out of the sequence description
                 instead of asking the device for them after every run. Saves three round
                 trips per data point.
+            keepalive_enable: Enable OS level TCP keepalive probing.
         """
         self._host = host
         self._port = port
         self._timeout = timeout
         self._zedboard = (
             zedboard.ZedboardSeqRunnerCached if cached else zedboard.ZedboardSeqRunner
-        )(hostname=self._host, port=self._port, timeout=timeout)
+        )(
+            hostname=self._host,
+            port=self._port,
+            timeout=timeout,
+            keepalive_enable=keepalive_enable,
+        )
 
     def connect(self) -> None:
         try:
