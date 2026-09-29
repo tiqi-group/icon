@@ -853,6 +853,8 @@ html[data-toolpad-color-scheme="light"]
   > div[style*="flex-direction: column"] {
   display: grid !important;
   grid-template-columns: repeat(3, minmax(76px, 1fr));
+  /* Reserve space for the centre hint in both input modes. */
+  grid-template-rows: 38px 38px 2.5rem;
   gap: 8px !important;
 }
 
@@ -1563,9 +1565,10 @@ html[data-toolpad-color-scheme="light"]
   > .MuiTextField-root:has(> .MuiFormHelperText-root) {
   display: grid;
   grid-column: 1 / -1;
-  grid-row: 2;
+  grid-row: 2 / span 2;
   grid-template-columns: subgrid;
-  row-gap: 4px;
+  grid-template-rows: subgrid;
+  row-gap: 8px;
 }
 
 html[data-toolpad-color-scheme="light"]
