@@ -1,0 +1,1537 @@
+/*
+ * ICON researcher/operator page styling.
+ *
+ * Keep parameter-type unit colors in a separate variant file so operators
+ * can change contrast without changing layout, density, or scan semantics.
+ */
+
+/* Research-workspace styling for ICON's parameter-intensive pages. */
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main {
+  --icon-ui-border: #d8dee6;
+  --icon-ui-border-strong: #c2ccd7;
+  --icon-ui-fixed-surface: #ffffff;
+  --icon-ui-group-surface: #f5f7f9;
+  --icon-ui-row-hover: #f7f9fc;
+  --icon-ui-scan-surface: #f3f7fa;
+  --icon-ui-scan-accent: #849db2;
+  --icon-ui-selected: #eaf2fb;
+  --icon-ui-text-muted: #66717f;
+  color: #18212b;
+}
+
+/* Supporting pages: selected light-mode direction, CSS-only. */
+
+/* Start: compact status sections with a stable left reading axis. */
+html[data-toolpad-color-scheme="light"] body:has(a[href="/"].Mui-selected) main {
+  color: #1f2d3a;
+  background: #fff;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/"].Mui-selected)
+  main
+  > div[style*="padding: 24"] {
+  box-sizing: border-box;
+  width: min(1400px, 100%);
+  padding: 20px 24px !important;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/"].Mui-selected)
+  main
+  > div:first-child
+  > .MuiGrid-container {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0;
+  margin: 0 !important;
+  width: 100% !important;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/"].Mui-selected)
+  main
+  > div:first-child
+  > .MuiGrid-container
+  > .MuiGrid-root {
+  width: 100% !important;
+  max-width: none !important;
+  padding: 0 !important;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/"].Mui-selected)
+  main
+  .MuiCard-root {
+  border: 1px solid #d8e0e8;
+  border-radius: 4px;
+  box-shadow: none;
+  background: #fff;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/"].Mui-selected)
+  main
+  > div:first-child
+  > .MuiGrid-container
+  > .MuiGrid-root:first-child
+  .MuiCard-root {
+  border-radius: 4px 4px 0 0;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/"].Mui-selected)
+  main
+  > div:first-child
+  > .MuiGrid-container
+  > .MuiGrid-root:nth-child(2)
+  .MuiCard-root {
+  border-top: 0;
+  border-radius: 0 0 4px 4px;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/"].Mui-selected)
+  main
+  > div:first-child
+  > .MuiGrid-container
+  > .MuiGrid-root:nth-child(3) {
+  margin-top: 12px;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/"].Mui-selected)
+  main
+  .MuiCardContent-root {
+  padding: 12px 16px !important;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/"].Mui-selected)
+  main
+  > div:first-child
+  > .MuiGrid-container
+  > .MuiGrid-root:nth-child(-n + 2)
+  .MuiStack-root {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px 20px;
+  width: 100%;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/"].Mui-selected)
+  main
+  > div:first-child
+  > .MuiGrid-container
+  > .MuiGrid-root:nth-child(-n + 2)
+  .MuiStack-root
+  > div:first-child {
+  grid-column: 1 / -1;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e1e7ed;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/"].Mui-selected)
+  main
+  .MuiTypography-h6 {
+  color: #203143;
+  font-size: 0.96rem;
+  font-weight: 700;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/"].Mui-selected)
+  main
+  .MuiTypography-body2 {
+  color: #45576a;
+  font-size: 0.82rem;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/"].Mui-selected)
+  main
+  .MuiTableCell-root {
+  height: 34px;
+  padding: 5px 10px;
+  border-color: #dde4eb;
+  font-size: 0.78rem;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/"].Mui-selected)
+  main
+  .MuiTableHead-root
+  .MuiTableCell-root {
+  color: #506176;
+  background: #f4f7fa;
+  font-size: 0.69rem;
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+/* Settings: horizontal navigation, section rails, and aligned value rows. */
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/settings"].Mui-selected)
+  main {
+  color: #1f2d3a;
+  background: #fff;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/settings"].Mui-selected)
+  main
+  > .MuiTabs-root {
+  min-height: 44px;
+  padding: 0 24px;
+  border-bottom: 1px solid #d8e0e8;
+  background: #fff;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/settings"].Mui-selected)
+  main
+  .MuiTab-root {
+  min-height: 44px;
+  padding: 0 14px;
+  color: #526174;
+  font-size: 0.81rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/settings"].Mui-selected)
+  main
+  .MuiTab-root.Mui-selected {
+  color: #156fc3;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/settings"].Mui-selected)
+  main
+  div[role="tabpanel"]
+  > div {
+  box-sizing: border-box;
+  width: min(1200px, 100%);
+  padding: 16px 24px 32px !important;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/settings"].Mui-selected)
+  main
+  div[role="tabpanel"]
+  .MuiTypography-h6 {
+  margin: 16px 0 0;
+  padding: 9px 12px;
+  border-left: 3px solid #2f7dcc;
+  border-bottom: 1px solid #dbe3eb;
+  color: #26384a;
+  background: #f5f7fa;
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/settings"].Mui-selected)
+  main
+  div[role="tabpanel"]
+  > div
+  > .MuiTypography-h6:first-child {
+  margin-top: 0;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/settings"].Mui-selected)
+  main
+  div[role="tabpanel"]
+  div:has(> .Field) {
+  display: grid !important;
+  grid-template-columns: minmax(220px, 34%) minmax(0, 1fr);
+  min-height: 46px;
+  padding: 6px 12px !important;
+  border-bottom: 1px solid #e1e7ed;
+  column-gap: 18px;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/settings"].Mui-selected)
+  main
+  div[role="tabpanel"]
+  div:has(> .Field)
+  > div:first-child {
+  min-width: 0;
+  color: #34475a;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/settings"].Mui-selected)
+  main
+  div[role="tabpanel"]
+  .Field,
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/settings"].Mui-selected)
+  main
+  div[role="tabpanel"]
+  .InputWrapper {
+  width: 100%;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/settings"].Mui-selected)
+  main
+  div[role="tabpanel"]
+  .Input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 36px;
+  border-color: #cbd5df;
+  border-radius: 3px;
+  background: #fff;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/settings"].Mui-selected)
+  main
+  div[role="tabpanel"]
+  .MuiPaper-root {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid #dbe3eb;
+  border-radius: 4px;
+  box-shadow: none;
+  background: #fbfcfd;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/settings"].Mui-selected)
+  main
+  div[role="tabpanel"]
+  .MuiPaper-root
+  .MuiPaper-root {
+  margin: 10px 0 0;
+  padding-left: 12px;
+  border: 0;
+  border-left: 3px solid #d6e0ea;
+  border-radius: 0;
+  background: #fff;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/settings"].Mui-selected)
+  main
+  div[role="tabpanel"]
+  button {
+  box-shadow: none;
+}
+
+/* Devices: mode and device selection stay compact; embedded Pydase gets the canvas. */
+html[data-toolpad-color-scheme="light"] body:has(a[href="/devices"].Mui-selected) main {
+  color: #1f2d3a;
+  background: #fff;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/devices"].Mui-selected)
+  main
+  > div:first-child
+  > div:first-child {
+  width: 286px !important;
+  border-right-color: #d7e0e8 !important;
+  background: #fbfcfd;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/devices"].Mui-selected)
+  main
+  > div:first-child
+  > div:first-child
+  > div:first-child {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 5px;
+  min-height: 52px;
+  padding: 6px 10px !important;
+  border-bottom-color: #d7e0e8 !important;
+  background: #f4f7fa;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/devices"].Mui-selected)
+  main
+  > div:first-child
+  > div:first-child
+  > div:first-child
+  > div {
+  box-sizing: border-box;
+  min-width: 0 !important;
+  padding: 7px 5px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: #405267;
+  background: transparent;
+  font-size: 0.79rem !important;
+  font-weight: 650;
+  line-height: 1.15;
+  text-align: center !important;
+  cursor: default;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/devices"].Mui-selected)
+  main
+  > div:first-child
+  > div:first-child
+  > div:first-child:not(:has(input:checked))
+  > div:first-child,
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/devices"].Mui-selected)
+  main
+  > div:first-child
+  > div:first-child
+  > div:first-child:has(input:checked)
+  > div:last-child {
+  border-color: transparent;
+  color: #156fc3;
+  background: transparent;
+  font-weight: 750;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/devices"].Mui-selected)
+  main
+  > div:first-child
+  > div:first-child
+  > div:first-child
+  .MuiSwitch-root {
+  align-self: center;
+  margin: 0;
+  cursor: pointer;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/devices"].Mui-selected)
+  main
+  .MuiListSubheader-root {
+  min-height: 34px;
+  line-height: 34px;
+  color: #58697b;
+  background: #fbfcfd;
+  font-size: 0.79rem;
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/devices"].Mui-selected)
+  main
+  .MuiListItemButton-root {
+  min-height: 42px;
+  padding: 5px 12px;
+  border-left: 3px solid transparent;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/devices"].Mui-selected)
+  main
+  .MuiListItemButton-root.Mui-selected {
+  border-left-color: #2f7dcc;
+  background: #eaf3fc;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/devices"].Mui-selected)
+  main
+  .MuiListItemText-primary {
+  color: #26384a;
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/devices"].Mui-selected)
+  main
+  > div:first-child
+  > div:first-child
+  > div:last-child {
+  padding: 10px 12px !important;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/devices"].Mui-selected)
+  main
+  > div:first-child
+  > div:first-child
+  > div:last-child
+  .MuiButton-contained {
+  min-height: 32px;
+  border: 1px solid #9fb4c8;
+  color: #315d85;
+  background: #fff;
+  box-shadow: none;
+  font-size: 0.79rem;
+  font-weight: 700;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/devices"].Mui-selected)
+  main
+  > div:first-child
+  > div:last-child {
+  padding: 14px 18px !important;
+  background: #fff;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/devices"].Mui-selected)
+  main
+  > div:first-child
+  > div:last-child
+  > div[style*="margin-bottom: 16px"]
+  > div:first-child {
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid #d7e0e8;
+  border-radius: 4px;
+  background: #f8fafc;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/devices"].Mui-selected)
+  main
+  > div:first-child
+  > div:last-child
+  div[style*="display: flex"][style*="gap: 8px"][style*="margin-top: 8px"] {
+  margin: 10px 0 12px !important;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/devices"].Mui-selected)
+  main
+  iframe[title^="Pydase Interface"] {
+  box-sizing: border-box;
+  width: 100% !important;
+  height: clamp(360px, calc(100dvh - 210px), 900px) !important;
+  min-height: 0;
+  border: 1px solid #cbd6e0 !important;
+  border-radius: 4px;
+  background: #fff;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/devices"].Mui-selected)
+  main
+  :focus-visible,
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/settings"].Mui-selected)
+  main
+  :focus-visible,
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/"].Mui-selected)
+  main
+  :focus-visible {
+  outline: 2px solid #156fc3 !important;
+  outline-offset: 2px;
+}
+
+@media (max-width: 860px) {
+  html[data-toolpad-color-scheme="light"]
+    body:has(a[href="/settings"].Mui-selected)
+    main
+    div[role="tabpanel"]
+    div:has(> .Field) {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 5px;
+  }
+
+  html[data-toolpad-color-scheme="light"]
+    body:has(a[href="/devices"].Mui-selected)
+    main
+    > div:first-child
+    > div:first-child {
+    width: 238px !important;
+  }
+
+  html[data-toolpad-color-scheme="light"]
+    body:has(a[href="/"].Mui-selected)
+    main
+    > div:first-child
+    > .MuiGrid-container
+    > .MuiGrid-root:nth-child(-n + 2)
+    .MuiStack-root {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Compact, quiet experiment context. */
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  > div[style*="display: flex"][style*="overflow: hidden"]
+  > div:first-child {
+  width: 250px !important;
+  min-width: 250px;
+  background: #fbfcfd;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiListSubheader-root {
+  min-height: 40px;
+  line-height: 40px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--icon-ui-text-muted);
+  background: #fbfcfd;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiListItemButton-dense {
+  min-height: 48px;
+  padding: 5px 14px;
+  border-left: 3px solid transparent;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiListItemButton-dense.Mui-selected {
+  border-left-color: #5c86ad;
+  background: var(--icon-ui-selected);
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiListItemText-primary {
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiListItemText-secondary {
+  overflow: hidden;
+  max-width: 205px;
+  color: var(--icon-ui-text-muted);
+  font-size: 0.76rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Scan/run configuration: a quiet, distinct varying-measurement surface. */
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  div[style*="display: flex"][style*="gap: 16px"][style*="padding-bottom: 16px"] {
+  align-items: flex-start;
+  gap: 16px !important;
+  margin: 0;
+  padding: 12px 14px 14px !important;
+  border-top: 1px solid var(--icon-ui-border-strong);
+  border-bottom: 1px solid var(--icon-ui-border-strong);
+  border-left: 3px solid var(--icon-ui-scan-accent);
+  background: var(--icon-ui-scan-surface);
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  div[style*="display: flex"][style*="gap: 16px"][style*="padding-bottom: 16px"]
+  > div:first-child {
+  width: min(500px, 58%) !important;
+  max-height: none !important;
+  flex: 0 1 500px;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  div[style*="display: flex"][style*="gap: 16px"][style*="padding-bottom: 16px"]
+  > div:last-child {
+  min-width: 220px;
+  flex: 1 1 260px;
+  padding-top: 34px !important;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  div[style*="display: flex"][style*="gap: 16px"][style*="padding-bottom: 16px"]
+  .MuiTableContainer-root {
+  overflow: visible;
+  max-height: none !important;
+  border: 1px solid var(--icon-ui-border);
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  div[style*="display: flex"][style*="gap: 16px"][style*="padding-bottom: 16px"]
+  .MuiTableCell-root {
+  padding: 5px 8px;
+  border-color: var(--icon-ui-border);
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  div[style*="display: flex"][style*="gap: 16px"][style*="padding-bottom: 16px"]
+  .MuiTableCell-head {
+  height: 38px;
+  text-align: left;
+  background: #e7edf2;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  div[style*="display: flex"][style*="gap: 16px"][style*="padding-bottom: 16px"]
+  .MuiTableCell-head
+  p {
+  color: #31495c;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  div[style*="display: flex"][style*="gap: 16px"][style*="padding-bottom: 16px"]
+  .MuiInputBase-root {
+  min-height: 38px;
+  background: #fff;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  div[style*="display: flex"][style*="gap: 16px"][style*="padding-bottom: 16px"]
+  .MuiButton-containedPrimary {
+  min-height: 38px;
+  margin-top: 2px;
+  box-shadow: none;
+}
+
+/* Read each scan dimension horizontally, as a compact experimental plan. */
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  div[style*="display: flex"][style*="gap: 16px"][style*="padding-bottom: 16px"] {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  div[style*="display: flex"][style*="gap: 16px"][style*="padding-bottom: 16px"]
+  > div:first-child {
+  width: auto !important;
+  max-width: none !important;
+  min-width: 0;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  div[style*="display: flex"][style*="gap: 16px"][style*="padding-bottom: 16px"]
+  > div:last-child {
+  display: grid !important;
+  grid-template-columns:
+    minmax(120px, 0.75fr)
+    minmax(140px, 1fr)
+    minmax(140px, 1fr)
+    minmax(180px, 1.2fr);
+  align-items: end;
+  gap: 8px !important;
+  min-width: 0;
+  width: auto;
+  padding-top: 0 !important;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  div[style*="display: flex"][style*="gap: 16px"][style*="padding-bottom: 16px"]
+  > div:last-child
+  > * {
+  min-width: 0;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  .MuiTableRow-root {
+  background: #fff;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  .MuiTableRow-root
+  > .MuiTableCell-root:first-child {
+  width: 38px;
+  padding: 11px 8px;
+  vertical-align: top;
+  text-align: center;
+  color: #52606d;
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: #edf1f4;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  .MuiTableRow-root
+  > .MuiTableCell-root:nth-child(2) {
+  overflow: visible;
+  padding: 16px 8px 8px !important;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  .MuiTableRow-root
+  > .MuiTableCell-root:nth-child(2)
+  > div[style*="flex-direction: column"] {
+  display: grid !important;
+  grid-template-columns:
+    minmax(170px, 1.15fr)
+    minmax(145px, 0.95fr)
+    minmax(160px, 1.05fr)
+    minmax(300px, 1.75fr)
+    minmax(120px, 0.8fr);
+  align-items: start;
+  gap: 8px !important;
+  min-width: 0;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  .MuiTableRow-root
+  > .MuiTableCell-root:nth-child(2)
+  > div[style*="flex-direction: column"]
+  > div {
+  min-width: 0;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  .MuiTableRow-root
+  > .MuiTableCell-root:nth-child(2)
+  > div[style*="flex-direction: column"]
+  > div[style*="flex-direction: column"] {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(76px, 1fr));
+  gap: 8px !important;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  .MuiFormControl-root,
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  .MuiInputBase-root {
+  min-width: 0;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  .MuiInputBase-root {
+  min-height: 38px;
+  height: 38px;
+  background: #fff;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  .MuiInputLabel-root {
+  z-index: 1;
+  margin-left: -4px;
+  padding: 0 4px;
+  background: #fff;
+  color: #4f5d6a;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  .MuiInputLabel-root.Mui-disabled {
+  color: #667481 !important;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  .MuiInputBase-input.Mui-disabled {
+  opacity: 1;
+  -webkit-text-fill-color: #667481;
+}
+
+/* Flat, compact fixed-condition accordions on both pages. */
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordion-root {
+  margin: 0 !important;
+  border-bottom: 1px solid var(--icon-ui-border);
+  border-radius: 0 !important;
+  background: var(--icon-ui-fixed-surface);
+  box-shadow: none;
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordion-root::before {
+  display: none;
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordionSummary-root {
+  min-height: 44px !important;
+  padding: 0 14px;
+  background: var(--icon-ui-group-surface);
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordionSummary-root.Mui-expanded {
+  min-height: 44px !important;
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordionSummary-content,
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordionSummary-content.Mui-expanded {
+  margin: 7px 0;
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordionDetails-root {
+  padding: 0 12px 8px;
+}
+
+/* Existing parameter wrappers become stable, vertically aligned table rows. */
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  border-top: 1px solid var(--icon-ui-border);
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"]
+  > div {
+  box-sizing: border-box;
+  display: grid !important;
+  grid-template-columns: minmax(150px, 44%) minmax(110px, 56%);
+  align-items: center !important;
+  gap: 8px !important;
+  min-width: 0;
+  min-height: 40px;
+  padding: 3px 10px !important;
+  border-bottom: 1px solid var(--icon-ui-border);
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"]
+  > div:nth-child(odd) {
+  border-right: 1px solid var(--icon-ui-border);
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"]
+  > div:hover {
+  background: var(--icon-ui-row-hover);
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"]
+  > div
+  > div:first-child {
+  min-width: 0;
+  padding: 0 !important;
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"]
+  .MuiTypography-root {
+  font-size: 0.875rem;
+  line-height: 1.25;
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"]
+  .MuiIconButton-root {
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"]
+  .Field,
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"]
+  .MuiFormControl-root {
+  min-width: 0;
+  width: 100%;
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"]
+  .Input,
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"]
+  .MuiInputBase-root {
+  box-sizing: border-box;
+  min-height: 32px;
+  height: 32px;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"]
+  .MuiButton-root {
+  justify-self: start;
+  min-width: 64px;
+  min-height: 32px;
+  height: 32px;
+  padding: 3px 12px;
+  font-size: 0.8rem;
+}
+
+/* Experiment fixed parameters use the same name-first, compact-value hierarchy. */
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"]
+  > div {
+  grid-template-columns: minmax(240px, 1fr) minmax(112px, 136px);
+  min-height: 36px;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+  gap: 12px !important;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"]
+  .Field,
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"]
+  .MuiFormControl-root {
+  max-width: 136px;
+  justify-self: end;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"]
+  .Input,
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"]
+  .MuiInputBase-root {
+  min-height: 30px;
+  height: 30px;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  > div[style*="display: grid"]
+  input {
+  text-align: left !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Strong keyboard orientation in the dense control surface. */
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  :focus-visible {
+  outline: 2px solid #156fc3 !important;
+  outline-offset: 2px;
+}
+
+/* Parameters page: compact namespaces and prominent internal groups. */
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/parameters"].Mui-selected)
+  main
+  .MuiAccordionSummary-root
+  .MuiTypography-h5 {
+  font-size: 1.05rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/parameters"].Mui-selected)
+  main
+  .MuiAccordionSummary-root
+  .MuiTypography-body2 {
+  max-width: min(72vw, 900px);
+  overflow: hidden;
+  color: var(--icon-ui-text-muted);
+  font-size: 0.72rem;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/parameters"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  > div
+  > .MuiTypography-h6 {
+  margin: 8px 0 6px;
+  padding: 4px 2px;
+  color: #263746;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/parameters"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  .MuiDivider-root {
+  margin: 8px 0 2px;
+  padding-top: 0 !important;
+  border-color: var(--icon-ui-border-strong);
+}
+
+/*
+ * Parameter namespaces wrap each group grid in an extra div. Target that
+ * nested grid explicitly so every label column has the same width and every
+ * input starts on one stable vertical axis.
+ */
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/parameters"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  div[style*="display: grid"][style*="grid-template-columns"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  min-width: 0;
+  width: 100%;
+  border-top: 1px solid var(--icon-ui-border);
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/parameters"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  div[style*="display: grid"][style*="grid-template-columns"]
+  > div {
+  box-sizing: border-box;
+  display: grid !important;
+  grid-template-columns: minmax(240px, 1fr) minmax(112px, 136px);
+  align-items: center !important;
+  gap: 12px !important;
+  min-width: 0;
+  min-height: 36px;
+  padding: 2px 10px !important;
+  border-bottom: 1px solid var(--icon-ui-border);
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/parameters"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  div[style*="display: grid"][style*="grid-template-columns"]
+  > div:nth-child(odd) {
+  border-right: 1px solid var(--icon-ui-border);
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/parameters"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  div[style*="display: grid"][style*="grid-template-columns"]
+  > div:hover {
+  background: var(--icon-ui-row-hover);
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/parameters"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  div[style*="display: grid"][style*="grid-template-columns"]
+  > div
+  > div:first-child {
+  min-width: 0;
+  overflow: hidden;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/parameters"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  div[style*="display: grid"][style*="grid-template-columns"]
+  .Field {
+  min-width: 0;
+  width: 100%;
+  max-width: 136px;
+  justify-self: end;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/parameters"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  div[style*="display: grid"][style*="grid-template-columns"]
+  .Input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 30px;
+  height: 30px;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/parameters"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  div[style*="display: grid"][style*="grid-template-columns"]
+  .MuiInputBase-root {
+  min-height: 30px;
+  height: 30px;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/parameters"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  div[style*="display: grid"][style*="grid-template-columns"]
+  input {
+  text-align: left !important;
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/parameters"].Mui-selected)
+  main
+  .MuiAccordionDetails-root
+  div[style*="display: grid"][style*="grid-template-columns"]
+  .MuiTypography-root {
+  font-weight: 500;
+}
+
+@media (max-width: 1100px) {
+  :is(
+      html[data-toolpad-color-scheme="light"]
+        body:has(a[href="/experiments"].Mui-selected),
+      html[data-toolpad-color-scheme="light"]
+        body:has(a[href="/parameters"].Mui-selected)
+    )
+    main
+    .MuiAccordionDetails-root
+    > div[style*="display: grid"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  html[data-toolpad-color-scheme="light"]
+    body:has(a[href="/parameters"].Mui-selected)
+    main
+    .MuiAccordionDetails-root
+    div[style*="display: grid"][style*="grid-template-columns"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  html[data-toolpad-color-scheme="light"]
+    body:has(a[href="/parameters"].Mui-selected)
+    main
+    .MuiAccordionDetails-root
+    div[style*="display: grid"][style*="grid-template-columns"]
+    > div:nth-child(odd) {
+    border-right: 0;
+  }
+
+  :is(
+      html[data-toolpad-color-scheme="light"]
+        body:has(a[href="/experiments"].Mui-selected),
+      html[data-toolpad-color-scheme="light"]
+        body:has(a[href="/parameters"].Mui-selected)
+    )
+    main
+    .MuiAccordionDetails-root
+    > div[style*="display: grid"]
+    > div:nth-child(odd) {
+    border-right: 0;
+  }
+}
+
+/* Wrap scan rows according to the available experiment pane width. */
+@container icon-experiment-details (max-width: 1000px) {
+  html[data-toolpad-color-scheme="light"]
+    body:has(a[href="/experiments"].Mui-selected)
+    main
+    div[style*="display: flex"][style*="gap: 16px"][style*="padding-bottom: 16px"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  html[data-toolpad-color-scheme="light"]
+    body:has(a[href="/experiments"].Mui-selected)
+    main
+    div[style*="display: flex"][style*="gap: 16px"][style*="padding-bottom: 16px"]
+    > div:first-child {
+    width: 100% !important;
+    flex-basis: 100%;
+  }
+
+  html[data-toolpad-color-scheme="light"]
+    body:has(a[href="/experiments"].Mui-selected)
+    main
+    div[style*="display: flex"][style*="gap: 16px"][style*="padding-bottom: 16px"]
+    > div:last-child {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-top: 0 !important;
+  }
+
+  html[data-toolpad-color-scheme="light"]
+    body:has(a[href="/experiments"].Mui-selected)
+    main
+    .MuiTableBody-root
+    .MuiTableRow-root
+    > .MuiTableCell-root:nth-child(2)
+    > div[style*="flex-direction: column"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  html[data-toolpad-color-scheme="light"]
+    body:has(a[href="/experiments"].Mui-selected)
+    main
+    .MuiTableBody-root
+    .MuiTableRow-root
+    > .MuiTableCell-root:nth-child(2)
+    > div[style*="flex-direction: column"]
+    > div[style*="flex-direction: column"] {
+    grid-column: 1 / span 2;
+  }
+}
+
+@media (max-width: 700px) {
+  html[data-toolpad-color-scheme="light"]
+    body:has(a[href="/parameters"].Mui-selected)
+    main
+    .MuiAccordionDetails-root
+    div[style*="display: grid"][style*="grid-template-columns"]
+    > div {
+    grid-template-columns: minmax(0, 1fr) minmax(120px, 34%);
+  }
+}
+
+/* Preserve upstream experiment grouping and the Start/Stop versus Span control. */
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiCollapse-root
+  .MuiListItemButton-dense {
+  padding-left: 44px;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  .MuiTableRow-root
+  > .MuiTableCell-root:nth-child(2)
+  > div[style*="flex-direction: column"]
+  > div[style*="flex-direction: column"]
+  > .MuiToggleButtonGroup-root {
+  grid-column: 1 / -1;
+}
+
+/* The details pane accounts for both the navigation and experiment sidebar. */
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  > div[style*="display: flex"][style*="overflow: hidden"]
+  > div:last-child {
+  container: icon-experiment-details / inline-size;
+  min-width: 0;
+}
+
+@container icon-experiment-details (max-width: 900px) {
+  html[data-toolpad-color-scheme="light"]
+    body:has(a[href="/experiments"].Mui-selected)
+    main
+    .MuiAccordionDetails-root
+    > div[style*="display: grid"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  html[data-toolpad-color-scheme="light"]
+    body:has(a[href="/experiments"].Mui-selected)
+    main
+    .MuiAccordionDetails-root
+    > div[style*="display: grid"]
+    > div:nth-child(odd) {
+    border-right: 0;
+  }
+}
