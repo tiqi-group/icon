@@ -787,6 +787,13 @@ def load_lagacy_channel(h5file: h5py.File, name: str) -> list[tuple[str, h5py.Da
     return [] if channel is None else [("zedboard", channel)]
 
 
+def _stored_vector_indices(channel_group: h5py.Group, start_index: int) -> list[int]:
+    """Return the sorted indices >= start_index of the vector channel group."""
+    names: list[bytes] = []
+    channel_group.id.links.iterate(names.append)
+    return sorted(index for index in map(int, names) if index >= start_index)
+
+
 def load_experiment_data(  # noqa: C901
     h5file: h5py.File,
     max_transfer_bytes: int = DEFAULT_MAX_TRANSFER_BYTES,
@@ -824,7 +831,7 @@ def load_experiment_data(  # noqa: C901
         if version == SCHEMA_VERSION
         else load_lagacy_channel(h5file, "shot_channels")
     )
-    result_channel_datasets = (
+    result_channel_datasets: list[tuple[str, h5py.Dataset]] = (
         list(h5file.get("result_channels", {}).items())
         if version == SCHEMA_VERSION
         else load_lagacy_channel(h5file, "result_channels")
@@ -838,10 +845,10 @@ def load_experiment_data(  # noqa: C901
 
     # Estimate bytes per data point from HDF5 metadata
     bytes_per_point = estimate_bytes_per_data_point(
-        total,
         shot_channels_groups if include_all_shots else [],
         result_channel_datasets,
         vector_channels_groups,
+        scan_parameters,
     )
 
     max_data_points = max_transfer_bytes // bytes_per_point
@@ -889,6 +896,7 @@ def load_experiment_data(  # noqa: C901
         }
 
     # Convert shot channels into dicts with index as key
+    shot_start_index = start_index if include_all_shots else max(start_index, total - 1)
     for device_id, shot_channels_group in shot_channels_groups:
         plot_metadata = shot_channels_group.attrs.get("Plot window metadata")
         d = device_data.setdefault(device_id, ExperimentDeviceData(device_id))
@@ -897,7 +905,11 @@ def load_experiment_data(  # noqa: C901
             for w in (json.loads(plot_metadata) if plot_metadata else [])
         ]
         d.readouts.shot_channels = {
-            key: dict(enumerate(value[start_index:].tolist(), start=start_index))  # type: ignore[call-overload]
+            key: dict(
+                enumerate(  # type: ignore[call-overload]
+                    value[shot_start_index:].tolist(), start=shot_start_index
+                )
+            )
             for key, value in cast(
                 "Sequence[tuple[str, h5py.Dataset]]", shot_channels_group.items()
             )
@@ -913,9 +925,8 @@ def load_experiment_data(  # noqa: C901
         ]
         d.readouts.vector_channels = {
             channel_name: {
-                int(name): cast("h5py.Dataset", vector_group[name])[:].tolist()
-                for name in vector_group
-                if int(name) >= start_index
+                index: cast("h5py.Dataset", vector_group[str(index)])[:].tolist()
+                for index in _stored_vector_indices(vector_group, start_index)
             }
             for channel_name, vector_group in cast(
                 "Sequence[tuple[str, h5py.Group]]",
@@ -1220,39 +1231,34 @@ def delete_fit_result_by_job_id(
 
 
 def estimate_bytes_per_data_point(
-    total: int,
     shot_channels_groups: list[tuple[str, h5py.Group]],
-    result_channel_datasets: list[tuple[str, h5py.Group]],
+    result_channel_datasets: list[tuple[str, h5py.Dataset]],
     vector_channels_groups: list[tuple[str, h5py.Group]],
+    scan_parameters: h5py.Dataset | None,
 ) -> int:
-    """Estimate bytes per data point from HDF5 metadata.
-
-    Return total number of data points in `h5file` and estimated bytes per data point.
-    """
-    bytes_per_point = sum(
-        ds.shape[1] * ds.dtype.itemsize
-        for _, device in shot_channels_groups
-        for ds in device.values()
-    ) + sum(
-        ds.dtype.itemsize
-        for _, device in result_channel_datasets
-        for ds in device
-        if ds is not None
+    """Estimate the serialised size of one data point from HDF5 metadata."""
+    bytes_per_point = (
+        sum(
+            ds.shape[1] * ds.dtype.itemsize
+            for _, device in shot_channels_groups
+            for ds in device.values()
+        )
+        + sum(ds.dtype.itemsize for _, ds in result_channel_datasets)
+        + (scan_parameters.dtype.itemsize if scan_parameters is not None else 0)
     )
 
-    def group_bytes(group: h5py.Group) -> int:
-        sample: h5py.Dataset | None = next(iter(group.values()), None)
-        if sample is None:
+    def vector_bytes(channel_group: h5py.Group) -> int:
+        try:
+            sample = channel_group[channel_group.id.get_objname_by_idx(0)]
+        except RuntimeError:  # empty group
             return 0
-        return sample.shape[0] * sample.dtype.itemsize * len(group)
+        return sample.shape[0] * sample.dtype.itemsize
 
-    # Add vector channel size (average across all data points)
-    total_vector_bytes = sum(
-        group_bytes(channel_group)
+    # Assumes every data point stores a vector of the sampled size
+    bytes_per_point += sum(
+        vector_bytes(channel_group)
         for _, device in vector_channels_groups
         for channel_group in device.values()
     )
-    if total > 0:
-        bytes_per_point += total_vector_bytes // total
     # JSON serialisation roughly doubles the raw size
     return max(bytes_per_point * 2, 1)
