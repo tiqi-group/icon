@@ -4,6 +4,7 @@ import logging
 import multiprocessing
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -97,6 +98,26 @@ def should_divert_task(
     )
 
 
+def run_device(
+    device_id: str,
+    device: HardwareController,
+    instructions: str,
+    delay: float = 0.0,
+) -> ExperimentDeviceDataPoint:
+    """Device run and receive methods intended for execution in a ThreadPoolExecutor.
+
+    The purpose is to delay the run call on the main device until the subordinate is armed.
+    """
+    if delay:
+        time.sleep(delay)
+    device.run()
+    return ExperimentDeviceDataPoint(
+        device_id,
+        readouts=device.receive(),
+        hardware_instructions=instructions,
+    )
+
+
 class HardwareProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
@@ -110,6 +131,9 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self._post_processing_queue = post_processing_queue
         self._manager = manager
         self._pydase_clients: dict[str, pydase.Client] = {}
+        self._executor: ThreadPoolExecutor | None = None
+        self._executor_size = 0
+        self._main_device_start_delay = get_config().hardware.main_device_start_delay
 
         self._devices = devices
 
@@ -192,6 +216,17 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 new_value=value,
             )
 
+    def _get_executor(self, size: int) -> ThreadPoolExecutor:
+        """Returns the device communication thread pool, resized if too small."""
+        if self._executor is None or self._executor_size < size:
+            if self._executor is not None:
+                self._executor.shutdown()
+            self._executor_size = max(size, 1)
+            self._executor = ThreadPoolExecutor(
+                max_workers=self._executor_size, thread_name_prefix="hardware"
+            )
+        return self._executor
+
     @handle_keyboard_interrupt(logger)
     def run(self) -> None:
         self._pydase_clients = {
@@ -237,16 +272,25 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 ]
                 for _, device, instructions in hardware_instructions:
                     device.send(data=instructions)
-                device_data = []
-                for device_id, device, instructions in hardware_instructions:
-                    device.run()
-                    device_data.append(
-                        ExperimentDeviceDataPoint(
-                            device_id,
-                            readouts=device.receive(),
-                            hardware_instructions=instructions,
-                        )
+
+                num_devices = len(hardware_instructions)
+                executor = self._get_executor(num_devices)
+                futures = [
+                    executor.submit(
+                        run_device,
+                        device_id,
+                        device,
+                        instructions,
+                        delay=self._main_device_start_delay
+                        if i == 0 and num_devices > 1
+                        else 0.0,
                     )
+                    for i, (device_id, device, instructions) in enumerate(
+                        hardware_instructions
+                    )
+                ]
+                wait(futures)
+                device_data = [future.result() for future in futures]
 
                 experiment_data_point = ExperimentDataPoint(
                     index=task.data_point_index,
