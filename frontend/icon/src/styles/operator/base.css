@@ -1535,3 +1535,77 @@ html[data-toolpad-color-scheme="light"]
     border-right: 0;
   }
 }
+
+/* Span has two inputs and a shared full-width centre hint. */
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  .MuiTableRow-root
+  > .MuiTableCell-root:nth-child(2)
+  > div[style*="flex-direction: column"]
+  > div[style*="flex-direction: column"]:has(
+    > .MuiToggleButtonGroup-root > button[value="spanCenter"].Mui-selected
+  ) {
+  grid-template-columns: repeat(2, minmax(76px, 1fr));
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  .MuiTableRow-root
+  > .MuiTableCell-root:nth-child(2)
+  > div[style*="flex-direction: column"]
+  > div[style*="flex-direction: column"]:has(
+    > .MuiToggleButtonGroup-root > button[value="spanCenter"].Mui-selected
+  )
+  > .MuiTextField-root:has(> .MuiFormHelperText-root) {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  grid-template-columns: subgrid;
+  row-gap: 4px;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  div[style*="flex-direction: column"]:has(
+    > .MuiToggleButtonGroup-root > button[value="spanCenter"].Mui-selected
+  )
+  > .MuiTextField-root:has(> .MuiFormHelperText-root)
+  > .MuiInputBase-root {
+  grid-column: 1;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  div[style*="flex-direction: column"]:has(
+    > .MuiToggleButtonGroup-root > button[value="spanCenter"].Mui-selected
+  )
+  > .MuiTextField-root:has(> .MuiFormHelperText-root)
+  > .MuiFormHelperText-root {
+  grid-column: 1 / -1;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  .MuiTableRow-root
+  > .MuiTableCell-root:nth-child(2)
+  > div[style*="flex-direction: column"]
+  > div[style*="flex-direction: column"]:has(
+    > .MuiToggleButtonGroup-root > button[value="spanCenter"].Mui-selected
+  )
+  > .MuiTextField-root:last-child {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: start;
+}
