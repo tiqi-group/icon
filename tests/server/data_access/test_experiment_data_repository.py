@@ -161,7 +161,7 @@ def test_experiment_data_io_with_hardware_instructions() -> None:
         for data_point in DATA_POINTS:
             experiment_data_repository.write_experiment_data_point(h5file, data_point)
         experiment_data_full = experiment_data_repository.load_experiment_data(
-            h5file, include_hardware_instructions=True
+            h5file, include_hardware_instructions=True, include_all_shots=True
         )
     assert experiment_data_full == expected_experiment_data
 
@@ -335,7 +335,7 @@ def test_legacy_experiment_data_loading() -> None:
     with h5py.File.in_memory() as h5file:
         prepare_legacy_h5(h5file)
         experiment_data = experiment_data_repository.load_experiment_data(
-            h5file, include_hardware_instructions=True
+            h5file, include_hardware_instructions=True, include_all_shots=True
         )
     assert experiment_data == expected_experiment_data
 
