@@ -1,0 +1,10 @@
+/*
+ * ICON operator stylesheet entrypoint.
+ *
+ * Keep exactly one unit variant enabled. The muted variant is recommended for
+ * normal PhD/postdoc operation; switch to high contrast when faster category
+ * recognition is more valuable than visual quietness.
+ */
+@import "./base.css";
+@import "./units-muted.css";
+/* Alternative: replace the line above with @import "./units-high-contrast.css"; */

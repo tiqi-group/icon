@@ -2,6 +2,7 @@ import * as React from "react";
 import * as ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import App from "./App";
+import "./styles/operator/active.css";
 import Layout from "./layouts/dashboard";
 import DashboardPage from "./pages";
 import ExperimentsPage from "./pages/experiments";
