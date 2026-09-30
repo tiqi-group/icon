@@ -111,7 +111,7 @@ export const JobView = ({
   const hasRepetitions = (jobInfo?.repetitions ?? 0) > 1;
   // take main device for now:
   const deviceData = experimentData?.device_data?.[0];
-  console.warn(experimentData);
+  // console.warn(experimentData);
   const resultChannels = deviceData?.readouts?.result_channels;
 
   const autoYBounds = useMemo(() => {
