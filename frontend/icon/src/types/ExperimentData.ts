@@ -57,7 +57,6 @@ export interface ExperimentDeviceData {
   device_id: string;
   readouts: ReadoutSequences;
   plot_windows: PlotWindows;
-  hardware_instructions: [number, string][];
   fits: Record<string, FitResult>;
 }
 

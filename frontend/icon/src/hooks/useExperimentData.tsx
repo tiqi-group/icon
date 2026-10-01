@@ -24,7 +24,6 @@ const emptyExperimentData: ExperimentData = {
  *
  * - Fetches initial experiment data via RPC.
  * - Subscribes to live updates via WebSocket and merges new data.
- * - Updates hardware_instructions only when the sequence changes.
  * - Captures any fetch error in `experimentDataError`.
  *
  * @param jobId - The job ID to fetch and subscribe to.
@@ -56,23 +55,22 @@ export function useExperimentData(jobId: string | undefined) {
           deviceData: ExperimentDeviceData,
           dev: ExperimentDeviceDataPoint,
         ) => {
+          const shot_channels = { ...deviceData.readouts.shot_channels };
           for (const [channel, value] of Object.entries(dev.readouts.shot_channels)) {
-            (deviceData.readouts.shot_channels[channel] ??= {})[data.index] = value;
+            (shot_channels[channel] ??= {})[data.index] = value;
           }
+          const result_channels = { ...deviceData.readouts.result_channels };
           for (const [channel, value] of Object.entries(dev.readouts.result_channels)) {
-            (deviceData.readouts.result_channels[channel] ??= {})[data.index] = value;
+            (result_channels[channel] ??= {})[data.index] = value;
           }
+          const vector_channels = { ...deviceData.readouts.vector_channels };
           for (const [channel, value] of Object.entries(dev.readouts.vector_channels)) {
-            (deviceData.readouts.vector_channels[channel] ??= {})[data.index] = value;
+            (vector_channels[channel] ??= {})[data.index] = value;
           }
-          const lastEntry = deviceData.hardware_instructions.at(-1);
-          if (!lastEntry || lastEntry[1] !== dev.hardware_instructions) {
-            deviceData.hardware_instructions.push([
-              data.index,
-              dev.hardware_instructions,
-            ]);
-          }
-          return deviceData;
+          return {
+            ...deviceData,
+            readouts: { shot_channels, result_channels, vector_channels },
+          };
         };
 
         const scan_parameters = { ...prev.scan_parameters };
@@ -205,7 +203,7 @@ function mergeDeviceData<T>(
   merge: (dev: ExperimentDeviceData, d: T) => ExperimentDeviceData,
 ) {
   const deviceDataById = Object.fromEntries(
-    deviceData.map((dev) => [dev.device_id, structuredClone(dev)]),
+    deviceData.map((dev) => [dev.device_id, dev]),
   );
   for (const [devId, dev] of data) {
     deviceDataById[devId] = merge(
@@ -216,7 +214,7 @@ function mergeDeviceData<T>(
   return Object.values(deviceDataById);
 }
 
-function defaultDeviceData(deviceId: string) {
+function defaultDeviceData(deviceId: string): ExperimentDeviceData {
   return {
     device_id: deviceId,
     readouts: { result_channels: {}, vector_channels: {}, shot_channels: {} },
@@ -225,6 +223,6 @@ function defaultDeviceData(deviceId: string) {
       vector_channels: [],
       shot_channels: [],
     },
-    hardware_instructions: [],
+    fits: {},
   };
 }
