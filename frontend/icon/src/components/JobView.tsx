@@ -77,7 +77,7 @@ const StatusCard = ({
           py: 6,
         }}
       >
-        {showSpinner && <CircularProgress size={24} />}
+        {showSpinner && <CircularProgress size={24} disableShrink />}
         <Typography variant="body1" color="text.secondary">
           {message}
         </Typography>
