@@ -7,7 +7,10 @@ import { EditableDictField } from "../components/settings/EditableDictField";
 import { BaseButton } from "../components/parameterComponents/BaseButton";
 import { updateConfiguration } from "../utils/updateConfiguration";
 import { useBrowserSetting } from "../hooks/useBrowserSetting";
-import { useEffect } from "react";
+import { Input } from "../components/parameterComponents/Input";
+import { useEffect, useState } from "react";
+
+export const DEFAULT_WINDOW_SIZE = 1000;
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -50,6 +53,21 @@ export const SettingsPage = () => {
   );
   const [openVisualizerInNewWindow, setOpenVisualizerInNewWindow] =
     useBrowserSetting<boolean>("openVisualizerInNewWindow", true);
+  const [defaultWindowSize, setDefaultWindowSize] = useBrowserSetting<number>(
+    "defaultWindowSize",
+    DEFAULT_WINDOW_SIZE,
+  );
+  const [defaultWindowSizeInput, setDefaultWindowSizeInput] = useState(
+    String(defaultWindowSize),
+  );
+
+  const updateDefaultWindowSize = (val: string) => {
+    // An empty field resets the setting, invalid input keeps the current value.
+    const num = val === "" ? DEFAULT_WINDOW_SIZE : Number(val);
+    const newValue = Number.isInteger(num) && num >= 1 ? num : defaultWindowSize;
+    setDefaultWindowSize(newValue);
+    setDefaultWindowSizeInput(String(newValue));
+  };
 
   const tabParam = searchParams.get("tab");
   let tab = tabParam ? tabLabels.indexOf(tabParam) : -1;
@@ -317,6 +335,16 @@ export const SettingsPage = () => {
         >
           {openVisualizerInNewWindow ? "True" : "False"}
         </BaseButton>
+        <Input
+          id="defaultWindowSize"
+          label="Default window size"
+          description={`Number of most recent data points shown in the plots of a job while its window size field is empty. Leave empty to reset to ${DEFAULT_WINDOW_SIZE}.`}
+          type="number"
+          min={10}
+          value={defaultWindowSizeInput}
+          onChange={setDefaultWindowSizeInput}
+          onBlur={updateDefaultWindowSize}
+        />
       </TabPanel>
     </>
   );
