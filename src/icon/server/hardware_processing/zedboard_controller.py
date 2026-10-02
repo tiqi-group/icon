@@ -15,7 +15,12 @@ class ZedboardController(HardwareController):
     """Zedboard Hardware Controller using a stripped-down minimal Zedboard-compatible RPC client."""
 
     def __init__(
-        self, *, host: str, port: int, timeout: int = 5, cached: bool = True
+        self,
+        *,
+        host: str,
+        port: int,
+        timeout: int = 5,
+        cached: bool = True,
     ) -> None:
         """Initialise the controller.
 
@@ -55,6 +60,14 @@ class ZedboardController(HardwareController):
     def connected(self) -> bool:
         """Zedboard is ready to process sequences."""
         return self._zedboard.is_connected
+
+    @property
+    def display_name(self) -> str:
+        """Representative name which also must be available when the device is not reachable."""
+        return f"Zedboard@{self._host}:{self._port}"
+
+    def query_device_id(self) -> str | None:
+        return getattr(self._zedboard, "device_name", None)
 
     def send(self, data: str) -> None:
         if not self.connected:

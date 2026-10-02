@@ -48,7 +48,6 @@ def migrate_v2_to_v3(old_config: v2.ServiceConfig) -> v3.ServiceConfig:
         hardware=v3.HardwareConfig(
             devices=[
                 v3.DeviceConfig(
-                    id="zedboard",
                     controller_module="icon.server.hardware_processing.zedboard_controller",
                     controller_class="ZedboardController",
                     args={
