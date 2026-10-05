@@ -1,6 +1,7 @@
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock
 
 import h5py
 import numpy as np
@@ -13,6 +14,7 @@ from icon.server.data_access.experiment_data import (
     ExperimentDataPoint,
     ExperimentDeviceData,
     ExperimentDeviceDataPoint,
+    HardwareProcessingError,
     ParameterValue,
     PlotWindowMetadata,
     PlotWindows,
@@ -347,6 +349,93 @@ class MockScanParameter:
         self.variable_id = variable_id
         self.realtime = realtime
         self.device = None
+
+
+def _prepare_metadata(h5file: h5py.File) -> None:
+    experiment_data_repository.prepare_readout_metadata(
+        h5file,
+        job_id=-1,
+        experiment_id="test.MockExperiment (MockExperiment)",
+        number_of_shots=3,
+        repetitions=1,
+        readout_metadata=READOUT_METADATA,
+        local_parameter_timestamp=None,
+        parameters=[mock_scan_parameter("x")],
+    )
+
+
+# "Der Gerät" rejects its hardware instructions; "Der andere Gerät" did not return
+# readouts because of it.
+FAILED_DATA_POINT = ExperimentDataPoint(
+    index=1,
+    scan_params={"x": 43.0},
+    timestamp="2026-03-24 16:46:10.638101",
+    device_data=[
+        ExperimentDeviceDataPoint(
+            device_id="Der Gerät",
+            readouts=HardwareProcessingError("Sequence too long"),
+            hardware_instructions="seq-bad",
+        ),
+        ExperimentDeviceDataPoint(
+            device_id="Der andere Gerät",
+            readouts=Readouts(result_channels={}, vector_channels={}, shot_channels={}),
+            hardware_instructions="seq-other",
+        ),
+    ],
+)
+
+
+def test_failed_data_point_only_stores_hardware_instructions_and_error() -> None:
+    with h5py.File.in_memory() as h5file:
+        _prepare_metadata(h5file)
+        experiment_data_repository.write_experiment_data_point(h5file, DATA_POINTS[0])
+        experiment_data_repository.write_experiment_data_point(
+            h5file, FAILED_DATA_POINT
+        )
+
+        assert h5file.attrs["failed_data_point_index"] == 1
+        assert h5file.attrs["hardware_error_message"] == "Der Gerät: Sequence too long"
+        data = experiment_data_repository.load_experiment_data(
+            h5file, include_hardware_instructions=True, include_all_shots=True
+        )
+
+    # The failed data point is not counted and has no scan parameters or readouts.
+    assert data.total_data_points == 1
+    assert data.scan_parameters["x"] == {0: 42.0}
+    device_data = {d.device_id: d for d in data.device_data}
+    assert device_data["Der Gerät"].readouts.result_channels == {"raw_counts": {0: 2.5}}
+    assert device_data["Der andere Gerät"].readouts.shot_channels == {
+        "raw_counts": {0: [10, 5, 1]}
+    }
+    # The hardware instructions of every device are kept.
+    assert device_data["Der Gerät"].hardware_instructions == [
+        (0, "..."),
+        (1, "seq-bad"),
+    ]
+    assert device_data["Der andere Gerät"].hardware_instructions == [
+        (0, "***"),
+        (1, "seq-other"),
+    ]
+
+
+def test_failed_data_point_emits_no_event(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = SimpleNamespace(data=latest.DataConfiguration(results_dir=str(tmp_path)))
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+    monkeypatch.setattr(
+        experiment_data_repository, "get_filename_by_job_id", lambda _: "job-1.h5"
+    )
+    emit_queue = MagicMock()
+    monkeypatch.setattr(experiment_data_repository, "emit_queue", emit_queue)
+    with h5py.File(tmp_path / "job-1.h5", "w") as h5file:
+        _prepare_metadata(h5file)
+
+    Repo.write_experiment_data_by_job_id(job_id=1, data_point=FAILED_DATA_POINT)
+    emit_queue.put.assert_not_called()
+
+    Repo.write_experiment_data_by_job_id(job_id=1, data_point=DATA_POINTS[0])
+    emit_queue.put.assert_called_once()
 
 
 def _write_instruction_file(path: Path, entries: list[tuple[int, str]]) -> None:

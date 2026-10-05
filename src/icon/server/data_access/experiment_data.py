@@ -22,6 +22,14 @@ class Readouts:
 
 
 @dataclass
+class HardwareProcessingError:
+    """Error reported by the device in place of the readouts of a data point."""
+
+    message: str
+    """Error message reported by the device."""
+
+
+@dataclass
 class ReadoutSequences:
     """Scalar/vector/shot readouts for multiple single data points from one device."""
 
@@ -39,8 +47,8 @@ class ExperimentDeviceDataPoint:
 
     device_id: str
     """ID of the device this data is from / for."""
-    readouts: Readouts
-    """Readouts from the device."""
+    readouts: Readouts | HardwareProcessingError
+    """Readouts from the device, or the error the device reported instead."""
     hardware_instructions: str
     """Serialized hardware instructions used for this data point."""
 
@@ -57,6 +65,14 @@ class ExperimentDataPoint:
     """Acquisition timestamp (ISO string)."""
     device_data: list[ExperimentDeviceDataPoint]
     """Readouts and hardware instructions per device."""
+
+    @property
+    def failed(self) -> bool:
+        """True if any device reported an error for this data point."""
+        return any(
+            isinstance(device_data.readouts, HardwareProcessingError)
+            for device_data in self.device_data
+        )
 
 
 @dataclass

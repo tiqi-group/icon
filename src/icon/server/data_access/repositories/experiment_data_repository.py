@@ -24,9 +24,11 @@ from icon.server.data_access.experiment_data import (
     ExperimentDataPoint,
     ExperimentDeviceData,
     FitResult,
+    HardwareProcessingError,
     ParameterValue,
     PlotWindowMetadata,
     ReadoutMetadata,
+    Readouts,
 )
 from icon.server.data_access.models.sqlite.scan_parameter import (
     ScanParameter,
@@ -460,6 +462,8 @@ class ExperimentDataRepository:
         """Append a complete data point to the HDF5 file and emit an event.
 
         Writes scan parameters, result/shot/vector channels, and hardware instructions.
+        For a data point that failed on the device, only the hardware instructions
+        and the error are written, and no event is emitted.
 
         Args:
             job_id: Job identifier.
@@ -471,6 +475,9 @@ class ExperimentDataRepository:
         with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
             write_experiment_data_point(h5file, data_point)
         logger.debug("Appended data to %s", h5_path)
+
+        if data_point.failed:
+            return
 
         emit_queue.put(
             {
@@ -739,6 +746,24 @@ def write_experiment_data_point(
             "ExperimentDataRepository.update_metadata_by_job_id first!"
         ) from None
 
+    if data_point.failed:
+        # Only keep what is needed to troubleshoot the failure. Writing the scan
+        # parameters would count the data point and show it with empty readouts.
+        for device_data in data_point.device_data:
+            write_hardware_instructions_to_dataset(
+                h5file=h5file,
+                data_point_index=data_point.index,
+                device_id=device_data.device_id,
+                hardware_instructions=device_data.hardware_instructions,
+            )
+        h5file.attrs["failed_data_point_index"] = data_point.index
+        h5file.attrs["hardware_error_message"] = "\n".join(
+            f"{device_data.device_id}: {device_data.readouts.message}"
+            for device_data in data_point.device_data
+            if isinstance(device_data.readouts, HardwareProcessingError)
+        )
+        return
+
     write_scan_parameters_and_timestamp_to_dataset(
         h5file=h5file,
         data_point_index=data_point.index,
@@ -747,11 +772,13 @@ def write_experiment_data_point(
         number_of_data_points=number_of_data_points,
     )
     for device_data in data_point.device_data:
+        # Failed data points returned above, so every device has readouts.
+        readouts = cast("Readouts", device_data.readouts)
         write_results_to_dataset(
             h5file=h5file,
             data_point_index=data_point.index,
             device_id=device_data.device_id,
-            result_channels=device_data.readouts.result_channels,
+            result_channels=readouts.result_channels,
             number_of_data_points=number_of_data_points,
         )
 
@@ -759,7 +786,7 @@ def write_experiment_data_point(
             h5file=h5file,
             data_point_index=data_point.index,
             device_id=device_data.device_id,
-            shot_channels=device_data.readouts.shot_channels,
+            shot_channels=readouts.shot_channels,
             number_of_data_points=number_of_data_points,
             number_of_shots=number_of_shots,
         )
@@ -768,7 +795,7 @@ def write_experiment_data_point(
             h5file=h5file,
             device_id=device_data.device_id,
             data_point_index=data_point.index,
-            vector_channels=device_data.readouts.vector_channels,
+            vector_channels=readouts.vector_channels,
         )
 
         write_hardware_instructions_to_dataset(
