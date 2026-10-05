@@ -1,47 +1,17 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext } from "react";
 import { Card, CardContent, Grid } from "@mui/material";
 import { DeviceInfoContext } from "../contexts/DeviceInfoContext";
 import { DeviceStatus } from "../types/enums";
-import { runMethod, socket } from "../socket";
-import { SerializedDict } from "../types/SerializedObject";
-import { deserialize } from "../utils/deserializer";
 import { useConfiguration } from "../hooks/useConfiguration";
+import { useSystemStatus } from "../hooks/useSystemStatus";
 import { InfluxDBStatusCard } from "../components/statusCards/InfluxDBStatus";
-import {
-  HardwareStatusCard,
-  HardwareStatus,
-} from "../components/statusCards/HardwareStatus";
+import { HardwareStatusCard } from "../components/statusCards/HardwareStatus";
 import { DevicesStatusCard } from "../components/statusCards/DevicesStatus";
-
-interface Status {
-  influxdb: boolean;
-  hardware: HardwareStatus[];
-}
 
 export default function DashboardPage() {
   const devices = useContext(DeviceInfoContext);
   const configuration = useConfiguration();
-
-  const [influxReachable, setInfluxReachable] = useState<boolean>(false);
-  const [hardwareStatus, setHardwaretatus] = useState<HardwareStatus[]>([]);
-
-  useEffect(() => {
-    runMethod("status.get_status", [], {}, (response) => {
-      const status = deserialize(response as SerializedDict) as Status;
-      console.log(status);
-      setInfluxReachable(status.influxdb);
-      setHardwaretatus(status.hardware);
-    });
-
-    socket.on("status.influxdb", (status: boolean) => setInfluxReachable(status));
-    socket.on("status.hardware", (status: HardwareStatus[]) =>
-      setHardwaretatus(status),
-    );
-    return () => {
-      socket.off("status.influxdb");
-      socket.off("status.hardware");
-    };
-  }, []);
+  const { influxReachable, hardwareStatus } = useSystemStatus();
 
   const enabledDevices = Object.entries(devices).filter(
     ([, d]) => d.status === DeviceStatus.ENABLED,
