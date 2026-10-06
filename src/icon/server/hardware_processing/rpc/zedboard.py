@@ -301,9 +301,11 @@ class ZedboardSeqRunnerCached(ZedboardSeqRunner):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self.marker = '"header":'
-        self.marker_len = len(self.marker)
+        self.header_marker = '"header":'
+        self.header_marker_len = len(self.header_marker)
+        self._reset_channel_names()
 
+    def _reset_channel_names(self) -> None:
         self._channel_names = {t: [] for t in ZedboardSeqRunnerCached.ChannelTypes}
 
     def _result_channel_names(
@@ -312,9 +314,7 @@ class ZedboardSeqRunnerCached(ZedboardSeqRunner):
         """Serve the sequence runner's channel names from cache instead of the device.
 
         Raises:
-            ZedboardError: if asked about any page other than the sequence page. The cache
-                describes the loaded sequence, so it cannot answer for another page --
-                and answering with it anyway would silently mislabel that page's results.
+            ZedboardError: if page_id is not the discovered sequence page.
         """
         if page_id != self._page_id:
             raise ZedboardError(
@@ -339,7 +339,8 @@ class ZedboardSeqRunnerCached(ZedboardSeqRunner):
         """
         try:
             hdr = json.JSONDecoder().raw_decode(
-                sequence_json, sequence_json.index(self.marker) + self.marker_len
+                sequence_json,
+                sequence_json.index(self.header_marker) + self.header_marker_len,
             )[0]
         except (json.decoder.JSONDecodeError, ValueError):
             logger.warning(
@@ -352,5 +353,15 @@ class ZedboardSeqRunnerCached(ZedboardSeqRunner):
                     "Submitted sequence is not valid JSON. Can't run"
                 ) from e
 
-        for t in ZedboardSeqRunnerCached.ChannelTypes:
-            self._channel_names[t] = hdr.get(f"{t}_channel_names", [])
+        # Check if the readout hardware is available on the current device. Otherwise, reset channel names.
+        readout_hardware = hdr.get("channel_idx_to_hw", [{}])[0]
+        if (
+            readout_hardware.get("device") == self.device_name
+            and readout_hardware.get("hardware") == "Readout"
+        ):
+            self._channel_names = {
+                t: hdr.get(f"{t}_channel_names", [])
+                for t in ZedboardSeqRunnerCached.ChannelTypes
+            }
+        else:
+            self._reset_channel_names()
