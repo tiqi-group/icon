@@ -8,6 +8,8 @@ import {
   Box,
   Select,
   MenuItem,
+  CircularProgress,
+  Tooltip,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useConfiguration } from "../hooks/useConfiguration";
@@ -50,19 +52,6 @@ const HARDWARE_CONTROLLERS: Pick<
   },
 ];
 
-const statusForDevice = (
-  status: HardwareStatus | undefined,
-  cfg: DeviceConfig,
-): HardwareStatus | undefined => {
-  if (status === undefined || status.enabled !== cfg.enabled) return undefined;
-  const statusArgs = Object.fromEntries(status.args);
-  const keys = Object.keys(cfg.args);
-  const sameArgs =
-    keys.length === status.args.length &&
-    keys.every((key) => statusArgs[key] === cfg.args[key]);
-  return sameArgs ? status : undefined;
-};
-
 interface TabPanelProps {
   children?: React.ReactNode;
   value: number;
@@ -93,6 +82,14 @@ const tabLabels = [
 export const SettingsPage = () => {
   const config = useConfiguration();
   const { hardwareStatus } = useSystemStatus();
+
+  const [prevConfig, setPrevConfig] = useState(config);
+  const [outdatedStatus, setOutdatedStatus] = useState<HardwareStatus[]>();
+  if (config !== prevConfig) {
+    setPrevConfig(config);
+    if (prevConfig) setOutdatedStatus(hardwareStatus);
+  }
+  const statusPending = outdatedStatus === hardwareStatus;
   const notifications = useNotifications();
   const dialogs = useDialogs();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -300,8 +297,8 @@ export const SettingsPage = () => {
         <TabPanel value={tab} index={4}>
           <Typography variant="h6">Hardware</Typography>
           {config.hardware.devices.map((cfg, index) => {
-            const status = statusForDevice(hardwareStatus[index], cfg);
-            const name = status?.display_name ?? cfg.controller_class;
+            const status = statusPending ? undefined : hardwareStatus[index];
+            const name = hardwareStatus[index]?.display_name ?? cfg.controller_class;
             return (
               <Paper
                 key={`${config.hardware.devices.length}-${index}`}
@@ -316,12 +313,16 @@ export const SettingsPage = () => {
                   <DeleteIcon />
                 </IconButton>
                 <Stack direction="row" alignItems="center" sx={{ marginBottom: 2 }}>
-                  {status && (
+                  {status ? (
                     <ReachabilityIndicator
                       enabled={status.enabled}
                       status={status.reachable}
                       errorMsg={status.error}
                     />
+                  ) : (
+                    <Tooltip title="Waiting for the next status update">
+                      <CircularProgress size={15} sx={{ marginRight: 1 }} />
+                    </Tooltip>
                   )}
                   <Typography variant="h6">{name}</Typography>
                 </Stack>

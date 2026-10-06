@@ -9,14 +9,18 @@ interface Status {
   hardware: HardwareStatus[];
 }
 
+const requestRefresh = () => runMethod("status.request_refresh");
+
 /**
  * Hook for the system status reported by the backend health check.
  *
- * @returns Whether InfluxDB is reachable and the status of each hardware device.
+ * @returns Whether InfluxDB is reachable, the status of each hardware device, and a
+ *   function to request an immediate status check instead of waiting for the next one.
  */
 export function useSystemStatus(): {
   influxReachable: boolean;
   hardwareStatus: HardwareStatus[];
+  refresh: () => void;
 } {
   const [influxReachable, setInfluxReachable] = useState<boolean>(false);
   const [hardwareStatus, setHardwareStatus] = useState<HardwareStatus[]>([]);
@@ -40,5 +44,5 @@ export function useSystemStatus(): {
     };
   }, []);
 
-  return { influxReachable, hardwareStatus };
+  return { influxReachable, hardwareStatus, refresh: requestRefresh };
 }

@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 from typing import Any, TypedDict
 
 import pydase
@@ -44,6 +45,7 @@ class StatusController(pydase.DataService):
         self._influxdb_available = False
         self._experiment_library_client = experiment_library_client
         self._hardware_status: list[HardwareStatus] = []
+        self._refresh_requested = asyncio.Event()
 
     def get_status(self) -> Status:
         """Return the current system status flags.
@@ -58,6 +60,10 @@ class StatusController(pydase.DataService):
             "influxdb": self._influxdb_available,
             "hardware": self._hardware_status,
         }
+
+    def request_refresh(self) -> None:
+        """Request an immediate status refresh."""
+        self._refresh_requested.set()
 
     def check_influxdb_status(self) -> None:
         """Check if InfluxDB is responsive and update status.
@@ -126,10 +132,16 @@ class StatusController(pydase.DataService):
 
         - Updates InfluxDB status.
         - Updates hardware status.
-        - Sleeps for the configured health check interval.
+        - Waits for the configured health check interval, or until a refresh is
+          requested.
         """
         while True:
+            self._refresh_requested.clear()
             self.check_influxdb_status()
             await self.check_hardware_status()
 
-            await asyncio.sleep(get_config().health_check.interval_seconds)
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(
+                    self._refresh_requested.wait(),
+                    timeout=get_config().health_check.interval_seconds,
+                )

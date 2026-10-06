@@ -65,6 +65,8 @@ class APIService(pydase.DataService):
         """
         super().__init__()
 
+        status = StatusController(devices, experiment_library_client)
+
         self.devices = DevicesController()
         """Controller for managing external pydase-based devices."""
         self.parameters = ParametersController()
@@ -76,7 +78,7 @@ class APIService(pydase.DataService):
         """Controller to submit, inspect, and cancel scheduled jobs."""
         self.experiments = ExperimentsController()
         """Controller for experiment metadata."""
-        self.config = ConfigurationController()
+        self.config = ConfigurationController(on_update=status.request_refresh)
         """Controller for managing and updating the application's configuration."""
         self.data = ExperimentDataController()
         """Controller for accessing stored experiment data."""
@@ -85,7 +87,7 @@ class APIService(pydase.DataService):
         )
         """Controller for triggering update events for jobs across multiple worker
         processes."""
-        self.status = StatusController(devices, experiment_library_client)
+        self.status = status
         """Controller for system status monitoring."""
         self._experiment_library_client = experiment_library_client
 

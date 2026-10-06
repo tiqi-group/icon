@@ -62,7 +62,7 @@ class FrozenHardwareConfig:
             return Hardware(
                 controller=dev_class(**dict(self.args)), enabled=self.enabled
             )
-        except (ImportError, AttributeError) as e:
+        except (ValueError, ImportError, AttributeError, TypeError) as e:
             raise ReloadError(
                 f"Configuration for device {self.controller_module}.{self.display_name} is invalid.\n"
                 f"Error message: {e}\n"
