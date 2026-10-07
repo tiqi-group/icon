@@ -550,6 +550,7 @@ export const JobView = ({
                 </div>
                 {expandedShotChannels[win.name] !== false && (
                   <HistogramPlot
+                    key={jobId}
                     experimentData={experimentData}
                     channelNames={win.channel_names}
                     loading={loading}
