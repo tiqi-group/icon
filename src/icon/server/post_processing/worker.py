@@ -9,7 +9,6 @@ from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataRepository,
 )
 from icon.server.data_access.repositories.job_run_repository import (
-    job_run_cancelled_or_failed,
     try_update_run_by_id,
 )
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
@@ -33,12 +32,10 @@ class PostProcessingWorker(multiprocessing.Process):
         logger.info("Post-processing worker started")
 
         while True:
+            # Tasks of failed or cancelled jobs are still processed: they hold data
+            # points measured before the job stopped, or the hardware instructions
+            # of the data point that failed on the device.
             task = self._post_processing_queue.get()
-
-            if job_run_cancelled_or_failed(
-                job_id=task.pre_processing_task.job.id,
-            ):
-                continue
 
             try:
                 ExperimentDataRepository.write_experiment_data_by_job_id(
@@ -50,8 +47,15 @@ class PostProcessingWorker(multiprocessing.Process):
                     "Post-processing of job with id '%s' failed",
                     task.pre_processing_task.job.id,
                 )
+                # Keep the status and log of runs that already failed or were
+                # cancelled, e.g. the hardware error message.
                 try_update_run_by_id(
                     run_id=task.pre_processing_task.job_run.id,
                     status=JobRunStatus.FAILED,
                     log=f"Post-processing error: {e}",
+                    only_if_status=(
+                        JobRunStatus.PROCESSING,
+                        JobRunStatus.PAUSED,
+                        JobRunStatus.DONE,
+                    ),
                 )
