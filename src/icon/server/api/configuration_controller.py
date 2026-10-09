@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from typing import Any
 
 import pydase
@@ -17,6 +18,15 @@ class ConfigurationController(pydase.DataService):
     This class provides an API to get and update the configuration, validate it, and
     save the updated configuration back to the source file.
     """
+
+    def __init__(self, on_update: Callable[[], None] | None = None) -> None:
+        """Create a new ConfigurationController.
+
+        Args:
+            on_update: Called after the configuration has been updated and saved.
+        """
+        super().__init__()
+        self._on_update = on_update
 
     def get_config(self) -> dict[str, Any]:
         """Get current configuration dictionary."""
@@ -53,6 +63,8 @@ class ConfigurationController(pydase.DataService):
         except KeyError:
             logger.exception("Failed to update configuration")
             return False
+        if self._on_update is not None:
+            self._on_update()
         return True
 
 

@@ -37,7 +37,7 @@ zedboard = [
 ]
 # Only required when using PyCrystalClient without the venv executor
 pycrystal = [
-    "pycrystal @ git+ssh://git@gitlab.phys.ethz.ch/tiqi-projects/ionpulse-python-sdk/pycrystal.git@v2.3.0",
+    "pycrystal @ git+ssh://git@gitlab.phys.ethz.ch/tiqi-projects/ionpulse-python-sdk/pycrystal.git@v2.7.0",
 ]
 
 [project.scripts]
@@ -178,7 +178,7 @@ check_untyped_defs = true
 disable_error_code = ["import-untyped"]
 
 [[tool.mypy.overrides]]
-module = ["tiqi_zedboard.*", "pycrystal.*"]
+module = ["tiqi_zedboard.*", "pycrystal.*", "ionpulse_sequence_generator.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

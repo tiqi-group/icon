@@ -24,7 +24,7 @@ import { getExperimentNameFromExperimentId } from "../utils/experimentUtils";
 type GroupName = "In Progress" | "Queued" | "Finished";
 
 export function DataPage() {
-  const { jobs, loading, hasMore, loadMore } = useContext(JobsContext);
+  const { jobs, loading, loadingMore, hasMore, loadMore } = useContext(JobsContext);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const selectedJobId = searchParams.get("jobId");
@@ -165,9 +165,9 @@ export function DataPage() {
                   {status === "Finished" && hasMore && (
                     <ListItem
                       ref={sentinelRef}
-                      sx={{ justifyContent: "center", py: 1 }}
+                      sx={{ justifyContent: "center", py: 1, minHeight: 36 }}
                     >
-                      <CircularProgress size={20} />
+                      {loadingMore && <CircularProgress size={20} disableShrink />}
                     </ListItem>
                   )}
                 </React.Fragment>
