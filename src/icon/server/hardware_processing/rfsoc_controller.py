@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 from dataclasses import dataclass, field
@@ -35,21 +34,22 @@ class RFSoCController(GatewayController[RFSoC]):
         host: str,
         port: int,
         timeout: float = 5,
-        poll_interval: float = 0.01,
+        task_timeout: float = 1,
+        max_task_timeouts: int = 5,
     ) -> None:
         """Initialise the controller.
 
         Args:
             host: Hostname of the RFSoC.
             port: Port the RFSoC RPC server listens on.
-            timeout: Timeout in seconds for RPC calls and for a task to finish.
-                Configurable in the config file.
-            poll_interval: Seconds between task status queries while waiting for a task
-                to finish.
+            timeout: Timeout in seconds for RPC calls.
+            task_timeout: Seconds to wait for the notification that the task has
+                finished, before polling the task status.
+            max_task_timeouts: Task timeouts after which an unfinished task is aborted.
         """
         super().__init__(RFSoC(hostname=host, port=port, timeout=timeout))
-        self._timeout = timeout
-        self._poll_interval = poll_interval
+        self._task_timeout = task_timeout
+        self._max_task_timeouts = max_task_timeouts
         self._device_id: str | None = None
         self._channel_layout = ChannelLayout()
 
@@ -86,20 +86,45 @@ class RFSoCController(GatewayController[RFSoC]):
         self._gateway.start_task()
 
     def receive(self) -> Readouts:
-        try:
-            self._gateway.wait_for_task(
-                timeout=self._timeout, poll_interval=self._poll_interval
-            )
-        except TimeoutError:
-            # Otherwise the next send aborts the task
-            with contextlib.suppress(RPCError, OSError):
-                self._gateway.abort_task()
-            raise
+        self._wait_for_task()
         results = self._gateway.get_task_results()
         if results.log:
             logger.warning("%s: %s", self.display_name, results.log)
         # TODO: return the per-shot results once ICON handles them
         return to_zedboard_readouts(results, self._channel_layout)
+
+    def _wait_for_task(self) -> None:
+        """Wait for the running task to finish.
+
+        Blocks until the device notifies that the task has finished. As the notification
+        can be missed, the task status is polled after every task timeout. The task is
+        aborted once it is still unfinished after ``max_task_timeouts`` timeouts.
+
+        Raises:
+            TimeoutError: if the task did not finish and was aborted.
+            GatewayError: if no task is running, or the task was aborted meanwhile.
+        """
+        for _ in range(self._max_task_timeouts):
+            if self._gateway.wait_for_task(timeout=self._task_timeout):
+                return
+            report = self._gateway.get_task_status()
+            if report.status is TaskStatus.FINISHED:
+                return
+            if report.status is not TaskStatus.RUNNING:
+                raise GatewayError(
+                    f"no task is running on {self.display_name}: {report}"
+                )
+        logger.warning("Aborting the unfinished task on %s", self.display_name)
+        try:
+            self._gateway.abort_task()
+        except (RPCError, OSError) as e:
+            # The next send aborts the task again
+            logger.warning("Could not abort the task on %s: %s", self.display_name, e)
+        raise TimeoutError(
+            f"Task on {self.display_name} did not finish after "
+            f"{self._max_task_timeouts} timeouts of {self._task_timeout:g}s "
+            f"({report.executed_shots} / {report.requested_shots} shots) and was aborted"
+        )
 
 
 # *** Zedboard compatibility
