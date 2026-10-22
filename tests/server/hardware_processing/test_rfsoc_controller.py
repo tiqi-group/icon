@@ -52,7 +52,8 @@ SEQUENCE = json.dumps(
         "header": {
             "channel_idx_to_hw": [{"device": DEVICE_ID, "hardware": "Readout"}],
             "shot_channel_names": ["pmt"],
-            "readout_channel_names": ["bright", "count", "trace", "ignored"],
+            # The readout channel "pmt" shares its name with the shot channel
+            "readout_channel_names": ["bright", "pmt", "trace", "ignored"],
             "readout_postprocessing_method": [1, 2, 3, 0],
             "vector_channel_names": ["timestamps"],
         },
@@ -62,16 +63,16 @@ SEQUENCE = json.dumps(
 )
 
 DATA = {
-    "pmt": [[3.0], [5.0]],
-    "bright": [[1.0], [0.0]],
-    "count": [[2.0], [4.0]],
-    "trace": [[1.0], [0.0]],
-    "ignored": [[7.0], [7.0]],
-    "timestamps": [[1.0, 2.0], [3.0]],
+    "shot/pmt": [[3.0], [5.0]],
+    "readout/bright": [[1.0], [0.0]],
+    "readout/pmt": [[2.0], [4.0]],
+    "readout/trace": [[1.0], [0.0]],
+    "readout/ignored": [[7.0], [7.0]],
+    "vector/timestamps": [[1.0, 2.0], [3.0]],
 }
 
 EXPECTED = Readouts(
-    result_channels={"bright": 0.5, "count": 6.0},
+    result_channels={"bright": 0.5, "pmt": 6.0},
     vector_channels={"timestamps": [1.0, 2.0, 3.0], "trace": [1.0, 0.0]},
     shot_channels={"pmt": [3, 5]},
 )

@@ -133,6 +133,9 @@ class RFSoCController(GatewayController[RFSoC]):
 # post-processing to the client. The following reproduces the readouts of the Zedboard
 # sequence runner from them, so ICON handles RFSoC data like Zedboard data.
 #
+# Shot, readout and vector channels are separate namespaces, so the RFSoC prefixes the
+# channel names with "shot/", "readout/" and "vector/". The readouts drop the prefixes.
+#
 # TODO: Remove once ICON handles the per-shot results of the gateway.
 
 _HEADER_MARKER = '"header":'
@@ -201,21 +204,21 @@ def to_zedboard_readouts(result: TaskResult, layout: ChannelLayout) -> Readouts:
     Shot and vector channels hold the values of all shots in turn.
     """
     shot_channels = {
-        name: [int(value) for value in _all_shots(result, name)]
+        name: [int(value) for value in _all_shots(result, f"shot/{name}")]
         for name in layout.shot_channels
     }
     vector_channels = {
-        name: _all_shots(result, name) for name in layout.vector_channels
+        name: _all_shots(result, f"vector/{name}") for name in layout.vector_channels
     }
     result_channels: dict[str, float] = {}
     for name, method in zip(
         layout.readout_channels, layout.postprocessing, strict=False
     ):
-        values = _all_shots(result, name)
+        values = _all_shots(result, f"readout/{name}")
         match method:
             case PostProcessing.AVG:
                 # The Zedboard averages over the number of shots
-                shots = len(result.data.get(name, []))
+                shots = len(result.data.get(f"readout/{name}", []))
                 result_channels[name] = sum(values) / max(shots, 1)
             case PostProcessing.SUM:
                 result_channels[name] = float(sum(values))

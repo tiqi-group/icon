@@ -376,7 +376,10 @@ class TaskResult:
     """Raw results of a finished task."""
 
     data: dict[str, list[list[float]]]
-    """Values per data channel name and shot index."""
+    """Values per data channel name and shot index.
+
+    The names are prefixed with ``shot/``, ``readout/`` or ``vector/`` by channel type.
+    """
     failed: dict[str, list[list[float]]]
     """Values of the failed (and repeated) shots per data channel name."""
     log: str
