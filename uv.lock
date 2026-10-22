@@ -1085,7 +1085,7 @@ requires-dist = [
     { name = "notebook", marker = "extra == 'client'", specifier = ">=7.3.1" },
     { name = "pandas", marker = "extra == 'client'", specifier = ">=2.2.3" },
     { name = "psutil", marker = "extra == 'server'", specifier = ">=7.0.0" },
-    { name = "pycrystal", marker = "extra == 'pycrystal'", git = "ssh://git@gitlab.phys.ethz.ch/tiqi-projects/ionpulse-python-sdk/pycrystal.git?rev=v2.3.0" },
+    { name = "pycrystal", marker = "extra == 'pycrystal'", git = "ssh://git@gitlab.phys.ethz.ch/tiqi-projects/ionpulse-python-sdk/pycrystal.git?rev=v2.7.0" },
     { name = "pydase", specifier = ">=0.10.21" },
     { name = "pytz", specifier = ">=2024.2" },
     { name = "scipy", marker = "extra == 'server'", specifier = ">=1.14.0" },
@@ -1155,8 +1155,8 @@ wheels = [
 
 [[package]]
 name = "ionpulse-sequence-generator"
-version = "2.3.0"
-source = { git = "ssh://git@gitlab.phys.ethz.ch/tiqi-projects/ionpulse-python-sdk/ionpulse_sequence_generator.git?tag=v2.3.0#fe3112287911836b17f0d68b201bb449f0d87cbe" }
+version = "2.7.1"
+source = { git = "ssh://git@gitlab.phys.ethz.ch/tiqi-projects/ionpulse-python-sdk/ionpulse_sequence_generator.git?tag=v2.7.1#118f144f14a781d74851bb4e5e3b987e19aaed21" }
 dependencies = [
     { name = "click" },
     { name = "msgpack" },
@@ -2881,8 +2881,8 @@ wheels = [
 
 [[package]]
 name = "pycrystal"
-version = "2.3.0"
-source = { git = "ssh://git@gitlab.phys.ethz.ch/tiqi-projects/ionpulse-python-sdk/pycrystal.git?rev=v2.3.0#338e626d8130dce398c4a8616a02b2835e3c8e53" }
+version = "2.7.0"
+source = { git = "ssh://git@gitlab.phys.ethz.ch/tiqi-projects/ionpulse-python-sdk/pycrystal.git?rev=v2.7.0#93c26477625483d4b7e0225b565e768977ed971c" }
 dependencies = [
     { name = "anytree" },
     { name = "ionpulse-sequence-generator" },

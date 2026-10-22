@@ -23,6 +23,8 @@ import { ParameterGroupDisplay } from "../components/ParameterGroupDisplay";
 import { useExperimentData } from "../hooks/useExperimentData";
 import { useJobRunInfo } from "../hooks/useJobRunInfo";
 import { useJobInfo } from "../hooks/useJobInfo";
+import { useBrowserSetting } from "../hooks/useBrowserSetting";
+import { DEFAULT_WINDOW_SIZE } from "../pages/settings";
 import { runMethod } from "../socket";
 import { ExperimentMetadata } from "../types/ExperimentMetadata";
 import { SerializedObject } from "../types/SerializedObject";
@@ -77,7 +79,7 @@ const StatusCard = ({
           py: 6,
         }}
       >
-        {showSpinner && <CircularProgress size={24} />}
+        {showSpinner && <CircularProgress size={24} disableShrink />}
         <Typography variant="body1" color="text.secondary">
           {message}
         </Typography>
@@ -104,22 +106,31 @@ export const JobView = ({
   const is1D = jobInfo?.scan_parameters.length === 1;
   const is2D = (jobInfo?.scan_parameters.length ?? 0) >= 2;
 
+  const [defaultWindowSize] = useBrowserSetting<number>(
+    "defaultWindowSize",
+    DEFAULT_WINDOW_SIZE,
+  );
+  // null: the user has not set a window size, so the default is used
   const [windowSize, setWindowSize] = useState<number | null>(null);
+  const effectiveWindowSize = windowSize ?? defaultWindowSize;
   const [yMin, setYMin] = useState<number | null>(null);
   const [yMax, setYMax] = useState<number | null>(null);
 
   const hasRepetitions = (jobInfo?.repetitions ?? 0) > 1;
+  // take main device for now:
+  const deviceData = experimentData?.device_data?.[0];
+  const resultChannels = deviceData?.readouts?.result_channels;
 
   const autoYBounds = useMemo(() => {
-    if (!experimentData?.readouts?.result_channels) return { min: 0, max: 0 };
+    if (!resultChannels) return { min: 0, max: 0 };
 
     let min = Infinity;
     let max = -Infinity;
 
-    for (const channelData of Object.values(experimentData.readouts.result_channels)) {
+    for (const channelData of Object.values(resultChannels)) {
       let values = Object.values(channelData) as number[];
-      if (windowSize != null && values.length > windowSize) {
-        values = values.slice(-windowSize);
+      if (values.length > effectiveWindowSize) {
+        values = values.slice(-effectiveWindowSize);
       }
       for (const v of values) {
         if (Number.isFinite(v)) {
@@ -131,24 +142,18 @@ export const JobView = ({
 
     if (!Number.isFinite(min)) return { min: 0, max: 0 };
     return { min, max };
-  }, [experimentData, windowSize]);
-
-  const dataLength = useMemo(() => {
-    if (!experimentData?.readouts?.result_channels) return 0;
-    const firstChannel = Object.values(experimentData.readouts.result_channels)[0];
-    return firstChannel ? Object.values(firstChannel).length : 0;
-  }, [experimentData]);
+  }, [experimentData, effectiveWindowSize]);
 
   const loadedDataPoints = Object.keys(
-    Object.values(experimentData.readouts.result_channels)[0] ?? {},
+    Object.values(resultChannels ?? {})[0] ?? {},
   ).length;
   const isTruncated =
     experimentData.total_data_points > 0 &&
     loadedDataPoints < experimentData.total_data_points;
 
   const hasPlotWindows =
-    (experimentData?.plot_windows?.shot_channels?.length ?? 0) > 0 ||
-    (experimentData?.plot_windows?.result_channels?.length ?? 0) > 0;
+    (deviceData?.plot_windows?.shot_channels?.length ?? 0) > 0 ||
+    (deviceData?.plot_windows?.result_channels?.length ?? 0) > 0;
 
   const jobIsFinished =
     jobInfo?.status === JobStatus.PROCESSED ||
@@ -398,13 +403,13 @@ export const JobView = ({
                   type="number"
                   disabled={is2D}
                   value={windowSize ?? ""}
-                  placeholder="All"
+                  placeholder={String(defaultWindowSize)}
                   onChange={(e) => {
                     const val = e.target.value;
                     if (val === "") {
                       setWindowSize(null);
                     } else if (windowSize === null && changedByStepper(e)) {
-                      setWindowSize(dataLength > 0 ? dataLength : 1);
+                      setWindowSize(defaultWindowSize);
                     } else {
                       const num = Number(val);
                       if (num >= 1) setWindowSize(num);
@@ -515,7 +520,7 @@ export const JobView = ({
           </Grid>
         )}
 
-        {experimentData?.plot_windows?.shot_channels?.map((win) => (
+        {deviceData?.plot_windows?.shot_channels?.map((win) => (
           <Grid size={{ xs: 12, sm: 12, lg: 6 }} key={`shot-${win.index}`}>
             <Card
               sx={{
@@ -545,6 +550,7 @@ export const JobView = ({
                 </div>
                 {expandedShotChannels[win.name] !== false && (
                   <HistogramPlot
+                    key={jobId}
                     experimentData={experimentData}
                     channelNames={win.channel_names}
                     loading={loading}
@@ -560,7 +566,7 @@ export const JobView = ({
           </Grid>
         ))}
 
-        {experimentData?.plot_windows?.result_channels?.map((win) => (
+        {deviceData?.plot_windows?.result_channels?.map((win) => (
           <Grid size={{ xs: 12, sm: 12, lg: 6 }} key={`result-${win.index}`}>
             <Card
               sx={{
@@ -609,7 +615,7 @@ export const JobView = ({
                       experimentData={experimentData}
                       channelNames={win.channel_names}
                       scanParameters={jobInfo?.scan_parameters}
-                      windowSize={is2D ? null : windowSize}
+                      windowSize={is2D ? null : effectiveWindowSize}
                     />
                   ) : (
                     <ResultChannelPlot
@@ -624,9 +630,9 @@ export const JobView = ({
                       repetitions={jobInfo?.repetitions}
                       showRepetitions={showRepetitions}
                       scanParameters={jobInfo?.scan_parameters}
-                      windowSize={windowSize}
+                      windowSize={effectiveWindowSize}
                       yRange={{ min: yMin, max: yMax }}
-                      fits={showFitPanel && is1D ? experimentData.fits : undefined}
+                      fits={showFitPanel && is1D ? deviceData.fits : undefined}
                       onChartClick={showFitPanel && is1D ? handleChartClick : undefined}
                     />
                   ))}

@@ -78,18 +78,20 @@ export const ResultChannelTable = ({
     });
   }, [experimentData.scan_parameters]);
 
+  // take main device for now:
+  const deviceData = experimentData?.device_data?.[0];
   // Row indices: union of data-point indices present across this window's channels.
   const allIndices = useMemo(() => {
     const indices = new Set<number>();
     for (const channel of channelNames) {
-      const channelData = experimentData.readouts.result_channels?.[channel];
+      const channelData = deviceData.readouts.result_channels?.[channel];
       if (!channelData) continue;
       for (const key of Object.keys(channelData)) {
         indices.add(Number(key));
       }
     }
     return Array.from(indices).sort((a, b) => a - b);
-  }, [experimentData.readouts.result_channels, channelNames]);
+  }, [deviceData.readouts.result_channels, channelNames]);
 
   const rowIndices = allIndices
     .slice(-Math.min(windowSize ?? MAX_ROWS, MAX_ROWS))
@@ -147,9 +149,7 @@ export const ResultChannelTable = ({
                   })}
                   {channelNames.map((channel) => (
                     <TableCell key={`channel-${channel}`} align="right">
-                      {formatCell(
-                        experimentData.readouts.result_channels[channel]?.[key],
-                      )}
+                      {formatCell(deviceData.readouts.result_channels[channel]?.[key])}
                     </TableCell>
                   ))}
                 </TableRow>

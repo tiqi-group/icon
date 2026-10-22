@@ -11,7 +11,7 @@ DatabaseValueType = bool | float | int | str
 
 @dataclass
 class Readouts:
-    """Scalar/vector/shot readouts for a single data point."""
+    """Scalar/vector/shot readouts for a single data point from one device."""
 
     result_channels: dict[str, float]
     """Mapping from result channel name to scalar value."""
@@ -34,6 +34,18 @@ class ReadoutSequences:
 
 
 @dataclass
+class ExperimentDeviceDataPoint:
+    """Device specific data for a single data point."""
+
+    device_id: str
+    """ID of the device this data is from / for."""
+    readouts: Readouts
+    """Readouts from the device."""
+    hardware_instructions: str
+    """Serialized hardware instructions used for this data point."""
+
+
+@dataclass
 class ExperimentDataPoint:
     """A single data point with its context."""
 
@@ -43,10 +55,8 @@ class ExperimentDataPoint:
     """Parameter values that produced this data point."""
     timestamp: str
     """Acquisition timestamp (ISO string)."""
-    hardware_instructions: str
-    """Serialized sequence JSON used for this data point."""
-    readouts: Readouts
-    """Readouts from the device."""
+    device_data: list[ExperimentDeviceDataPoint]
+    """Readouts and hardware instructions per device."""
 
 
 @dataclass
@@ -129,6 +139,22 @@ class FitResult:
 
 
 @dataclass
+class ExperimentDeviceData:
+    """Device specific data for multiple data points."""
+
+    device_id: str
+    """ID of the device this data is from / for."""
+    readouts: ReadoutSequences = field(default_factory=ReadoutSequences)
+    """Readouts from the device."""
+    hardware_instructions: list[tuple[int, str]] = field(default_factory=list)
+    """Serialized hardware instructions used for this data point."""
+    plot_windows: PlotWindows = field(default_factory=PlotWindows)
+    """Plot window metadata grouped by channel class."""
+    fits: dict[str, FitResult] = field(default_factory=dict)
+    """Fit results keyed by result channel name."""
+
+
+@dataclass
 class ParameterValue:
     timestamp: str
     value: DatabaseValueType
@@ -138,19 +164,13 @@ class ParameterValue:
 class ExperimentData:
     """Container for all experiment data returned to the API."""
 
-    plot_windows: PlotWindows = field(default_factory=PlotWindows)
-    """Plot window metadata grouped by channel class."""
-    readouts: ReadoutSequences = field(default_factory=ReadoutSequences)
-    """Readouts from the device."""
+    device_data: list[ExperimentDeviceData] = field(default_factory=list)
+    """Device specific data for multiple datapoints."""
     scan_parameters: dict[str, dict[int, str | float]] = field(default_factory=dict)
     """Scan parameters as param_id -> {index -> value/timestamp}."""
     realtime_scan: bool = False
     """True if the experiment has a realtime scan parameter."""
-    hardware_instructions: list[tuple[int, str]] = field(default_factory=list)
-    """List of (index, hardware_instructions) pairs."""
     parameters: dict[str, ParameterValue] = field(default_factory=dict)
     """Mapping of parameter id to time series (tuple of timestamp str and value)."""
     total_data_points: int = 0
     """Total number of data points in the HDF5 file (before truncation)."""
-    fits: dict[str, FitResult] = field(default_factory=dict)
-    """Fit results keyed by result channel name."""

@@ -4,6 +4,7 @@ import logging
 import multiprocessing
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -15,6 +16,7 @@ from pydase.utils.serialization.serializer import dump
 from icon.config.config import get_config
 from icon.server.data_access.experiment_data import (
     ExperimentDataPoint,
+    ExperimentDeviceDataPoint,
 )
 from icon.server.data_access.models.enums import DeviceStatus, JobRunStatus
 from icon.server.data_access.models.sqlite.scan_parameter import (
@@ -25,6 +27,7 @@ from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
     try_update_run_by_id,
 )
+from icon.server.hardware_processing.hardware_controller import HardwareController
 from icon.server.hardware_processing.utils import extract_hardware_error_message
 from icon.server.post_processing.task import PostProcessingTask
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
@@ -35,7 +38,7 @@ if TYPE_CHECKING:
 
     from icon.server.data_access.experiment_data import DatabaseValueType
     from icon.server.data_access.models.sqlite.device import Device
-    from icon.server.hardware_processing.devices import Devices
+    from icon.server.hardware_processing.devices import Devices, Hardware
     from icon.server.hardware_processing.task import HardwareProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
 
@@ -95,6 +98,26 @@ def should_divert_task(
     )
 
 
+def run_device(
+    device_id: str,
+    device: HardwareController,
+    instructions: str,
+    delay: float = 0.0,
+) -> ExperimentDeviceDataPoint:
+    """Device run and receive methods intended for execution in a ThreadPoolExecutor.
+
+    The purpose is to delay the run call on the main device until the subordinate is armed.
+    """
+    if delay:
+        time.sleep(delay)
+    device.run()
+    return ExperimentDeviceDataPoint(
+        device_id,
+        readouts=device.receive(),
+        hardware_instructions=instructions,
+    )
+
+
 class HardwareProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
@@ -108,8 +131,19 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self._post_processing_queue = post_processing_queue
         self._manager = manager
         self._pydase_clients: dict[str, pydase.Client] = {}
+        self._executor: ThreadPoolExecutor | None = None
+        self._executor_size = 0
+        self._main_device_start_delay = get_config().hardware.main_device_start_delay
 
         self._devices = devices
+
+    def get_device(self, device_id: str) -> Hardware:
+        try:
+            return self._devices[device_id]
+        except KeyError as e:
+            raise RuntimeError(
+                f"No such device: {e} (the device might have been disabled)"
+            ) from None
 
     def _update_pydase_service_parameter(
         self, device: Device, access_path: str, new_value: DatabaseValueType
@@ -190,6 +224,17 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 new_value=value,
             )
 
+    def _get_executor(self, size: int) -> ThreadPoolExecutor:
+        """Returns the device communication thread pool, resized if too small."""
+        if self._executor is None or self._executor_size < size:
+            if self._executor is not None:
+                self._executor.shutdown()
+            self._executor_size = max(size, 1)
+            self._executor = ThreadPoolExecutor(
+                max_workers=self._executor_size, thread_name_prefix="hardware"
+            )
+        return self._executor
+
     @handle_keyboard_interrupt(logger)
     def run(self) -> None:
         self._pydase_clients = {
@@ -224,17 +269,42 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 self._set_pydase_service_values(scanned_params=task.scanned_params)
 
                 timestamp = datetime.now(timezone)
-                hardware_controller = self._devices.main_device()
-                hardware_controller.send(data=task.hardware_instructions)
-                hardware_controller.run()
-                readouts = hardware_controller.receive()
+                all_hardware_instructions = [
+                    (device_id, self.get_device(device_id).controller, instructions)
+                    for device_id, instructions in task.hardware_instructions
+                ]
+                hardware_instructions = [
+                    (device_id, device, instructions)
+                    for device_id, device, instructions in all_hardware_instructions
+                    if isinstance(device, HardwareController)
+                ]
+                for _, device, instructions in hardware_instructions:
+                    device.send(data=instructions)
+
+                num_devices = len(hardware_instructions)
+                executor = self._get_executor(num_devices)
+                futures = [
+                    executor.submit(
+                        run_device,
+                        device_id,
+                        device,
+                        instructions,
+                        delay=self._main_device_start_delay
+                        if i == 0 and num_devices > 1
+                        else 0.0,
+                    )
+                    for i, (device_id, device, instructions) in enumerate(
+                        hardware_instructions
+                    )
+                ]
+                wait(futures)
+                device_data = [future.result() for future in futures]
 
                 experiment_data_point = ExperimentDataPoint(
                     index=task.data_point_index,
                     scan_params=task.scanned_params,
-                    readouts=readouts,
+                    device_data=device_data,
                     timestamp=timestamp.isoformat(),
-                    hardware_instructions=task.hardware_instructions,
                 )
 
                 post_processing_task = PostProcessingTask(

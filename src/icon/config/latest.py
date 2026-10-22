@@ -66,7 +66,6 @@ class ServerConfig(BaseModel):
 
 
 class DeviceConfig(BaseModel):
-    id: str
     controller_module: str
     controller_class: str
     args: dict[str, Any]
@@ -75,6 +74,7 @@ class DeviceConfig(BaseModel):
 
 class HardwareConfig(BaseModel):
     devices: list[DeviceConfig] = []
+    main_device_start_delay: float = 0.05
 
 
 class ServiceConfig(BaseConfig):  # type: ignore[misc, metaclass]

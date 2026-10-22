@@ -79,6 +79,7 @@ def start_server() -> None:
 
     for i, queue in enumerate(pre_processing_update_queues):
         PreProcessingWorker(
+            devices=devices,
             experiment_library_client=exp_lib_client,
             worker_number=i,
             hardware_processing_queue=SRM.hardware_processing_queue,

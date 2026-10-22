@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from "react";
  * @param key The localStorage key
  * @param defaultValue Default value when nothing is stored
  */
-export function useBrowserSetting<T extends string | boolean>(
+export function useBrowserSetting<T extends string | boolean | number>(
   key: string,
   defaultValue: T,
 ) {
@@ -14,7 +14,12 @@ export function useBrowserSetting<T extends string | boolean>(
   const readValue = (): T => {
     const item = localStorage.getItem(key);
     if (item === null) return defaultValue;
-    return (typeof defaultValue === "boolean" ? item === "true" : (item as T)) as T;
+    if (typeof defaultValue === "boolean") return (item === "true") as T;
+    if (typeof defaultValue === "number") {
+      const num = Number(item);
+      return (Number.isFinite(num) ? num : defaultValue) as T;
+    }
+    return item as T;
   };
 
   const [value, setValue] = useState<T>(readValue);

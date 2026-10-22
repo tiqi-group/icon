@@ -1,27 +1,26 @@
 import { Tooltip } from "@mui/material";
-import { HardwareError } from "../../types/HardwareStatus";
 
 export const ReachabilityIndicator = ({
   enabled,
   status,
+  errorMsg,
 }: {
   enabled: boolean;
-  status: boolean | HardwareError;
+  status: boolean;
+  errorMsg?: string | null;
 }) => {
-  const errorMsg = typeof status == "boolean" ? null : status?.msg;
-  const statusStr =
-    errorMsg !== null
-      ? errorMsg
-      : status === true
-        ? !enabled
-          ? "Disabled (reachable)"
-          : "Reachable"
-        : !enabled
-          ? "Disabled (unreachable)"
-          : "Unreachable";
+  const error = errorMsg !== null && errorMsg !== undefined;
+  const statusStr = error
+    ? errorMsg
+    : status === true
+      ? !enabled
+        ? "Disabled (reachable)"
+        : "Reachable"
+      : !enabled
+        ? "Disabled (unreachable)"
+        : "Unreachable";
 
-  const reachableColor =
-    errorMsg !== null ? undefined : status === true ? "green" : "red";
+  const reachableColor = error ? undefined : status ? "green" : "red";
   const enabledColor = enabled ? reachableColor : "grey";
 
   return (
