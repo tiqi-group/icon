@@ -7,6 +7,9 @@ import {
   InputLabel,
   MenuItem,
   Select,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
 import * as echarts from "echarts/core";
@@ -26,6 +29,8 @@ import type { ScanParameter } from "../../types/ScanParameter";
 import { CHART_AXIS_NAME, CHART_GRID, CHART_TEXT_STYLE } from "../../utils/chartLayout";
 import { formatDateTime } from "../../utils/timeUtils";
 import { ViewerChart } from "./ViewerChart";
+import { ViewerOverlayCurves } from "./ViewerOverlayCurves";
+import type { OverlayHorizontalAxis } from "./overlayCurveData";
 import {
   buildHeatmapData,
   heatmapAxisCategories,
@@ -71,6 +76,12 @@ export function ViewerHeatmap({
   showRepetitions = false,
   repetition,
 }: ViewerHeatmapProps) {
+  const [view, setView] = useState<"heatmap" | "curves">("heatmap");
+  const [horizontalAxis, setHorizontalAxis] = useState<OverlayHorizontalAxis>("x");
+  const [sliceSelection, setSliceSelection] = useState<{
+    x: number[] | null;
+    y: number[] | null;
+  }>({ x: null, y: null });
   const [selectedChannel, setSelectedChannel] = useState<string>();
   const [selectedRepetition, setSelectedRepetition] = useState(0);
   const [chart, setChart] = useState<ECharts | null>(null);
@@ -188,16 +199,16 @@ export function ViewerHeatmap({
   }, [model, channelName, activeChannel]);
   const chartReady = useCallback((instance: ECharts) => setChart(instance), []);
   useEffect(() => {
-    if (!chart) return;
+    if (!chart || chart.isDisposed() || view !== "heatmap") return;
     const handleSelection = (event: unknown) => {
       const name = (event as { name?: string }).name;
       if (typeof name === "string") setSelectedChannel(name);
     };
     chart.on("legendselectchanged", handleSelection);
     return () => {
-      chart.off("legendselectchanged", handleSelection);
+      if (!chart.isDisposed()) chart.off("legendselectchanged", handleSelection);
     };
-  }, [chart]);
+  }, [chart, view]);
 
   if (model.error) return <Alert severity="warning">{model.error}</Alert>;
   const repetitionOptions =
@@ -206,6 +217,62 @@ export function ViewerHeatmap({
       : allData.repetitions;
   return (
     <Box>
+      <Stack
+        direction="row"
+        spacing={1}
+        useFlexGap
+        flexWrap="wrap"
+        alignItems="center"
+        sx={{ mb: 1 }}
+      >
+        <ToggleButtonGroup
+          size="small"
+          exclusive
+          value={view}
+          aria-label="2D plot view"
+          onChange={(_, value: "heatmap" | "curves" | null) => {
+            if (value) setView(value);
+          }}
+        >
+          <ToggleButton value="heatmap">Heatmap</ToggleButton>
+          <ToggleButton value="curves">Overlaid curves</ToggleButton>
+        </ToggleButtonGroup>
+        {view === "curves" && (
+          <>
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel id="overlay-horizontal-label">Horizontal axis</InputLabel>
+              <Select
+                labelId="overlay-horizontal-label"
+                label="Horizontal axis"
+                value={horizontalAxis}
+                onChange={(event) =>
+                  setHorizontalAxis(event.target.value as OverlayHorizontalAxis)
+                }
+              >
+                <MenuItem value="x">{model.xAxis.name} (X)</MenuItem>
+                <MenuItem value="y">{model.yAxis.name} (Y)</MenuItem>
+              </Select>
+            </FormControl>
+            {model.channels.length > 1 && (
+              <FormControl size="small" sx={{ minWidth: 180 }}>
+                <InputLabel id="overlay-channel-label">Channel</InputLabel>
+                <Select
+                  labelId="overlay-channel-label"
+                  label="Channel"
+                  value={channelName ?? ""}
+                  onChange={(event) => setSelectedChannel(event.target.value)}
+                >
+                  {model.channels.map((channel) => (
+                    <MenuItem key={channel.name} value={channel.name}>
+                      {channel.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+          </>
+        )}
+      </Stack>
       {showRepetitions && repetitionOptions.length > 0 && (
         <FormControl size="small" sx={{ mb: 1, minWidth: 180 }}>
           <InputLabel id="heatmap-repetition-label">Repetition</InputLabel>
@@ -230,12 +297,27 @@ export function ViewerHeatmap({
           {activeRepetition !== undefined ? " and repetition" : ""}.
         </Typography>
       )}
-      <ViewerChart
-        option={option}
-        style={chartStyle}
-        loading={loading}
-        onChartReady={chartReady}
-      />
+      {view === "curves" ? (
+        <ViewerOverlayCurves
+          model={model}
+          channelName={channelName ?? ""}
+          horizontalAxis={horizontalAxis}
+          selectedValues={sliceSelection[horizontalAxis]}
+          onSelectionChange={(values) =>
+            setSliceSelection((current) => ({ ...current, [horizontalAxis]: values }))
+          }
+          loading={loading}
+          chartStyle={chartStyle}
+        />
+      ) : (
+        <ViewerChart
+          key="heatmap"
+          option={option}
+          style={chartStyle}
+          loading={loading}
+          onChartReady={chartReady}
+        />
+      )}
     </Box>
   );
 }

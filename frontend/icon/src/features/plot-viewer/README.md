@@ -11,6 +11,14 @@ The route is `/data/:jobId/plot/:kind/:plotIndex?device=<device_id>`, where `kin
 - Repeated finite 1D scans show the mean, with optional individual repetition traces. Window size counts scan positions.
 - 2D heatmaps join values to recorded X/Y coordinates and leave unobserved cells blank. Planned numeric coordinates keep the grid stable during acquisition. A repetition selector can show one raster pass instead of the mean; the legend selects the displayed channel and its color scale.
 
+## Overlaid 1D curves
+
+Two-dimensional scans open as a heatmap by default. Choose Overlaid curves to compare slices on shared axes without vertical offsets. Either scan parameter can be horizontal; each curve fixes a value of the other parameter. Choose a channel when the plot contains multiple channels.
+
+The compact slice selector shows the fixed parameter once and summarizes the current selection. Open it to choose values with checkboxes or use All/None; larger lists also offer search. The legend shows only the slice values. Selection is retained separately for each horizontal-axis direction. Initially, the first 12 observed slices are shown; up to 32 can be selected at once.
+
+Curves use recorded coordinates and measured values. Missing numeric positions break the line, and unobserved slices are omitted. Show individual repetitions uses the same raster-pass selection as the heatmap. Switching plot mode, horizontal axis or channel resets numeric bounds and zoom so limits are not carried between different coordinates. Hold/Follow and existing plot interactions remain available.
+
 ## Interaction
 
 - Pan and Box zoom can target both axes, X only, or Y only. Box selection has no aspect-ratio constraint and returns to Pan after selection; Escape cancels it.

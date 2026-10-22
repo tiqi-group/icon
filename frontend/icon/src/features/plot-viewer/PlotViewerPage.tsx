@@ -301,7 +301,7 @@ function PlotViewer({
         {!supported && (
           <Alert severity="info">
             This viewer supports numeric one-dimensional traces, time traces,
-            two-dimensional heatmaps, and histograms. Use All job plots for this scan.
+            two-dimensional scans, and histograms. Use All job plots for this scan.
           </Alert>
         )}
         {plotData && selection && supported && (
@@ -353,7 +353,7 @@ function PlotViewer({
         {isTrace && (job?.repetitions ?? 1) > 1 && (
           <Typography variant="caption" color="text.secondary">
             {is2D
-              ? "Heatmap shows the average at each coordinate, or the selected individual repetition."
+              ? "Values are averaged at each coordinate unless an individual repetition is selected."
               : showRepetitions
                 ? "Mean and individual repetitions are shown. Window size counts scan positions."
                 : "Repetitions are averaged. Window size counts scan positions."}
