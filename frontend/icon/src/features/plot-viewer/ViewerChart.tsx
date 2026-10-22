@@ -10,12 +10,14 @@ import {
   useColorScheme,
 } from "@mui/material";
 import * as echarts from "echarts/core";
-import { BrushComponent } from "echarts/components";
+import { BrushComponent, TitleComponent } from "echarts/components";
 import type { ECharts } from "echarts/core";
 import type { EChartsOption } from "echarts";
 import type { ReactEChartsProps } from "../../components/ReactEcharts";
 import { brushZoomRanges, scaleZoomRanges, type ZoomAxes } from "./viewerZoom";
 
+import { chartTitle } from "../../utils/chartLayout";
+import { ViewerPlotIdentityContext } from "./viewerPlotIdentity";
 import { ViewerAxisLimits } from "./ViewerAxisLimits";
 import {
   AUTO_BOUNDS,
@@ -26,7 +28,7 @@ import {
   type ViewerBounds,
 } from "./viewerAxisBounds";
 
-echarts.use([BrushComponent]);
+echarts.use([BrushComponent, TitleComponent]);
 
 export const ViewerInteractionContext = createContext({
   holdView: () => {},
@@ -43,6 +45,7 @@ export function ViewerChart({
   const instance = useRef<ECharts | null>(null);
   const { mode } = useColorScheme();
   const interaction = useContext(ViewerInteractionContext);
+  const identity = useContext(ViewerPlotIdentityContext);
   const [bounds, setBounds] = useState<ViewerBounds>(AUTO_BOUNDS);
   const [axisWarning, setAxisWarning] = useState<string | null>(null);
   const xAxis = [option.xAxis].flat()[0] as ViewerAxis | undefined;
@@ -108,6 +111,22 @@ export function ViewerChart({
     instance.current?.setOption(
       {
         ...option,
+        ...(identity
+          ? {
+              title: {
+                ...chartTitle(identity.title, identity.subtitle),
+                subtextStyle: { fontSize: 11, lineHeight: 14 },
+              },
+              legend: [axesOption.legend]
+                .flat()
+                .filter(Boolean)
+                .map((legend) => ({ ...legend, top: 58 })),
+              grid: [axesOption.grid]
+                .flat()
+                .filter(Boolean)
+                .map((grid) => ({ ...grid, top: 86 })),
+            }
+          : {}),
         // Brush boundaries are arbitrary values; regular ticks stay readable.
         xAxis: [axesOption.xAxis].flat().flatMap((axis) =>
           axis
@@ -200,7 +219,7 @@ export function ViewerChart({
     );
     if (dragMode === "pan")
       instance.current?.dispatchAction({ type: "brush", areas: [] }, { silent: true });
-  }, [option, mode, axes, dragMode, bounds, xAxis, yAxis]);
+  }, [option, mode, axes, dragMode, bounds, xAxis, yAxis, identity]);
 
   const reset = () => {
     setDragMode("pan");
@@ -343,7 +362,10 @@ export function ViewerChart({
       <div
         ref={container}
         style={{ flex: 1, minHeight: 300, width: "100%" }}
-        aria-label="Selected plot"
+        role="img"
+        aria-label={
+          identity ? `${identity.title}. ${identity.subtitle}` : "Selected plot"
+        }
       />
     </Box>
   );

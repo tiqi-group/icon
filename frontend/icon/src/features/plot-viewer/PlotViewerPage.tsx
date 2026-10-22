@@ -36,6 +36,7 @@ import { ViewerWindowSize } from "./ViewerWindowSize";
 import { ViewerHeatmap } from "./ViewerHeatmap";
 import { RepetitionSeriesContext, ViewerTraceChart } from "./ViewerTraceChart";
 import { repetitionSeries } from "./repetitionSeries";
+import { ViewerPlotIdentityContext, viewerPlotIdentity } from "./viewerPlotIdentity";
 import { readViewerWindowSize, rememberViewerWindowSize } from "./viewerPreferences";
 
 function PlotViewer({
@@ -53,7 +54,12 @@ function PlotViewer({
   const [showRepetitions, setShowRepetitions] = useState(false);
   const { experimentData, experimentDataError, loading, connected, refreshing } =
     usePlotViewerData(jobId, Math.max(2000, windowSize));
-  const { job, run, error: jobError } = usePlotViewerJob(jobId, connected);
+  const {
+    job,
+    run,
+    experimentName,
+    error: jobError,
+  } = usePlotViewerJob(jobId, connected);
   const [heldData, setHeldData] = useState<ExperimentData | null>(null);
   const [resetToken, setResetToken] = useState(0);
   const [clickedX, setClickedX] = useState<number | null>(null);
@@ -140,6 +146,28 @@ function PlotViewer({
     plotData &&
     hasFittablePoints(plotData);
 
+  const identity = useMemo(
+    () =>
+      viewerPlotIdentity(
+        (selection?.plot.name ?? "Plot") +
+          (kind === "histogram" ? " (latest point)" : ""),
+        jobId,
+        selection?.device.device_id ?? deviceId ?? "",
+        experimentName,
+        run?.scheduled_time,
+      ),
+    [
+      kind,
+      selection?.plot.name,
+      selection?.device.device_id,
+      jobId,
+      deviceId,
+      experimentName,
+      run?.scheduled_time,
+    ],
+  );
+  const hasChart = Boolean(plotData && selection && supported);
+
   useEffect(() => {
     document.title = `${selection?.plot.name ?? "Plot"} · Job ${jobId}`;
   }, [selection?.plot.name, jobId]);
@@ -153,19 +181,21 @@ function PlotViewer({
         <Stack
           direction="row"
           alignItems="center"
-          justifyContent="space-between"
+          justifyContent={hasChart ? "flex-end" : "space-between"}
           gap={2}
           flexWrap="wrap"
         >
-          <Box>
-            <Typography variant="h5" component="h1">
-              {selection?.plot.name ?? "Plot viewer"}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Job {jobId}
-              {selection ? ` · ${selection.device.device_id}` : ""}
-            </Typography>
-          </Box>
+          {!hasChart && (
+            <Box>
+              <Typography variant="h5" component="h1">
+                {selection?.plot.name ?? "Plot viewer"}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Job {jobId}
+                {selection ? ` · ${selection.device.device_id}` : ""}
+              </Typography>
+            </Box>
+          )}
           <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap">
             <ViewerFullscreenButton />
             <Button
@@ -276,46 +306,48 @@ function PlotViewer({
         )}
         {plotData && selection && supported && (
           <Card variant="outlined" sx={{ p: { xs: 0.5, sm: 1.5 } }}>
-            <ViewerInteractionContext.Provider value={interaction}>
-              {isTrace && is2D && rawPlotData && job ? (
-                <ViewerHeatmap
-                  experimentData={rawPlotData}
-                  scanParameters={job.scan_parameters}
-                  channelNames={selection.plot.channel_names}
-                  loading={loading}
-                  chartStyle={chartStyle}
-                  showRepetitions={showRepetitions}
-                />
-              ) : isTrace ? (
-                <RepetitionSeriesContext.Provider value={individualSeries}>
-                  <ResultChannelPlot
+            <ViewerPlotIdentityContext.Provider value={identity}>
+              <ViewerInteractionContext.Provider value={interaction}>
+                {isTrace && is2D && rawPlotData && job ? (
+                  <ViewerHeatmap
+                    experimentData={rawPlotData}
+                    scanParameters={job.scan_parameters}
+                    channelNames={selection.plot.channel_names}
+                    loading={loading}
+                    chartStyle={chartStyle}
+                    showRepetitions={showRepetitions}
+                  />
+                ) : isTrace ? (
+                  <RepetitionSeriesContext.Provider value={individualSeries}>
+                    <ResultChannelPlot
+                      experimentData={plotData}
+                      channelNames={selection.plot.channel_names}
+                      title=""
+                      subtitle=""
+                      loading={loading}
+                      repetitions={1}
+                      showRepetitions={false}
+                      scanParameters={parameters}
+                      windowSize={windowSize}
+                      fits={plotData.device_data[0].fits}
+                      onChartClick={canFit ? setClickedX : undefined}
+                      ChartComponent={ViewerTraceChart}
+                      chartStyle={chartStyle}
+                    />
+                  </RepetitionSeriesContext.Provider>
+                ) : (
+                  <HistogramPlot
                     experimentData={plotData}
                     channelNames={selection.plot.channel_names}
                     title=""
-                    subtitle=""
+                    subtitle="Latest acquired point"
                     loading={loading}
-                    repetitions={1}
-                    showRepetitions={false}
-                    scanParameters={parameters}
-                    windowSize={windowSize}
-                    fits={plotData.device_data[0].fits}
-                    onChartClick={canFit ? setClickedX : undefined}
-                    ChartComponent={ViewerTraceChart}
+                    ChartComponent={ViewerChart}
                     chartStyle={chartStyle}
                   />
-                </RepetitionSeriesContext.Provider>
-              ) : (
-                <HistogramPlot
-                  experimentData={plotData}
-                  channelNames={selection.plot.channel_names}
-                  title=""
-                  subtitle="Latest acquired point"
-                  loading={loading}
-                  ChartComponent={ViewerChart}
-                  chartStyle={chartStyle}
-                />
-              )}
-            </ViewerInteractionContext.Provider>
+                )}
+              </ViewerInteractionContext.Provider>
+            </ViewerPlotIdentityContext.Provider>
           </Card>
         )}
         {isTrace && (job?.repetitions ?? 1) > 1 && (

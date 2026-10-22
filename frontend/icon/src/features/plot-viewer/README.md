@@ -35,3 +35,7 @@ Completed numeric 1D scans reuse FitPanel and the existing fit-save/delete APIs 
 The route loads lazily. Viewer-specific loading handles reconnects, snapshot/event races, duplicate points, and initial snapshot recovery; the existing `useExperimentData` hook is unchanged. Shared changes are limited to entry links, routing, optional renderer injection, and a FitPanel permission flag whose default preserves existing behavior.
 
 From `frontend/icon/`, run `pnpm exec jest --runInBand` for the frontend tests and `pnpm run build` for the TypeScript/Vite build. Viewer tests cover loading and reconnects, immutable held snapshots, device and plot selection, sparse data, repetitions, window limits, axis bounds, and zoom calculations.
+
+### Screenshot identity
+
+Each standalone chart includes its plot name, job ID, experiment display name, device and scheduled timestamp in the chart canvas. Screenshots retain their identity when cropped to the plot. The header remains available while disconnected; missing display metadata falls back to the experiment identifier. This applies to traces, heatmaps and histograms.
