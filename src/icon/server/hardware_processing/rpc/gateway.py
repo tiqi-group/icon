@@ -12,7 +12,6 @@ from __future__ import annotations
 import contextlib
 import logging
 import re
-import time
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Self
@@ -336,6 +335,13 @@ class TaskStatus(StrEnum):
     """The task has finished and its results wait to be collected."""
 
 
+class TaskNotification(StrEnum):
+    """Notifications the device sends to every client when the task changes state."""
+
+    FINISHED = "exp::FINISHED"
+    ABORTED = "exp::ABORTED"
+
+
 _TASK_STATUS_PATTERN = re.compile(
     r"Status (?P<status>IDLE|SETUP|RUNNING|FINISHED), "
     r"executed (?P<executed>\d+) / (?P<requested>\d+) shots in (?P<duration>-?\d+) ms"
@@ -419,25 +425,29 @@ class RFSoC(Gateway):
             case _:
                 raise GatewayError("unexpected format of the task results")
 
-    def wait_for_task(
-        self, timeout: float | None = None, poll_interval: float = 0.01
-    ) -> TaskStatusReport:
-        """Poll the task status until the running task has finished.
+    def wait_for_task(self, timeout: float | None = None) -> bool:
+        """Block until the device notifies that the running task has finished.
+
+        The device notifies every client once, after the response to
+        :meth:`start_task`. The notification is missed if another call reads past it
+        first, so poll :meth:`get_task_status` when this returns ``False``.
+
+        Returns:
+            Whether the task has finished, ``False`` if no notification arrived within
+            ``timeout`` seconds.
 
         Raises:
-            TimeoutError: if the task is still running after ``timeout`` seconds.
-            GatewayError: if no task is running.
+            GatewayError: if the task was aborted meanwhile.
         """
-        deadline = None if timeout is None else time.monotonic() + timeout
-        while True:
-            report = self.get_task_status()
-            if report.status is TaskStatus.FINISHED:
-                return report
-            if report.status is not TaskStatus.RUNNING:
-                raise GatewayError(f"no task is running: {report}")
-            if deadline is not None and time.monotonic() >= deadline:
-                raise TimeoutError(f"task still running after {timeout:g}s: {report}")
-            time.sleep(poll_interval)
+        notification = self._client.wait_for_notification(
+            lambda n: n.params in (TaskNotification.FINISHED, TaskNotification.ABORTED),
+            timeout=timeout,
+        )
+        if notification is None:
+            return False
+        if notification.params == TaskNotification.ABORTED:
+            raise GatewayError("the task was aborted")
+        return True
 
     def abort_task(self) -> None:
         """Abort the current task in any state and reset the experiment and hardware to IDLE."""
