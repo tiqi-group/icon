@@ -29,7 +29,7 @@ def _job_list_item(
     status: JobStatus,
     experiment_id: str,
     num_scan_parameters: int,
-    run: tuple[int, JobRunStatus] | None,
+    run: tuple[int, JobRunStatus, str | None] | None,
 ) -> JobListItemDict:
     """Build a job list item from raw column values."""
     return {
@@ -40,6 +40,7 @@ def _job_list_item(
         "num_scan_parameters": num_scan_parameters,
         "run_id": run[0] if run is not None else None,
         "run_status": run[1].value if run is not None else None,
+        "run_log": run[2] if run is not None else None,
     }
 
 
@@ -265,10 +266,10 @@ class JobRepository:
                 ).all()  # type: ignore[arg-type]
             )
 
-            latest_runs: dict[int, tuple[int, JobRunStatus]] = {
-                run.job_id: (run.id, run.status)
+            latest_runs: dict[int, tuple[int, JobRunStatus, str | None]] = {
+                run.job_id: (run.id, run.status, run.log)
                 for run in session.execute(
-                    select(JobRun.job_id, JobRun.id, JobRun.status)
+                    select(JobRun.job_id, JobRun.id, JobRun.status, JobRun.log)
                     .where(JobRun.job_id.in_(job_ids))
                     .order_by(JobRun.scheduled_time.asc())
                 ).all()

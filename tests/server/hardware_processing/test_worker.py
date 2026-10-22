@@ -14,6 +14,7 @@ from icon.server.data_access.models.sqlite import Job, JobRun
 from icon.server.hardware_processing import worker as worker_module
 from icon.server.hardware_processing.hardware_controller import HardwareController
 from icon.server.hardware_processing.rpc.errors import RPCResponseError
+from icon.server.hardware_processing.rpc.gateway import GatewayError
 from icon.server.hardware_processing.worker import HardwareProcessingWorker
 from icon.server.pre_processing.task import PreProcessingTask
 
@@ -133,10 +134,21 @@ def _run_worker(
     return list(post_processing_queue.queue), update_run, queued_at_update
 
 
+@pytest.mark.parametrize(
+    ("error", "message"),
+    [
+        (RPCResponseError(1, [0, "Sequence too long"]), "Sequence too long"),
+        (GatewayError("the task was aborted"), "the task was aborted"),
+        # The device locked up
+        (
+            TimeoutError("no response to exp.StartTask within 5s"),
+            "no response to exp.StartTask within 5s",
+        ),
+    ],
+)
 def test_run_error_emits_hardware_instructions_before_failing_job(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, error: Exception, message: str
 ) -> None:
-    error = RPCResponseError(1, [0, "Sequence too long"])
     controllers = {
         "main": _FakeController(1.0, receive_error=error),
         "sub": _FakeController(2.0),
@@ -151,14 +163,14 @@ def test_run_error_emits_hardware_instructions_before_failing_job(
         (d.device_id, d.hardware_instructions) for d in data_point.device_data
     ] == HARDWARE_INSTRUCTIONS
     assert [d.readouts for d in data_point.device_data] == [
-        HardwareProcessingError(message="Sequence too long"),
+        HardwareProcessingError(message=message),
         controllers["sub"].receive(),
     ]
 
     update_run.assert_called_once_with(
         run_id=RUN_ID,
         status=JobRunStatus.FAILED,
-        log="DeviceError ('main') Sequence too long",
+        log=f"DeviceError ('main') {message}",
         only_if_status=ACTIVE_RUN_STATUSES,
     )
     # The post-processing task is queued before the job is marked as failed.
@@ -169,6 +181,10 @@ def test_run_error_emits_hardware_instructions_before_failing_job(
     ("error", "message"),
     [
         (RPCResponseError(1, [0, "Invalid sequence"]), "Invalid sequence"),
+        (
+            GatewayError("Submitted sequence is not valid JSON. Can't run"),
+            "Submitted sequence is not valid JSON. Can't run",
+        ),
         (
             RuntimeError("Could not connect to the Zedboard"),
             "Could not connect to the Zedboard",

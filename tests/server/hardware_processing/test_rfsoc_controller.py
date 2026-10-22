@@ -96,6 +96,8 @@ class FakeGateway:
         self.task_end: TaskNotification | None = TaskNotification.FINISHED
         """Notification that ends a task: FINISHED, ABORTED by another client, or
         ``None`` for a finished task whose notification the client misses."""
+        self.hang_on: str | None = None
+        """Method the device locks up on, never answering it."""
         self.methods: list[str] = []
         self._notifications: list[str] = []
         self._task_start = 0.0
@@ -132,7 +134,8 @@ class FakeGateway:
                 unpacker.feed(chunk)
                 for _, msgid, method, params in unpacker:
                     self.methods.append(method)
-                    conn.sendall(self._respond(msgid, method, params))
+                    if method != self.hang_on:
+                        conn.sendall(self._respond(msgid, method, params))
             self._work()
 
     def _work(self) -> None:
@@ -200,11 +203,13 @@ def gateway() -> Iterator[FakeGateway]:
     fake.close()
 
 
-def make_controller(gateway: FakeGateway, task_timeout: float = 1) -> RFSoCController:
+def make_controller(
+    gateway: FakeGateway, task_timeout: float = 1, timeout: float = 2
+) -> RFSoCController:
     return RFSoCController(
         host="127.0.0.1",
         port=gateway.port,
-        timeout=2,
+        timeout=timeout,
         task_timeout=task_timeout,
         max_task_timeouts=MAX_TASK_TIMEOUTS,
     )
@@ -323,6 +328,19 @@ def test_receive_fails_on_task_aborted_by_other_client(
     with pytest.raises(GatewayError, match="aborted"):
         controller.receive()
     assert controller.connected
+
+
+def test_call_timeout_names_the_call(gateway: FakeGateway) -> None:
+    gateway.hang_on = "exp.StartTask"
+    controller = make_controller(gateway, timeout=0.1)
+    controller.connect()
+    controller.send(SEQUENCE)
+    with pytest.raises(
+        TimeoutError, match=r"^no response to exp\.StartTask within 0\.1s$"
+    ):
+        controller.run()
+    # The answer may still arrive, so the connection is dropped
+    assert not controller.connected
 
 
 def test_query_device_id_when_unreachable() -> None:

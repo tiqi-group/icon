@@ -78,6 +78,15 @@ class ExperimentDataPoint:
             for device_data in self.device_data
         )
 
+    @property
+    def hardware_error_message(self) -> str:
+        """Error of every device that reported one, as "<device id>: <message>" lines."""
+        return "\n".join(
+            f"{device_data.device_id}: {device_data.readouts.message}"
+            for device_data in self.device_data
+            if isinstance(device_data.readouts, HardwareProcessingError)
+        )
+
 
 @dataclass
 class PlotWindowMetadata:

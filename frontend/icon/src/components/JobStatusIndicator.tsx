@@ -21,7 +21,14 @@ export const JobStatusIndicator = ({
   log: string | null | undefined;
 }) => {
   return (
-    <Tooltip title={log ? `${capitalize(status)}: ${log}` : capitalize(status)}>
+    <Tooltip
+      title={
+        // A hardware error has a line per failed device
+        <span style={{ whiteSpace: "pre-line" }}>
+          {log ? `${capitalize(status)}: ${log}` : capitalize(status)}
+        </span>
+      }
+    >
       <span
         style={{
           display: "flex",

@@ -160,7 +160,7 @@ export function DataPage() {
                       >
                         <JobStatusIndicator
                           status={job.run_status ?? undefined}
-                          log={null}
+                          log={job.run_log}
                         />
                         <ListItemText
                           primary={`${getExperimentNameFromExperimentId(job.experiment_id)} (${

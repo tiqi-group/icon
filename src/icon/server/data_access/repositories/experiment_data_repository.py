@@ -24,7 +24,6 @@ from icon.server.data_access.experiment_data import (
     ExperimentDataPoint,
     ExperimentDeviceData,
     FitResult,
-    HardwareProcessingError,
     ParameterValue,
     PlotWindowMetadata,
     ReadoutMetadata,
@@ -761,11 +760,7 @@ def write_experiment_data_point(
         h5file.attrs["failed_data_point_scan_parameters"] = json.dumps(
             data_point.scan_params
         )
-        h5file.attrs["hardware_error_message"] = "\n".join(
-            f"{device_data.device_id}: {device_data.readouts.message}"
-            for device_data in data_point.device_data
-            if isinstance(device_data.readouts, HardwareProcessingError)
-        )
+        h5file.attrs["hardware_error_message"] = data_point.hardware_error_message
         return
 
     write_scan_parameters_and_timestamp_to_dataset(

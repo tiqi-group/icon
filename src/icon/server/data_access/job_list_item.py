@@ -18,3 +18,5 @@ class JobListItemDict(TypedDict):
     """Identifier of the job's latest run, or None if it has not run yet."""
     run_status: str | None
     """Status of the latest run, or None if the job has not run yet."""
+    run_log: str | None
+    """Log of the latest run, e.g. why it failed, or None if there is none."""
