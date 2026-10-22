@@ -170,7 +170,13 @@ class MsgPackRPCClient:
             transaction.send((MessageType.REQUEST, msgid, method_name, args))
 
             while True:
-                received = self._route(transaction.receive())
+                try:
+                    message = transaction.receive()
+                except TimeoutError as e:
+                    # Name the call, as the bare socket timeout does not
+                    waited = "" if _timeout is None else f" within {_timeout:g}s"
+                    raise TimeoutError(f"no response to {method_name}{waited}") from e
+                received = self._route(message)
                 if not isinstance(received, RPCResponse):
                     continue  # a notification, already buffered
                 if received.msgid != msgid:

@@ -30,7 +30,6 @@ from icon.server.data_access.repositories.job_run_repository import (
     try_update_run_by_id,
 )
 from icon.server.hardware_processing.hardware_controller import HardwareController
-from icon.server.hardware_processing.rpc.errors import RPCResponseError
 from icon.server.hardware_processing.utils import extract_hardware_error_message
 from icon.server.post_processing.task import PostProcessingTask
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
@@ -241,7 +240,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
     @staticmethod
     def _send_to_devices(
         hardware_instructions: list[tuple[str, HardwareController, str]],
-    ) -> dict[str, RPCResponseError]:
+    ) -> dict[str, Exception]:
         """Send the hardware instructions, stopping at the first device error.
 
         Returns:
@@ -250,13 +249,13 @@ class HardwareProcessingWorker(multiprocessing.Process):
         for device_id, device, instructions in hardware_instructions:
             try:
                 device.send(data=instructions)
-            except RPCResponseError as e:
+            except Exception as e:
                 return {device_id: e}
         return {}
 
     def _start_devices(
         self, hardware_instructions: list[tuple[str, HardwareController, str]]
-    ) -> tuple[dict[str, ExperimentDeviceDataPoint], dict[str, RPCResponseError]]:
+    ) -> tuple[dict[str, ExperimentDeviceDataPoint], dict[str, Exception]]:
         """Run the devices in parallel.
 
         Returns:
@@ -280,22 +279,24 @@ class HardwareProcessingWorker(multiprocessing.Process):
         wait(futures.values())
 
         results: dict[str, ExperimentDeviceDataPoint] = {}
-        errors: dict[str, RPCResponseError] = {}
+        errors: dict[str, Exception] = {}
         for device_id, future in futures.items():
             try:
                 results[device_id] = future.result()
-            except RPCResponseError as e:
+            except Exception as e:
                 errors[device_id] = e
         return results, errors
 
     def _run_devices(
         self, hardware_instructions: list[tuple[str, HardwareController, str]]
-    ) -> tuple[list[ExperimentDeviceDataPoint], RPCResponseError | None]:
+    ) -> tuple[list[ExperimentDeviceDataPoint], Exception | None]:
         """Send the hardware instructions to the devices, then run them.
 
-        A device that reports an error gets a `HardwareProcessingError` in place of
-        its readouts. Devices that did not return readouts because of another
-        device's error get empty readouts.
+        Any error raised by a device is a device error, also when the device cannot
+        be reached or locks up and times out, as both are often caused by the
+        hardware instructions. A device with a device error gets a
+        `HardwareProcessingError` in place of its readouts. Devices that did not
+        return readouts because of another device's error get empty readouts.
 
         Returns:
             The data of every device, and the first error reported by a device.
@@ -324,32 +325,24 @@ class HardwareProcessingWorker(multiprocessing.Process):
             )
         return device_data, next(iter(errors.values()), None)
 
-    def _fail_job(self, task: HardwareProcessingTask, error: Exception) -> None:
+    def _fail_job(
+        self, task: HardwareProcessingTask, error: Exception, log: str | None = None
+    ) -> None:
+        """Mark the job as failed, logging ``log`` or else the message of ``error``."""
         logger.error("Error in hardware worker.", exc_info=error)
         try_update_run_by_id(
             run_id=task.pre_processing_task.job_run.id,
             status=JobRunStatus.FAILED,
-            log=extract_hardware_error_message(error),
+            log=extract_hardware_error_message(error) if log is None else log,
         )
 
     def _submit_post_processing_task(
-        self,
-        *,
-        task: HardwareProcessingTask,
-        timestamp: datetime,
-        device_data: list[ExperimentDeviceDataPoint],
+        self, *, task: HardwareProcessingTask, data_point: ExperimentDataPoint
     ) -> None:
-        experiment_data_point = ExperimentDataPoint(
-            index=task.data_point_index,
-            scan_params=task.scanned_params,
-            device_data=device_data,
-            timestamp=timestamp.isoformat(),
-        )
-
         post_processing_task = PostProcessingTask(
             priority=task.priority,
             pre_processing_task=task.pre_processing_task,
-            data_point=experiment_data_point,
+            data_point=data_point,
             src_dir=task.src_dir,
             created=task.created,
         )
@@ -400,14 +393,21 @@ class HardwareProcessingWorker(multiprocessing.Process):
                     if isinstance(device, HardwareController)
                 ]
                 device_data, device_error = self._run_devices(hardware_instructions)
+                data_point = ExperimentDataPoint(
+                    index=task.data_point_index,
+                    scan_params=task.scanned_params,
+                    device_data=device_data,
+                    timestamp=timestamp.isoformat(),
+                )
 
                 # Also submitted when a device reported an error, to persist the
                 # hardware instructions before the job is marked as failed.
-                self._submit_post_processing_task(
-                    task=task, timestamp=timestamp, device_data=device_data
-                )
+                self._submit_post_processing_task(task=task, data_point=data_point)
                 if device_error is not None:
-                    self._fail_job(task, device_error)
+                    # Names every device that failed, not just the first error
+                    self._fail_job(
+                        task, device_error, log=data_point.hardware_error_message
+                    )
             except Exception as e:
                 self._fail_job(task, e)
             finally:

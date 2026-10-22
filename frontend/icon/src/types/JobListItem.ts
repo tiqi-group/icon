@@ -13,4 +13,6 @@ export interface JobListItem {
   run_id: number | null;
   /** Status of the latest run, or null if the job has not run yet. */
   run_status: JobRunStatus | null;
+  /** Log of the latest run, e.g. why it failed, or null if there is none. */
+  run_log: string | null;
 }

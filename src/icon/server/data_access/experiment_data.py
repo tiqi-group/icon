@@ -23,10 +23,10 @@ class Readouts:
 
 @dataclass
 class HardwareProcessingError:
-    """Error reported by the device in place of the readouts of a data point."""
+    """Error of the device in place of the readouts of a data point."""
 
     message: str
-    """Error message reported by the device."""
+    """Error message reported by the device, or of the failed communication with it."""
 
 
 @dataclass
@@ -72,6 +72,15 @@ class ExperimentDataPoint:
         return any(
             isinstance(device_data.readouts, HardwareProcessingError)
             for device_data in self.device_data
+        )
+
+    @property
+    def hardware_error_message(self) -> str:
+        """Error of every device that reported one, as "<device id>: <message>" lines."""
+        return "\n".join(
+            f"{device_data.device_id}: {device_data.readouts.message}"
+            for device_data in self.device_data
+            if isinstance(device_data.readouts, HardwareProcessingError)
         )
 
 

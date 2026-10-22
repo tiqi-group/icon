@@ -32,6 +32,7 @@ export const jobToListItem = (job: Job): JobListItem => ({
   // A newly submitted job has no run yet; `job_run.new` fills these in.
   run_id: null,
   run_status: null,
+  run_log: null,
 });
 
 // Reducer Function
@@ -61,6 +62,7 @@ export const reducer = (state: ScheduledJobs, action: Action): ScheduledJobs => 
           ...job,
           run_id: action.payload.id,
           run_status: action.payload.status,
+          run_log: action.payload.log ?? null,
         },
       };
     }
@@ -74,7 +76,12 @@ export const reducer = (state: ScheduledJobs, action: Action): ScheduledJobs => 
       );
       if (!entry) return state;
 
-      return { ...state, [entry.id]: { ...entry, run_status: status } };
+      // Every run update carries the log, which is null unless the run failed
+      const log = action.payload.updated_properties.log as string | null | undefined;
+      return {
+        ...state,
+        [entry.id]: { ...entry, run_status: status, run_log: log ?? null },
+      };
     }
     default:
       return state;

@@ -6,18 +6,19 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
+import pytest
+
 from icon.server.data_access.experiment_data import HardwareProcessingError, Readouts
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.data_access.models.sqlite import Job, JobRun
 from icon.server.hardware_processing import worker as worker_module
 from icon.server.hardware_processing.hardware_controller import HardwareController
 from icon.server.hardware_processing.rpc.errors import RPCResponseError
+from icon.server.hardware_processing.rpc.gateway import GatewayError
 from icon.server.hardware_processing.worker import HardwareProcessingWorker
 from icon.server.pre_processing.task import PreProcessingTask
 
 if TYPE_CHECKING:
-    import pytest
-
     from icon.server.post_processing.task import PostProcessingTask
 
 RUN_ID = 7
@@ -132,10 +133,21 @@ def _run_worker(
     return list(post_processing_queue.queue), update_run, queued_at_update
 
 
+@pytest.mark.parametrize(
+    ("error", "message"),
+    [
+        (RPCResponseError(1, [0, "Sequence too long"]), "Sequence too long"),
+        (GatewayError("the task was aborted"), "the task was aborted"),
+        # The device locked up
+        (
+            TimeoutError("no response to exp.StartTask within 5s"),
+            "no response to exp.StartTask within 5s",
+        ),
+    ],
+)
 def test_run_error_emits_hardware_instructions_before_failing_job(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, error: Exception, message: str
 ) -> None:
-    error = RPCResponseError(1, [0, "Sequence too long"])
     controllers = {
         "main": _FakeController(1.0, receive_error=error),
         "sub": _FakeController(2.0),
@@ -150,21 +162,53 @@ def test_run_error_emits_hardware_instructions_before_failing_job(
         (d.device_id, d.hardware_instructions) for d in data_point.device_data
     ] == HARDWARE_INSTRUCTIONS
     assert [d.readouts for d in data_point.device_data] == [
-        HardwareProcessingError(message="Sequence too long"),
+        HardwareProcessingError(message=message),
         controllers["sub"].receive(),
     ]
 
     update_run.assert_called_once_with(
-        run_id=RUN_ID, status=JobRunStatus.FAILED, log="Sequence too long"
+        run_id=RUN_ID, status=JobRunStatus.FAILED, log=f"main: {message}"
     )
     # The post-processing task is queued before the job is marked as failed.
     assert queued_at_update == [1]
 
 
+def test_job_log_names_every_failed_device(monkeypatch: pytest.MonkeyPatch) -> None:
+    controllers = {
+        "main": _FakeController(
+            1.0, receive_error=TimeoutError("no response to runExperiment within 5s")
+        ),
+        "sub": _FakeController(
+            2.0, receive_error=TimeoutError("no response to exp.StartTask within 5s")
+        ),
+    }
+    _, update_run, _ = _run_worker(monkeypatch, controllers)
+
+    update_run.assert_called_once_with(
+        run_id=RUN_ID,
+        status=JobRunStatus.FAILED,
+        log="main: no response to runExperiment within 5s\n"
+        "sub: no response to exp.StartTask within 5s",
+    )
+
+
+@pytest.mark.parametrize(
+    ("error", "message"),
+    [
+        (RPCResponseError(1, [0, "Invalid sequence"]), "Invalid sequence"),
+        (
+            GatewayError("Submitted sequence is not valid JSON. Can't run"),
+            "Submitted sequence is not valid JSON. Can't run",
+        ),
+        (
+            RuntimeError("Could not connect to the Zedboard"),
+            "Could not connect to the Zedboard",
+        ),
+    ],
+)
 def test_send_error_emits_hardware_instructions_without_running(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, error: Exception, message: str
 ) -> None:
-    error = RPCResponseError(1, [0, "Invalid sequence"])
     controllers = {
         "main": _FakeController(1.0),
         "sub": _FakeController(2.0, send_error=error),
@@ -175,27 +219,26 @@ def test_send_error_emits_hardware_instructions_without_running(
     assert len(tasks) == 1
     assert [d.readouts for d in tasks[0].data_point.device_data] == [
         EMPTY_READOUTS,
-        HardwareProcessingError(message="Invalid sequence"),
+        HardwareProcessingError(message=message),
     ]
     update_run.assert_called_once_with(
-        run_id=RUN_ID, status=JobRunStatus.FAILED, log="Invalid sequence"
+        run_id=RUN_ID, status=JobRunStatus.FAILED, log=f"sub: {message}"
     )
 
 
-def test_other_errors_only_fail_the_job(monkeypatch: pytest.MonkeyPatch) -> None:
-    controllers = {
-        "main": _FakeController(
-            1.0, send_error=RuntimeError("Could not connect to the Zedboard")
-        ),
-        "sub": _FakeController(2.0),
-    }
+def test_errors_before_sending_only_fail_the_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # "sub" is missing, e.g. because it was disabled
+    controllers = {"main": _FakeController(1.0)}
     tasks, update_run, _ = _run_worker(monkeypatch, controllers)
 
     assert tasks == []
+    assert controllers["main"].sent == []
     update_run.assert_called_once_with(
         run_id=RUN_ID,
         status=JobRunStatus.FAILED,
-        log="Could not connect to the Zedboard",
+        log="No such device: 'sub' (the device might have been disabled)",
     )
 
 
