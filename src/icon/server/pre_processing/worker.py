@@ -14,6 +14,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Self, TypeVar
 
 import psutil
+import pydase.units as u
 import pytz
 
 from icon.config.config import get_config
@@ -97,6 +98,11 @@ def change_process_priority(priority: int) -> None:
 def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
     """Generates all combinations of scan parameters for a given job.
 
+    Scan values persisted as pydase Quantities (device scans of Quantity-typed
+    parameters) are flattened to their plain magnitude: the job queue
+    processing engine (task models, pycrystal, HDF5) only works with primitive
+    types. The hardware worker re-attaches the unit at the device boundary.
+
     Repeats each combination `job.repetitions` times.
 
     Args:
@@ -108,8 +114,11 @@ def get_scan_combinations(job: Job) -> list[dict[str, DatabaseValueType]]:
         parameter values.
     """
     # Extract variable IDs and their scan values from the job's scan parameters
-    parameter_values = {
-        scan_param.unique_id(): scan_param.scan_values
+    parameter_values: dict[str, list[DatabaseValueType]] = {
+        scan_param.unique_id(): [
+            value.magnitude if isinstance(value, u.Quantity) else value
+            for value in scan_param.scan_values
+        ]
         for scan_param in job.scan_parameters
         if not scan_param.realtime
     }

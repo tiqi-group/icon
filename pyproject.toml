@@ -128,6 +128,7 @@ ignore = [
     "ICN001",   # unconventional-import-alias
     "ISC001",   # single-line-implicit-string-concatenation (conflicts with formatter)
     "PGH003",   # blanket-type-ignore
+    "PLR0911",  # too-many-return-statements
     "PLR0913",  # too-many-arguments
     "PLR0917",  # too-many-positional-arguments
     "RUF006",   # asyncio-dangling-task

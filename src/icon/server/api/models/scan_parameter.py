@@ -1,7 +1,9 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any
+
+import pydase.units as u
+
+from icon.server.data_access.experiment_data import DatabaseValueType
 
 
 @dataclass
@@ -22,8 +24,13 @@ class DatabaseParameter:
     id: str
     """Unique identifier of the parameter."""
 
-    values: list[float | int | bool | str]
-    """List of explicit values to scan for this parameter."""
+    values: list[DatabaseValueType | u.Quantity]
+    """List of explicit values to scan for this parameter.
+
+    Values are plain on input; after
+    `SchedulerController._cast_scan_values_to_param_type` they may carry their
+    unit as pydase Quantities.
+    """
 
 
 @dataclass
@@ -33,8 +40,13 @@ class DeviceParameter:
     id: str
     """Unique identifier of the parameter."""
 
-    values: list[float | int]
-    """List of explicit values to scan for this parameter."""
+    values: list[DatabaseValueType | u.Quantity]
+    """List of explicit values to scan for this parameter.
+
+    Values are plain on input; after
+    `SchedulerController._cast_scan_values_to_param_type` they may carry their
+    unit as pydase Quantities.
+    """
 
     device_name: str
     """Name of the device this parameter belongs to."""

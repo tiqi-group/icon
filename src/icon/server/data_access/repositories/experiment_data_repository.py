@@ -4,7 +4,7 @@ import json
 import logging
 import threading
 import time
-from collections.abc import Generator, Sequence
+from collections.abc import Generator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import datetime
@@ -15,6 +15,7 @@ from typing import Any, TypedDict, cast
 import h5py  # type: ignore
 import numpy as np
 import numpy.typing as npt
+import pydase.units as u
 from sqlalchemy.exc import NoResultFound
 
 from icon.config.config import get_config
@@ -219,7 +220,7 @@ def write_hardware_instructions_to_dataset(
 def write_scan_parameters_and_timestamp_to_dataset(
     h5file: h5py.File,
     data_point_index: int,
-    scan_params: dict[str, DatabaseValueType],
+    scan_params: Mapping[str, DatabaseValueType | u.Quantity],
     timestamp: str,
     number_of_data_points: int,
 ) -> None:
@@ -248,7 +249,7 @@ def write_scan_parameters_and_timestamp_to_dataset(
     if data_point_index >= number_of_data_points:
         resize_dataset(scan_params_dataset, next_index=data_point_index, axis=0)
 
-    parameter_values = tuple(scan_params[key] for key in scan_params)
+    parameter_values = tuple(as_plain_value(value) for value in scan_params.values())
     scan_params_dataset[data_point_index] = (
         timestamp,
         *parameter_values,
@@ -484,7 +485,7 @@ class ExperimentDataRepository:
         *,
         job_id: int,
         timestamp: str,
-        parameter_values: dict[str, str | int | float | bool],
+        parameter_values: Mapping[str, str | int | float | bool | u.Quantity],
     ) -> None:
         """Append parameter updates under the 'parameters' group.
 
@@ -501,7 +502,8 @@ class ExperimentDataRepository:
         with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
             parameters_group = h5file.require_group("parameters")
 
-            for param_id, value in parameter_values.items():
+            for param_id, raw_value in parameter_values.items():
+                value = as_plain_value(raw_value)
                 dtype = [("timestamp", "S26"), ("value", get_hdf5_dtype(value))]
 
                 if param_id in parameters_group:
@@ -738,6 +740,11 @@ def write_experiment_data_point(
             "Metadata does not contain relevant information. Please use "
             "ExperimentDataRepository.update_metadata_by_job_id first!"
         ) from None
+    # Quantities cannot be stored in HDF5 or sent over the socket.io emit bus.
+    data_point.scan_params = {
+        param_id: as_plain_value(value)
+        for param_id, value in data_point.scan_params.items()
+    }
 
     write_scan_parameters_and_timestamp_to_dataset(
         h5file=h5file,
@@ -980,8 +987,17 @@ def extract_parameter_values(
     return result
 
 
+def as_plain_value(value: Any) -> Any:
+    """Convert pydase Quantities to their float magnitude; other values pass through.
+
+    Quantities cannot be written to HDF5 or sent over the socket.io emit bus;
+    the unit stays with the parameter metadata.
+    """
+    return value.magnitude if isinstance(value, u.Quantity) else value
+
+
 def get_hdf5_dtype(
-    value: str | float | bool,  # noqa: FBT001
+    value: str | float | bool | u.Quantity,  # noqa: FBT001
 ) -> type[np.float64 | np.bool | np.int64] | h5py.Datatype:
     """Return the HDF5-compatible dtype."""
     if isinstance(value, str):
@@ -990,7 +1006,7 @@ def get_hdf5_dtype(
         return np.bool
     if isinstance(value, int):
         return np.int64
-    if isinstance(value, float):
+    if isinstance(value, float | u.Quantity):
         return np.float64
 
     raise TypeError(f"Unsupported parameter type: {type(value)}")
