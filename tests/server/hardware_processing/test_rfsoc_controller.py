@@ -125,7 +125,7 @@ class FakeGateway:
         unpacker = msgpack.Unpacker(raw=False)
         while not self._closed:
             for notification in self._notifications:
-                conn.sendall(_pack([2, None, notification]))
+                conn.sendall(_pack([2, "exp.TaskNotification", [notification]]))
             self._notifications.clear()
             readable, _, _ = select.select([conn], [], [], 0.001)
             if readable:
@@ -231,10 +231,8 @@ def test_task_round_trip(gateway: FakeGateway, controller: RFSoCController) -> N
 
     assert readouts == EXPECTED
     assert gateway.status is TaskStatus.IDLE
-    # Waited on the notification alone
+    # Waited on the notification alone, and consumed it
     assert "exp.GetTaskStatus" not in gateway.methods
-    # The nil-method notification did not break the connection, and was dropped
-    assert controller.connected
     assert controller._gateway._client.consume_notifications() == []
 
 
@@ -292,6 +290,19 @@ def test_send_aborts_leftover_task(
     controller.send(SEQUENCE)
     assert gateway.status is TaskStatus.SETUP
     assert gateway.methods[-2:] == ["exp.AbortTask", "exp.SetupTask"]
+
+
+def test_receive_ignores_notification_of_leftover_task(
+    gateway: FakeGateway, controller: RFSoCController
+) -> None:
+    gateway.status = TaskStatus.RUNNING
+    gateway.task_duration = None
+    controller.connect()
+    # Aborting the leftover task notifies ABORTED
+    controller.send(SEQUENCE)
+    gateway.task_duration = 0
+    controller.run()
+    assert controller.receive() == EXPECTED
 
 
 def test_receive_polls_on_missed_notification(gateway: FakeGateway) -> None:

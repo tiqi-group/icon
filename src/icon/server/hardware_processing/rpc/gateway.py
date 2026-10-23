@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import re
+import time
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Self
@@ -336,7 +337,7 @@ class TaskStatus(StrEnum):
 
 
 class TaskNotification(StrEnum):
-    """Notifications the device sends to every client when the task changes state."""
+    """Notifications the device sends to the client that started the task when it ends."""
 
     FINISHED = "exp::FINISHED"
     ABORTED = "exp::ABORTED"
@@ -410,7 +411,13 @@ class RFSoC(Gateway):
         self._invoke("exp.SetupTask", sequence)
 
     def start_task(self) -> None:
-        """Start the task set up by :meth:`setup_task`. Fails if the task is not SETUP."""
+        """Start the task set up by :meth:`setup_task`. Fails if the task is not SETUP.
+
+        Only this client is notified when the task ends, see :meth:`wait_for_task`.
+        """
+        # Discard the notifications of earlier tasks. The device sends them before it
+        # answers the next request, so the last call has buffered them all.
+        self._client.consume_notifications()
         self._invoke("exp.StartTask")
 
     def get_task_status(self) -> TaskStatusReport:
@@ -428,29 +435,40 @@ class RFSoC(Gateway):
             case _:
                 raise GatewayError("unexpected format of the task results")
 
-    def wait_for_task(self, timeout: float | None = None) -> bool:
-        """Block until the device notifies that the running task has finished.
+    def wait_for_task(
+        self, timeout: float | None = None, poll_interval: float = 0.001
+    ) -> bool:
+        """Poll the notifications until the device notifies that the task has finished.
 
-        The device notifies every client once, after the response to
-        :meth:`start_task`. The notification is missed if another call reads past it
-        first, so poll :meth:`get_task_status` when this returns ``False``.
+        The device notifies the client that started the task once, when the task has
+        finished or was aborted. The notification is lost if the notification buffer of
+        the client overflows meanwhile, so poll :meth:`get_task_status` when this returns
+        ``False``.
+
+        Args:
+            timeout: Maximum time to wait, in seconds. Uses the default timeout when
+                omitted.
+            poll_interval: Seconds between polls of the notifications.
 
         Returns:
             Whether the task has finished, ``False`` if no notification arrived within
-            ``timeout`` seconds.
+            ``timeout``.
 
         Raises:
             GatewayError: if the task was aborted meanwhile.
         """
-        notification = self._client.wait_for_notification(
-            lambda n: n.params in (TaskNotification.FINISHED, TaskNotification.ABORTED),
-            timeout=timeout,
-        )
-        if notification is None:
-            return False
-        if notification.params == TaskNotification.ABORTED:
-            raise GatewayError("the task was aborted")
-        return True
+        _timeout = self._timeout if timeout is None else timeout
+        deadline = None if _timeout is None else time.monotonic() + _timeout
+        while True:
+            for _, params in self._client.consume_notifications():
+                match params:
+                    case [TaskNotification.FINISHED]:
+                        return True
+                    case [TaskNotification.ABORTED]:
+                        raise GatewayError("the task was aborted")
+            if deadline is not None and time.monotonic() >= deadline:
+                return False
+            time.sleep(poll_interval)
 
     def abort_task(self) -> None:
         """Abort the current task in any state and reset the experiment and hardware to IDLE."""
