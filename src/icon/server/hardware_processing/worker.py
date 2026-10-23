@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pydase
+import pydase.units as u
 import pytz
 import socketio.exceptions
 from pydase.utils.serialization.serializer import dump
@@ -146,7 +147,10 @@ class HardwareProcessingWorker(multiprocessing.Process):
             ) from None
 
     def _update_pydase_service_parameter(
-        self, device: Device, access_path: str, new_value: DatabaseValueType
+        self,
+        device: Device,
+        access_path: str,
+        new_value: DatabaseValueType | u.Quantity,
     ) -> None:
         client = self._pydase_clients[device.name]
         timeout = get_config().devices.set_value_timeout_seconds
@@ -199,10 +203,19 @@ class HardwareProcessingWorker(multiprocessing.Process):
             auto_update_proxy=False,
         )
 
-    def _set_pydase_service_values(
-        self, scanned_params: dict[str, DatabaseValueType]
-    ) -> None:
-        for param, value in scanned_params.items():
+    def _set_pydase_service_values(self, task: HardwareProcessingTask) -> None:
+        """Scan values are flattened to plain values in get_scan_combinations.
+
+        For device scans of Quantity-typed parameters, re-attach the unit
+        (persisted on the job's scan parameters) so the device service receives
+        a value of the same type as its parameter.
+        """
+        units = {
+            scan_param.unique_id(): scan_param.unit
+            for scan_param in task.pre_processing_task.scan_parameters
+            if scan_param.unit is not None
+        }
+        for param, value in task.scanned_params.items():
             device_name, access_path = parse_parameter_id(param_id=param)
 
             if device_name is None:
@@ -218,10 +231,18 @@ class HardwareProcessingWorker(multiprocessing.Process):
             if device_name not in self._pydase_clients:
                 self._add_device(device=device)
 
+            unit = units.get(param)
+            new_value: DatabaseValueType | u.Quantity = value
+            if (
+                unit is not None
+                and isinstance(value, int | float)
+                and not isinstance(value, bool)
+            ):
+                new_value = u.convert_to_quantity(value, unit)
             self._update_pydase_service_parameter(
                 device=device,
                 access_path=access_path,
-                new_value=value,
+                new_value=new_value,
             )
 
     def _get_executor(self, size: int) -> ThreadPoolExecutor:
@@ -266,7 +287,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 task.outdated_tasks.put(task)
                 continue
             try:
-                self._set_pydase_service_values(scanned_params=task.scanned_params)
+                self._set_pydase_service_values(task)
 
                 timestamp = datetime.now(timezone)
                 all_hardware_instructions = [

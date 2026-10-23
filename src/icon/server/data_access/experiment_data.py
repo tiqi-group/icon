@@ -4,7 +4,10 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from typing import Self
+
+    from pydase.units import Quantity
 
 DatabaseValueType = bool | float | int | str
 
@@ -51,8 +54,13 @@ class ExperimentDataPoint:
 
     index: int
     """Sequential index of this data point."""
-    scan_params: dict[str, DatabaseValueType]
-    """Parameter values that produced this data point."""
+    scan_params: "Mapping[str, DatabaseValueType | Quantity]"
+    """Parameter values that produced this data point.
+
+    Device scans of Quantity-typed parameters may carry pydase Quantities;
+    `ExperimentDataRepository` flattens them to their magnitude before HDF5
+    storage and socket.io emission.
+    """
     timestamp: str
     """Acquisition timestamp (ISO string)."""
     device_data: list[ExperimentDeviceDataPoint]

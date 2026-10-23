@@ -4,6 +4,7 @@ from typing import Any
 
 import h5py
 import numpy as np
+import pydase.units as u
 import pytest
 from sqlalchemy.exc import NoResultFound
 
@@ -187,6 +188,45 @@ def test_experiment_data_io_without_hardware_instructions() -> None:
             h5file, include_all_shots=True
         )
     assert experiment_data_minimal == expected_experiment_data
+
+
+def test_write_experiment_data_by_job_id_with_quantity_scan_params() -> None:
+    with h5py.File.in_memory() as h5file:
+        experiment_data_repository.prepare_readout_metadata(
+            h5file,
+            job_id=1,
+            experiment_id="test.MockExperiment",
+            number_of_shots=3,
+            repetitions=1,
+            readout_metadata=READOUT_METADATA[:1],
+            local_parameter_timestamp=None,
+            parameters=[mock_scan_parameter("x")],
+        )
+
+        voltage = u.convert_to_quantity(42.0, "V")
+        data_point = ExperimentDataPoint(
+            index=0,
+            # Device scans may carry Quantities.
+            scan_params={"x": voltage},
+            timestamp="2026-03-24 16:46:09.638101",
+            device_data=[
+                ExperimentDeviceDataPoint(
+                    device_id="Der Gerät",
+                    readouts=Readouts(
+                        result_channels={"raw_counts": 2.5},
+                        vector_channels={},
+                        shot_channels={"raw_counts": [1, 2, 3]},
+                    ),
+                    hardware_instructions="...",
+                ),
+            ],
+        )
+        experiment_data_repository.write_experiment_data_point(
+            h5file, data_point=data_point
+        )
+
+        # The Quantity is stored in HDF5 as its magnitude.
+        assert h5file["scan_parameters"][0]["x"] == voltage.magnitude
 
 
 def prepare_legacy_h5(h5file: h5py.File) -> None:

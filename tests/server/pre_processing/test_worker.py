@@ -7,9 +7,11 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import MagicMock, patch
 
+import pydase.units as u
+
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.hardware_processing.worker import should_divert_task
-from icon.server.pre_processing.worker import PreProcessingWorker
+from icon.server.pre_processing.worker import PreProcessingWorker, get_scan_combinations
 from icon.server.shared_resource_manager import ScanProgress
 
 if TYPE_CHECKING:
@@ -243,3 +245,48 @@ def test_should_divert_task_staleness_for_regular_scans() -> None:
     assert not should_divert_task(fresh, NAIVE_TS, JobRunStatus.PROCESSING)
     # No parameter update recorded yet -> nothing is stale.
     assert not should_divert_task(stale, None, JobRunStatus.PROCESSING)
+
+
+def _fake_job(*, scan_parameters: list[Any], repetitions: int = 1) -> Any:
+    return SimpleNamespace(scan_parameters=scan_parameters, repetitions=repetitions)
+
+
+def test_get_scan_combinations_flattens_quantity_scan_values() -> None:
+    """Quantity scan values (device scans) must reach the queue engine as plain values."""
+    voltage_1 = u.convert_to_quantity(1.0, "V")
+    voltage_2 = u.convert_to_quantity(2.0, "V")
+    job = _fake_job(
+        repetitions=1,
+        scan_parameters=[
+            SimpleNamespace(
+                realtime=False,
+                unique_id=lambda: "Device(RFSoC) voltage",
+                scan_values=[voltage_1, voltage_2],
+            ),
+            SimpleNamespace(
+                realtime=False,
+                unique_id=lambda: "bare_param",
+                scan_values=[1, "a"],
+            ),
+            SimpleNamespace(
+                realtime=True,
+                unique_id=lambda: "Real Time",
+                scan_values=[1, 1],
+            ),
+        ],
+    )
+
+    combinations = get_scan_combinations(job)
+
+    assert combinations == [
+        {"Device(RFSoC) voltage": 1.0, "bare_param": 1},
+        {"Device(RFSoC) voltage": 1.0, "bare_param": "a"},
+        {"Device(RFSoC) voltage": 2.0, "bare_param": 1},
+        {"Device(RFSoC) voltage": 2.0, "bare_param": "a"},
+    ]
+    # The flattened values are plain Python numbers, not Quantities.
+    assert all(
+        not isinstance(value, u.Quantity)
+        for combination in combinations
+        for value in combination.values()
+    )

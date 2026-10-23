@@ -125,8 +125,10 @@ ignore = [
     "EM101",    # raw-string-in-exception
     "EM102",    # f-string-in-exception
     "FIX",      # flake8-fixme (flake8-todos is enough)
+    "ICN001",   # unconventional-import-alias
     "ISC001",   # single-line-implicit-string-concatenation (conflicts with formatter)
     "PGH003",   # blanket-type-ignore
+    "PLR0911",  # too-many-return-statements
     "PLR0913",  # too-many-arguments
     "PLR0917",  # too-many-positional-arguments
     "RUF006",   # asyncio-dangling-task
