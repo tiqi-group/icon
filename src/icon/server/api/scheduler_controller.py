@@ -159,19 +159,13 @@ class SchedulerController(pydase.DataService):
                     scan_values=[1] * param.n_scan_points,
                     realtime=True,
                 )
-            if isinstance(param, DatabaseParameter):
-                return sqlite_scan_parameter.ScanParameter(
-                    name=self._resolve_display_name(param.id),
-                    variable_id=param.id,
-                    scan_values=param.values,
-                )
             return sqlite_scan_parameter.ScanParameter(
                 name=self._resolve_display_name(param.id),
                 variable_id=param.id,
                 scan_values=param.values,
-                device_id=DeviceRepository.get_device_by_name(
-                    name=param.device_name
-                ).id,
+                device_id=DeviceRepository.get_device_by_name(name=param.device_name).id
+                if not isinstance(param, DatabaseParameter)
+                else None,
             )
 
         concretized_params = [
