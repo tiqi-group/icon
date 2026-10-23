@@ -385,8 +385,8 @@ class SchedulerController(pydase.DataService):
             current_value = ParametersRepository.get_shared_parameter_by_id(
                 parameter_id=parameter_id
             )
-            if current_value is None:
-                return values
+        if current_value is None:
+            return values
 
         current_type = type(current_value)
         return [current_type(value) for value in values]
