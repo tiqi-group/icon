@@ -49,11 +49,12 @@ class ZedboardController(HardwareController):
 
     @property
     def connected(self) -> bool:
-        return (
-            self._zedboard is not None
-            and getattr(self._zedboard, "_client", None) is not None
-            and not is_socket_closed(self._zedboard._client._socket)
+        client = (
+            getattr(self._zedboard, "_client", None)
+            if self._zedboard is not None
+            else None
         )
+        return client is not None and not is_socket_closed(client._socket)
 
     @property
     def display_name(self) -> str:
