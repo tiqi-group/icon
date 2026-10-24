@@ -117,6 +117,9 @@ class Connection:
         user_timeout: Seconds until sent data may go unacknowledged before the kernel
             declares the connection dead. Defaults to the full keepalive budget. Applied
             on Linux whether or not ``keepalive`` is set; ignored elsewhere.
+        quickack: Acknowledge received data right away instead of delaying the TCP ACK
+            (at least 40 ms on Linux) to piggyback it on the next request, so a peer
+            waiting for the acknowledgement of its reply is not held up. Linux only.
     """
 
     def __init__(
@@ -132,6 +135,7 @@ class Connection:
         keepalive_interval: int = DEFAULT_KEEPALIVE_INTERVAL,
         keepalive_count: int = DEFAULT_KEEPALIVE_COUNT,
         user_timeout: float | None = None,
+        quickack: bool = True,
     ) -> None:
         self._hostname = hostname
         self._port = port
@@ -147,6 +151,7 @@ class Connection:
             if user_timeout is None
             else user_timeout
         )
+        self._quickack = quickack
 
         self._lock = threading.Lock()
         self._packer = msgpack.Packer(use_bin_type=True)
@@ -201,6 +206,14 @@ class Connection:
                 "Could not fully configure the socket options. Keepalive may not work.",
                 exc_info=True,
             )
+
+    def _acknowledge(self, sock: socket.socket) -> None:
+        """Send the TCP ACK for the data just read right away, if ``quickack`` is set.
+
+        Linux leaves quickack mode again on its own, so this is repeated after every read.
+        """
+        if self._quickack and sys.platform == "linux":
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_QUICKACK, 1)
 
     def disconnect(self) -> None:
         """Close the connection."""
@@ -373,6 +386,7 @@ class Connection:
         if not chunk:
             # A zero-length read means EOF
             raise ConnectionResetError("The peer closed the connection")
+        self._acknowledge(sock)
         return chunk
 
     def _recv_available(self, size: int) -> bytes:
@@ -393,6 +407,7 @@ class Connection:
             return b""
         if not chunk:
             raise ConnectionResetError("The peer closed the connection")
+        self._acknowledge(sock)
         return chunk
 
 
