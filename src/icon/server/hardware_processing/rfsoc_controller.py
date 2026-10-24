@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Final, Self
 
 from icon.server.data_access.experiment_data import Readouts
 from icon.server.hardware_processing.gateway_controller import GatewayController
@@ -20,6 +21,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+SEQUENCE_TIME_FACTOR: Final = 1.5
+"""Factor on the time the shots of a task take, to allow for the overhead per shot."""
+
 
 class RFSoCController(GatewayController[RFSoC]):
     """RFSoC (ZCU216) Hardware Controller using the experiment API of the gateway.
@@ -34,8 +38,8 @@ class RFSoCController(GatewayController[RFSoC]):
         host: str,
         port: int,
         timeout: float = 5,
-        task_timeout: float = 1,
-        max_task_timeouts: int = 5,
+        poll_interval: float = 1,
+        task_timeout_margin: float = 5,
     ) -> None:
         """Initialise the controller.
 
@@ -43,13 +47,16 @@ class RFSoCController(GatewayController[RFSoC]):
             host: Hostname of the RFSoC.
             port: Port the RFSoC RPC server listens on.
             timeout: Timeout in seconds for RPC calls.
-            task_timeout: Seconds to wait for the notification that the task has
+            poll_interval: Seconds to wait for the notification that the task has
                 finished, before polling the task status.
-            max_task_timeouts: Task timeouts after which an unfinished task is aborted.
+            task_timeout_margin: Seconds to wait for a task on top of
+                :data:`SEQUENCE_TIME_FACTOR` times the time its shots take, before
+                aborting it.
         """
         super().__init__(RFSoC(hostname=host, port=port, timeout=timeout))
-        self._task_timeout = task_timeout
-        self._max_task_timeouts = max_task_timeouts
+        self._poll_interval = poll_interval
+        self._task_timeout_margin = task_timeout_margin
+        self._task_timeout = task_timeout_margin
         self._device_id: str | None = None
         self._channel_layout = ChannelLayout()
 
@@ -69,9 +76,13 @@ class RFSoCController(GatewayController[RFSoC]):
 
     def send(self, data: str) -> None:
         self._ensure_connected()
+        header = _decode_header(data)
+        self._task_timeout = (
+            self._task_timeout_margin + SEQUENCE_TIME_FACTOR * _shots_time(header)
+        )
         # TODO: drop together with the Zedboard compatibility
-        self._channel_layout = ChannelLayout.from_sequence(
-            data, device_id=self._device_id
+        self._channel_layout = ChannelLayout.from_header(
+            header, device_id=self._device_id
         )
         try:
             self._gateway.setup_task(data)
@@ -97,15 +108,17 @@ class RFSoCController(GatewayController[RFSoC]):
         """Wait for the running task to finish.
 
         Blocks until the device notifies that the task has finished. As the notification
-        can be missed, the task status is polled after every task timeout. The task is
-        aborted once it is still unfinished after ``max_task_timeouts`` timeouts.
+        can be missed, the task status is polled every poll interval. The task is aborted
+        once it is still unfinished after the task timeout of its sequence.
 
         Raises:
             TimeoutError: if the task did not finish and was aborted.
             GatewayError: if no task is running, or the task was aborted meanwhile.
         """
-        for _ in range(self._max_task_timeouts):
-            if self._gateway.wait_for_task(timeout=self._task_timeout):
+        deadline = time.monotonic() + self._task_timeout
+        while True:
+            remaining = max(deadline - time.monotonic(), 0)
+            if self._gateway.wait_for_task(timeout=min(self._poll_interval, remaining)):
                 return
             report = self._gateway.get_task_status()
             if report.status is TaskStatus.FINISHED:
@@ -114,6 +127,8 @@ class RFSoCController(GatewayController[RFSoC]):
                 raise GatewayError(
                     f"no task is running on {self.display_name}: {report}"
                 )
+            if time.monotonic() >= deadline:
+                break
         logger.warning("Aborting the unfinished task on %s", self.display_name)
         try:
             self._gateway.abort_task()
@@ -121,10 +136,35 @@ class RFSoCController(GatewayController[RFSoC]):
             # The next send aborts the task again
             logger.warning("Could not abort the task on %s: %s", self.display_name, e)
         raise TimeoutError(
-            f"Task on {self.display_name} did not finish after "
-            f"{self._max_task_timeouts} timeouts of {self._task_timeout:g}s "
+            f"Task on {self.display_name} did not finish within {self._task_timeout:g}s "
             f"({report.executed_shots} / {report.requested_shots} shots) and was aborted"
         )
+
+
+_HEADER_MARKER = '"header":'
+
+
+def _decode_header(sequence_json: str) -> dict[str, Any]:
+    """Partially decode the header out of the sequence, falling back to a full decode."""
+    try:
+        start = sequence_json.index(_HEADER_MARKER) + len(_HEADER_MARKER)
+        return json.JSONDecoder().raw_decode(sequence_json, start)[0]
+    except ValueError:
+        logger.warning(
+            "Sequence description format unexpected. Expecting dense format with no spaces. Falling back to slow decoder."
+        )
+    try:
+        return json.loads(sequence_json).get("header", {})
+    except ValueError as e:
+        raise GatewayError("Submitted sequence is not valid JSON. Can't run") from e
+
+
+def _shots_time(header: dict[str, Any]) -> float:
+    """Seconds all shots of the sequence take, as given in its header.
+
+    Zero for sequences generated without their time.
+    """
+    return header.get("shots", 1) * header.get("sequence_max_time_ns", 0) * 1e-9
 
 
 # *** Zedboard compatibility
@@ -137,8 +177,6 @@ class RFSoCController(GatewayController[RFSoC]):
 # channel names with "shot/", "readout/" and "vector/". The readouts drop the prefixes.
 #
 # TODO: Remove once ICON handles the per-shot results of the gateway.
-
-_HEADER_MARKER = '"header":'
 
 
 class PostProcessing(IntEnum):
@@ -161,12 +199,11 @@ class ChannelLayout:
     """:class:`PostProcessing` method per readout channel."""
 
     @classmethod
-    def from_sequence(cls, sequence_json: str, *, device_id: str | None) -> Self:
+    def from_header(cls, header: dict[str, Any], *, device_id: str | None) -> Self:
         """Read the channel layout from the header of the sequence.
 
         Like on the Zedboard, the layout is empty unless the device reads out the sequence.
         """
-        header = _decode_header(sequence_json)
         readout_hardware = (header.get("channel_idx_to_hw") or [{}])[0]
         if (
             readout_hardware.get("device") != device_id
@@ -179,21 +216,6 @@ class ChannelLayout:
             vector_channels=header.get("vector_channel_names", []),
             postprocessing=header.get("readout_postprocessing_method", []),
         )
-
-
-def _decode_header(sequence_json: str) -> dict[str, Any]:
-    """Partially decode the header out of the sequence, falling back to a full decode."""
-    try:
-        start = sequence_json.index(_HEADER_MARKER) + len(_HEADER_MARKER)
-        return json.JSONDecoder().raw_decode(sequence_json, start)[0]
-    except ValueError:
-        logger.warning(
-            "Sequence description format unexpected. Expecting dense format with no spaces. Falling back to slow decoder."
-        )
-    try:
-        return json.loads(sequence_json).get("header", {})
-    except ValueError as e:
-        raise GatewayError("Submitted sequence is not valid JSON. Can't run") from e
 
 
 def to_zedboard_readouts(result: TaskResult, layout: ChannelLayout) -> Readouts:
