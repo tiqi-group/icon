@@ -18,6 +18,7 @@ from icon.server.hardware_processing.gateway_controller import CLIENT_NAME
 from icon.server.hardware_processing.rfsoc_controller import (
     ChannelLayout,
     RFSoCController,
+    _decode_header,
     to_zedboard_readouts,
 )
 from icon.server.hardware_processing.rpc.gateway import (
@@ -35,8 +36,6 @@ if TYPE_CHECKING:
 
 DEVICE_ID = "rfsoc"
 
-MAX_TASK_TIMEOUTS = 5
-
 DEVICE_INFO = {
     "board_model": "ZCU216",
     "board_serial_number": "1234",
@@ -47,20 +46,24 @@ DEVICE_INFO = {
     "submodule_versions": [["pulseway", "f2384fa"], ["quench_rf", "eac2404"]],
 }
 
-SEQUENCE = json.dumps(
-    {
-        "header": {
-            "channel_idx_to_hw": [{"device": DEVICE_ID, "hardware": "Readout"}],
-            "shot_channel_names": ["pmt"],
-            # The readout channel "pmt" shares its name with the shot channel
-            "readout_channel_names": ["bright", "pmt", "trace", "ignored"],
-            "readout_postprocessing_method": [1, 2, 3, 0],
-            "vector_channel_names": ["timestamps"],
-        },
-        "sequences": [],
-    },
-    separators=(",", ":"),
-)
+HEADER = {
+    "channel_idx_to_hw": [{"device": DEVICE_ID, "hardware": "Readout"}],
+    "shot_channel_names": ["pmt"],
+    # The readout channel "pmt" shares its name with the shot channel
+    "readout_channel_names": ["bright", "pmt", "trace", "ignored"],
+    "readout_postprocessing_method": [1, 2, 3, 0],
+    "vector_channel_names": ["timestamps"],
+}
+
+
+def make_sequence(**header: Any) -> str:
+    """Sequence with ``header`` added to :data:`HEADER`."""
+    return json.dumps(
+        {"header": {**HEADER, **header}, "sequences": []}, separators=(",", ":")
+    )
+
+
+SEQUENCE = make_sequence()
 
 DATA = {
     "shot/pmt": [[3.0], [5.0]],
@@ -205,14 +208,17 @@ def gateway() -> Iterator[FakeGateway]:
 
 
 def make_controller(
-    gateway: FakeGateway, task_timeout: float = 1, timeout: float = 2
+    gateway: FakeGateway,
+    poll_interval: float = 1,
+    task_timeout_margin: float = 5,
+    timeout: float = 2,
 ) -> RFSoCController:
     return RFSoCController(
         host="127.0.0.1",
         port=gateway.port,
         timeout=timeout,
-        task_timeout=task_timeout,
-        max_task_timeouts=MAX_TASK_TIMEOUTS,
+        poll_interval=poll_interval,
+        task_timeout_margin=task_timeout_margin,
     )
 
 
@@ -307,7 +313,7 @@ def test_receive_ignores_notification_of_leftover_task(
 
 def test_receive_polls_on_missed_notification(gateway: FakeGateway) -> None:
     gateway.task_end = None
-    controller = make_controller(gateway, task_timeout=0.05)
+    controller = make_controller(gateway, poll_interval=0.05)
     controller.connect()
     controller.send(SEQUENCE)
     controller.run()
@@ -319,15 +325,39 @@ def test_receive_polls_on_missed_notification(gateway: FakeGateway) -> None:
 
 def test_receive_aborts_unfinished_task(gateway: FakeGateway) -> None:
     gateway.task_duration = None
-    controller = make_controller(gateway, task_timeout=0.02)
+    controller = make_controller(gateway, poll_interval=0.02, task_timeout_margin=0.1)
     controller.connect()
     controller.send(SEQUENCE)
     controller.run()
-    with pytest.raises(TimeoutError, match="did not finish"):
+    start = time.monotonic()
+    with pytest.raises(TimeoutError, match=r"did not finish within 0\.1s"):
         controller.receive()
+    assert time.monotonic() - start >= 0.1  # noqa: PLR2004
     assert gateway.status is TaskStatus.IDLE
-    assert gateway.methods.count("exp.GetTaskStatus") == MAX_TASK_TIMEOUTS
+    assert gateway.methods.count("exp.GetTaskStatus") > 1
     assert gateway.methods[-1] == "exp.AbortTask"
+
+
+def test_task_timeout_covers_the_shots(gateway: FakeGateway) -> None:
+    # Takes longer than the margin, but not than 1.5 times the shots (0.3s)
+    gateway.task_duration = 0.2
+    gateway.task_end = None
+    controller = make_controller(gateway, poll_interval=0.02, task_timeout_margin=0.05)
+    controller.connect()
+    controller.send(make_sequence(shots=2, sequence_max_time_ns=100e6))
+    controller.run()
+    assert controller.receive() == EXPECTED
+
+
+def test_task_timeout_of_the_sequence(gateway: FakeGateway) -> None:
+    gateway.task_duration = None
+    controller = make_controller(gateway, poll_interval=0.02, task_timeout_margin=0.05)
+    controller.connect()
+    controller.send(make_sequence(shots=2, sequence_max_time_ns=10e6))
+    controller.run()
+    # The margin and 1.5 times the shots
+    with pytest.raises(TimeoutError, match=r"did not finish within 0\.08s"):
+        controller.receive()
 
 
 def test_receive_fails_on_task_aborted_by_other_client(
@@ -364,18 +394,20 @@ def test_query_device_id_when_unreachable() -> None:
 
 
 def test_layout_is_empty_on_other_device() -> None:
-    assert ChannelLayout.from_sequence(SEQUENCE, device_id="other") == ChannelLayout()
+    assert ChannelLayout.from_header(HEADER, device_id="other") == ChannelLayout()
 
 
-def test_layout_falls_back_to_full_decode() -> None:
+def test_decode_header() -> None:
+    assert _decode_header(SEQUENCE) == HEADER
+
+
+def test_decode_header_falls_back_to_full_decode() -> None:
     sparse = json.dumps(json.loads(SEQUENCE), indent=2)
-    assert ChannelLayout.from_sequence(
-        sparse, device_id=DEVICE_ID
-    ) == ChannelLayout.from_sequence(SEQUENCE, device_id=DEVICE_ID)
+    assert _decode_header(sparse) == HEADER
 
 
 def test_to_zedboard_readouts() -> None:
-    layout = ChannelLayout.from_sequence(SEQUENCE, device_id=DEVICE_ID)
+    layout = ChannelLayout.from_header(HEADER, device_id=DEVICE_ID)
     result = TaskResult(data=DATA, failed={}, log="")
     assert to_zedboard_readouts(result, layout) == EXPECTED
 
