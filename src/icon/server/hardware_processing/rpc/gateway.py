@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import re
+import reprlib
 import time
 from dataclasses import dataclass
 from enum import StrEnum
@@ -385,6 +386,16 @@ class TaskResult:
     """Values of the failed (and repeated) shots per data channel name."""
     log: str
 
+    @classmethod
+    def parse(cls, result: Any) -> Self:
+        match result:
+            case [dict() as data, dict() as failed, str() as log]:
+                return cls(data=data, failed=failed, log=log)
+            case _:
+                raise GatewayError(
+                    f"unexpected format of the task results: {reprlib.repr(result)}"
+                )
+
 
 class RFSoC(Gateway):
     """Direct RPC interface to the RFSoC (ZCU216) gateway.
@@ -429,11 +440,19 @@ class RFSoC(Gateway):
         Fails if the task is not FINISHED, or (after returning to IDLE) if it gave up on
         too many failed shots.
         """
-        match self._invoke("exp.GetTaskResults"):
-            case [dict() as data, dict() as failed, str() as log]:
-                return TaskResult(data=data, failed=failed, log=log)
-            case _:
-                raise GatewayError("unexpected format of the task results")
+        return TaskResult.parse(self._invoke("exp.GetTaskResults"))
+
+    def run_task(self, sequence: str, timeout: float | None = None) -> TaskResult:
+        """Set up, run and collect a task in one blocking call. Fails if a task is not IDLE.
+
+        Args:
+            sequence: JSON sequence, as for :meth:`setup_task`.
+            timeout: Seconds to wait for the task to finish. Uses the default timeout
+                when omitted.
+        """
+        # Discard the notifications of earlier tasks, as for start_task
+        self._client.consume_notifications()
+        return TaskResult.parse(self._invoke("exp.RunTask", sequence, timeout=timeout))
 
     def wait_for_task(
         self, timeout: float | None = None, poll_interval: float = 0.001
