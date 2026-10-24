@@ -165,7 +165,7 @@ class FakeGateway:
         if self.status is not status:
             raise RuntimeError(f"Current task is not {status}; Status {self.status}")
 
-    def _handle(self, method: str, params: list[Any]) -> Any:  # noqa: C901, PLR0911
+    def _handle(self, method: str, params: list[Any]) -> Any:  # noqa: C901, PLR0911, PLR0912
         match method:
             case "sys.RegisterSession" if self.sessions_supported:
                 self.sessions.append(params[0])
@@ -195,6 +195,9 @@ class FakeGateway:
                 self._require(TaskStatus.FINISHED)
                 self.status = TaskStatus.IDLE
                 return [DATA, {name: [] for name in DATA}, ""]
+            case "exp.RunTask":
+                self._require(TaskStatus.IDLE)
+                return [DATA, {name: [] for name in DATA}, ""]
             case _:
                 raise RuntimeError(f"Invalid request: {method}")
         return None
@@ -212,6 +215,7 @@ def make_controller(
     poll_interval: float = 1,
     task_timeout_margin: float = 5,
     timeout: float = 2,
+    blocking_runtime_limit: float = 1,
 ) -> RFSoCController:
     return RFSoCController(
         host="127.0.0.1",
@@ -219,6 +223,7 @@ def make_controller(
         timeout=timeout,
         poll_interval=poll_interval,
         task_timeout_margin=task_timeout_margin,
+        blocking_runtime_limit=blocking_runtime_limit,
     )
 
 
@@ -342,7 +347,9 @@ def test_task_timeout_covers_the_shots(gateway: FakeGateway) -> None:
     # Takes longer than the margin, but not than 1.5 times the shots (0.3s)
     gateway.task_duration = 0.2
     gateway.task_end = None
-    controller = make_controller(gateway, poll_interval=0.02, task_timeout_margin=0.05)
+    controller = make_controller(
+        gateway, poll_interval=0.02, task_timeout_margin=0.05, blocking_runtime_limit=0
+    )
     controller.connect()
     controller.send(make_sequence(shots=2, sequence_max_time_ns=100e6))
     controller.run()
@@ -351,7 +358,9 @@ def test_task_timeout_covers_the_shots(gateway: FakeGateway) -> None:
 
 def test_task_timeout_of_the_sequence(gateway: FakeGateway) -> None:
     gateway.task_duration = None
-    controller = make_controller(gateway, poll_interval=0.02, task_timeout_margin=0.05)
+    controller = make_controller(
+        gateway, poll_interval=0.02, task_timeout_margin=0.05, blocking_runtime_limit=0
+    )
     controller.connect()
     controller.send(make_sequence(shots=2, sequence_max_time_ns=10e6))
     controller.run()
@@ -420,3 +429,49 @@ def test_parse_task_status() -> None:
         requested_shots=10,
         duration_ms=-5,
     )
+
+
+def test_short_task_runs_with_one_call(
+    gateway: FakeGateway, controller: RFSoCController
+) -> None:
+    controller.connect()
+    controller.send(make_sequence(shots=2, sequence_max_time_ns=1e6))
+    controller.run()
+
+    assert controller.receive() == EXPECTED
+    assert "exp.RunTask" in gateway.methods
+    assert not {"exp.SetupTask", "exp.StartTask"} & set(gateway.methods)
+
+
+@pytest.mark.parametrize(
+    ("header", "blocking_runtime_limit"),
+    [
+        ({}, 1),  # A sequence without its time
+        ({"shots": 2, "sequence_max_time_ns": 0.5e9}, 1),  # Shots of 1 s
+        ({"shots": 2, "sequence_max_time_ns": 1e6}, 0),  # Blocking runs disabled
+    ],
+)
+def test_task_runs_in_steps(
+    gateway: FakeGateway, header: dict[str, Any], blocking_runtime_limit: float
+) -> None:
+    controller = make_controller(gateway, blocking_runtime_limit=blocking_runtime_limit)
+    controller.connect()
+    controller.send(make_sequence(**header))
+    controller.run()
+
+    assert controller.receive() == EXPECTED
+    assert "exp.SetupTask" in gateway.methods
+    assert "exp.RunTask" not in gateway.methods
+
+
+def test_short_task_aborts_leftover_task(
+    gateway: FakeGateway, controller: RFSoCController
+) -> None:
+    gateway.status = TaskStatus.RUNNING
+    gateway.task_duration = None
+    controller.connect()
+    controller.send(make_sequence(sequence_max_time_ns=1e6))
+    controller.run()
+
+    assert controller.receive() == EXPECTED
+    assert gateway.methods[-3:] == ["exp.GetTaskStatus", "exp.AbortTask", "exp.RunTask"]

@@ -5,7 +5,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import TYPE_CHECKING, Any, Final, Self
+from typing import TYPE_CHECKING, Any, Final, Self, TypeVar
 
 from icon.server.data_access.experiment_data import Readouts
 from icon.server.hardware_processing.gateway_controller import GatewayController
@@ -17,9 +17,13 @@ from icon.server.hardware_processing.rpc.gateway import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from icon.server.hardware_processing.rpc.gateway import TaskResult
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 SEQUENCE_TIME_FACTOR: Final = 1.5
 """Factor on the time the shots of a task take, to allow for the overhead per shot."""
@@ -29,7 +33,10 @@ class RFSoCController(GatewayController[RFSoC]):
     """RFSoC (ZCU216) Hardware Controller using the experiment API of the gateway.
 
     A sequence runs as a task: :meth:`send` sets it up, :meth:`run` starts it and
-    :meth:`receive` waits for it to finish and collects its results.
+    :meth:`receive` waits for it to finish and collects its results. A short task instead
+    runs with a single blocking ``exp.RunTask`` call in :meth:`receive`, which saves the
+    round trips, but leaves the device unable to answer other requests (like an abort)
+    while the task runs.
     """
 
     def __init__(
@@ -40,6 +47,7 @@ class RFSoCController(GatewayController[RFSoC]):
         timeout: float = 5,
         poll_interval: float = 1,
         task_timeout_margin: float = 5,
+        blocking_runtime_limit: float = 1,
     ) -> None:
         """Initialise the controller.
 
@@ -52,11 +60,17 @@ class RFSoCController(GatewayController[RFSoC]):
             task_timeout_margin: Seconds to wait for a task on top of
                 :data:`SEQUENCE_TIME_FACTOR` times the time its shots take, before
                 aborting it.
+            blocking_runtime_limit: Tasks whose shots take less than this many seconds
+                run with a single blocking call. Sequences without their time always
+                run in steps. 0 disables blocking runs.
         """
         super().__init__(RFSoC(hostname=host, port=port, timeout=timeout))
         self._poll_interval = poll_interval
         self._task_timeout_margin = task_timeout_margin
         self._task_timeout = task_timeout_margin
+        self._blocking_runtime_limit = blocking_runtime_limit
+        self._blocking = False
+        self._sequence = ""
         self._device_id: str | None = None
         self._channel_layout = ChannelLayout()
 
@@ -77,32 +91,57 @@ class RFSoCController(GatewayController[RFSoC]):
     def send(self, data: str) -> None:
         self._ensure_connected()
         header = _decode_header(data)
+        shots_time = _shots_time(header)
         self._task_timeout = (
-            self._task_timeout_margin + SEQUENCE_TIME_FACTOR * _shots_time(header)
+            self._task_timeout_margin + SEQUENCE_TIME_FACTOR * shots_time
         )
         # TODO: drop together with the Zedboard compatibility
         self._channel_layout = ChannelLayout.from_header(
             header, device_id=self._device_id
         )
+        # A sequence without its time may run for any time
+        self._blocking = 0 < shots_time < self._blocking_runtime_limit
+        if self._blocking:
+            # Sent with the call that runs it in receive
+            self._sequence = data
+            return
+        self._call_aborting_leftover_task(lambda: self._gateway.setup_task(data))
+
+    def run(self) -> None:
+        if self._blocking:
+            return
+        self._gateway.start_task()
+
+    def receive(self) -> Readouts:
+        if self._blocking:
+            # A task left running by a call that timed out is aborted by the next call
+            results = self._call_aborting_leftover_task(
+                lambda: self._gateway.run_task(
+                    self._sequence, timeout=self._task_timeout
+                )
+            )
+        else:
+            self._wait_for_task()
+            results = self._gateway.get_task_results()
+        if results.log:
+            logger.warning("%s: %s", self.display_name, results.log)
+        # TODO: return the per-shot results once ICON handles them
+        return to_zedboard_readouts(results, self._channel_layout)
+
+    def _call_aborting_leftover_task(self, call: Callable[[], T]) -> T:
+        """Make a call that requires an IDLE task.
+
+        If it fails while a task left over from an earlier data point is still active,
+        the leftover task is aborted and the call repeated.
+        """
         try:
-            self._gateway.setup_task(data)
+            return call()
         except RPCResponseError:
             if self._gateway.get_task_status().status is TaskStatus.IDLE:
                 raise
             logger.warning("Aborting a leftover task on %s", self.display_name)
             self._gateway.abort_task()
-            self._gateway.setup_task(data)
-
-    def run(self) -> None:
-        self._gateway.start_task()
-
-    def receive(self) -> Readouts:
-        self._wait_for_task()
-        results = self._gateway.get_task_results()
-        if results.log:
-            logger.warning("%s: %s", self.display_name, results.log)
-        # TODO: return the per-shot results once ICON handles them
-        return to_zedboard_readouts(results, self._channel_layout)
+            return call()
 
     def _wait_for_task(self) -> None:
         """Wait for the running task to finish.
