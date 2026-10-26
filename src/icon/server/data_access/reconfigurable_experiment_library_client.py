@@ -79,6 +79,14 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
         self.client = self.reloader.reload()
         return self.client.isolated()
 
+    def keep_alive(self) -> AbstractContextManager[None]:
+        """Create a context manager keeping the library loaded between its calls.
+
+        The calls in the context may share state the library keeps.
+        """
+        self.client = self.reloader.reload()
+        return self.client.keep_alive()
+
     async def load_metadata(self) -> "tuple[ExperimentDict, ParameterMetadataDict]":
         """Load the experiment and parameter metadata.
 
