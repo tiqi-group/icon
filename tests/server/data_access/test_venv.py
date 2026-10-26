@@ -3,10 +3,17 @@ import importlib
 import sys
 import venv
 import warnings
+from collections.abc import Iterator
+from contextlib import nullcontext
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import MagicMock, call
 
+import pytest
+
+from icon.server.data_access import venv_exec
 from icon.server.data_access.venv_exec import VirtualEnvironment
+from tests.server.data_access import venv_callbacks
 
 HERE = Path(__file__).parent
 
@@ -33,11 +40,6 @@ def test_venv_run() -> None:
     assert result == "{}"
 
 
-def callback_with_warning() -> dict[str, int]:
-    warnings.warn("Some Warning", category=RuntimeWarning, stacklevel=42)
-    return {"status": 0}
-
-
 def test_venv_run_with_warnings() -> None:
     with TemporaryDirectory() as temp_dir, warnings.catch_warnings(record=True) as wrn:
         venv.EnvBuilder().create(temp_dir)
@@ -46,7 +48,7 @@ def test_venv_run_with_warnings() -> None:
         warnings.simplefilter("always")
         return_value = asyncio.run(
             env.run(
-                callback_with_warning,
+                venv_callbacks.callback_with_warning,
                 args={},
             )
         )
@@ -54,3 +56,77 @@ def test_venv_run_with_warnings() -> None:
     assert wrn[0].category is RuntimeWarning
     assert str(wrn[0].message) == "Some Warning"
     assert return_value == {"status": 0}
+
+
+@pytest.fixture(scope="module")
+def env() -> Iterator[VirtualEnvironment]:
+    with TemporaryDirectory() as temp_dir:
+        venv.EnvBuilder().create(temp_dir)
+        yield VirtualEnvironment(temp_dir)
+
+
+def test_keep_alive_runs_the_calls_in_one_process(env: VirtualEnvironment) -> None:
+    with env.keep_alive():
+        first = asyncio.run(env.run(venv_callbacks.process_id))
+        second = asyncio.run(env.run(venv_callbacks.process_id))
+
+    assert first == second
+    assert asyncio.run(env.run(venv_callbacks.process_id)) != first
+
+
+@pytest.mark.parametrize("keep_alive", [False, True])
+def test_output_and_warnings_are_logged(
+    env: VirtualEnvironment, *, keep_alive: bool
+) -> None:
+    logger = MagicMock()
+    with env.keep_alive() if keep_alive else nullcontext():
+        result = asyncio.run(
+            env.run(venv_callbacks.callback_with_output, logger=logger)
+        )
+
+    assert result == "done"
+    assert logger.warning.call_args_list == [call("to stdout\n"), call("Some Warning")]
+    logger.error.assert_called_once_with("to stderr\nfrom C\n")
+
+
+@pytest.mark.parametrize("keep_alive", [False, True])
+def test_error_of_the_call_is_raised(
+    env: VirtualEnvironment, *, keep_alive: bool
+) -> None:
+    with (
+        env.keep_alive() if keep_alive else nullcontext(),
+        pytest.raises(RuntimeError, match="ValueError: bad sequence"),
+    ):
+        asyncio.run(env.run(venv_callbacks.failing_callback))
+
+
+def test_kept_alive_process_survives_an_error_of_the_call(
+    env: VirtualEnvironment,
+) -> None:
+    with env.keep_alive():
+        process_id = asyncio.run(env.run(venv_callbacks.process_id))
+        with pytest.raises(RuntimeError):
+            asyncio.run(env.run(venv_callbacks.failing_callback))
+
+        assert asyncio.run(env.run(venv_callbacks.process_id)) == process_id
+
+
+def test_kept_alive_process_is_replaced_once_it_exits(env: VirtualEnvironment) -> None:
+    with env.keep_alive():
+        process_id = asyncio.run(env.run(venv_callbacks.process_id))
+        with pytest.raises(RuntimeError, match="exited with return code 3"):
+            asyncio.run(env.run(venv_callbacks.exiting_callback))
+
+        assert asyncio.run(env.run(venv_callbacks.process_id)) != process_id
+
+
+def test_kept_alive_process_is_replaced_after_a_timeout(
+    env: VirtualEnvironment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(venv_exec, "CALL_TIMEOUT", 0.5)
+    with env.keep_alive():
+        process_id = asyncio.run(env.run(venv_callbacks.process_id))
+        with pytest.raises(RuntimeError, match=r"timed out after 0\.5 s"):
+            asyncio.run(env.run(venv_callbacks.slow_callback))
+
+        assert asyncio.run(env.run(venv_callbacks.process_id)) != process_id

@@ -308,38 +308,47 @@ class PreProcessingWorker(multiprocessing.Process):
 
         self._update_parameter_dict(pre_processing_task, namespace)
 
-        readout_metadata = asyncio.run(
-            client.get_experiment_readout_metadata(
-                exp_module_name=namespace.module_name,
-                exp_instance_name=namespace.instance_name,
-                parameter_dict=self._parameter_dict,
+        # Starting the library for every call took most of the time to generate the
+        # hardware instructions of a data point
+        with client.keep_alive():
+            readout_metadata = asyncio.run(
+                client.get_experiment_readout_metadata(
+                    exp_module_name=namespace.module_name,
+                    exp_instance_name=namespace.instance_name,
+                    parameter_dict=self._parameter_dict,
+                )
             )
-        )
 
-        ExperimentDataRepository.update_metadata_by_job_id(
-            job_id=job.id,
-            number_of_shots=job.number_of_shots,
-            repetitions=job.repetitions,
-            parameters=job.scan_parameters,
-            readout_metadata=readout_metadata,
-        )
-
-        # Part of the hardware description of the library revision, so it holds for
-        # the whole job run
-        self._device_order = asyncio.run(client.load_device_order())
-
-        self._scan_progress.start(pre_processing_task.job_run.id)
-        jobs = (
-            self._handle_realtime_scan(
-                pre_processing_task, client=client, src_dir=src_dir, namespace=namespace
+            ExperimentDataRepository.update_metadata_by_job_id(
+                job_id=job.id,
+                number_of_shots=job.number_of_shots,
+                repetitions=job.repetitions,
+                parameters=job.scan_parameters,
+                readout_metadata=readout_metadata,
             )
-            if contains_realtime_parameter(job.scan_parameters)
-            else self._handle_regular_scan(
-                pre_processing_task, client=client, src_dir=src_dir, namespace=namespace
+
+            # Part of the hardware description of the library revision, so it holds for
+            # the whole job run
+            self._device_order = asyncio.run(client.load_device_order())
+
+            self._scan_progress.start(pre_processing_task.job_run.id)
+            jobs = (
+                self._handle_realtime_scan(
+                    pre_processing_task,
+                    client=client,
+                    src_dir=src_dir,
+                    namespace=namespace,
+                )
+                if contains_realtime_parameter(job.scan_parameters)
+                else self._handle_regular_scan(
+                    pre_processing_task,
+                    client=client,
+                    src_dir=src_dir,
+                    namespace=namespace,
+                )
             )
-        )
-        for _ in jobs:
-            self._regenerate_outdated_jobs(client, namespace)
+            for _ in jobs:
+                self._regenerate_outdated_jobs(client, namespace)
 
     def _latest_parameters(self, *, before: str | None) -> dict[str, DatabaseValueType]:
         """Return every known parameter value, as of ``before`` or as of now.
