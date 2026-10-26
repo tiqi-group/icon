@@ -210,6 +210,7 @@ class PreProcessingWorker(multiprocessing.Process):
             tuple[int, dict[str, DatabaseValueType]]
         ] = queue.Queue()
         self._parameter_dict: dict[str, DatabaseValueType] = {}
+        self._device_order: list[str] = []
         self._scan_progress: ScanProgress = manager.ScanProgress()
         self._outdated_tasks: queue.PriorityQueue[HardwareProcessingTask] = (
             manager.PriorityQueue()
@@ -322,6 +323,10 @@ class PreProcessingWorker(multiprocessing.Process):
             parameters=job.scan_parameters,
             readout_metadata=readout_metadata,
         )
+
+        # Part of the hardware description of the library revision, so it holds for
+        # the whole job run
+        self._device_order = asyncio.run(client.load_device_order())
 
         self._scan_progress.start(pre_processing_task.job_run.id)
         jobs = (
@@ -534,6 +539,7 @@ class PreProcessingWorker(multiprocessing.Process):
                         parameter_dict={**self._parameter_dict, **data_point},
                         namespace=namespace,
                         device_ids=self._devices.enabled_ids(),
+                        device_order=self._device_order,
                     ),
                     src_dir=src_dir,
                 )
@@ -603,6 +609,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     parameter_dict={**self._parameter_dict, **task.scanned_params},
                     namespace=namespace,
                     device_ids=self._devices.enabled_ids(),
+                    device_order=self._device_order,
                 )
                 task.created = datetime.now(timezone)
             self._submit_task_to_hw_worker(task=task)
@@ -657,6 +664,7 @@ class PreProcessingWorker(multiprocessing.Process):
                             parameter_dict={**self._parameter_dict, **data_point},
                             namespace=namespace,
                             device_ids=self._devices.enabled_ids(),
+                            device_order=self._device_order,
                         ),
                         src_dir=src_dir,
                     )
@@ -692,12 +700,25 @@ def create_hardware_instructions(
     n_shots: int,
     parameter_dict: dict[str, DatabaseValueType],
     device_ids: list[str],
+    device_order: list[str],
     namespace: ExperimentIdentifier,
 ) -> list[tuple[str, str]]:
-    order = asyncio.run(client.load_device_order())
-    order_set = set(order)
+    """Generate the hardware instructions of the devices.
+
+    Args:
+        client: Experiment library client to generate the instructions with.
+        n_shots: Number of shots.
+        parameter_dict: Mapping of parameter IDs to values.
+        device_ids: IDs of the devices to generate instructions for.
+        device_order: Device IDs in the order the library wants the devices handled.
+        namespace: Experiment to generate the instructions of.
+
+    Returns:
+        The hardware instructions by device ID, in the order the devices are handled.
+    """
+    order_set = set(device_order)
     device_ids_set = set(device_ids)
-    ordered = [d for d in order if d in device_ids_set]
+    ordered = [d for d in device_order if d in device_ids_set]
     unordered = [d for d in device_ids if d not in order_set]
     if len(unordered) > 1:
         logger.warning(
