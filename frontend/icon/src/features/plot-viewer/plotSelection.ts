@@ -1,5 +1,6 @@
 import type { ExperimentData, ExperimentDeviceData } from "../../types/ExperimentData";
 import type { ScanParameter } from "../../types/ScanParameter";
+import { resolveViewerScanMaps, viewerScanParameterKey } from "./viewerScanParameters";
 
 export type PlotKind = "readout" | "histogram";
 
@@ -37,6 +38,7 @@ export function projectPlotData(
   data: ExperimentData,
   device: ExperimentDeviceData,
   channels: string[],
+  parameters?: ScanParameter[],
 ): ExperimentData {
   const selected = new Set(channels);
   const resultChannels = Object.fromEntries(
@@ -44,7 +46,26 @@ export function projectPlotData(
       selected.has(name),
     ),
   );
-  const scanMaps = Object.values(data.scan_parameters);
+  const axes = parameters?.length
+    ? resolveViewerScanMaps(data.scan_parameters, parameters)
+    : null;
+  const scanParameters =
+    axes && parameters
+      ? {
+          ...(data.scan_parameters.timestamp
+            ? { timestamp: data.scan_parameters.timestamp }
+            : {}),
+          ...Object.fromEntries(
+            parameters.map((parameter, index) => [
+              parameter.realtime
+                ? "timestamp"
+                : viewerScanParameterKey(parameter, parameters),
+              axes[index],
+            ]),
+          ),
+        }
+      : data.scan_parameters;
+  const scanMaps = Object.values(scanParameters);
   const indices = [
     ...new Set(Object.values(resultChannels).flatMap((values) => Object.keys(values))),
   ]
@@ -53,7 +74,7 @@ export function projectPlotData(
   return {
     ...data,
     scan_parameters: Object.fromEntries(
-      Object.entries(data.scan_parameters).map(([name, values]) => [
+      Object.entries(scanParameters).map(([name, values]) => [
         name,
         Object.fromEntries(indices.map((index) => [index, values[index]])),
       ]),

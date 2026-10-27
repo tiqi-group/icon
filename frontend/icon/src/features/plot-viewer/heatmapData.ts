@@ -1,5 +1,6 @@
 import type { ExperimentData } from "../../types/ExperimentData";
 import type { ScanParameter } from "../../types/ScanParameter";
+import { resolveViewerScanMaps } from "./viewerScanParameters";
 
 export interface HeatmapAxis {
   name: string;
@@ -39,13 +40,6 @@ function coordinate(value: unknown, realtime: boolean): number | null {
     if (Number.isFinite(timestamp)) return timestamp;
   }
   return null;
-}
-
-function scanMap(data: ExperimentData, parameter: ScanParameter) {
-  return parameter.realtime
-    ? data.scan_parameters.timestamp
-    : (data.scan_parameters[parameter.variable_id] ??
-        data.scan_parameters[parameter.name]);
 }
 
 /** The colour domain belongs to the visible channel/cells, with a finite flat-data guard. */
@@ -107,8 +101,7 @@ export function buildHeatmapData(
     ? 0
     : xParameter.scan_values.length * yParameter.scan_values.length;
   base.period = Number.isSafeInteger(period) && period > 0 ? period : null;
-  const xMap = scanMap(data, xParameter) ?? {};
-  const yMap = scanMap(data, yParameter) ?? {};
+  const [xMap, yMap] = resolveViewerScanMaps(data.scan_parameters, parameters);
   const xValues = new Set(
     xParameter.realtime ? [] : xParameter.scan_values.filter(Number.isFinite),
   );

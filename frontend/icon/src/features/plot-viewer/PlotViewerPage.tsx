@@ -78,9 +78,10 @@ function PlotViewer({
             source,
             { ...selection.device, fits: currentFits ?? selection.device.fits },
             selection.plot.channel_names,
+            job?.scan_parameters,
           )
         : null,
-    [source, selection, currentFits],
+    [source, selection, currentFits, job?.scan_parameters],
   );
   const plotData = useMemo(
     () =>
