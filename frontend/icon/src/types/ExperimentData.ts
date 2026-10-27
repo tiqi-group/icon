@@ -46,29 +46,24 @@ export interface FitResult {
   fit_curve?: { x: number[]; y: number[] };
 }
 
-export interface ReadoutSequences {
+export interface ReadoutSequences<TShots = number[]> {
   result_channels: Record<string, Record<string, number>>;
-  shot_channels: Record<string, number[]>;
+  shot_channels: Record<string, TShots>;
 }
 
-export interface ExperimentDeviceData {
+export interface ExperimentDeviceData<TShots = number[]> {
   device_id: string;
-  readouts: ReadoutSequences;
+  readouts: ReadoutSequences<TShots>;
   plot_windows: PlotWindows;
   fits: Record<string, FitResult>;
 }
 
-export interface ExperimentData {
-  device_data: ExperimentDeviceData[];
+export interface ExperimentData<TShots = number[]> {
+  device_data: ExperimentDeviceData<TShots>[];
   scan_parameters: Record<string, Record<string, number | boolean | string>>;
   parameters: Record<string, ParameterValue>;
   total_data_points: number;
 }
 
-export interface ExperimentDataPayload extends Omit<ExperimentData, "device_data"> {
-  device_data: (Omit<ExperimentDeviceData, "readouts"> & {
-    readouts: Omit<ReadoutSequences, "shot_channels"> & {
-      shot_channels: Record<string, Record<string, number[]>>;
-    };
-  })[];
-}
+/** Server payload: shots per channel are keyed by data point index. */
+export type ExperimentDataPayload = ExperimentData<Record<string, number[]>>;
