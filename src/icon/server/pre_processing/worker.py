@@ -536,7 +536,7 @@ class PreProcessingWorker(multiprocessing.Process):
                         n_shots=pre_processing_task.job.number_of_shots,
                         parameter_dict={**self._parameter_dict, **data_point},
                         namespace=namespace,
-                        device_ids=self._devices.enabled_ids(),
+                        enabled_device_ids=self._devices.enabled_ids(),
                         device_order=self._device_order,
                     ),
                     src_dir=src_dir,
@@ -606,7 +606,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     n_shots=job.number_of_shots,
                     parameter_dict={**self._parameter_dict, **task.scanned_params},
                     namespace=namespace,
-                    device_ids=self._devices.enabled_ids(),
+                    enabled_device_ids=self._devices.enabled_ids(),
                     device_order=self._device_order,
                 )
                 task.created = datetime.now(timezone)
@@ -661,7 +661,7 @@ class PreProcessingWorker(multiprocessing.Process):
                             n_shots=pre_processing_task.job.number_of_shots,
                             parameter_dict={**self._parameter_dict, **data_point},
                             namespace=namespace,
-                            device_ids=self._devices.enabled_ids(),
+                            enabled_device_ids=self._devices.enabled_ids(),
                             device_order=self._device_order,
                         ),
                         src_dir=src_dir,
@@ -697,31 +697,32 @@ def create_hardware_instructions(
     client: ExperimentLibraryClient,
     n_shots: int,
     parameter_dict: dict[str, DatabaseValueType],
-    device_ids: list[str],
+    enabled_device_ids: list[str],
     device_order: list[str],
     namespace: ExperimentIdentifier,
 ) -> list[tuple[str, str]]:
-    order_set = set(device_order)
-    device_ids_set = set(device_ids)
-    ordered = [d for d in device_order if d in device_ids_set]
-    unordered = [d for d in device_ids if d not in order_set]
+    instructions = asyncio.run(
+        client.create_hardware_instructions(
+            n_shots=n_shots,
+            parameter_dict=parameter_dict,
+            exp_module_name=namespace.module_name,
+            exp_instance_name=namespace.instance_name,
+        )
+    )
+    # Warning if instructions are produced for disabled devices (also covers not connected devices)
+    not_enabled = instructions.keys() - set(enabled_device_ids)
+    if not_enabled:
+        logger.warning(
+            "The experiment library generated instructions for devices which are not enabled: %s. These instructions will not be executed.",
+            ",".join(sorted(not_enabled)),
+        )
+    runnable_ids = [d for d in enabled_device_ids if d in instructions]
+    position = {d: i for i, d in enumerate(device_order)}
+    unordered = [d for d in runnable_ids if d not in position]
     if len(unordered) > 1:
         logger.warning(
             "No order available from the experiment library for the devices: %s. Devices will be processed in the order they are configured.",
             ",".join(unordered),
         )
-    return [
-        (
-            device_id,
-            asyncio.run(
-                client.create_hardware_instructions(
-                    n_shots=n_shots,
-                    parameter_dict=parameter_dict,
-                    exp_module_name=namespace.module_name,
-                    exp_instance_name=namespace.instance_name,
-                    device_id=device_id,
-                )
-            ),
-        )
-        for device_id in ordered + unordered
-    ]
+    runnable_ids.sort(key=lambda d: position.get(d, len(position)))
+    return [(device_id, instructions[device_id]) for device_id in runnable_ids]

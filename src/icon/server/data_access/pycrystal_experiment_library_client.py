@@ -128,49 +128,49 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
     def experiment_metadata(self, value: "ExperimentDict") -> None:  # noqa: ARG002
         raise RuntimeError("Read only attribute")
 
-    @staticmethod
     def create_hardware_instructions(
+        self,
         *,
         exp_module_name: str,
         exp_instance_name: str,
         parameter_dict: "dict[str, DatabaseValueType]",
-        device_id: str,
         n_shots: int,
-    ) -> str:
+    ) -> dict[str, str]:
         """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
-            device_id: Id of the device for which to create the instructions
             n_shots: Number of shots.
 
         Returns:
-            JSON string containing the generated sequence.
+            Mapping of device_ids to the instructions generated per device.
         """
         from pycrystal.utils.helpers import import_experiment_instance  # noqa: PLC0415
 
         exp_instance = import_experiment_instance(exp_module_name, exp_instance_name)
 
-        try:
+        if hasattr(exp_instance, "device_instr_mapping"):
             return exp_instance.pulse_sequence_from_args(
                 parameter_dict,
                 n_shots=n_shots,
-                device_id=device_id,
                 log_level=LOG_LEVEL,
             )
-        except AttributeError:
-            warnings.warn(
-                "Experiment does not define `pulse_sequence_from_args` falling back to legacy behaviour",
-                stacklevel=0,
-                category=DeprecationWarning,
-            )
-        return exp_instance.pulse_sequence_str_from_args(
+
+        warnings.warn(
+            "Experiment library: Deprecated pycrystal version used."
+            " Experiment does not define `device_instr_mapping`, falling back to"
+            " `pulse_sequence_str_from_args()` for all devices.",
+            category=DeprecationWarning,
+            stacklevel=0,
+        )
+        sequence: str = exp_instance.pulse_sequence_str_from_args(
             parameter_dict,
             n_shots,
             LOG_LEVEL,
         )
+        return dict.fromkeys(self.device_order, sequence)
 
     def get_experiment_readout_metadata(
         self,
