@@ -64,13 +64,9 @@ export function useExperimentData(jobId: string | undefined) {
           for (const [channel, value] of Object.entries(dev.readouts.result_channels)) {
             (result_channels[channel] ??= {})[data.index] = value;
           }
-          const vector_channels = { ...deviceData.readouts.vector_channels };
-          for (const [channel, value] of Object.entries(dev.readouts.vector_channels)) {
-            (vector_channels[channel] ??= {})[data.index] = value;
-          }
           return {
             ...deviceData,
-            readouts: { shot_channels, result_channels, vector_channels },
+            readouts: { shot_channels, result_channels },
           };
         };
 
@@ -233,10 +229,9 @@ function mergeDeviceData<T>(
 function defaultDeviceData(deviceId: string): ExperimentDeviceData {
   return {
     device_id: deviceId,
-    readouts: { result_channels: {}, vector_channels: {}, shot_channels: {} },
+    readouts: { result_channels: {}, shot_channels: {} },
     plot_windows: {
       result_channels: [],
-      vector_channels: [],
       shot_channels: [],
     },
     fits: {},

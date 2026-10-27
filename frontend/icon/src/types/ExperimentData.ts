@@ -27,7 +27,6 @@ interface PlotWindowMetadata {
 export interface PlotWindows {
   result_channels: PlotWindowMetadata[];
   shot_channels: PlotWindowMetadata[];
-  vector_channels: PlotWindowMetadata[];
 }
 
 export interface ParameterValue {
@@ -49,7 +48,6 @@ export interface FitResult {
 
 export interface ReadoutSequences {
   result_channels: Record<string, Record<string, number>>;
-  vector_channels: Record<string, Record<string, number[]>>;
   shot_channels: Record<string, number[]>;
 }
 
