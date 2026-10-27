@@ -10,6 +10,7 @@ import {
   ToolboxComponent,
   VisualMapComponent,
 } from "echarts/components";
+import * as dataZoomHistory from "echarts/lib/component/dataZoom/history.js";
 import type { CSSProperties } from "react";
 import type { EChartsCoreOption, ECharts } from "echarts/core";
 import { useColorScheme } from "@mui/material";
@@ -21,6 +22,14 @@ export interface ReactEChartsProps {
   loading?: boolean;
   /** Called once after the chart is created */
   onChartReady?: (chart: ECharts) => void;
+}
+
+interface DataZoomBatchItem {
+  dataZoomId?: string;
+  start?: number;
+  end?: number;
+  startValue?: number;
+  endValue?: number;
 }
 
 echarts.use([
@@ -45,6 +54,9 @@ export function ReactECharts({
 }: ReactEChartsProps) {
   const chartDivRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<ECharts | null>(null);
+  // Last zoom window per dataZoom component, captured from user interactions so
+  // it can be re-applied after every setOption({ notMerge: true }) re-draw.
+  const zoomStateRef = useRef<Record<string, DataZoomBatchItem>>({});
   const { mode } = useColorScheme();
 
   useEffect(() => {
@@ -52,6 +64,23 @@ export function ReactECharts({
 
     const chart = echarts.init(chartDivRef.current, mode);
     chartInstanceRef.current = chart;
+
+    chart.on("datazoom", (params) => {
+      const payload = params as { batch?: DataZoomBatchItem[] } & DataZoomBatchItem;
+      for (const item of payload.batch ?? [payload]) {
+        if (!item.dataZoomId) continue;
+        zoomStateRef.current[item.dataZoomId] = {
+          dataZoomId: item.dataZoomId,
+          start: item.start,
+          end: item.end,
+          startValue: item.startValue,
+          endValue: item.endValue,
+        };
+      }
+    });
+    chart.on("restore", () => {
+      zoomStateRef.current = {};
+    });
 
     if (onChartReady) {
       onChartReady(chart);
@@ -68,13 +97,50 @@ export function ReactECharts({
   }, [mode, onChartReady]);
 
   useEffect(() => {
-    chartInstanceRef.current?.setOption(
+    const chart = chartInstanceRef.current;
+    if (!chart) return;
+
+    // Disarm the toolbox box-zoom before replacing the option: re-rendering
+    // the toolbox while its brush is armed stacks brush handlers, making a
+    // later selection zoom several levels at once.
+    if (chart.getOption() !== undefined) {
+      chart.dispatchAction(
+        {
+          type: "takeGlobalCursor",
+          key: "dataZoomSelect",
+          dataZoomSelectActive: false,
+        },
+        { silent: true },
+      );
+    }
+
+    chart.setOption(
       {
         ...option,
         backgroundColor: mode === "dark" ? "#1e1e1e" : "#ffffff",
       },
       { notMerge: true },
     );
+
+    // notMerge re-creates the dataZoom components with a full-range window;
+    // re-apply the last zoom so it survives re-draws while a scan is running.
+    // Stale ids (e.g. after switching to an option without zoom) are a no-op.
+    const batch = Object.values(zoomStateRef.current);
+    if (batch.length > 0) {
+      // notMerge also builds a new GlobalModel, which drops the toolbox zoom
+      // history. Seed it with the restored window before re-applying it (while
+      // the axes are still at full range, so full range is recorded as the
+      // origin): the toolbox back button then returns to the full view.
+      dataZoomHistory.push(
+        (chart as unknown as { getModel: () => unknown }).getModel(),
+        Object.fromEntries(
+          batch
+            .filter((item) => item.dataZoomId !== undefined)
+            .map((item) => [item.dataZoomId, item]),
+        ),
+      );
+      chart.dispatchAction({ type: "dataZoom", batch }, { silent: true });
+    }
   }, [option, mode]);
 
   useEffect(() => {
