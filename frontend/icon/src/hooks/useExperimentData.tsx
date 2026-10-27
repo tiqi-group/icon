@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { runMethod, socket } from "../socket";
 import {
   ExperimentData,
+  ExperimentDataPayload,
   ExperimentDataPoint,
   ExperimentDeviceData,
   ExperimentDeviceDataPoint,
@@ -55,10 +56,10 @@ export function useExperimentData(jobId: string | undefined) {
           deviceData: ExperimentDeviceData,
           dev: ExperimentDeviceDataPoint,
         ) => {
-          const shot_channels = { ...deviceData.readouts.shot_channels };
-          for (const [channel, value] of Object.entries(dev.readouts.shot_channels)) {
-            (shot_channels[channel] ??= {})[data.index] = value;
-          }
+          const shot_channels = {
+            ...deviceData.readouts.shot_channels,
+            ...dev.readouts.shot_channels,
+          };
           const result_channels = { ...deviceData.readouts.result_channels };
           for (const [channel, value] of Object.entries(dev.readouts.result_channels)) {
             (result_channels[channel] ??= {})[data.index] = value;
@@ -171,16 +172,16 @@ export function useExperimentData(jobId: string | undefined) {
       // For now, the controller sends the payload as a JSON string, so parse it directly
       // instead of walking it with the generic deserializer. Errors still come
       // back as a serialized exception and go through the deserializer.
-      const deserialized: Error | ExperimentData =
+      const deserialized: Error | ExperimentDataPayload =
         serialized.type === "str"
-          ? (JSON.parse(serialized.value) as ExperimentData)
-          : (deserialize(serialized) as Error | ExperimentData);
+          ? (JSON.parse(serialized.value) as ExperimentDataPayload)
+          : (deserialize(serialized) as Error | ExperimentDataPayload);
 
       if (deserialized instanceof Error) {
         console.info("Failed to fetch job run:", deserialized);
         setError(deserialized);
       } else {
-        setExperimentData(deserialized);
+        setExperimentData(toExperimentData(deserialized));
       }
       setLoading(false);
     });
@@ -195,6 +196,21 @@ export function useExperimentData(jobId: string | undefined) {
   }, [jobId]);
 
   return { experimentData, experimentDataError, loading };
+}
+
+/** Converts the server payload, keeping only the newest data point's shots. */
+function toExperimentData(payload: ExperimentDataPayload): ExperimentData {
+  return {
+    ...payload,
+    device_data: payload.device_data.map((dev) => {
+      const shot_channels: Record<string, number[]> = {};
+      for (const [channel, byIndex] of Object.entries(dev.readouts.shot_channels)) {
+        const shots = Object.values(byIndex).at(-1);
+        if (shots) shot_channels[channel] = shots;
+      }
+      return { ...dev, readouts: { ...dev.readouts, shot_channels } };
+    }),
+  };
 }
 
 function mergeDeviceData<T>(

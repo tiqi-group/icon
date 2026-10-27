@@ -50,7 +50,7 @@ export interface FitResult {
 export interface ReadoutSequences {
   result_channels: Record<string, Record<string, number>>;
   vector_channels: Record<string, Record<string, number[]>>;
-  shot_channels: Record<string, Record<string, number[]>>;
+  shot_channels: Record<string, number[]>;
 }
 
 export interface ExperimentDeviceData {
@@ -65,4 +65,12 @@ export interface ExperimentData {
   scan_parameters: Record<string, Record<string, number | boolean | string>>;
   parameters: Record<string, ParameterValue>;
   total_data_points: number;
+}
+
+export interface ExperimentDataPayload extends Omit<ExperimentData, "device_data"> {
+  device_data: (Omit<ExperimentDeviceData, "readouts"> & {
+    readouts: Omit<ReadoutSequences, "shot_channels"> & {
+      shot_channels: Record<string, Record<string, number[]>>;
+    };
+  })[];
 }
