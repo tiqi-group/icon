@@ -117,17 +117,10 @@ export const HistogramPlot = ({
   const previous = useRef<Histogram | undefined>(undefined);
 
   const histogram = useMemo(() => {
-    const latestPerChannel: Record<string, number[]> = {};
-    for (const [channelName, groups] of Object.entries(sc ?? {})) {
-      if (!groups || !channelNames.includes(channelName)) continue;
-
-      // Get the latest key by calculating the max of the available keys
-      const keys = Object.keys(groups).map(Number);
-      const latestKey = String(Math.max(...keys));
-
-      latestPerChannel[channelName] = groups[latestKey];
-    }
-    previous.current = buildHistogram(latestPerChannel, previous.current);
+    const shotsPerChannel = Object.fromEntries(
+      Object.entries(sc ?? {}).filter(([name]) => channelNames.includes(name)),
+    );
+    previous.current = buildHistogram(shotsPerChannel, previous.current);
     return previous.current;
   }, [sc, channelNames]);
 
