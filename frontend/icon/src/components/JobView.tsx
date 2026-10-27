@@ -36,6 +36,7 @@ import { pauseJob } from "../utils/pauseJob";
 import { resumeJob } from "../utils/resumeJob";
 import HistogramPlot from "./jobView/HistogramPlot";
 import FitPanel from "./jobView/FitPanel";
+import { OpenPlotButton } from "../features/plot-viewer/OpenPlotButton";
 
 const PLOT_CARD_CONTENT_SX = {
   padding: 1,
@@ -534,6 +535,15 @@ export const JobView = ({
                       {win.name}
                     </Typography>
                   )}
+                  {jobId && (
+                    <OpenPlotButton
+                      jobId={jobId}
+                      deviceId={deviceData.device_id}
+                      kind="histogram"
+                      index={win.index}
+                      name={win.name}
+                    />
+                  )}
                   <IconButton
                     size="small"
                     title={
@@ -594,6 +604,15 @@ export const JobView = ({
                       <ToggleButton value="plot">Plot</ToggleButton>
                       <ToggleButton value="table">Table</ToggleButton>
                     </ToggleButtonGroup>
+                  )}
+                  {jobId && (jobInfo?.scan_parameters.length ?? 0) <= 2 && (
+                    <OpenPlotButton
+                      jobId={jobId}
+                      deviceId={deviceData.device_id}
+                      kind="readout"
+                      index={win.index}
+                      name={win.name}
+                    />
                   )}
                   <IconButton
                     size="small"
