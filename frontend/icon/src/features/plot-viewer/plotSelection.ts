@@ -1,4 +1,6 @@
-import type { ExperimentData, ExperimentDeviceData } from "../../types/ExperimentData";
+import type { ExperimentData } from "../../types/ExperimentData";
+import type { PlotViewerData, PlotViewerDeviceData } from "./plotViewerData";
+import { latestShotIndex } from "./plotViewerData";
 import type { ScanParameter } from "../../types/ScanParameter";
 import { resolveViewerScanMaps, viewerScanParameterKey } from "./viewerScanParameters";
 
@@ -14,7 +16,7 @@ export function plotViewerUrl(
 }
 
 export function selectPlot(
-  data: ExperimentData,
+  data: PlotViewerData,
   deviceId: string | null,
   kind: string | undefined,
   index: string | undefined,
@@ -35,8 +37,8 @@ export function selectPlot(
 
 /** Align on original point indices, including holes, before existing plot builders zip values. */
 export function projectPlotData(
-  data: ExperimentData,
-  device: ExperimentDeviceData,
+  data: PlotViewerData,
+  device: PlotViewerDeviceData,
   channels: string[],
   parameters?: ScanParameter[],
 ): ExperimentData {
@@ -92,11 +94,12 @@ export function projectPlotData(
             ]),
           ),
           shot_channels: Object.fromEntries(
-            Object.entries(device.readouts.shot_channels).filter(([name]) =>
-              selected.has(name),
-            ),
+            Object.entries(device.readouts.shot_channels).flatMap(([name, values]) => {
+              if (!selected.has(name)) return [];
+              const latest = latestShotIndex(values);
+              return latest === undefined ? [] : [[name, values[latest]]];
+            }),
           ),
-          vector_channels: {},
         },
         fits: Object.fromEntries(
           Object.entries(device.fits ?? {}).filter(([name]) => selected.has(name)),
@@ -108,7 +111,7 @@ export function projectPlotData(
 
 /** A retained finite subset must use observed X values, not restart at planned scan point zero. */
 export function observedScanParameters(
-  data: ExperimentData,
+  data: ExperimentData<unknown>,
   parameters: ScanParameter[],
 ): ScanParameter[] {
   if (parameters.length !== 1 || parameters[0].realtime) return parameters;
@@ -123,7 +126,7 @@ export function observedScanParameters(
     : parameters;
 }
 
-export function hasNumericScanAxis(data: ExperimentData): boolean {
+export function hasNumericScanAxis(data: ExperimentData<unknown>): boolean {
   const axis = Object.entries(data.scan_parameters).find(
     ([name]) => name !== "timestamp",
   );
@@ -136,7 +139,7 @@ export function hasNumericScanAxis(data: ExperimentData): boolean {
   );
 }
 
-export function hasFittablePoints(data: ExperimentData): boolean {
+export function hasFittablePoints(data: ExperimentData<unknown>): boolean {
   if (!hasNumericScanAxis(data)) return false;
   return Object.values(data.device_data[0]?.readouts.result_channels ?? {}).some(
     (values) => Object.values(values).filter(Number.isFinite).length >= 3,
@@ -144,11 +147,11 @@ export function hasFittablePoints(data: ExperimentData): boolean {
 }
 
 /** Preserve JobView's averaging by planned scan position, even for a retained tail. */
-export function averageRepeatedPlot(
-  data: ExperimentData,
+export function averageRepeatedPlot<TShots>(
+  data: ExperimentData<TShots>,
   parameters: ScanParameter[],
   repetitions: number,
-): ExperimentData {
+): ExperimentData<TShots> {
   if (
     repetitions <= 1 ||
     parameters.length !== 1 ||

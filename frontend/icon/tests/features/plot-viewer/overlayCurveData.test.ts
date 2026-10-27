@@ -207,11 +207,10 @@ test("overlay curves consume averaged or individual repetition models without ch
       {
         device_id: "d",
         fits: {},
-        plot_windows: { result_channels: [], shot_channels: [], vector_channels: [] },
+        plot_windows: { result_channels: [], shot_channels: [] },
         readouts: {
           result_channels: { counts: { 0: 2, 1: 10, 2: 8, 4: 20, 6: 6, 7: 14, 8: 12 } },
           shot_channels: {},
-          vector_channels: {},
         },
       },
     ],

@@ -18,7 +18,7 @@ import {
 import ResultChannelPlot from "../../components/ResultChannelPlot";
 import HistogramPlot from "../../components/jobView/HistogramPlot";
 import FitPanel from "../../components/jobView/FitPanel";
-import type { ExperimentData } from "../../types/ExperimentData";
+import type { PlotViewerData } from "./plotViewerData";
 import { JobRunStatus } from "../../types/enums";
 import {
   averageRepeatedPlot,
@@ -60,7 +60,7 @@ function PlotViewer({
     experimentName,
     error: jobError,
   } = usePlotViewerJob(jobId, connected);
-  const [heldData, setHeldData] = useState<ExperimentData | null>(null);
+  const [heldData, setHeldData] = useState<PlotViewerData | null>(null);
   const [resetToken, setResetToken] = useState(0);
   const [clickedX, setClickedX] = useState<number | null>(null);
   const source = heldData ?? experimentData;

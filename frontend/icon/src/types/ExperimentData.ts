@@ -27,7 +27,6 @@ interface PlotWindowMetadata {
 export interface PlotWindows {
   result_channels: PlotWindowMetadata[];
   shot_channels: PlotWindowMetadata[];
-  vector_channels: PlotWindowMetadata[];
 }
 
 export interface ParameterValue {
@@ -47,22 +46,24 @@ export interface FitResult {
   fit_curve?: { x: number[]; y: number[] };
 }
 
-export interface ReadoutSequences {
+export interface ReadoutSequences<TShots = number[]> {
   result_channels: Record<string, Record<string, number>>;
-  vector_channels: Record<string, Record<string, number[]>>;
-  shot_channels: Record<string, Record<string, number[]>>;
+  shot_channels: Record<string, TShots>;
 }
 
-export interface ExperimentDeviceData {
+export interface ExperimentDeviceData<TShots = number[]> {
   device_id: string;
-  readouts: ReadoutSequences;
+  readouts: ReadoutSequences<TShots>;
   plot_windows: PlotWindows;
   fits: Record<string, FitResult>;
 }
 
-export interface ExperimentData {
-  device_data: ExperimentDeviceData[];
+export interface ExperimentData<TShots = number[]> {
+  device_data: ExperimentDeviceData<TShots>[];
   scan_parameters: Record<string, Record<string, number | boolean | string>>;
   parameters: Record<string, ParameterValue>;
   total_data_points: number;
 }
+
+/** Server payload: shots per channel are keyed by data point index. */
+export type ExperimentDataPayload = ExperimentData<Record<string, number[]>>;

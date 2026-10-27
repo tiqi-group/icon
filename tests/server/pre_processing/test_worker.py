@@ -9,7 +9,11 @@ from unittest.mock import MagicMock, patch
 
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.hardware_processing.worker import should_divert_task
-from icon.server.pre_processing.worker import PreProcessingWorker
+from icon.server.pre_processing.worker import (
+    ExperimentIdentifier,
+    PreProcessingWorker,
+    create_hardware_instructions,
+)
 from icon.server.shared_resource_manager import ScanProgress
 
 if TYPE_CHECKING:
@@ -24,6 +28,7 @@ RUN_ID = 1  # the job run the worker is currently scanning
 STALE_RUN_ID = 99  # a job run that finished before the current one started
 UPDATED_FREQ = 2.0  # parameter value after a calibration during a pause
 MAX_ROUNDS = 5  # bound on consumer<->hardware round-trips before we call it a loop
+DEVICE_ORDER = ["main", "sub"]  # the job run's device order, loaded when it starts
 
 
 def _scan_parameters(*, realtime: bool) -> list[Any]:
@@ -182,6 +187,7 @@ def test_regenerate_uses_updated_parameters_after_pause() -> None:
     """A parameter changed during a pause is applied when a stale task is regenerated."""
     worker, submitted = _make_worker()
     worker._parameter_dict = {"freq": UPDATED_FREQ}
+    worker._device_order = DEVICE_ORDER
     stale = _fake_task(created=PARAM_UPDATE_TS - timedelta(seconds=10))
     worker._outdated_tasks.put(stale)
 
@@ -190,6 +196,7 @@ def test_regenerate_uses_updated_parameters_after_pause() -> None:
     assert submitted.queue == [stale]
     assert stale.hardware_instructions == b"REGENERATED"
     assert generate.call_args.kwargs["parameter_dict"]["freq"] == UPDATED_FREQ
+    assert generate.call_args.kwargs["device_order"] == DEVICE_ORDER
 
 
 def test_no_tight_loop_on_realtime_resume() -> None:
@@ -243,3 +250,32 @@ def test_should_divert_task_staleness_for_regular_scans() -> None:
     assert not should_divert_task(fresh, NAIVE_TS, JobRunStatus.PROCESSING)
     # No parameter update recorded yet -> nothing is stale.
     assert not should_divert_task(stale, None, JobRunStatus.PROCESSING)
+
+
+def test_create_hardware_instructions_follows_the_job_runs_device_order() -> None:
+    """The devices follow the given order, unordered ones last.
+
+    The order is not loaded from the library for every data point.
+    """
+
+    class _Client:
+        async def load_device_order(self) -> list[str]:
+            raise AssertionError("The device order is loaded once per job run")
+
+        async def create_hardware_instructions(
+            self, *, device_id: str, **_: Any
+        ) -> str:
+            return f"{device_id} instructions"
+
+    assert create_hardware_instructions(
+        cast("Any", _Client()),
+        n_shots=1,
+        parameter_dict={},
+        device_ids=["extra", "sub", "main"],
+        device_order=DEVICE_ORDER,
+        namespace=ExperimentIdentifier("module", "Class", "instance"),
+    ) == [
+        ("main", "main instructions"),
+        ("sub", "sub instructions"),
+        ("extra", "extra instructions"),
+    ]

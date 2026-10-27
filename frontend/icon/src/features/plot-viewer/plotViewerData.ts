@@ -1,5 +1,5 @@
 import type {
-  ExperimentData,
+  ExperimentDataPayload,
   ExperimentDataPoint,
   ExperimentDeviceData,
   FitResult,
@@ -16,7 +16,11 @@ export function normalizePlotViewerLimit(requested = LIVE_POINT_LIMIT): number {
     ? Math.min(requested, MAX_LIVE_POINT_LIMIT)
     : LIVE_POINT_LIMIT;
 }
-export type PlotViewerData = ExperimentData & { realtime_scan?: boolean };
+// Keep the transport's point indices for snapshot replay and out-of-order events.
+// Retention stores only the latest shot array per channel; plot projection converts
+// it to upstream's flat ExperimentData model at the shared-renderer boundary.
+export type PlotViewerData = ExperimentDataPayload & { realtime_scan?: boolean };
+export type PlotViewerDeviceData = ExperimentDeviceData<Record<string, number[]>>;
 export const EMPTY_PLOT_VIEWER_DATA: PlotViewerData = {
   device_data: [],
   scan_parameters: {},
@@ -36,11 +40,11 @@ export type PlotViewerUpdate =
   | { type: "parameters"; value: Record<string, ParameterValue> }
   | { type: "fit"; value: FitUpdate };
 
-function defaultDevice(deviceId: string): ExperimentDeviceData {
+function defaultDevice(deviceId: string): PlotViewerDeviceData {
   return {
     device_id: deviceId,
-    readouts: { result_channels: {}, vector_channels: {}, shot_channels: {} },
-    plot_windows: { result_channels: [], vector_channels: [], shot_channels: [] },
+    readouts: { result_channels: {}, shot_channels: {} },
+    plot_windows: { result_channels: [], shot_channels: [] },
     fits: {},
   };
 }
@@ -51,12 +55,20 @@ function numericIndices(map: Record<string, unknown>): string[] {
   );
 }
 
+export function latestShotIndex(values: Record<string, unknown>): string | undefined {
+  let latest: string | undefined;
+  for (const index of numericIndices(values)) {
+    if (latest === undefined || Number(index) > Number(latest)) latest = index;
+  }
+  return latest;
+}
+
 function latestArrays<T>(
   channels: Record<string, Record<string, T>>,
 ): Record<string, Record<string, T>> {
   return Object.fromEntries(
     Object.entries(channels).map(([channel, values]) => {
-      const latest = numericIndices(values).sort((a, b) => Number(b) - Number(a))[0];
+      const latest = latestShotIndex(values);
       return [channel, latest === undefined ? {} : { [latest]: values[latest] }];
     }),
   );
@@ -113,7 +125,6 @@ export function retainPlotViewerData(
           ]),
         ),
         shot_channels: latestArrays(device.readouts.shot_channels),
-        vector_channels: latestArrays(device.readouts.vector_channels),
       },
     })),
   };
@@ -186,10 +197,6 @@ export function applyPlotViewerUpdate(
         shot_channels: mergeSequences(
           device.readouts.shot_channels,
           atIndex(item.readouts.shot_channels),
-        ),
-        vector_channels: mergeSequences(
-          device.readouts.vector_channels,
-          atIndex(item.readouts.vector_channels),
         ),
       },
     });
@@ -282,10 +289,6 @@ export function replayPlotViewerBuffer(
         shot_channels: mergeSequences(
           previous.readouts.shot_channels,
           addition.readouts.shot_channels,
-        ),
-        vector_channels: mergeSequences(
-          previous.readouts.vector_channels,
-          addition.readouts.vector_channels,
         ),
       },
     });

@@ -192,7 +192,6 @@ it("bounds more than 2000 timestamp-only live events after an initial failure, t
           readouts: {
             result_channels: { a: index },
             shot_channels: {},
-            vector_channels: {},
           },
         },
       ],
@@ -214,7 +213,6 @@ it("bounds more than 2000 timestamp-only live events after an initial failure, t
       { name: "recovered", index: 0, type: "readout" as const, channel_names: ["a"] },
     ],
     shot_channels: [],
-    vector_channels: [],
   };
   const recovered: PlotViewerData = {
     ...retained,
@@ -235,7 +233,7 @@ it("coalesces metadata-triggered recovery and throttles repeated failures", () =
   const metadata = [
     {
       device_id: "d",
-      readout_metadata: { result_channels: [], shot_channels: [], vector_channels: [] },
+      readout_metadata: { result_channels: [], shot_channels: [] },
     },
   ];
   for (let n = 0; n < 5; n++) emit("experiment_1_metadata", metadata);
@@ -283,11 +281,10 @@ const realtimeData = (count: number): PlotViewerData => {
       {
         device_id: "d",
         fits: {},
-        plot_windows: { result_channels: [], vector_channels: [], shot_channels: [] },
+        plot_windows: { result_channels: [], shot_channels: [] },
         readouts: {
           result_channels: { a: { ...values } },
           shot_channels: {},
-          vector_channels: {},
         },
       },
     ],
@@ -321,7 +318,6 @@ it("reloads a larger retention limit while preserving current data, then replays
         readouts: {
           result_channels: { a: 80 },
           shot_channels: {},
-          vector_channels: {},
         },
       },
     ],

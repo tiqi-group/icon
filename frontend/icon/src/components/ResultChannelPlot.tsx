@@ -266,14 +266,16 @@ const ResultChannelPlot = ({
       const activeChannelName = selectedChannel ?? resultChannels[0]?.name;
       const activeChannel =
         resultChannels.find((rc) => rc.name === activeChannelName) ?? resultChannels[0];
-      const finiteValues = (activeChannel?.data ?? []).filter((v) =>
-        Number.isFinite(v),
-      );
-      const vmMin = finiteValues.length ? Math.min(...finiteValues) : 0;
-      const vmMax =
-        finiteValues.length && Math.max(...finiteValues) !== vmMin
-          ? Math.max(...finiteValues)
-          : vmMin + 1; // guard against a flat / empty dataset
+      let vmMin = Infinity;
+      let vmMax = -Infinity;
+      for (const v of activeChannel?.data ?? []) {
+        if (Number.isFinite(v)) {
+          if (v < vmMin) vmMin = v;
+          if (v > vmMax) vmMax = v;
+        }
+      }
+      if (!Number.isFinite(vmMin)) vmMin = 0;
+      if (!(vmMax > vmMin)) vmMax = vmMin + 1; // guard against a flat / empty dataset
 
       // Preserve the legend selection across setOption({ notMerge: true }) calls.
       const legendSelected = Object.fromEntries(

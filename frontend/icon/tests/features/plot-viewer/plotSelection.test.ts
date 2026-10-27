@@ -8,12 +8,12 @@ import {
   selectPlot,
 } from "../../../src/features/plot-viewer/plotSelection";
 import type {
-  ExperimentData,
+  ExperimentDataPayload as ExperimentData,
   ExperimentDeviceData,
 } from "../../../src/types/ExperimentData";
 import type { ScanParameter } from "../../../src/types/ScanParameter";
 
-const device: ExperimentDeviceData = {
+const device: ExperimentDeviceData<Record<string, number[]>> = {
   device_id: "second/device",
   readouts: {
     result_channels: {
@@ -22,14 +22,12 @@ const device: ExperimentDeviceData = {
       other: { 100: 20 },
     },
     shot_channels: {},
-    vector_channels: {},
   },
   plot_windows: {
     result_channels: [
       { name: "Selected", index: 7, type: "readout", channel_names: ["A", "B"] },
     ],
     shot_channels: [],
-    vector_channels: [],
   },
   fits: {},
 };

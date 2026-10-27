@@ -64,7 +64,7 @@ export function heatmapValueRange(cells: HeatmapCell[]): { min: number; max: num
  * Planned values define empty categories only; they never assign an observed value.
  */
 export function buildHeatmapData(
-  data: ExperimentData,
+  data: ExperimentData<unknown>,
   parameters: ScanParameter[],
   channelNames: string[],
   repetition?: number,

@@ -72,11 +72,10 @@ function snapshot(count: number): PlotViewerData {
       {
         device_id: "readout",
         fits: {},
-        plot_windows: { result_channels: [], vector_channels: [], shot_channels: [] },
+        plot_windows: { result_channels: [], shot_channels: [] },
         readouts: {
           result_channels: { counts: map((index) => index) },
           shot_channels: {},
-          vector_channels: {},
         },
       },
     ],
@@ -212,7 +211,7 @@ it("preserves older unqualified metadata, display-name fallback and variable-ID 
   expect(Object.keys(projected.device_data[0].readouts.result_channels.counts)).toEqual(
     ["0", "1"],
   );
-  expect(projected.device_data[0].readouts.shot_channels.counts).toEqual({ 1: [4, 5] });
+  expect(projected.device_data[0].readouts.shot_channels.counts).toEqual([4, 5]);
 });
 
 it("uses timestamps for a realtime axis without interpreting a Real Time alias as a second axis", () => {

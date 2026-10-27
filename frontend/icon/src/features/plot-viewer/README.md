@@ -7,7 +7,7 @@ The route is `/data/:jobId/plot/:kind/:plotIndex?device=<device_id>`, where `kin
 ## Supported plots
 
 - Numeric 1D scans, time traces, two-dimensional heatmaps, and the latest histogram are supported.
-- Higher-dimensional and vector plots remain available in the existing job view.
+- Higher-dimensional scans use the existing job view. Vector plots are not supported by the current frontend.
 - Repeated finite 1D scans show the mean, with optional individual repetition traces. Window size counts scan positions.
 - 2D heatmaps join values to recorded X/Y coordinates and leave unobserved cells blank. Planned numeric coordinates keep the grid stable during acquisition. A repetition selector can show one raster pass instead of the mean; the legend selects the displayed channel and its color scale.
 
@@ -40,7 +40,7 @@ Completed numeric 1D scans reuse FitPanel and the existing fit-save/delete APIs 
 
 ## Integration and development
 
-The route loads lazily. Viewer-specific loading handles reconnects, snapshot/event races, duplicate points, and initial snapshot recovery; the existing `useExperimentData` hook is unchanged. Shared changes are limited to entry links, routing, optional renderer injection, and a FitPanel permission flag whose default preserves existing behavior.
+The route loads lazily. Viewer-specific loading handles reconnects, snapshot/event races, duplicate points, and initial snapshot recovery independently of the standard `useExperimentData` hook. It uses the server `ExperimentDataPayload` shape internally, retaining only the latest indexed shot array per channel so late events cannot replace newer shots. Projection converts those shots to the shared renderer's flat `ExperimentData` shape; unsupported vector channels are not retained. Shared changes are limited to entry links, routing, optional renderer injection, and a FitPanel permission flag whose default preserves existing behavior.
 
 From `frontend/icon/`, run `pnpm exec jest --runInBand` for the frontend tests and `pnpm run build` for the TypeScript/Vite build. Viewer tests cover loading and reconnects, immutable held snapshots, device and plot selection, sparse data, repetitions, window limits, axis bounds, and zoom calculations.
 

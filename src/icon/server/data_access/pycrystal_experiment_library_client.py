@@ -33,7 +33,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 logging.getLogger("pycrystal").setLevel(logging.ERROR)
 logging.getLogger("ionpulse_sequence_generator").setLevel(logging.ERROR)
-LOG_LEVEL = logging.WARNING
+logging.getLogger("ionpulse_sequence_generator.base.jsonexportable").setLevel(
+    logging.ERROR
+)
+
+SEQUENCE_LOG_LEVEL = logging.ERROR
 
 
 class AsyncPyCrystalClient(VEnvExperimentLibraryClient):
@@ -158,7 +162,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
                 parameter_dict,
                 n_shots=n_shots,
                 device_id=device_id,
-                log_level=LOG_LEVEL,
+                log_level=SEQUENCE_LOG_LEVEL,
             )
         except AttributeError:
             warnings.warn(
@@ -169,7 +173,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         return exp_instance.pulse_sequence_str_from_args(
             parameter_dict,
             n_shots,
-            LOG_LEVEL,
+            SEQUENCE_LOG_LEVEL,
         )
 
     def get_experiment_readout_metadata(
@@ -200,7 +204,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
         exp_instance = import_experiment_instance(exp_module_name, exp_instance_name)
         try:
             readout_per_device = exp_instance.get_readout_metadata_per_device(
-                parameter_dict, LOG_LEVEL
+                parameter_dict, SEQUENCE_LOG_LEVEL
             )
         except AttributeError:
             warnings.warn(
@@ -211,7 +215,7 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
                 stacklevel=0,
             )
             readout_metadata = exp_instance.get_readout_metadata(
-                parameter_dict, LOG_LEVEL
+                parameter_dict, SEQUENCE_LOG_LEVEL
             )
             main_device_id = self.device_order[0]
             readout_per_device = [(main_device_id, readout_metadata)]

@@ -41,9 +41,8 @@ function snapshot(count: number, realtime = false): PlotViewerData {
         readouts: {
           result_channels: { a: values, b: { ...values } },
           shot_channels: { h: { 0: [1], [count - 1]: [2] } },
-          vector_channels: { v: { 0: [3], [count - 1]: [4] } },
         },
-        plot_windows: { result_channels: [], vector_channels: [], shot_channels: [] },
+        plot_windows: { result_channels: [], shot_channels: [] },
         fits: {},
       },
     ],
@@ -98,9 +97,7 @@ describe("viewer retention and immutable updates", () => {
     expect(Object.keys(retained.device_data[0].readouts.shot_channels.h)).toEqual([
       "2006",
     ]);
-    expect(Object.keys(retained.device_data[0].readouts.vector_channels.v)).toEqual([
-      "2006",
-    ]);
+    expect(retained.device_data[0].readouts).not.toHaveProperty("vector_channels");
   });
 
   it("uses maximum numeric indices for sparse, out-of-order points and duplicate counts", () => {
@@ -122,7 +119,7 @@ describe("viewer retention and immutable updates", () => {
     expect(first.scan_parameters.x).toEqual({ 100: 1 });
     expect(first.device_data[0].readouts.result_channels.a).toEqual({ 100: 1 });
     expect(older.device_data[0].readouts.shot_channels.h).toEqual({ 100: [9] });
-    expect(older.device_data[0].readouts.vector_channels.v).toEqual({ 100: [9, 10] });
+    expect(older.device_data[0].readouts).not.toHaveProperty("vector_channels");
     expect("hardware_instructions" in older.device_data[0]).toBe(false);
   });
 
@@ -169,7 +166,6 @@ describe("viewer buffered snapshot replay", () => {
             result_channels: [
               { name: "new", index: 0, type: "readout", channel_names: ["a"] },
             ],
-            vector_channels: [],
             shot_channels: [],
           },
         },

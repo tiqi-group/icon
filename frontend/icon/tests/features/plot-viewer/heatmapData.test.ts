@@ -45,13 +45,12 @@ function fixture(points: Point[]): ExperimentData {
       {
         device_id: "d",
         fits: {},
-        plot_windows: { result_channels: [], vector_channels: [], shot_channels: [] },
+        plot_windows: { result_channels: [], shot_channels: [] },
         readouts: {
           result_channels: {
             a: map("a") as Record<string, number>,
             b: map("b") as Record<string, number>,
           },
-          vector_channels: {},
           shot_channels: {},
         },
       },
