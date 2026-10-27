@@ -272,7 +272,6 @@ def test_create_hardware_instructions_follows_the_job_runs_device_order() -> Non
         cast("Any", _Client()),
         n_shots=1,
         parameter_dict={},
-        enabled_device_ids=["extra", "sub", "main"],
         device_order=DEVICE_ORDER,
         namespace=ExperimentIdentifier("module", "Class", "instance"),
     ) == [
