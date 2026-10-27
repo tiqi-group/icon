@@ -262,16 +262,17 @@ def test_create_hardware_instructions_follows_the_job_runs_device_order() -> Non
         async def load_device_order(self) -> list[str]:
             raise AssertionError("The device order is loaded once per job run")
 
-        async def create_hardware_instructions(
-            self, *, device_id: str, **_: Any
-        ) -> str:
-            return f"{device_id} instructions"
+        async def create_hardware_instructions(self, **_: Any) -> dict[str, str]:
+            return {
+                device_id: f"{device_id} instructions"
+                for device_id in ["sub", "extra", "main"]
+            }
 
     assert create_hardware_instructions(
         cast("Any", _Client()),
         n_shots=1,
         parameter_dict={},
-        device_ids=["extra", "sub", "main"],
+        enabled_device_ids=["extra", "sub", "main"],
         device_order=DEVICE_ORDER,
         namespace=ExperimentIdentifier("module", "Class", "instance"),
     ) == [
