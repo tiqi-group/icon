@@ -308,6 +308,24 @@ class PreProcessingWorker(multiprocessing.Process):
 
         self._update_parameter_dict(pre_processing_task, namespace)
 
+        # Starting the library for every call took most of the time to generate the
+        # hardware instructions of a data point. The library is loaded on the first
+        # call, so after the checkout above.
+        with client.reuse_venv():
+            self._run_scan(
+                pre_processing_task, client=client, src_dir=src_dir, namespace=namespace
+            )
+
+    def _run_scan(
+        self,
+        pre_processing_task: PreProcessingTask,
+        client: ExperimentLibraryClient,
+        src_dir: str | None,
+        namespace: ExperimentIdentifier,
+    ) -> None:
+        """Run the scan of a job run with the checked out experiment library."""
+        job = pre_processing_task.job
+
         readout_metadata = asyncio.run(
             client.get_experiment_readout_metadata(
                 exp_module_name=namespace.module_name,
@@ -697,6 +715,20 @@ def create_hardware_instructions(
     device_order: list[str],
     namespace: ExperimentIdentifier,
 ) -> list[tuple[str, str]]:
+    """Generate the hardware instructions of the enabled devices.
+
+    Args:
+        client: Experiment library client to generate the instructions with.
+        n_shots: Number of shots.
+        parameter_dict: Mapping of parameter IDs to values.
+        enabled_device_ids: IDs of the devices to run the instructions on.
+        device_order: Device IDs in the order the library wants the devices handled.
+        namespace: Experiment to generate the instructions of.
+
+    Returns:
+        The hardware instructions by device ID, for the enabled devices the library
+        generated instructions for, in the order the devices are handled.
+    """
     instructions = asyncio.run(
         client.create_hardware_instructions(
             n_shots=n_shots,

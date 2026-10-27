@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import multiprocessing
 import queue
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.hardware_processing.worker import should_divert_task
@@ -17,6 +20,8 @@ from icon.server.pre_processing.worker import (
 from icon.server.shared_resource_manager import ScanProgress
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from icon.server.hardware_processing.task import HardwareProcessingTask
 
 # Fixed reference point: the parameter-update timestamp the consumer compares against.
@@ -279,3 +284,103 @@ def test_create_hardware_instructions_follows_the_job_runs_device_order() -> Non
         ("sub", "sub instructions"),
         ("extra", "extra instructions"),
     ]
+
+
+class _RecordingClient:
+    """Library client recording its calls and when the library is kept loaded."""
+
+    def __init__(self, *, failing: bool = False) -> None:
+        self.events: list[str] = []
+        self._failing = failing
+
+    def checkout_revision(self, revision: str | None) -> str:  # noqa: ARG002
+        self.events.append("checkout_revision")
+        return "src"
+
+    @contextmanager
+    def reuse_venv(self) -> Iterator[None]:
+        self.events.append("enter reuse_venv")
+        try:
+            yield
+        finally:
+            self.events.append("exit reuse_venv")
+
+    async def get_experiment_readout_metadata(self, **_: Any) -> list[Any]:
+        self.events.append("get_experiment_readout_metadata")
+        return []
+
+    async def load_device_order(self) -> list[str]:
+        self.events.append("load_device_order")
+        return DEVICE_ORDER
+
+    async def create_hardware_instructions(self, **_: Any) -> dict[str, str]:
+        self.events.append("create_hardware_instructions")
+        if self._failing:
+            raise RuntimeError("bad sequence")
+        return {"main": "main instructions"}
+
+
+def _process_task(client: _RecordingClient, n_data_points: int) -> None:
+    """Run a regular scan of ``n_data_points`` through the worker's job run handling."""
+    worker, _ = _make_worker()
+    cast("MagicMock", worker._devices).enabled_ids.return_value = ["main"]
+    pre_processing_task = SimpleNamespace(
+        job=SimpleNamespace(
+            id=1,
+            number_of_shots=100,
+            repetitions=1,
+            scan_parameters=[],
+            experiment_source=SimpleNamespace(experiment_id="module.Class (instance)"),
+        ),
+        job_run=SimpleNamespace(id=RUN_ID),
+        priority=0,
+        debug_mode=False,
+        git_commit_hash="abc",
+    )
+    with (
+        patch("icon.server.pre_processing.worker.JobRunRepository") as repo,
+        patch("icon.server.pre_processing.worker.ExperimentDataRepository"),
+        patch("icon.server.pre_processing.worker.change_process_priority"),
+        patch(
+            "icon.server.pre_processing.worker.get_scan_combinations",
+            return_value=[{}] * n_data_points,
+        ),
+        patch.object(worker, "_update_parameter_dict"),
+        patch.object(worker, "_handle_parameter_updates"),
+        patch.object(worker, "_create_hardware_task"),
+        # Model the hardware worker, running every submitted data point
+        patch.object(
+            worker,
+            "_submit_task_to_hw_worker",
+            side_effect=lambda task: worker._scan_progress.complete(RUN_ID),  # noqa: ARG005
+        ),
+    ):
+        repo.get_run_by_job_id.return_value = _run_mock(JobRunStatus.PROCESSING)
+        worker._process_task(
+            cast("Any", pre_processing_task), isolated_lib_client=cast("Any", client)
+        )
+
+
+def test_job_run_keeps_the_library_loaded_after_the_checkout() -> None:
+    client = _RecordingClient()
+
+    _process_task(client, n_data_points=2)
+
+    assert client.events == [
+        "checkout_revision",
+        "enter reuse_venv",
+        "get_experiment_readout_metadata",
+        "load_device_order",
+        "create_hardware_instructions",
+        "create_hardware_instructions",
+        "exit reuse_venv",
+    ]
+
+
+def test_failed_job_run_stops_keeping_the_library_loaded() -> None:
+    client = _RecordingClient(failing=True)
+
+    with pytest.raises(RuntimeError, match="bad sequence"):
+        _process_task(client, n_data_points=2)
+
+    assert client.events[-2:] == ["create_hardware_instructions", "exit reuse_venv"]

@@ -9,6 +9,8 @@ from icon.server.data_access.experiment_library_client import ExperimentLibraryC
 from icon.server.data_access.venv_exec import VirtualEnvironment, deep_asdict
 
 if TYPE_CHECKING:
+    from contextlib import AbstractContextManager
+
     from icon.server.api.models.experiment_dict import ExperimentDict
     from icon.server.data_access.experiment_data import DatabaseValueType
     from icon.server.data_access.experiment_library_client import ParameterMetadataDict
@@ -109,6 +111,13 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
     ) -> None:
         self.venv = VirtualEnvironment(venv_path)
         self.client = client
+
+    def reuse_venv(self) -> "AbstractContextManager[None]":
+        """Create a context manager running the calls in it in one process.
+
+        See `VirtualEnvironment.reuse_venv`.
+        """
+        return self.venv.reuse_venv()
 
     async def load_metadata(self) -> "tuple[ExperimentDict, ParameterMetadataDict]":
         """Load the experiment and parameter metadata."""
