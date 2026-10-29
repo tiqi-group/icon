@@ -462,8 +462,8 @@ class ExperimentDataRepository:
         """Append a complete data point to the HDF5 file and emit an event.
 
         Writes scan parameters, result/shot/vector channels, and hardware instructions.
-        For a data point that failed on the device, only the hardware instructions
-        and the error are written, and no event is emitted.
+        For a data point that failed on the device, only the hardware instructions,
+        the scan parameter values and the error are written, and no event is emitted.
 
         Args:
             job_id: Job identifier.
@@ -748,7 +748,8 @@ def write_experiment_data_point(
 
     if data_point.failed:
         # Only keep what is needed to troubleshoot the failure. Writing the scan
-        # parameters would count the data point and show it with empty readouts.
+        # parameters to their dataset would count the data point and show it with
+        # empty readouts, so they are stored as an attribute instead.
         for device_data in data_point.device_data:
             write_hardware_instructions_to_dataset(
                 h5file=h5file,
@@ -757,6 +758,9 @@ def write_experiment_data_point(
                 hardware_instructions=device_data.hardware_instructions,
             )
         h5file.attrs["failed_data_point_index"] = data_point.index
+        h5file.attrs["failed_data_point_scan_parameters"] = json.dumps(
+            data_point.scan_params
+        )
         h5file.attrs["hardware_error_message"] = "\n".join(
             f"{device_data.device_id}: {device_data.readouts.message}"
             for device_data in data_point.device_data

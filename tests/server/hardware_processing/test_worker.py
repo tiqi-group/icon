@@ -6,6 +6,8 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
+import pytest
+
 from icon.server.data_access.experiment_data import HardwareProcessingError, Readouts
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.data_access.models.sqlite import Job, JobRun
@@ -16,14 +18,13 @@ from icon.server.hardware_processing.worker import HardwareProcessingWorker
 from icon.server.pre_processing.task import PreProcessingTask
 
 if TYPE_CHECKING:
-    import pytest
-
     from icon.server.post_processing.task import PostProcessingTask
 
 RUN_ID = 7
 DATA_POINT_INDEX = 4
 HARDWARE_INSTRUCTIONS = [("main", '{"main": "..."}'), ("sub", '{"sub": "..."}')]
 EMPTY_READOUTS = Readouts(result_channels={}, vector_channels={}, shot_channels={})
+ACTIVE_RUN_STATUSES = (JobRunStatus.PROCESSING, JobRunStatus.PAUSED)
 
 
 class _SingleTaskQueue:
@@ -158,15 +159,25 @@ def test_run_error_emits_hardware_instructions_before_failing_job(
         run_id=RUN_ID,
         status=JobRunStatus.FAILED,
         log="DeviceError ('main') Sequence too long",
+        only_if_status=ACTIVE_RUN_STATUSES,
     )
     # The post-processing task is queued before the job is marked as failed.
     assert queued_at_update == [1]
 
 
+@pytest.mark.parametrize(
+    ("error", "message"),
+    [
+        (RPCResponseError(1, [0, "Invalid sequence"]), "Invalid sequence"),
+        (
+            RuntimeError("Could not connect to the Zedboard"),
+            "Could not connect to the Zedboard",
+        ),
+    ],
+)
 def test_send_error_emits_hardware_instructions_without_running(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, error: Exception, message: str
 ) -> None:
-    error = RPCResponseError(1, [0, "Invalid sequence"])
     controllers = {
         "main": _FakeController(1.0),
         "sub": _FakeController(2.0, send_error=error),
@@ -177,29 +188,55 @@ def test_send_error_emits_hardware_instructions_without_running(
     assert len(tasks) == 1
     assert [d.readouts for d in tasks[0].data_point.device_data] == [
         EMPTY_READOUTS,
-        HardwareProcessingError(message="Invalid sequence"),
+        HardwareProcessingError(message=message),
     ]
     update_run.assert_called_once_with(
         run_id=RUN_ID,
         status=JobRunStatus.FAILED,
-        log="DeviceError ('sub') Invalid sequence",
+        log=f"DeviceError ('sub') {message}",
+        only_if_status=ACTIVE_RUN_STATUSES,
+    )
+
+
+def test_errors_of_every_device_are_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The main device fails and never triggers the subordinate one, which times out.
+    controllers = {
+        "main": _FakeController(
+            1.0, receive_error=RPCResponseError(1, [0, "Sequence too long"])
+        ),
+        "sub": _FakeController(2.0, receive_error=TimeoutError("No response")),
+    }
+    tasks, update_run, _ = _run_worker(monkeypatch, controllers)
+
+    assert len(tasks) == 1
+    assert [d.readouts for d in tasks[0].data_point.device_data] == [
+        HardwareProcessingError(message="Sequence too long"),
+        HardwareProcessingError(message="No response"),
+    ]
+    update_run.assert_called_once_with(
+        run_id=RUN_ID,
+        status=JobRunStatus.FAILED,
+        log="DeviceError ('main') Sequence too long; DeviceError ('sub') No response",
+        only_if_status=ACTIVE_RUN_STATUSES,
     )
 
 
 def test_other_errors_only_fail_the_job(monkeypatch: pytest.MonkeyPatch) -> None:
-    controllers = {
-        "main": _FakeController(
-            1.0, send_error=RuntimeError("Could not connect to the Zedboard")
-        ),
-        "sub": _FakeController(2.0),
-    }
+    def fail_to_set_values(*_: Any, **__: Any) -> None:
+        raise RuntimeError("Failed to set 'x' of device 'pydase_service'")
+
+    monkeypatch.setattr(
+        HardwareProcessingWorker, "_set_pydase_service_values", fail_to_set_values
+    )
+    controllers = {"main": _FakeController(1.0), "sub": _FakeController(2.0)}
     tasks, update_run, _ = _run_worker(monkeypatch, controllers)
 
     assert tasks == []
+    assert not any(controller.sent for controller in controllers.values())
     update_run.assert_called_once_with(
         run_id=RUN_ID,
         status=JobRunStatus.FAILED,
-        log="Could not connect to the Zedboard",
+        log="Failed to set 'x' of device 'pydase_service'",
     )
 
 

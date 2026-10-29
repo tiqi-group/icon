@@ -23,10 +23,14 @@ class Readouts:
 
 @dataclass
 class HardwareProcessingError:
-    """Error reported by the device in place of the readouts of a data point."""
+    """Error raised by a device in place of the readouts of a data point.
+
+    Covers any error raised while sending the hardware instructions to the device,
+    running it or receiving its readouts.
+    """
 
     message: str
-    """Error message reported by the device."""
+    """Error message of the device."""
 
 
 @dataclass
@@ -48,7 +52,7 @@ class ExperimentDeviceDataPoint:
     device_id: str
     """ID of the device this data is from / for."""
     readouts: Readouts | HardwareProcessingError
-    """Readouts from the device, or the error the device reported instead."""
+    """Readouts from the device, or the error the device raised instead."""
     hardware_instructions: str
     """Serialized hardware instructions used for this data point."""
 

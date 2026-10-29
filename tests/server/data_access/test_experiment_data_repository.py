@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -394,6 +395,9 @@ def test_failed_data_point_only_stores_hardware_instructions_and_error() -> None
         )
 
         assert h5file.attrs["failed_data_point_index"] == 1
+        assert json.loads(h5file.attrs["failed_data_point_scan_parameters"]) == {
+            "x": 43.0
+        }
         assert h5file.attrs["hardware_error_message"] == "Der Gerät: Sequence too long"
         data = experiment_data_repository.load_experiment_data(
             h5file, include_hardware_instructions=True, include_all_shots=True

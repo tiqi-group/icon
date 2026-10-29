@@ -30,7 +30,6 @@ from icon.server.data_access.repositories.job_run_repository import (
     try_update_run_by_id,
 )
 from icon.server.hardware_processing.hardware_controller import HardwareController
-from icon.server.hardware_processing.rpc.errors import RPCResponseError
 from icon.server.hardware_processing.utils import extract_hardware_error_message
 from icon.server.post_processing.task import PostProcessingTask
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
@@ -49,9 +48,21 @@ logger = logging.getLogger(__name__)
 timezone = pytz.timezone(get_config().date.timezone)
 
 
-def empty_device_data_point(
+def error_device_data_point(
     device_id: str, instructions: str, error_msg: str | None = None
 ) -> ExperimentDeviceDataPoint:
+    """Returns the device data of a data point that failed on the devices.
+
+    Args:
+        device_id: ID of the device.
+        instructions: Hardware instructions of the device for this data point.
+        error_msg: Error raised by the device. None if the device itself did not fail,
+            but returned no readouts because of another device's error.
+
+    Returns:
+        The device data holding a `HardwareProcessingError` with `error_msg`, or
+        empty readouts if `error_msg` is None.
+    """
     return ExperimentDeviceDataPoint(
         device_id,
         readouts=HardwareProcessingError(message=error_msg)
@@ -152,7 +163,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
 
         self._devices = devices
 
-    def _apply_start_delay(self, device_index: int, num_devices: int) -> float:
+    def _start_delay(self, device_index: int, num_devices: int) -> float:
         """Returns the delay to apply before starting a device.
 
         The first device in a multi-device experiment is delayed to allow the other
@@ -271,9 +282,9 @@ class HardwareProcessingWorker(multiprocessing.Process):
     ) -> tuple[list[ExperimentDeviceDataPoint], dict[str, str]]:
         """Send the hardware instructions to the devices, then run them.
 
-        A device that reports an error gets a `HardwareProcessingError` in place of
-        its readouts. Devices that did not return readouts because of another
-        device's error get empty readouts.
+        A device that raises any error while sending, running or receiving gets a
+        `HardwareProcessingError` in place of its readouts. Devices that did not
+        return readouts because of another device's error get empty readouts.
 
         Returns:
             The data and errors of every device.
@@ -284,12 +295,13 @@ class HardwareProcessingWorker(multiprocessing.Process):
         for device_id, device, instructions in hardware_instructions:
             try:
                 device.send(data=instructions)
-            except RPCResponseError as e:
+            except Exception as e:
+                logger.exception("Sending to device '%s' failed", device_id)
                 errors[device_id] = extract_hardware_error_message(e)
 
         if errors:
             return [
-                empty_device_data_point(device_id, instructions, errors.get(device_id))
+                error_device_data_point(device_id, instructions, errors.get(device_id))
                 for device_id, _, instructions in hardware_instructions
             ], errors
 
@@ -302,7 +314,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 device_id,
                 device,
                 instructions,
-                delay=self._apply_start_delay(i, num_devices),
+                delay=self._start_delay(i, num_devices),
             )
             for i, (device_id, device, instructions) in enumerate(hardware_instructions)
         }
@@ -312,11 +324,12 @@ class HardwareProcessingWorker(multiprocessing.Process):
         for device_id, _, instructions in hardware_instructions:
             try:
                 device_data.append(futures[device_id].result())
-            except RPCResponseError as e:
+            except Exception as e:
+                logger.exception("Running device '%s' failed", device_id)
                 errmsg = extract_hardware_error_message(e)
                 errors[device_id] = errmsg
                 device_data.append(
-                    empty_device_data_point(device_id, instructions, errmsg)
+                    error_device_data_point(device_id, instructions, errmsg)
                 )
 
         return device_data, errors
@@ -392,10 +405,12 @@ class HardwareProcessingWorker(multiprocessing.Process):
                         err_msgs,
                     )
 
+                    # Keep the status of runs cancelled in the meantime.
                     try_update_run_by_id(
                         run_id=task.pre_processing_task.job_run.id,
                         status=JobRunStatus.FAILED,
                         log=err_msgs,
+                        only_if_status=(JobRunStatus.PROCESSING, JobRunStatus.PAUSED),
                     )
             except Exception as e:
                 logger.exception(
