@@ -50,7 +50,6 @@ if TYPE_CHECKING:
     )
     from icon.server.data_access.models.sqlite.job import Job
     from icon.server.data_access.models.sqlite.job_run import JobRun
-    from icon.server.hardware_processing.devices import Devices
     from icon.server.pre_processing.task import PreProcessingTask
     from icon.server.shared_resource_manager import (
         ScanProgress,
@@ -198,7 +197,6 @@ class PreProcessingWorker(multiprocessing.Process):
         hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask],
         manager: SharedResourceManager,
         experiment_library_client: ExperimentLibraryClient,
-        devices: Devices,
     ) -> None:
         super().__init__()
         self._queue = pre_processing_queue
@@ -216,7 +214,6 @@ class PreProcessingWorker(multiprocessing.Process):
             manager.PriorityQueue()
         )
         self._experiment_library_client = experiment_library_client
-        self._devices = devices
 
     @handle_keyboard_interrupt(logger)
     def run(self) -> None:

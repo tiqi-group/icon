@@ -96,7 +96,6 @@ def _make_worker() -> tuple[PreProcessingWorker, queue.PriorityQueue[Any]]:
             ScanProgress=ScanProgress,
         ),
         experiment_library_client=MagicMock(),
-        devices=MagicMock(),
     )
     worker._scan_progress.start(RUN_ID)
     return worker, hw_queue
