@@ -11,6 +11,7 @@ import { ParameterGroupDisplay } from "./ParameterGroupDisplay";
 import ScanInterface from "./scanInterface/ScanInterfaceComponent";
 import { DeviceInfoContext } from "../contexts/DeviceInfoContext";
 import { ScannableParameterInterface } from "./devices/ScannableParameterInterface";
+import { useCollapseState } from "../hooks/useCollapseState";
 
 const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
   const experiments = useContext(ExperimentsContext);
@@ -18,6 +19,7 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
   const reachableDevices = Object.entries(useContext(DeviceInfoContext))
     .filter(([, d]) => d.reachable)
     .map(([name]) => name);
+  const [isCollapsed, toggle] = useCollapseState("experimentDetails");
 
   if (!experiment) {
     return (
@@ -31,7 +33,8 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
       {Object.keys(experiment.parameters).map((group) => (
         <Accordion
           key={experimentKey + group}
-          defaultExpanded
+          expanded={!isCollapsed(group)}
+          onChange={() => toggle(group)}
           disableGutters // Removes extra padding/margin from Accordion
           square
         >
@@ -50,9 +53,16 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
 
       {experiment.device_parameter_groups?.map((deviceName) => {
         const isReachable = reachableDevices.includes(deviceName);
+        const section = `Device ${deviceName}`;
 
         return (
-          <Accordion key={`Device ${deviceName}`} defaultExpanded disableGutters square>
+          <Accordion
+            key={section}
+            expanded={!isCollapsed(section)}
+            onChange={() => toggle(section)}
+            disableGutters
+            square
+          >
             <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ m: 0 }}>
               <Typography variant="h6">Device: {deviceName}</Typography>
             </AccordionSummary>

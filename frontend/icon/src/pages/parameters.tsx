@@ -5,6 +5,7 @@ import { ParameterGroupDisplay } from "../components/ParameterGroupDisplay";
 import { Accordion, AccordionSummary, AccordionDetails } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { ParameterDisplayGroupsContext } from "../contexts/ParameterDisplayGroupsContext";
+import { useCollapseState } from "../hooks/useCollapseState";
 
 const getDisplayNameFromNamespace = (namespace: string): string => {
   if (namespace.endsWith(".globals.global_parameters")) return "Global Parameters";
@@ -20,6 +21,7 @@ const ParameterPage = () => {
   const { parameterNamespaceToDisplayGroups, parameterDisplayGroups } = useContext(
     ParameterDisplayGroupsContext,
   );
+  const [isCollapsed, toggle] = useCollapseState("parameters", true);
 
   return (
     <>
@@ -27,6 +29,8 @@ const ParameterPage = () => {
         ([namespace, displayGroupList]) => (
           <Accordion
             key={namespace}
+            expanded={!isCollapsed(namespace)}
+            onChange={() => toggle(namespace)}
             disableGutters
             sx={{ "&:before": { display: "none" } }}
             slotProps={{ transition: { unmountOnExit: true } }}
