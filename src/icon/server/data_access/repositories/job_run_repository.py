@@ -1,17 +1,35 @@
 import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from typing import NamedTuple
 
 import sqlalchemy.orm
-from sqlalchemy import select, update
+from sqlalchemy import Select, select, update
 from sqlalchemy.exc import NoResultFound
 
 from icon.server.data_access.db_context.sqlite import engine
 from icon.server.data_access.models.enums import JobRunStatus
+from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
+from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.models.sqlite.job_run import JobRun
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 logger = logging.getLogger(__name__)
+
+
+class ScheduledRun(NamedTuple):
+    """What a run's result file is named after."""
+
+    scheduled_time: datetime
+    experiment_id: str
+
+
+def _select_scheduled_runs() -> Select[tuple[datetime, str]]:
+    return (
+        select(JobRun.scheduled_time, ExperimentSource.experiment_id)
+        .join(JobRun.job)
+        .join(Job.experiment_source)
+    )
 
 
 def run_cancelled_or_failed(job_run: JobRun) -> bool:
@@ -163,48 +181,56 @@ class JobRunRepository:
         return run
 
     @staticmethod
-    def get_scheduled_time_by_job_id(*, job_id: int) -> datetime:
-        """Return the scheduled time of a run by job ID.
+    def get_scheduled_run_by_job_id(*, job_id: int) -> ScheduledRun:
+        """Return the scheduled time and experiment of a run by job ID.
 
         Args:
             job_id: ID of the job.
 
         Returns:
-            The scheduled start time of the run.
+            The scheduled start time and experiment ID of the run.
         """
         with sqlalchemy.orm.Session(engine) as session:
             stmt = (
-                select(JobRun.scheduled_time)
+                _select_scheduled_runs()
                 .where(JobRun.job_id == job_id)
                 .order_by(JobRun.scheduled_time.desc())
                 .limit(1)
             )
 
-            scheduled_time = session.execute(stmt).scalar_one()
-            logger.debug("Got scheduled time for job_id %s", job_id)
-        return scheduled_time
+            run = ScheduledRun(*session.execute(stmt).one())
+            logger.debug("Got scheduled run for job_id %s", job_id)
+        return run
 
     @staticmethod
-    def get_recent_scheduled_times(*, limit: int) -> Sequence[datetime]:
-        """Return the scheduled times of the most recent runs, newest first.
+    def get_recent_scheduled_runs(*, limit: int) -> list[ScheduledRun]:
+        """Return the scheduled time and experiment of the most recent runs.
 
         Args:
-            limit: Maximum number of scheduled times to return.
+            limit: Maximum number of runs to return.
 
         Returns:
-            Scheduled times ordered from newest to oldest.
+            Runs ordered from newest to oldest.
         """
         with sqlalchemy.orm.Session(engine) as session:
             stmt = (
-                select(JobRun.scheduled_time)
+                _select_scheduled_runs()
                 .where(JobRun.status != JobRunStatus.PENDING)
                 .order_by(JobRun.scheduled_time.desc())
                 .limit(limit)
             )
 
-            scheduled_times = session.execute(stmt).scalars().all()
-            logger.debug("Got the %s most recent scheduled times", limit)
-        return scheduled_times
+            runs = [ScheduledRun(*row) for row in session.execute(stmt)]
+            logger.debug("Got the %s most recent scheduled runs", limit)
+        return runs
+
+    @staticmethod
+    def get_scheduled_runs() -> list[ScheduledRun]:
+        """Return the scheduled time and experiment of every run."""
+        with sqlalchemy.orm.Session(engine) as session:
+            return [
+                ScheduledRun(*row) for row in session.execute(_select_scheduled_runs())
+            ]
 
     @staticmethod
     def set_parameter_update_timestamp(*, run_id: int, timestamp: datetime) -> None:

@@ -1,3 +1,6 @@
+import os
+import re
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -24,6 +27,7 @@ from icon.server.data_access.repositories import experiment_data_repository
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataRepository as Repo,
 )
+from icon.server.data_access.repositories.job_run_repository import ScheduledRun
 
 DATA_POINTS = [
     ExperimentDataPoint(
@@ -350,6 +354,7 @@ class MockScanParameter:
 
 
 def _write_instruction_file(path: Path, entries: list[tuple[int, str]]) -> None:
+    path.parent.mkdir(exist_ok=True)
     with h5py.File(path, "w") as h5file:
         for data_point_index, instructions in entries:
             experiment_data_repository.write_hardware_instructions_to_dataset(
@@ -357,18 +362,79 @@ def _write_instruction_file(path: Path, entries: list[tuple[int, str]]) -> None:
             )
 
 
-def _fake_recent_runs(
-    monkeypatch: pytest.MonkeyPatch, scheduled_times: list[str]
-) -> None:
-    """Stub the run table lookup, newest run first.
+UNKNOWN_JOB_ID = 42
+"""Job without a run in the stubbed run table."""
 
-    Result filenames are interpolated from the scheduled time, so a stubbed
-    "scheduled time" of "job-1" stands for the file job-1.h5.
-    """
+
+def _scheduled_time(job_id: int) -> datetime:
+    """Return the stubbed scheduled time of a job; jobs 1 and 2 straddle midnight."""
+    # Naive, like the scheduled times read back from SQLite.
+    return datetime(2026, 3, 24, 23, 58) + timedelta(minutes=job_id)  # noqa: DTZ001
+
+
+_EXPERIMENT_ID = "experiment_library.experiments.ramsey.Ramsey (Ramsey fine)"
+
+
+def _scheduled_run(job_id: int) -> ScheduledRun:
+    return ScheduledRun(_scheduled_time(job_id), _EXPERIMENT_ID)
+
+
+def _result_file(results_dir: Path, job_id: int) -> Path:
+    """Return the result file of a job, in the day folder of its scheduled time."""
+    scheduled_time = _scheduled_time(job_id)
+    return (
+        results_dir
+        / f"{scheduled_time:%Y-%m-%d}"
+        / f"{scheduled_time:%Y%m%dT%H%M%S.%f}_Ramsey_fine.h5"
+    )
+
+
+def _fake_job_runs(monkeypatch: pytest.MonkeyPatch, recent_job_ids: list[int]) -> None:
+    """Stub the run table lookups; `recent_job_ids` lists the newest runs first."""
+
+    def get_scheduled_run_by_job_id(*, job_id: int) -> ScheduledRun:
+        if job_id == UNKNOWN_JOB_ID:
+            raise NoResultFound
+        return _scheduled_run(job_id)
+
     monkeypatch.setattr(
         experiment_data_repository.JobRunRepository,
-        "get_recent_scheduled_times",
-        lambda *, limit: scheduled_times[:limit],
+        "get_scheduled_run_by_job_id",
+        get_scheduled_run_by_job_id,
+    )
+    monkeypatch.setattr(
+        experiment_data_repository.JobRunRepository,
+        "get_recent_scheduled_runs",
+        lambda *, limit: [_scheduled_run(i) for i in recent_job_ids[:limit]],
+    )
+
+
+@pytest.mark.parametrize(
+    ("experiment_id", "filename"),
+    [
+        ("mod.Ramsey (Cool Det)", "20260324T235900.000000_Cool_Det.h5"),
+        ("mod.Ramsey (Ramsey (2))", "20260324T235900.000000_Ramsey_2.h5"),
+        ("mod.Ramsey (Ünïcödé: a/b\\c)", "20260324T235900.000000_Unicode_a_b_c.h5"),
+        ("mod.Ramsey (???)", "20260324T235900.000000.h5"),
+        ("unparsed-id", "20260324T235900.000000_unparsed-id.h5"),
+        (f"mod.Ramsey ({'x' * 100})", f"20260324T235900.000000_{'x' * 64}.h5"),
+    ],
+)
+def test_result_path_names_file_after_time_and_experiment(
+    experiment_id: str, filename: str
+) -> None:
+    run = ScheduledRun(_scheduled_time(1), experiment_id)
+
+    assert experiment_data_repository.result_path(Path("results"), run) == (
+        Path("results") / "2026-03-24" / filename
+    )
+
+
+def test_result_path_keeps_time_zone() -> None:
+    run = ScheduledRun(datetime(2026, 3, 24, 23, 59, tzinfo=UTC), "mod.Ramsey (A)")
+
+    assert experiment_data_repository.result_path(Path("results"), run) == (
+        Path("results") / "2026-03-24" / "20260324T235900.000000+0000_A.h5"
     )
 
 
@@ -377,25 +443,16 @@ def test_get_hardware_instructions(
 ) -> None:
     config = SimpleNamespace(data=latest.DataConfiguration(results_dir=str(tmp_path)))
     monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
-    unknown_job_id = 42
-
-    def filename(job_id: int) -> str:
-        if job_id == unknown_job_id:
-            raise NoResultFound
-        return f"job-{job_id}.h5"
-
-    monkeypatch.setattr(experiment_data_repository, "get_filename_by_job_id", filename)
 
     # Two jobs; instructions are stored deduplicated: the entry index marks the
     # data point at which the instructions changed.
-    _write_instruction_file(tmp_path / "job-1.h5", [(0, "seq-1a"), (5, "seq-1b")])
-    _write_instruction_file(tmp_path / "job-2.h5", [(0, "seq-2a")])
-    # Sorts below job-2 so that it does not affect the latest-file lookup.
-    _write_instruction_file(tmp_path / "job-0.h5", [(2, "seq-0a")])
+    _write_instruction_file(_result_file(tmp_path, 1), [(0, "seq-1a"), (5, "seq-1b")])
+    _write_instruction_file(_result_file(tmp_path, 2), [(0, "seq-2a")])
+    # Older than job-2 so that it does not affect the latest-file lookup.
+    _write_instruction_file(_result_file(tmp_path, 0), [(2, "seq-0a")])
     # A newer file without instructions must be skipped for the latest scope.
-    with h5py.File(tmp_path / "job-3.h5", "w"):
-        pass
-    _fake_recent_runs(monkeypatch, ["job-3", "job-2", "job-1", "job-0"])
+    _write_instruction_file(_result_file(tmp_path, 3), [])
+    _fake_job_runs(monkeypatch, [3, 2, 1, 0])
 
     # latest: newest file that has instructions
     assert Repo.get_hardware_instructions(device_id="RFSoC") == "seq-2a"
@@ -422,7 +479,7 @@ def test_get_hardware_instructions(
     )
     # unknown job, missing file, and empty directory behave gracefully
     assert (
-        Repo.get_hardware_instructions(device_id="RFSoC", job_id=unknown_job_id) is None
+        Repo.get_hardware_instructions(device_id="RFSoC", job_id=UNKNOWN_JOB_ID) is None
     )
     assert Repo.get_hardware_instructions(device_id="RFSoC", job_id=39) is None
     monkeypatch.setattr(
@@ -444,17 +501,16 @@ def test_get_hardware_instructions_only_searches_recent_runs(
     limit = experiment_data_repository.MOST_RECENT_JOB_RUNS
     # Only the oldest run has instructions, and it is pushed out of the window
     # by newer runs whose files hold none.
-    _write_instruction_file(tmp_path / "job-00.h5", [(0, "seq-old")])
+    _write_instruction_file(_result_file(tmp_path, 0), [(0, "seq-old")])
     for i in range(1, limit + 1):
-        with h5py.File(tmp_path / f"job-{i:02d}.h5", "w"):
-            pass
-    newest_first = [f"job-{i:02d}" for i in range(limit, -1, -1)]
-    _fake_recent_runs(monkeypatch, newest_first)
+        _write_instruction_file(_result_file(tmp_path, i), [])
+    newest_first = list(range(limit, -1, -1))
+    _fake_job_runs(monkeypatch, newest_first)
 
     assert Repo.get_hardware_instructions(device_id="RFSoC") is None
 
     # Within the window it is found again.
-    _fake_recent_runs(monkeypatch, newest_first[1:])
+    _fake_job_runs(monkeypatch, newest_first[1:])
     assert Repo.get_hardware_instructions(device_id="RFSoC") == "seq-old"
 
 
@@ -465,10 +521,230 @@ def test_get_hardware_instructions_skips_runs_without_a_file(
     monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
 
     # The newest run's file was archived or never written; the search continues.
-    _write_instruction_file(tmp_path / "job-1.h5", [(0, "seq-1a")])
-    _fake_recent_runs(monkeypatch, ["job-2", "job-1"])
+    _write_instruction_file(_result_file(tmp_path, 1), [(0, "seq-1a")])
+    _fake_job_runs(monkeypatch, [2, 1])
 
     assert Repo.get_hardware_instructions(device_id="RFSoC") == "seq-1a"
+
+
+def test_initialize_for_job_id_creates_file_in_day_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = SimpleNamespace(data=latest.DataConfiguration(results_dir=str(tmp_path)))
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+    _fake_job_runs(monkeypatch, [])
+
+    Repo.initialize_for_job_id(job_id=1)
+    Repo.initialize_for_job_id(job_id=2)
+
+    first = tmp_path / "2026-03-24" / "20260324T235900.000000_Ramsey_fine.h5"
+    second = tmp_path / "2026-03-25" / "20260325T000000.000000_Ramsey_fine.h5"
+    assert first.is_file()
+    assert second.is_file()
+    assert experiment_data_repository.get_result_path_by_job_id(1) == first
+    assert experiment_data_repository.get_result_path_by_job_id(2) == second
+
+
+def test_require_day_folder_layout_rejects_flat_result_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = SimpleNamespace(data=latest.DataConfiguration(results_dir=str(tmp_path)))
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+    _result_file(tmp_path, 1).parent.mkdir()
+    _result_file(tmp_path, 1).touch()
+    # Not named like a result file, so not ICON's to move.
+    (tmp_path / "analysis.h5").touch()
+    (tmp_path / "2026-03-24T23:59:00.h5").touch()
+
+    experiment_data_repository.require_day_folder_layout(tmp_path)
+
+    # Written before day folders were introduced.
+    flat_file = tmp_path / f"{_scheduled_time(2)}.h5"
+    flat_file.touch()
+
+    assert experiment_data_repository.find_flat_result_files(tmp_path) == [
+        (flat_file, _scheduled_time(2))
+    ]
+    with pytest.raises(
+        experiment_data_repository.FlatResultLayoutError,
+        match=re.escape(f"1 result file(s) sit directly in {str(tmp_path)!r}"),
+    ):
+        experiment_data_repository.require_day_folder_layout(tmp_path)
+
+
+def test_initialize_for_job_id_requires_existing_results_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    results_dir = tmp_path / "missing"
+    config = SimpleNamespace(
+        data=latest.DataConfiguration(results_dir=str(results_dir))
+    )
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+    _fake_job_runs(monkeypatch, [])
+
+    with pytest.raises(
+        experiment_data_repository.ResultsDirectoryNotFoundError,
+        match=re.escape(f"Results directory {str(results_dir)!r} does not exist"),
+    ):
+        Repo.initialize_for_job_id(job_id=1)
+    assert not results_dir.exists()
+
+
+def test_ensure_results_dir_creates_missing_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    results_dir = tmp_path / "results"
+    config = SimpleNamespace(
+        data=latest.DataConfiguration(results_dir=str(results_dir))
+    )
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+
+    assert experiment_data_repository.ensure_results_dir() == results_dir
+    assert results_dir.is_dir()
+    # An existing directory is used as is.
+    (results_dir / "kept.h5").touch()
+    assert experiment_data_repository.ensure_results_dir() == results_dir
+    assert (results_dir / "kept.h5").is_file()
+
+
+def test_ensure_results_dir_does_not_create_parents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    results_dir = tmp_path / "unmounted" / "results"
+    config = SimpleNamespace(
+        data=latest.DataConfiguration(results_dir=str(results_dir))
+    )
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+
+    with pytest.raises(
+        experiment_data_repository.ResultsDirectoryNotFoundError,
+        match=re.escape(
+            f"Results directory {str(results_dir)!r} cannot be created "
+            "(No such file or directory)"
+        ),
+    ):
+        experiment_data_repository.ensure_results_dir()
+    assert not results_dir.parent.exists()
+
+
+def test_ensure_results_dir_rejects_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    results_dir = tmp_path / "results"
+    results_dir.touch()
+    config = SimpleNamespace(
+        data=latest.DataConfiguration(results_dir=str(results_dir))
+    )
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+
+    with pytest.raises(
+        experiment_data_repository.ResultsDirectoryNotFoundError,
+        match=re.escape(f"Results directory {str(results_dir)!r} is not a directory"),
+    ):
+        experiment_data_repository.ensure_results_dir()
+
+
+def test_prepare_results_dir_stops_startup_on_flat_result_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = SimpleNamespace(data=latest.DataConfiguration(results_dir=str(tmp_path)))
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+
+    experiment_data_repository.prepare_results_dir()
+
+    (tmp_path / f"{_scheduled_time(1)}.h5").touch()
+    with pytest.raises(SystemExit) as exc_info:
+        experiment_data_repository.prepare_results_dir()
+    assert exc_info.value.code == 1
+
+
+def test_prepare_results_dir_only_warns_about_unusable_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    results_dir = tmp_path / "unmounted" / "results"
+    config = SimpleNamespace(
+        data=latest.DataConfiguration(results_dir=str(results_dir))
+    )
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+
+    experiment_data_repository.prepare_results_dir()
+
+    assert "cannot be created" in caplog.text
+
+
+def test_results_dir_expands_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    config = SimpleNamespace(data=latest.DataConfiguration(results_dir="~/results"))
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+    _fake_job_runs(monkeypatch, [])
+    results_dir = tmp_path / "results"
+    results_dir.mkdir()
+
+    assert experiment_data_repository.require_results_dir() == results_dir
+    assert experiment_data_repository.get_result_path_by_job_id(1) == _result_file(
+        results_dir, 1
+    )
+
+
+def test_require_results_dir_rejects_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    results_dir = tmp_path / "results"
+    results_dir.touch()
+    config = SimpleNamespace(
+        data=latest.DataConfiguration(results_dir=str(results_dir))
+    )
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+
+    with pytest.raises(
+        experiment_data_repository.ResultsDirectoryNotFoundError,
+        match=re.escape(f"Results directory {str(results_dir)!r} is not a directory"),
+    ):
+        experiment_data_repository.require_results_dir()
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root bypasses permission checks")
+def test_require_results_dir_reports_permission_denied(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    locked = tmp_path / "locked"
+    results_dir = locked / "results"
+    results_dir.mkdir(parents=True)
+    config = SimpleNamespace(
+        data=latest.DataConfiguration(results_dir=str(results_dir))
+    )
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+
+    locked.chmod(0)
+    try:
+        with pytest.raises(
+            experiment_data_repository.ResultsDirectoryNotFoundError,
+            match=re.escape(
+                f"Results directory {str(results_dir)!r} cannot be accessed "
+                "(Permission denied)"
+            ),
+        ):
+            experiment_data_repository.require_results_dir()
+    finally:
+        locked.chmod(0o755)
+
+
+def test_require_results_dir_reports_absolute_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    config = SimpleNamespace(data=latest.DataConfiguration(results_dir="missing"))
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+
+    with pytest.raises(
+        experiment_data_repository.ResultsDirectoryNotFoundError,
+        match=re.escape(
+            f"Results directory {str(tmp_path / 'missing')!r} does not exist"
+        ),
+    ):
+        experiment_data_repository.require_results_dir()
 
 
 def mock_scan_parameter(variable_id: str, *, realtime: bool = False) -> Any:

@@ -2,8 +2,12 @@ import errno
 import itertools
 import json
 import logging
+import re
+import shlex
+import stat
 import threading
 import time
+import unicodedata
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict
@@ -17,7 +21,7 @@ import numpy as np
 import numpy.typing as npt
 from sqlalchemy.exc import NoResultFound
 
-from icon.config.config import get_config
+from icon.config.config import get_config, get_config_path
 from icon.server.data_access.experiment_data import (
     DatabaseValueType,
     ExperimentData,
@@ -33,7 +37,10 @@ from icon.server.data_access.models.sqlite.scan_parameter import (
     contains_realtime_parameter,
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
-from icon.server.data_access.repositories.job_run_repository import JobRunRepository
+from icon.server.data_access.repositories.job_run_repository import (
+    JobRunRepository,
+    ScheduledRun,
+)
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 logger = logging.getLogger(__name__)
@@ -89,30 +96,198 @@ _file_locks: dict[str, threading.RLock] = {}
 """Holding one process-wide lock for each result file, forcing sequential reads per file per process."""
 
 
-def _result_filename(scheduled_time: datetime) -> str:
-    """Return the HDF5 filename for a run scheduled at `scheduled_time`."""
+class ResultsDirectoryNotFoundError(FileNotFoundError):
+    """Raised when the configured results directory is missing or unusable."""
+
+
+class FlatResultLayoutError(RuntimeError):
+    """Raised when result files still sit directly in the results directory."""
+
+
+def _results_dir() -> Path:
+    """Return the configured results directory, with `~` expanded."""
+    return Path(get_config().data.results_dir).expanduser()
+
+
+def require_results_dir() -> Path:
+    """Return the configured results directory, which must exist.
+
+    Raises:
+        ResultsDirectoryNotFoundError: The directory does not exist, is not a
+            directory or cannot be accessed, so no experiment data can be saved.
+    """
+    results_dir = _results_dir()
+    try:
+        mode = results_dir.stat().st_mode
+    except FileNotFoundError:
+        problem = "does not exist"
+    except OSError as exc:
+        problem = f"cannot be accessed ({exc.strerror})"
+    else:
+        if stat.S_ISDIR(mode):
+            return results_dir
+        problem = "is not a directory"
+    raise _results_dir_error(results_dir, problem)
+
+
+def ensure_results_dir() -> Path:
+    """Return the configured results directory, creating it if it does not exist.
+
+    Missing parent directories are not created, so that a path on an unmounted
+    drive fails instead of filling the local disk.
+
+    Raises:
+        ResultsDirectoryNotFoundError: The directory cannot be created, is not
+            a directory or cannot be accessed.
+    """
+    results_dir = _results_dir()
+    try:
+        results_dir.mkdir()
+    except FileExistsError:
+        pass  # Whether it is a usable directory is checked below.
+    except OSError as exc:
+        raise _results_dir_error(
+            results_dir, f"cannot be created ({exc.strerror})"
+        ) from exc
+    else:
+        logger.info("Created results directory %r.", str(results_dir.absolute()))
+    return require_results_dir()
+
+
+def _results_dir_error(
+    results_dir: Path, problem: str
+) -> ResultsDirectoryNotFoundError:
+    return ResultsDirectoryNotFoundError(
+        f"Results directory {str(results_dir.absolute())!r} {problem}, so no "
+        "experiment data can be saved. Set 'data.results_dir' in "
+        f"{str(get_config_path())!r} to a directory ICON can access."
+    )
+
+
+_RESULT_TIME_FORMAT = "%Y%m%dT%H%M%S.%f%z"
+"""Scheduled time in result filenames, in ISO 8601 basic format.
+
+Free of the `:` and spaces that Windows rejects. Microseconds are kept so that
+runs scheduled within the same second get different files.
+"""
+
+_MAX_EXPERIMENT_NAME_LENGTH = 64
+"""Longest experiment name kept in a result filename."""
+
+
+def experiment_name(experiment_id: str) -> str:
+    """Return the instance name of `module.Class (Instance name)`, as shown in the UI."""
+    match = re.fullmatch(r"\S+ \((.+)\)", experiment_id)
+    return match.group(1) if match else experiment_id
+
+
+def _filename_safe(name: str) -> str:
+    """Return `name` reduced to characters that are safe in filenames everywhere."""
+    ascii_name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", ascii_name).strip("._-")
+    return safe[:_MAX_EXPERIMENT_NAME_LENGTH].rstrip("._-")
+
+
+def result_path(results_dir: Path, run: ScheduledRun) -> Path:
+    """Return the path of the result file of `run`.
+
+    Result files are grouped into one folder per day and named after the
+    run's scheduled time and experiment name, e.g.
+    `<results_dir>/2026-03-24/20260324T235900.000000_Ramsey.h5`. The name
+    is left out if nothing of it is filename-safe.
+    """
+    stem = f"{run.scheduled_time:{_RESULT_TIME_FORMAT}}"
+    if name := _filename_safe(experiment_name(run.experiment_id)):
+        stem = f"{stem}_{name}"
+    return results_dir / f"{run.scheduled_time:%Y-%m-%d}" / f"{stem}.h5"
+
+
+def _flat_result_filename(scheduled_time: datetime) -> str:
+    """Return the filename used before day folders, e.g. `2026-03-24 23:59:00.h5`."""
     return f"{scheduled_time}.h5"
 
 
-def get_filename_by_job_id(job_id: int) -> str:
-    """Return the HDF5 filename for a job.
+def find_flat_result_files(results_dir: Path) -> list[tuple[Path, datetime]]:
+    """Return the result files that sit directly in `results_dir`.
+
+    This flat layout predates day folders, and ICON no longer reads it. Only
+    files named exactly like a result file of that layout count; anything else
+    is left alone.
+
+    Returns:
+        `(path, scheduled_time)` pairs sorted by path, with the scheduled time
+        the file is named after.
+    """
+    flat = []
+    for path in results_dir.iterdir():
+        try:
+            scheduled_time = datetime.fromisoformat(path.name.removesuffix(".h5"))
+        except ValueError:
+            continue
+        if _flat_result_filename(scheduled_time) == path.name and path.is_file():
+            flat.append((path, scheduled_time))
+    return sorted(flat)
+
+
+def require_day_folder_layout(results_dir: Path) -> None:
+    """Check that no result file in `results_dir` uses the flat layout.
+
+    Raises:
+        FlatResultLayoutError: Some result files sit directly in `results_dir`,
+            so ICON would not find them.
+    """
+    if flat := find_flat_result_files(results_dir):
+        raise FlatResultLayoutError(
+            f"{len(flat)} result file(s) sit directly in "
+            f"{str(results_dir.absolute())!r}, where ICON no longer looks for "
+            "them. Move them into day folders and rename them with: "
+            "icon-migrate-results-dir "
+            f"--config {shlex.quote(str(get_config_path()))}"
+        )
+
+
+def prepare_results_dir() -> None:
+    """Prepare the results directory for the server to start.
+
+    Creates the directory if it does not exist. If it is unusable, only a
+    warning is logged, as scans then fail with the same message.
+
+    Raises:
+        SystemExit: Result files still use the flat layout, so ICON would not
+            find them.
+    """
+    try:
+        results_dir = ensure_results_dir()
+    except ResultsDirectoryNotFoundError as exc:
+        logger.warning("%s", exc)
+        return
+    try:
+        require_day_folder_layout(results_dir)
+    except FlatResultLayoutError as exc:
+        logger.error("%s", exc)  # noqa: TRY400
+        raise SystemExit(1) from None
+
+
+def get_result_path_by_job_id(job_id: int) -> Path:
+    """Return the HDF5 file path for a job.
 
     Args:
         job_id: Job identifier.
 
     Returns:
-        Filename derived from the job's scheduled time (e.g., "<iso>.h5").
+        Path derived from the job's scheduled time and experiment (see
+        `result_path`).
     """
-    return _result_filename(
-        JobRunRepository.get_scheduled_time_by_job_id(job_id=job_id)
+    return result_path(
+        _results_dir(), JobRunRepository.get_scheduled_run_by_job_id(job_id=job_id)
     )
 
 
 def _recent_result_paths(results_dir: Path) -> list[Path]:
     """Return the newest result files, newest first."""
     return [
-        results_dir / _result_filename(scheduled_time)
-        for scheduled_time in JobRunRepository.get_recent_scheduled_times(
+        result_path(results_dir, run)
+        for run in JobRunRepository.get_recent_scheduled_runs(
             limit=MOST_RECENT_JOB_RUNS
         )
     ]
@@ -373,13 +548,20 @@ class ExperimentDataRepository:
 
     @staticmethod
     def initialize_for_job_id(*, job_id: int) -> None:
-        """Create the file.
+        """Create the file in the day folder of the job's scheduled time.
 
         Args:
             job_id: Job identifier.
+
+        Raises:
+            ResultsDirectoryNotFoundError: The configured results directory does
+                not exist.
         """
-        filename = get_filename_by_job_id(job_id)
-        h5_path = Path(get_config().data.results_dir) / filename
+        h5_path = result_path(
+            require_results_dir(),
+            JobRunRepository.get_scheduled_run_by_job_id(job_id=job_id),
+        )
+        h5_path.parent.mkdir(exist_ok=True)
         with h5_open(
             h5_path,
             HDF5FileMode.CREATE_OR_FAIL,
@@ -413,8 +595,7 @@ class ExperimentDataRepository:
             local_parameter_timestamp: Optional timestamp for local parameters.
             parameters: Scan parameters.
         """
-        filename = get_filename_by_job_id(job_id)
-        h5_path = Path(get_config().data.results_dir) / filename
+        h5_path = get_result_path_by_job_id(job_id)
         job = JobRepository.get_job_by_id(job_id=job_id, load_experiment_source=True)
 
         with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
@@ -465,8 +646,7 @@ class ExperimentDataRepository:
             job_id: Job identifier.
             data_point: Data point payload to append.
         """
-        filename = get_filename_by_job_id(job_id)
-        h5_path = Path(get_config().data.results_dir) / filename
+        h5_path = get_result_path_by_job_id(job_id)
 
         with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
             write_experiment_data_point(h5file, data_point)
@@ -495,8 +675,7 @@ class ExperimentDataRepository:
             timestamp: ISO timestamp string.
             parameter_values: Mapping of parameter id to value.
         """
-        filename = get_filename_by_job_id(job_id)
-        h5_path = Path(get_config().data.results_dir) / filename
+        h5_path = get_result_path_by_job_id(job_id)
         parameter_updates = {}
         with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
             parameters_group = h5file.require_group("parameters")
@@ -573,8 +752,7 @@ class ExperimentDataRepository:
         Returns:
             Experiment data payload suitable for the API.
         """
-        filename = get_filename_by_job_id(job_id)
-        h5_path = Path(get_config().data.results_dir) / filename
+        h5_path = get_result_path_by_job_id(job_id)
 
         if not Path(h5_path).exists():
             logger.warning("The file %s does not exist.", h5_path)
@@ -610,14 +788,13 @@ class ExperimentDataRepository:
             The serialized hardware instructions, or None when nothing is
             stored for the requested scope.
         """
-        results_dir = Path(get_config().data.results_dir)
         if job_id is not None:
             try:
-                paths = [results_dir / get_filename_by_job_id(job_id)]
+                paths = [get_result_path_by_job_id(job_id)]
             except NoResultFound:
                 return None
         else:
-            paths = _recent_result_paths(results_dir)
+            paths = _recent_result_paths(_results_dir())
 
         for path in paths:
             if not path.is_file():
@@ -1182,8 +1359,7 @@ def write_fit_result_by_job_id(
         job_id: Job identifier.
         fit_results: The fit result to persist (device_id, FitResult tuples).
     """
-    filename = get_filename_by_job_id(job_id)
-    h5_path = Path(get_config().data.results_dir) / filename
+    h5_path = get_result_path_by_job_id(job_id)
     with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
         for device_id, fit_result in fit_results:
             fits_group = h5file.require_group("fits").require_group(device_id)
@@ -1203,8 +1379,7 @@ def get_fit_results_by_job_id(*, job_id: int) -> dict[str, dict[str, FitResult]]
     Returns:
         Dict mapping result channel names to their fit result dicts.
     """
-    filename = get_filename_by_job_id(job_id)
-    h5_path = Path(get_config().data.results_dir) / filename
+    h5_path = get_result_path_by_job_id(job_id)
     if not h5_path.exists():
         return {}
 
@@ -1222,8 +1397,7 @@ def delete_fit_result_by_job_id(
         result_channel: Name of the result channel whose fit to delete.
         device_id: ID of the device for which to delete the fits
     """
-    filename = get_filename_by_job_id(job_id)
-    h5_path = Path(get_config().data.results_dir) / filename
+    h5_path = get_result_path_by_job_id(job_id)
     with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
         fits = h5file.get("fits", {}).get(device_id)
         if fits is not None and result_channel in fits:

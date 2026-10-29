@@ -36,6 +36,10 @@ from icon.server.data_access.models.sqlite.experiment_source import ExperimentSo
 from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.models.sqlite.job_run import JobRun
 from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
+from icon.server.data_access.repositories.experiment_data_repository import (
+    ensure_results_dir,
+    get_result_path_by_job_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -98,14 +102,16 @@ def _insert_job_and_run(
     return job, run
 
 
-def _hdf5_path(scheduled_time: datetime) -> str:
-    """Return the HDF5 file path for a given scheduled time.
+def _hdf5_path(job_id: int) -> str:
+    """Return the HDF5 file path the server reads for a job, creating its folders.
 
-    Must match exactly how ``get_filename_by_job_id`` builds the name:
-    ``f"{scheduled_time}.h5"``
+    Asks the server for the path rather than rebuilding it, since the scheduled
+    time read back from SQLite differs from the one inserted (no time zone).
     """
-    results_dir = get_config().data.results_dir
-    return f"{results_dir}/{scheduled_time}.h5"
+    ensure_results_dir()
+    path = get_result_path_by_job_id(job_id)
+    path.parent.mkdir(exist_ok=True)
+    return str(path)
 
 
 def _write_hdf5(
@@ -183,7 +189,7 @@ def _create_job(
         session.commit()
         job_id = job.id
 
-    filepath = _hdf5_path(scheduled_time)
+    filepath = _hdf5_path(job_id)
     _write_hdf5(filepath, job_id, x, y, variable_id, result_channel)
     logger.info("[%s] job_id=%s  file=%s", label, job_id, filepath)
     return job_id
@@ -455,7 +461,7 @@ def generate_2d_gaussian() -> int:
         session.commit()
         job_id = job.id
 
-    filepath = _hdf5_path(scheduled_time)
+    filepath = _hdf5_path(job_id)
     _write_hdf5_2d(
         filepath,
         job_id,

@@ -50,6 +50,9 @@ def start_server() -> None:
     from icon.config.config import get_config
     from icon.server.api.api_service import APIService
     from icon.server.data_access.db_context.sqlite.migrations import run_migrations
+    from icon.server.data_access.repositories.experiment_data_repository import (
+        prepare_results_dir,
+    )
     from icon.server.hardware_processing.worker import (
         HardwareProcessingWorker,
     )
@@ -63,6 +66,7 @@ def start_server() -> None:
     patch_web_server()
     patch_serialization_methods()
     run_migrations()
+    prepare_results_dir()
 
     SRM.start_srm()
 
