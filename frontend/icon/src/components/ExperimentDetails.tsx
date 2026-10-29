@@ -1,17 +1,12 @@
 import { useContext } from "react";
-import {
-  Typography,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-} from "@mui/material";
+import { Typography, AccordionSummary, AccordionDetails } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { ExperimentsContext } from "../contexts/ExperimentsContext";
 import { ParameterGroupDisplay } from "./ParameterGroupDisplay";
 import ScanInterface from "./scanInterface/ScanInterfaceComponent";
 import { DeviceInfoContext } from "../contexts/DeviceInfoContext";
 import { ScannableParameterInterface } from "./devices/ScannableParameterInterface";
-import { useCollapseState } from "../hooks/useCollapseState";
+import { RememberedAccordion } from "./RememberedAccordion";
 
 const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
   const experiments = useContext(ExperimentsContext);
@@ -19,7 +14,6 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
   const reachableDevices = Object.entries(useContext(DeviceInfoContext))
     .filter(([, d]) => d.reachable)
     .map(([name]) => name);
-  const [isCollapsed, toggle] = useCollapseState("experimentDetails");
 
   if (!experiment) {
     return (
@@ -31,10 +25,10 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
     <div style={{ display: "flex", flexDirection: "column" }}>
       <ScanInterface experimentId={experimentKey} />
       {Object.keys(experiment.parameters).map((group) => (
-        <Accordion
+        <RememberedAccordion
           key={experimentKey + group}
-          expanded={!isCollapsed(group)}
-          onChange={() => toggle(group)}
+          collapseKey="experimentDetails"
+          name={group}
           disableGutters // Removes extra padding/margin from Accordion
           square
         >
@@ -48,7 +42,7 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
               parameters={experiments[experimentKey]?.parameters?.[group] || {}}
             />
           </AccordionDetails>
-        </Accordion>
+        </RememberedAccordion>
       ))}
 
       {experiment.device_parameter_groups?.map((deviceName) => {
@@ -56,10 +50,10 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
         const section = `Device ${deviceName}`;
 
         return (
-          <Accordion
+          <RememberedAccordion
             key={section}
-            expanded={!isCollapsed(section)}
-            onChange={() => toggle(section)}
+            collapseKey="experimentDetails"
+            name={section}
             disableGutters
             square
           >
@@ -73,7 +67,7 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
                 <>Device not reachable</>
               )}
             </AccordionDetails>
-          </Accordion>
+          </RememberedAccordion>
         );
       })}
     </div>

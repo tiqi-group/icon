@@ -2,10 +2,10 @@ import Typography from "@mui/material/Typography";
 import { useContext } from "react";
 import { Divider } from "@mui/material";
 import { ParameterGroupDisplay } from "../components/ParameterGroupDisplay";
-import { Accordion, AccordionSummary, AccordionDetails } from "@mui/material";
+import { AccordionSummary, AccordionDetails } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { ParameterDisplayGroupsContext } from "../contexts/ParameterDisplayGroupsContext";
-import { useCollapseState } from "../hooks/useCollapseState";
+import { RememberedAccordion } from "../components/RememberedAccordion";
 
 const getDisplayNameFromNamespace = (namespace: string): string => {
   if (namespace.endsWith(".globals.global_parameters")) return "Global Parameters";
@@ -21,16 +21,16 @@ const ParameterPage = () => {
   const { parameterNamespaceToDisplayGroups, parameterDisplayGroups } = useContext(
     ParameterDisplayGroupsContext,
   );
-  const [isCollapsed, toggle] = useCollapseState("parameters", true);
 
   return (
     <>
       {Object.entries(parameterNamespaceToDisplayGroups).map(
         ([namespace, displayGroupList]) => (
-          <Accordion
+          <RememberedAccordion
             key={namespace}
-            expanded={!isCollapsed(namespace)}
-            onChange={() => toggle(namespace)}
+            collapseKey="parameters"
+            name={namespace}
+            defaultCollapsed
             disableGutters
             sx={{ "&:before": { display: "none" } }}
             slotProps={{ transition: { unmountOnExit: true } }}
@@ -58,7 +58,7 @@ const ParameterPage = () => {
                 </div>
               ))}
             </AccordionDetails>
-          </Accordion>
+          </RememberedAccordion>
         ),
       )}
     </>
