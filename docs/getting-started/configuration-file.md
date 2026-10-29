@@ -13,6 +13,28 @@
     results_dir: /my/results/output/dir/
   ```
 
+    ICON creates the result directory at startup if it does not exist, but not
+    its parent directories. If it cannot be created or accessed, ICON logs a
+    warning, and scans fail with an error naming the directory until this is
+    fixed. Within it, result files are grouped into one folder per day
+    (`yyyy-mm-dd`), which ICON creates as needed. Each file is named after the
+    run's scheduled time in ISO 8601 basic format and the experiment name,
+    reduced to characters that are safe on every platform:
+
+    ```
+    2026-10-29/20261029T125148.123456_Ramsey_fine.h5
+    ```
+
+    Earlier versions stored result files directly in the result directory,
+    named like `2026-10-29 12:51:48.123456.h5`. ICON no longer reads them there
+    and refuses to start while any remain. With ICON stopped, move and rename
+    them with:
+
+    ```bash
+    icon-migrate-results-dir --config /path/to/config.yaml --dry-run  # preview
+    icon-migrate-results-dir --config /path/to/config.yaml
+    ```
+
     A result file may be locked by another process (for instance an analysis
     script opening the same file). ICON waits for such a lock to be released
     and gives up after `h5_open_timeout_seconds`, which defaults to `30.0`:
