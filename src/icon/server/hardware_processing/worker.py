@@ -144,6 +144,11 @@ class HardwareProcessingWorker(multiprocessing.Process):
         try:
             return self._devices[device_id]
         except KeyError as e:
+            pass
+        self._devices.retry_disconnected()
+        try:
+            return self._devices[device_id]
+        except KeyError as e:
             raise RuntimeError(
                 f"No such device: {e} (the device might have been disabled)"
             ) from None
