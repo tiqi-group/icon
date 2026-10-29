@@ -155,7 +155,9 @@ def test_run_error_emits_hardware_instructions_before_failing_job(
     ]
 
     update_run.assert_called_once_with(
-        run_id=RUN_ID, status=JobRunStatus.FAILED, log="Sequence too long"
+        run_id=RUN_ID,
+        status=JobRunStatus.FAILED,
+        log="DeviceError ('main') Sequence too long",
     )
     # The post-processing task is queued before the job is marked as failed.
     assert queued_at_update == [1]
@@ -178,7 +180,9 @@ def test_send_error_emits_hardware_instructions_without_running(
         HardwareProcessingError(message="Invalid sequence"),
     ]
     update_run.assert_called_once_with(
-        run_id=RUN_ID, status=JobRunStatus.FAILED, log="Invalid sequence"
+        run_id=RUN_ID,
+        status=JobRunStatus.FAILED,
+        log="DeviceError ('sub') Invalid sequence",
     )
 
 
