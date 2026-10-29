@@ -1,5 +1,6 @@
 import { GroupsByNamespace } from "../hooks/useParameterDisplayGroups";
 import { Store } from "../stores/parmeterStore";
+import { DeviceInfo } from "../types/DeviceInfo";
 import { ParameterMetadata } from "../types/ExperimentMetadata";
 import { ScanParameterInfo } from "../types/ScanParameterInfo";
 
@@ -172,3 +173,126 @@ export function isScannableParameterType(paramId: string): boolean {
 
   return true;
 }
+
+export interface ScanParameterOption {
+  displayName: string;
+  min: number | null;
+  max: number | null;
+}
+
+/**
+ * Lists the scannable parameters of one display group, or of one device when
+ * `namespace` is "Devices", keyed by the id stored in `ScanParameterInfo.id`.
+ */
+export const getScanParameterOptions = (
+  namespace: string,
+  deviceNameOrDisplayGroup: string,
+  parameterDisplayGroups: GroupsByNamespace,
+  devices: Record<string, Pick<DeviceInfo, "scannable_params">>,
+): Record<string, ScanParameterOption> => {
+  if (!namespace || !deviceNameOrDisplayGroup) return {};
+
+  if (namespace === "Devices") {
+    const device = devices[deviceNameOrDisplayGroup];
+    if (!device) return {};
+
+    const prefixLength = makeScannedParamKey(
+      "",
+      namespace,
+      deviceNameOrDisplayGroup,
+    ).length;
+
+    return Object.fromEntries(
+      device.scannable_params.map((paramId) => {
+        const shortId = paramId.slice(prefixLength);
+        return [shortId, { displayName: shortId, min: null, max: null }];
+      }),
+    );
+  }
+
+  const group =
+    parameterDisplayGroups[`${namespace} (${deviceNameOrDisplayGroup})`] || {};
+
+  return Object.fromEntries(
+    Object.entries(group)
+      .filter(([paramId, meta]) => isScannableParameterType(paramId) && !meta.read_only)
+      .map(([paramId, meta]) => [
+        paramId,
+        { displayName: meta.display_name, min: meta.min_value, max: meta.max_value },
+      ]),
+  );
+};
+
+export interface ScanParameterSearchOption {
+  id: string;
+  namespace: string;
+  deviceNameOrDisplayGroup: string;
+  displayName: string;
+  groupLabel: string;
+  searchText: string;
+}
+
+// Every parameter id repeats these, so matching them would hit everything.
+const UNSEARCHED_ID_SPECIFIERS = ["namespace", "parameter_group", "param_type"];
+
+const getIdSpecifierValues = (paramId: string): string[] =>
+  [...paramId.matchAll(/(\w+)='([^']*)'/g)]
+    .filter(([, key]) => !UNSEARCHED_ID_SPECIFIERS.includes(key))
+    .map(([, , value]) => value);
+
+/**
+ * Flattens all scannable parameters of the given sources (namespace to display
+ * groups or device names) into one list, in source and group order.
+ */
+export const getScanParameterSearchOptions = (
+  sources: Record<string, string[]>,
+  parameterDisplayGroups: GroupsByNamespace,
+  devices: Record<string, Pick<DeviceInfo, "scannable_params">>,
+  getNamespaceLabel: (namespace: string) => string,
+): ScanParameterSearchOption[] =>
+  Object.entries(sources).flatMap(([namespace, groups]) =>
+    groups.flatMap((group) =>
+      Object.entries(
+        getScanParameterOptions(namespace, group, parameterDisplayGroups, devices),
+      ).map(([id, { displayName }]) => {
+        const namespaceLabel = getNamespaceLabel(namespace);
+        const idTerms = namespace === "Devices" ? [] : getIdSpecifierValues(id);
+        return {
+          id,
+          namespace,
+          deviceNameOrDisplayGroup: group,
+          displayName,
+          groupLabel: `${namespaceLabel} / ${group}`,
+          searchText: [displayName, group, namespaceLabel, ...idTerms]
+            .join("\n")
+            .toLowerCase(),
+        };
+      }),
+    ),
+  );
+
+/**
+ * Returns the options containing every whitespace-separated word of `query`.
+ * Exact, then prefix, then other display name matches come first; otherwise
+ * options keep their list order.
+ */
+export const searchScanParameterOptions = (
+  options: ScanParameterSearchOption[],
+  query: string,
+): ScanParameterSearchOption[] => {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const phrase = words.join(" ");
+  const rank = (option: ScanParameterSearchOption): number => {
+    const name = option.displayName.toLowerCase();
+    if (name === phrase) return 0;
+    if (name.startsWith(phrase)) return 1;
+    if (words.every((word) => name.includes(word))) return 2;
+    return 3;
+  };
+  if (words.length === 0) return [];
+  return options
+    .filter((option) => words.every((word) => option.searchText.includes(word)))
+    .map((option) => ({ option, rank: rank(option) }))
+    .sort((a, b) => a.rank - b.rank)
+    .map(({ option }) => option);
+};
