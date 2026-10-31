@@ -1,16 +1,12 @@
 import { useContext } from "react";
-import {
-  Typography,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-} from "@mui/material";
+import { Typography, AccordionSummary, AccordionDetails } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { ExperimentsContext } from "../contexts/ExperimentsContext";
 import { ParameterGroupDisplay } from "./ParameterGroupDisplay";
 import ScanInterface from "./scanInterface/ScanInterfaceComponent";
 import { DeviceInfoContext } from "../contexts/DeviceInfoContext";
 import { ScannableParameterInterface } from "./devices/ScannableParameterInterface";
+import { RememberedAccordion } from "./RememberedAccordion";
 
 const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
   const experiments = useContext(ExperimentsContext);
@@ -29,9 +25,10 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
     <div style={{ display: "flex", flexDirection: "column" }}>
       <ScanInterface experimentId={experimentKey} />
       {Object.keys(experiment.parameters).map((group) => (
-        <Accordion
+        <RememberedAccordion
           key={experimentKey + group}
-          defaultExpanded
+          collapseKey="experimentDetails"
+          name={group}
           disableGutters // Removes extra padding/margin from Accordion
           square
         >
@@ -45,14 +42,21 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
               parameters={experiments[experimentKey]?.parameters?.[group] || {}}
             />
           </AccordionDetails>
-        </Accordion>
+        </RememberedAccordion>
       ))}
 
       {experiment.device_parameter_groups?.map((deviceName) => {
         const isReachable = reachableDevices.includes(deviceName);
+        const section = `Device ${deviceName}`;
 
         return (
-          <Accordion key={`Device ${deviceName}`} defaultExpanded disableGutters square>
+          <RememberedAccordion
+            key={section}
+            collapseKey="experimentDetails"
+            name={section}
+            disableGutters
+            square
+          >
             <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ m: 0 }}>
               <Typography variant="h6">Device: {deviceName}</Typography>
             </AccordionSummary>
@@ -63,7 +67,7 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
                 <>Device not reachable</>
               )}
             </AccordionDetails>
-          </Accordion>
+          </RememberedAccordion>
         );
       })}
     </div>
