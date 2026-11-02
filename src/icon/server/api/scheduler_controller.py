@@ -1,7 +1,9 @@
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
 import pydase
+import pydase.units as u
 
 import icon.server.data_access.models.sqlite.scan_parameter as sqlite_scan_parameter
 from icon.server.api.devices_controller import DevicesController
@@ -12,6 +14,7 @@ from icon.server.api.models.scan_parameter import (
     scan_parameter_from_dict,
 )
 from icon.server.api.parameters_controller import ParametersController
+from icon.server.data_access.experiment_data import DatabaseValueType
 from icon.server.data_access.job_list_item import JobListItemDict
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
@@ -67,7 +70,7 @@ class SchedulerController(pydase.DataService):
     @staticmethod
     def _is_outside_bounds(
         *,
-        value: float | bool | str,
+        value: DatabaseValueType | u.Quantity,
         min_value: float | None,
         max_value: float | None,
     ) -> bool:
@@ -159,19 +162,13 @@ class SchedulerController(pydase.DataService):
                     scan_values=[1] * param.n_scan_points,
                     realtime=True,
                 )
-            if isinstance(param, DatabaseParameter):
-                return sqlite_scan_parameter.ScanParameter(
-                    name=self._resolve_display_name(param.id),
-                    variable_id=param.id,
-                    scan_values=param.values,
-                )
             return sqlite_scan_parameter.ScanParameter(
                 name=self._resolve_display_name(param.id),
                 variable_id=param.id,
                 scan_values=param.values,
-                device_id=DeviceRepository.get_device_by_name(
-                    name=param.device_name
-                ).id,
+                device_id=DeviceRepository.get_device_by_name(name=param.device_name).id
+                if not isinstance(param, DatabaseParameter)
+                else None,
             )
 
         concretized_params = [
@@ -363,17 +360,20 @@ class SchedulerController(pydase.DataService):
 
     async def _cast_scan_values_to_param_type(
         self,
-        values: list[str | int | bool | float] | None = None,
+        values: list[DatabaseValueType] | None = None,
         id: str | None = None,
         device_name: str | None = None,
         **_kwargs: Any,
-    ) -> list[Any]:
+    ) -> Sequence[DatabaseValueType | u.Quantity]:
         """Cast scan values to the current parameter's runtime type.
 
         If `device_name` is present, the current value is read from the device
         via `DevicesController`. Otherwise, the shared parameter value is read
         from `ParametersRepository`. If no current value is found, the original
         values are returned unchanged.
+
+        Values for a Quantity-typed device parameter are re-attached with the
+        parameter's unit; all other values keep their plain (primitive) type.
         """
         parameter_id = id
         if values is None:
@@ -391,8 +391,20 @@ class SchedulerController(pydase.DataService):
             current_value = ParametersRepository.get_shared_parameter_by_id(
                 parameter_id=parameter_id
             )
-            if current_value is None:
-                return values
+        if current_value is None:
+            return values
+
+        if isinstance(current_value, u.Quantity):
+            # Quantity-typed device parameter: scan values arrive as plain numbers
+            # in the parameter's unit; re-attach the unit instead of casting to a
+            # dimensionless Quantity.
+            unit = str(current_value.units)
+            return [
+                u.convert_to_quantity(value, unit)
+                if isinstance(value, int | float)
+                else value
+                for value in values
+            ]
 
         current_type = type(current_value)
         return [current_type(value) for value in values]

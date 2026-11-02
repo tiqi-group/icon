@@ -311,7 +311,12 @@ class JobRepository:
             if load_scan_parameters:
                 stmt = stmt.options(sqlalchemy.orm.joinedload(Job.scan_parameters))
 
-            return session.execute(stmt).unique().scalar_one()
+            job = session.execute(stmt).unique().scalar_one()
+            # Expunge explicitly: session.close() would expire the instance, so
+            # that reading or encoding it after the session ended triggers lazy
+            # loads on a detached instance (DetachedInstanceError).
+            session.expunge(job)
+            return job
 
     @staticmethod
     def get_job_by_experiment_source_and_status(
