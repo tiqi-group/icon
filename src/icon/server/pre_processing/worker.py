@@ -9,7 +9,7 @@ import queue
 import re
 import time
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Self, TypeVar
 
@@ -31,7 +31,6 @@ from icon.server.data_access.repositories.experiment_data_repository import (
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
-    job_run_cancelled_or_failed,
     run_cancelled_or_failed,
     try_update_run_by_id,
 )
@@ -43,18 +42,16 @@ from icon.server.hardware_processing.task import HardwareProcessingTask
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
+    from collections.abc import Iterator
 
     from icon.server.data_access.experiment_library_client import (
         ExperimentLibraryClient,
     )
     from icon.server.data_access.models.sqlite.job import Job
     from icon.server.data_access.models.sqlite.job_run import JobRun
+    from icon.server.pre_processing.arbiter import TaskQueue
     from icon.server.pre_processing.task import PreProcessingTask
-    from icon.server.shared_resource_manager import (
-        ScanProgress,
-        SharedResourceManager,
-    )
+    from icon.server.shared_resource_manager import SharedResourceManager
     from icon.server.utils.types import UpdateQueue
 
 logger = logging.getLogger(__name__)
@@ -62,9 +59,9 @@ timezone = pytz.timezone(get_config().date.timezone)
 
 ScanCombination = frozenset[tuple[str, DatabaseValueType]]
 
-SCAN_COMPLETION_POLL_INTERVAL = 0.1
-"""Seconds to wait between completion checks once every data point of a regular scan
-has been handed to the hardware worker."""
+POLL_INTERVAL = 0.1
+"""Seconds to wait for room in the task queue, or for the hardware worker to finish a
+regular scan's data points, before handling parameter updates and pauses again."""
 
 GLOBAL_NAMESPACE_SEGMENT = "globals"
 """Module path segment identifying the experiment library's global parameters.
@@ -194,25 +191,23 @@ class PreProcessingWorker(multiprocessing.Process):
         worker_number: int,
         pre_processing_queue: queue.PriorityQueue[PreProcessingTask],
         update_queue: multiprocessing.Queue[UpdateQueue],
-        hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask],
+        task_queue: TaskQueue,
         manager: SharedResourceManager,
         experiment_library_client: ExperimentLibraryClient,
     ) -> None:
         super().__init__()
         self._queue = pre_processing_queue
         self._update_queue = update_queue
-        self._hw_processing_queue = hardware_processing_queue
+        self._task_queue = task_queue
         self._worker_number = worker_number
         self._manager = manager
-        self._data_points_to_process: queue.Queue[
+        # Ordered by index, so data points whose tasks were taken back out of the task queue
+        # are prepared again first.
+        self._data_points_to_process: queue.PriorityQueue[
             tuple[int, dict[str, DatabaseValueType]]
-        ] = queue.Queue()
+        ] = queue.PriorityQueue()
         self._parameter_dict: dict[str, DatabaseValueType] = {}
         self._device_order: list[str] = []
-        self._scan_progress: ScanProgress = manager.ScanProgress()
-        self._outdated_tasks: queue.PriorityQueue[HardwareProcessingTask] = (
-            manager.PriorityQueue()
-        )
         self._experiment_library_client = experiment_library_client
 
     @handle_keyboard_interrupt(logger)
@@ -227,7 +222,6 @@ class PreProcessingWorker(multiprocessing.Process):
                 pre_processing_task = self._queue.get()
 
                 clear_queue(self._data_points_to_process)
-                clear_queue(self._outdated_tasks)
 
                 try:
                     self._process_task(
@@ -323,18 +317,14 @@ class PreProcessingWorker(multiprocessing.Process):
 
         self._device_order = asyncio.run(client.load_device_order())
 
-        self._scan_progress.start(pre_processing_task.job_run.id)
-        jobs = (
+        if contains_realtime_parameter(job.scan_parameters):
             self._handle_realtime_scan(
                 pre_processing_task, client=client, src_dir=src_dir, namespace=namespace
             )
-            if contains_realtime_parameter(job.scan_parameters)
-            else self._handle_regular_scan(
+        else:
+            self._handle_regular_scan(
                 pre_processing_task, client=client, src_dir=src_dir, namespace=namespace
             )
-        )
-        for _ in jobs:
-            self._regenerate_outdated_jobs(client, namespace)
 
     def _latest_parameters(self, *, before: str | None) -> dict[str, DatabaseValueType]:
         """Return every known parameter value, as of ``before`` or as of now.
@@ -422,6 +412,7 @@ class PreProcessingWorker(multiprocessing.Process):
     def _handle_parameter_updates(
         self, pre_processing_task: PreProcessingTask, namespace: ExperimentIdentifier
     ) -> None:
+        updated = False
         for parameter_update in consume_queue(self._update_queue):
             event = parameter_update["event"]
             job_id = parameter_update.get("job_id", None)
@@ -433,6 +424,7 @@ class PreProcessingWorker(multiprocessing.Process):
                 self._update_parameter_dict(
                     pre_processing_task, namespace, mode=ParamUpdateMode.ALL_UP_TO_DATE
                 )
+                updated = True
             elif event == "calibration" and new_parameters is not None:
                 self._update_parameter_dict(
                     pre_processing_task,
@@ -440,50 +432,62 @@ class PreProcessingWorker(multiprocessing.Process):
                     new_parameters=new_parameters,
                     mode=ParamUpdateMode.ONLY_NEW_PARAMETERS,
                 )
+                updated = True
+
+        if updated:
+            # Every queued task was created before the update, so they are all stale.
+            for task in self._task_queue.take_back(pre_processing_task.job_run.id):
+                self._data_points_to_process.put(
+                    (task.data_point_index, task.scanned_params)
+                )
 
     def _wait_while_paused(
         self,
-        client: ExperimentLibraryClient,
         pre_processing_task: PreProcessingTask,
         namespace: ExperimentIdentifier,
     ) -> JobRun:
         """Block until the job run's status is no longer ``PAUSED``.
 
+        The task queue is held meanwhile, so the hardware worker doesn't run the job's
+        prepared data points; they run as they are on resume.
+
         Parameter-update events are still drained while paused, so calibrations or
-        parameter edits the user makes during the pause take effect on resume.
+        parameter edits the user makes during the pause take effect on resume: they take
+        the stale data points back out of the task queue to prepare them again.
         The loop also exits if the status transitions to a non-``PAUSED`` value
         (e.g. ``CANCELLED`` or back to ``PROCESSING``).
-
-        On exit, any tasks the hardware worker diverted to ``_outdated_tasks`` while
-        paused are regenerated and re-submitted. This is required because the scan
-        loop may have already drained ``_data_points_to_process`` before the pause,
-        in which case it would otherwise spin on an empty queue without yielding to
-        the outer ``_regenerate_outdated_jobs`` call.
 
         Returns:
             The run as it was last read, so callers can reuse its status.
         """
         job_run = JobRunRepository.get_run_by_job_id(job_id=pre_processing_task.job.id)
-        while job_run.status == JobRunStatus.PAUSED:
-            self._handle_parameter_updates(pre_processing_task, namespace=namespace)
-            time.sleep(0.2)
-            job_run = JobRunRepository.get_run_by_job_id(
-                job_id=pre_processing_task.job.id
-            )
-        self._regenerate_outdated_jobs(client, namespace)
+        if job_run.status != JobRunStatus.PAUSED:
+            return job_run
+        with self._task_queue.held():
+            while job_run.status == JobRunStatus.PAUSED:
+                self._handle_parameter_updates(pre_processing_task, namespace=namespace)
+                time.sleep(0.2)
+                job_run = JobRunRepository.get_run_by_job_id(
+                    job_id=pre_processing_task.job.id
+                )
         return job_run
 
-    def _submit_task_to_hw_worker(
-        self,
-        *,
-        task: HardwareProcessingTask,
-    ) -> None:
-        logger.debug(
-            "Submitting data point %s (job_run_id=%s)",
-            task.data_point_index,
-            task.pre_processing_task.job_run.id,
-        )
-        self._hw_processing_queue.put(task)
+    def _wait_for_turn(
+        self, pre_processing_task: PreProcessingTask, namespace: ExperimentIdentifier
+    ) -> bool:
+        """Handle parameter updates and pauses until there is room in the task queue.
+
+        Returns:
+            False if the job run was cancelled or failed; its tasks are taken back.
+        """
+        while True:
+            self._handle_parameter_updates(pre_processing_task, namespace=namespace)
+            job_run = self._wait_while_paused(pre_processing_task, namespace=namespace)
+            if run_cancelled_or_failed(job_run):
+                self._task_queue.take_back(pre_processing_task.job_run.id)
+                return False
+            if self._task_queue.wait_for_space(timeout=POLL_INTERVAL):
+                return True
 
     def _handle_regular_scan(
         self,
@@ -491,7 +495,7 @@ class PreProcessingWorker(multiprocessing.Process):
         namespace: ExperimentIdentifier,
         client: ExperimentLibraryClient,
         src_dir: str | None,
-    ) -> Iterable[None]:
+    ) -> None:
         scan_parameter_value_combinations = get_scan_combinations(
             pre_processing_task.job
         )
@@ -503,15 +507,10 @@ class PreProcessingWorker(multiprocessing.Process):
         for combination in enumerate(scan_parameter_value_combinations):
             self._data_points_to_process.put(combination)
 
-        while self._scan_progress.completed(pre_processing_task.job_run.id) < len(
+        while self._task_queue.finished(pre_processing_task.job_run.id) < len(
             scan_parameter_value_combinations
         ):
-            self._handle_parameter_updates(pre_processing_task, namespace)
-            job_run = self._wait_while_paused(
-                client, pre_processing_task, namespace=namespace
-            )
-
-            if run_cancelled_or_failed(job_run):
+            if not self._wait_for_turn(pre_processing_task, namespace):
                 break
 
             # TODO: this should probably be done with multiple workers to
@@ -519,12 +518,11 @@ class PreProcessingWorker(multiprocessing.Process):
             try:
                 index, data_point = self._data_points_to_process.get(block=False)
             except queue.Empty:
-                time.sleep(SCAN_COMPLETION_POLL_INTERVAL)
+                time.sleep(POLL_INTERVAL)
                 continue
 
-            yield
-            self._submit_task_to_hw_worker(
-                task=self._create_hardware_task(
+            self._task_queue.put(
+                self._create_hardware_task(
                     pre_processing_task=pre_processing_task,
                     index=index,
                     data_point=data_point,
@@ -556,56 +554,8 @@ class PreProcessingWorker(multiprocessing.Process):
             scanned_params=data_point,
             src_dir=src_dir,
             hardware_instructions=hardware_instructions,
-            scan_progress=self._scan_progress,
-            outdated_tasks=self._outdated_tasks,
             created=datetime.now(timezone),
         )
-
-    def _regenerate_outdated_jobs(
-        self, client: ExperimentLibraryClient, namespace: ExperimentIdentifier
-    ) -> None:
-        for task in consume_queue(self._outdated_tasks):
-            # Derive the job from the task itself: _outdated_tasks lives for the whole
-            # worker, so we don't assume every task came from one pre-processing task.
-            job = task.pre_processing_task.job
-            # Realtime scans manage their own hardware instructions (re)generation in
-            # _handle_realtime_scan (keyed on the global parameter timestamp); their
-            # tasks are never regenerated here, only resubmitted as-is.
-            is_realtime = contains_realtime_parameter(
-                task.pre_processing_task.scan_parameters
-            )
-            # A single fetch covers every check below: the run carries both the
-            # current status (pause/cancel) and the parameter-update timestamp.
-            job_run = JobRunRepository.get_run_by_job_id(job_id=job.id)
-            # Don't resubmit into a paused hardware worker: it would only divert the
-            # task straight back, so we would regenerate it on every lap. Leave the
-            # remaining tasks queued until the job resumes.
-            if job_run.status == JobRunStatus.PAUSED:
-                self._outdated_tasks.put(task)
-                break
-            # The job was cancelled (or failed) while this task was outstanding.
-            # Count it as finished directly so the scan loop can complete, instead
-            # of regenerating it and bouncing it through the hardware worker.
-            if job_run.status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
-                self._scan_progress.complete(task.pre_processing_task.job_run.id)
-                continue
-            # Only stale tasks (parameters changed since the task was built) need
-            # fresh hardware instructions. Pause-diverted tasks keep their valid hardware instructions as-is.
-            parameter_update_timestamp = job_run.parameter_update_timestamp
-            if (
-                not is_realtime
-                and parameter_update_timestamp is not None
-                and task.created < parameter_update_timestamp.replace(tzinfo=UTC)
-            ):
-                task.hardware_instructions = create_hardware_instructions(
-                    client,
-                    n_shots=job.number_of_shots,
-                    parameter_dict={**self._parameter_dict, **task.scanned_params},
-                    namespace=namespace,
-                    device_order=self._device_order,
-                )
-                task.created = datetime.now(timezone)
-            self._submit_task_to_hw_worker(task=task)
 
     def _handle_realtime_scan(
         self,
@@ -613,7 +563,7 @@ class PreProcessingWorker(multiprocessing.Process):
         namespace: ExperimentIdentifier,
         client: ExperimentLibraryClient,
         src_dir: str | None,
-    ) -> Iterable[None]:
+    ) -> None:
         params = pre_processing_task.job.scan_parameters
         realtime_param = next(p for p in params if p.realtime)
         n_scan_values = len(realtime_param.scan_values)
@@ -631,15 +581,11 @@ class PreProcessingWorker(multiprocessing.Process):
                 )
             if self._data_points_to_process.qsize() == 0:
                 self._data_points_to_process.put((next(realtime_scan_counter), {}))
-            for index, data_point in consume_queue(self._data_points_to_process):
-                if job_run_cancelled_or_failed(
-                    job_id=pre_processing_task.job.id,
-                ):
+            while not self._data_points_to_process.empty():
+                if not self._wait_for_turn(pre_processing_task, namespace):
                     return
-                self._handle_parameter_updates(pre_processing_task, namespace=namespace)
-                self._wait_while_paused(
-                    client, pre_processing_task, namespace=namespace
-                )
+
+                index, data_point = self._data_points_to_process.get()
                 frozen_data_point = freeze_dict(data_point)
                 hardware_task = hardware_tasks.get(frozen_data_point)
                 if (
@@ -661,10 +607,15 @@ class PreProcessingWorker(multiprocessing.Process):
                         src_dir=src_dir,
                     )
                     hardware_tasks[frozen_data_point] = hardware_task
-                hardware_task.created = datetime.now(timezone)
-                hardware_task.data_point_index = index
-                yield
-                self._submit_task_to_hw_worker(task=hardware_task)
+                # A copy, as the task queue may still hold an earlier one.
+                self._task_queue.put(
+                    hardware_task.model_copy(
+                        update={
+                            "created": datetime.now(timezone),
+                            "data_point_index": index,
+                        }
+                    )
+                )
 
 
 T = TypeVar("T")

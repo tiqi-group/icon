@@ -57,6 +57,9 @@ class DevicesConfig(BaseModel):
 
 class PreProcessingConfig(BaseModel):
     workers: int = 2
+    queue_size: int = 4
+    """Number of prepared data points a pre-processing worker queues for the hardware
+    worker. They are prepared again if their parameters change while queued."""
 
 
 class ServerConfig(BaseModel):

@@ -3,7 +3,7 @@ from __future__ import annotations
 import queue
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -27,17 +27,20 @@ EMPTY_READOUTS = Readouts(result_channels={}, vector_channels={}, shot_channels=
 ACTIVE_RUN_STATUSES = (JobRunStatus.PROCESSING, JobRunStatus.PAUSED)
 
 
-class _SingleTaskQueue:
+class _SingleTaskArbiter:
     """Hands out one task, then stops the worker loop."""
 
     def __init__(self, task: Any) -> None:
         self._tasks = [task]
 
-    def get(self) -> Any:
+    def pull(self) -> Any:
         if not self._tasks:
             # Caught by the worker's handle_keyboard_interrupt decorator.
             raise KeyboardInterrupt
         return self._tasks.pop()
+
+    def mark_finished(self, run_id: int) -> None:
+        pass
 
 
 class _FakeController(HardwareController):
@@ -87,8 +90,6 @@ def _hardware_task() -> Any:
         hardware_instructions=HARDWARE_INSTRUCTIONS,
         src_dir=None,
         created=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        scan_progress=MagicMock(),
-        outdated_tasks=queue.Queue(),
     )
 
 
@@ -112,14 +113,12 @@ def _run_worker(
     monkeypatch.setattr(
         worker_module.JobRunRepository,
         "get_run_by_job_id",
-        lambda **_: SimpleNamespace(
-            status=JobRunStatus.PROCESSING, parameter_update_timestamp=None
-        ),
+        lambda **_: SimpleNamespace(status=JobRunStatus.PROCESSING),
     )
     monkeypatch.setattr(worker_module, "try_update_run_by_id", update_run)
 
     worker = HardwareProcessingWorker.__new__(HardwareProcessingWorker)
-    worker._queue = _SingleTaskQueue(_hardware_task())  # type: ignore[assignment]
+    worker._arbiter = cast("Any", _SingleTaskArbiter(_hardware_task()))
     worker._post_processing_queue = post_processing_queue  # type: ignore[assignment]
     worker._devices = {  # type: ignore[assignment]
         device_id: SimpleNamespace(controller=controller)

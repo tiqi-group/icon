@@ -1,254 +1,351 @@
 from __future__ import annotations
 
-import multiprocessing
+import dataclasses
 import queue
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 from icon.server.data_access.models.enums import JobRunStatus
-from icon.server.hardware_processing.worker import should_divert_task
+from icon.server.pre_processing.arbiter import Arbiter, TaskQueue
 from icon.server.pre_processing.worker import (
     ExperimentIdentifier,
     PreProcessingWorker,
+    consume_queue,
     create_hardware_instructions,
 )
-from icon.server.shared_resource_manager import ScanProgress
 
-if TYPE_CHECKING:
-    from icon.server.hardware_processing.task import HardwareProcessingTask
-
-# Fixed reference point: the parameter-update timestamp the consumer compares against.
+# Fixed reference point: the parameter-update timestamp tasks are compared against.
 PARAM_UPDATE_TS = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-# The SQLite column is stored without tzinfo (as UTC); mirror that for divert checks.
-NAIVE_TS = PARAM_UPDATE_TS.replace(tzinfo=None)
-NUM_TASKS = 2  # tasks placed in the queue per test
+STALE_TS = PARAM_UPDATE_TS - timedelta(seconds=10)
 RUN_ID = 1  # the job run the worker is currently scanning
-STALE_RUN_ID = 99  # a job run that finished before the current one started
-UPDATED_FREQ = 2.0  # parameter value after a calibration during a pause
-MAX_ROUNDS = 5  # bound on consumer<->hardware round-trips before we call it a loop
+OTHER_RUN_ID = 99  # a job run whose tasks are still in the task queue
 DEVICE_ORDER = ["main", "sub"]  # the job run's device order, loaded when it starts
+TASK_QUEUE_SIZE = 6  # tasks the worker keeps queued for the hardware worker
+NUM_DATA_POINTS = 10  # data points of the regular scan
+REALTIME_GENERATIONS = 2  # instructions generated in the realtime scan test
 
 
-def _scan_parameters(*, realtime: bool) -> list[Any]:
-    """Scan-parameter list that reads as realtime (or not) to contains_realtime_parameter."""
-    return [SimpleNamespace(realtime=True)] if realtime else []
-
-
+@dataclasses.dataclass
 class _FakeTask:
     """Minimal stand-in for HardwareProcessingTask (only the attributes touched)."""
 
-    def __init__(
-        self,
-        created: datetime,
-        hardware_instructions: bytes = b"ORIGINAL",
-        *,
-        realtime: bool = False,
-        run_id: int = RUN_ID,
-    ) -> None:
-        self.created = created
-        self.priority = 0
-        self.scanned_params: dict[str, Any] = {}
-        self.hardware_instructions = hardware_instructions
-        # Mirror PreProcessingTask, which exposes scan_parameters both as its own field
-        # and via .job (the scheduler sets the field to job.scan_parameters).
-        scan_parameters = _scan_parameters(realtime=realtime)
-        self.pre_processing_task = SimpleNamespace(
-            scan_parameters=scan_parameters,
-            job_run=SimpleNamespace(id=run_id),
-            job=SimpleNamespace(
-                id=1,
-                number_of_shots=100,
-                scan_parameters=scan_parameters,
-            ),
-        )
-        self.data_point_index = 0
+    data_point_index: int
+    scanned_params: dict[str, Any]
+    pre_processing_task: Any
+    created: datetime = STALE_TS
+    priority: int = 0
+    hardware_instructions: Any = None
+    global_parameter_timestamp: datetime = STALE_TS
 
-    def __lt__(self, other: _FakeTask) -> bool:
-        return (self.priority, self.created) < (other.priority, other.created)
+    def model_copy(self, *, update: dict[str, Any]) -> _FakeTask:
+        return dataclasses.replace(self, **update)
 
 
-def _fake_task(
-    created: datetime,
-    hardware_instructions: bytes = b"ORIGINAL",
-    *,
-    realtime: bool = False,
-    run_id: int = RUN_ID,
-) -> HardwareProcessingTask:
-    """A _FakeTask typed as the real task, so the strongly-typed queues accept it."""
-    return cast(
-        "HardwareProcessingTask",
-        _FakeTask(created, hardware_instructions, realtime=realtime, run_id=run_id),
+def _fake_task(index: int, *, run_id: int = RUN_ID) -> Any:
+    return _FakeTask(
+        data_point_index=index,
+        scanned_params={"x": index},
+        pre_processing_task=SimpleNamespace(job_run=SimpleNamespace(id=run_id)),
     )
 
 
-def _make_worker() -> tuple[PreProcessingWorker, queue.PriorityQueue[Any]]:
-    hw_queue: queue.PriorityQueue[Any] = queue.PriorityQueue()
-    worker = PreProcessingWorker(
+def _pre_processing_task(**job: Any) -> Any:
+    return SimpleNamespace(
+        job=SimpleNamespace(id=1, number_of_shots=100, **job),
+        job_run=SimpleNamespace(id=RUN_ID),
+    )
+
+
+def _make_worker(task_queue_size: int = TASK_QUEUE_SIZE) -> PreProcessingWorker:
+    return PreProcessingWorker(
         worker_number=0,
         pre_processing_queue=queue.PriorityQueue(),
-        update_queue=multiprocessing.Queue(),
-        hardware_processing_queue=hw_queue,
-        manager=MagicMock(
-            PriorityQueue=queue.PriorityQueue,
-            Queue=queue.Queue,
-            ScanProgress=ScanProgress,
-        ),
+        update_queue=cast("Any", queue.Queue()),
+        task_queue=TaskQueue(Arbiter(), 0, size=task_queue_size),
+        manager=MagicMock(),
         experiment_library_client=MagicMock(),
     )
-    worker._scan_progress.start(RUN_ID)
-    return worker, hw_queue
+
+
+def _queued_tasks(task_queue: TaskQueue) -> list[Any]:
+    tasks = []
+    while (task := task_queue.pop()) is not None:
+        tasks.append(task)
+    return tasks
+
+
+def _hand_over_tasks(task_queue: TaskQueue) -> list[Any]:
+    """Model the hardware worker pulling and finishing every queued task."""
+    tasks = _queued_tasks(task_queue)
+    for task in tasks:
+        task_queue._arbiter.mark_finished(task.pre_processing_task.job_run.id)
+    return tasks
 
 
 def _run_mock(status: JobRunStatus) -> MagicMock:
-    # SQLite returns this column without timezone info (stored as UTC), so mirror that.
-    return MagicMock(
-        status=status,
-        parameter_update_timestamp=PARAM_UPDATE_TS.replace(tzinfo=None),
+    return MagicMock(status=status)
+
+
+def _set_parameter_update_timestamp(worker: PreProcessingWorker) -> Any:
+    """Stand-in for _update_parameter_dict, which sets the parameter timestamp."""
+
+    def update_parameter_dict(*_: Any, **__: Any) -> None:
+        worker._global_parameter_timestamp = datetime.now(timezone.utc)
+
+    return patch.object(
+        worker, "_update_parameter_dict", side_effect=update_parameter_dict
     )
 
 
-def _run_regenerate(worker: PreProcessingWorker, status: JobRunStatus) -> MagicMock:
-    """Run the consumer against a run with the given status; return the generate mock."""
+def _handle_parameter_update(
+    worker: PreProcessingWorker, update: dict[str, Any]
+) -> MagicMock:
+    """Handle one update event; return the parameter-dict update mock."""
+    worker._update_queue.put(cast("Any", update))
+    with _set_parameter_update_timestamp(worker) as update_mock:
+        worker._handle_parameter_updates(
+            _pre_processing_task(), namespace=cast("Any", object())
+        )
+    return update_mock
+
+
+def test_parameter_update_takes_back_the_runs_tasks() -> None:
+    """Their data points are prepared again first; other runs' tasks stay queued."""
+    worker = _make_worker()
+    for task in (_fake_task(0, run_id=OTHER_RUN_ID), _fake_task(1), _fake_task(3)):
+        worker._task_queue.put(task)
+    worker._data_points_to_process.put((2, {"x": 2}))
+
+    update = _handle_parameter_update(worker, {"event": "update_parameters"})
+
+    assert update.call_count == 1
+    assert [task.data_point_index for task in _queued_tasks(worker._task_queue)] == [0]
+    assert list(consume_queue(worker._data_points_to_process)) == [
+        (1, {"x": 1}),
+        (2, {"x": 2}),
+        (3, {"x": 3}),
+    ]
+
+
+def test_ignored_parameter_update_keeps_the_tasks() -> None:
+    worker = _make_worker()
+    worker._task_queue.put(_fake_task(0))
+
+    update = _handle_parameter_update(
+        worker, {"event": "update_parameters", "job_id": 2}
+    )
+
+    assert update.call_count == 0
+    assert len(_queued_tasks(worker._task_queue)) == 1
+
+
+def _wait_while_paused(
+    worker: PreProcessingWorker, statuses: list[JobRunStatus], on_sleep: Any
+) -> Any:
     with (
+        patch("icon.server.pre_processing.worker.JobRunRepository") as repo,
+        patch("icon.server.pre_processing.worker.time.sleep", side_effect=on_sleep),
+        _set_parameter_update_timestamp(worker),
+    ):
+        repo.get_run_by_job_id.side_effect = [_run_mock(s) for s in statuses]
+        return worker._wait_while_paused(
+            _pre_processing_task(), namespace=cast("Any", object())
+        )
+
+
+def test_pause_holds_the_tasks() -> None:
+    """Nothing is handed over while paused; the tasks run as they are on resume."""
+    worker = _make_worker()
+    worker._task_queue.put(_fake_task(0))
+    worker._task_queue.put(_fake_task(1))
+    handed_over_while_paused: list[Any] = []
+
+    job_run = _wait_while_paused(
+        worker,
+        [JobRunStatus.PAUSED, JobRunStatus.PROCESSING],
+        on_sleep=lambda _: handed_over_while_paused.append(worker._task_queue.pop()),
+    )
+
+    assert job_run.status == JobRunStatus.PROCESSING
+    assert handed_over_while_paused == [None]
+    assert [task.data_point_index for task in _queued_tasks(worker._task_queue)] == [
+        0,
+        1,
+    ]
+    assert worker._data_points_to_process.empty()
+
+
+def test_parameter_update_while_paused_takes_back_the_tasks() -> None:
+    worker = _make_worker()
+    worker._task_queue.put(_fake_task(0))
+
+    _wait_while_paused(
+        worker,
+        [JobRunStatus.PAUSED, JobRunStatus.PAUSED, JobRunStatus.PROCESSING],
+        on_sleep=lambda _: worker._update_queue.put(
+            cast("Any", {"event": "update_parameters"})
+        ),
+    )
+
+    assert _queued_tasks(worker._task_queue) == []
+    assert list(consume_queue(worker._data_points_to_process)) == [(0, {"x": 0})]
+
+
+def test_cancelled_regular_scan_drops_its_tasks() -> None:
+    worker = _make_worker()
+    worker._task_queue.put(_fake_task(0, run_id=OTHER_RUN_ID))
+    worker._task_queue.put(_fake_task(1))
+    scan_parameter = SimpleNamespace(
+        realtime=False, unique_id=lambda: "x", scan_values=[0]
+    )
+
+    with patch("icon.server.pre_processing.worker.JobRunRepository") as repo:
+        repo.get_run_by_job_id.return_value = _run_mock(JobRunStatus.CANCELLED)
+        worker._handle_regular_scan(
+            _pre_processing_task(repetitions=1, scan_parameters=[scan_parameter]),
+            namespace=cast("Any", object()),
+            client=cast("Any", object()),
+            src_dir=None,
+        )
+
+    assert [task.data_point_index for task in _queued_tasks(worker._task_queue)] == [0]
+
+
+def _create_task(worker: PreProcessingWorker) -> Any:
+    """Stand-in for _create_hardware_task."""
+
+    def create_task(**kwargs: Any) -> _FakeTask:
+        return _FakeTask(
+            data_point_index=kwargs["index"],
+            scanned_params=kwargs["data_point"],
+            pre_processing_task=kwargs["pre_processing_task"],
+            created=datetime.now(timezone.utc),
+            hardware_instructions=kwargs["hardware_instructions"],
+            global_parameter_timestamp=worker._global_parameter_timestamp,
+        )
+
+    return patch.object(worker, "_create_hardware_task", side_effect=create_task)
+
+
+def test_regular_scan_fills_the_task_queue_in_data_point_order() -> None:
+    """Instructions are generated as far as the task queue has room."""
+    worker = _make_worker()
+    worker._global_parameter_timestamp = STALE_TS
+    queued_at_generation: list[int] = []
+    handed_over: list[Any] = []
+
+    def generate(
+        _client: Any, *, parameter_dict: dict[str, Any], **_: Any
+    ) -> list[tuple[str, str]]:
+        queued_at_generation.append(len(worker._task_queue._arbiter._tasks[0]))
+        return [("main", str(parameter_dict["x"]))]
+
+    wait_for_space = worker._task_queue.wait_for_space
+
+    def hand_over_if_full(timeout: float) -> bool:
+        # Model the hardware worker pulling the queued tasks once the queue is full.
+        if not wait_for_space(timeout=0):
+            handed_over.extend(_hand_over_tasks(worker._task_queue))
+        return wait_for_space(timeout=timeout)
+
+    scan_parameter = SimpleNamespace(
+        realtime=False, unique_id=lambda: "x", scan_values=list(range(NUM_DATA_POINTS))
+    )
+    with (
+        patch("icon.server.pre_processing.worker.JobRunRepository") as repo,
+        patch(
+            "icon.server.pre_processing.worker.time.sleep",
+            side_effect=lambda _: handed_over.extend(
+                _hand_over_tasks(worker._task_queue)
+            ),
+        ),
         patch(
             "icon.server.pre_processing.worker.create_hardware_instructions",
-            return_value=b"REGENERATED",
-        ) as generate,
-        patch("icon.server.pre_processing.worker.JobRunRepository") as repo,
+            side_effect=generate,
+        ),
+        patch.object(worker._task_queue, "wait_for_space", hand_over_if_full),
+        _create_task(worker),
     ):
-        repo.get_run_by_job_id.return_value = _run_mock(status)
-        worker._regenerate_outdated_jobs(
-            client=cast("Any", object()),
+        repo.get_run_by_job_id.return_value = _run_mock(JobRunStatus.PROCESSING)
+        worker._handle_regular_scan(
+            _pre_processing_task(repetitions=1, scan_parameters=[scan_parameter]),
             namespace=cast("Any", object()),
+            client=cast("Any", object()),
+            src_dir=None,
+        )
+
+    assert max(queued_at_generation) == TASK_QUEUE_SIZE - 1
+    assert [task.data_point_index for task in handed_over] == list(
+        range(NUM_DATA_POINTS)
+    )
+    assert [task.hardware_instructions for task in handed_over] == [
+        [("main", str(x))] for x in range(NUM_DATA_POINTS)
+    ]
+
+
+def _run_realtime_scan(worker: PreProcessingWorker, wait_for_space: Any) -> MagicMock:
+    """Scan a realtime parameter with two values; return the generate mock."""
+    realtime_parameter = SimpleNamespace(realtime=True, scan_values=[0.0, 1.0])
+    with (
+        patch("icon.server.pre_processing.worker.JobRunRepository") as repo,
+        patch(
+            "icon.server.pre_processing.worker.create_hardware_instructions"
+        ) as generate,
+        patch.object(worker._task_queue, "wait_for_space", wait_for_space),
+        _create_task(worker),
+        _set_parameter_update_timestamp(worker),
+    ):
+        repo.get_run_by_job_id.return_value = _run_mock(JobRunStatus.PROCESSING)
+        worker._handle_realtime_scan(
+            _pre_processing_task(repetitions=1, scan_parameters=[realtime_parameter]),
+            namespace=cast("Any", object()),
+            client=cast("Any", object()),
+            src_dir=None,
         )
     return generate
 
 
-def test_regenerate_only_regenerates_stale_tasks() -> None:
-    """Pause-diverted (fresh) tasks must not be needlessly regenerated."""
-    worker, submitted = _make_worker()
-    stale = _fake_task(created=PARAM_UPDATE_TS - timedelta(seconds=10))
-    fresh = _fake_task(created=PARAM_UPDATE_TS + timedelta(seconds=10))
-    worker._outdated_tasks.put(stale)
-    worker._outdated_tasks.put(fresh)
+def test_realtime_scan_prepares_taken_back_data_points_first() -> None:
+    """A parameter update while the task queue is full regenerates the queued data point."""
+    worker = _make_worker(task_queue_size=1)
+    worker._global_parameter_timestamp = STALE_TS
+    wait_for_space = worker._task_queue.wait_for_space
+    waits = 0
+    handed_over: list[Any] = []
 
-    generate = _run_regenerate(worker, JobRunStatus.PROCESSING)
+    def update_then_hand_over(timeout: float) -> bool:
+        nonlocal waits
+        if not wait_for_space(timeout=0):
+            waits += 1
+            if waits == 1:
+                # The parameters change while the first data point waits in the queue.
+                worker._update_queue.put(cast("Any", {"event": "update_parameters"}))
+                return False
+            handed_over.extend(_hand_over_tasks(worker._task_queue))
+        return wait_for_space(timeout=timeout)
+
+    generate = _run_realtime_scan(worker, update_then_hand_over)
+
+    handed_over.extend(_queued_tasks(worker._task_queue))
+    assert [task.data_point_index for task in handed_over] == [0, 1]
+    # The first data point is generated twice, the second reuses its instructions.
+    assert generate.call_count == REALTIME_GENERATIONS
+
+
+def test_realtime_scan_queues_copies_of_reused_tasks() -> None:
+    """Reusing a data point's instructions doesn't change its task still queued."""
+    worker = _make_worker()
+    worker._global_parameter_timestamp = STALE_TS
+
+    generate = _run_realtime_scan(worker, worker._task_queue.wait_for_space)
 
     assert generate.call_count == 1
-    assert submitted.qsize() == NUM_TASKS
-    assert stale.hardware_instructions == b"REGENERATED"
-    assert fresh.hardware_instructions == b"ORIGINAL"
-
-
-def test_regenerate_stops_when_paused() -> None:
-    """Draining must stop without feeding a paused hardware worker."""
-    worker, submitted = _make_worker()
-    worker._outdated_tasks.put(_fake_task(created=PARAM_UPDATE_TS))
-    worker._outdated_tasks.put(_fake_task(created=PARAM_UPDATE_TS))
-
-    generate = _run_regenerate(worker, JobRunStatus.PAUSED)
-
-    assert submitted.empty()
-    assert generate.call_count == 0
-    assert worker._outdated_tasks.qsize() == NUM_TASKS
-
-
-def test_regenerate_does_not_regenerate_realtime_tasks() -> None:
-    """Realtime tasks keep their last-generated hardware instructions, never the generic regen."""
-    worker, submitted = _make_worker()
-    stale = _fake_task(created=PARAM_UPDATE_TS - timedelta(seconds=10), realtime=True)
-    worker._outdated_tasks.put(stale)
-
-    generate = _run_regenerate(worker, JobRunStatus.PROCESSING)
-
-    assert generate.call_count == 0
-    assert submitted.queue == [stale]
-    assert stale.hardware_instructions == b"ORIGINAL"
-
-
-def test_regenerate_drops_cancelled_tasks() -> None:
-    """Cancelled jobs' tasks are accounted for directly, not bounced through HW."""
-    worker, submitted = _make_worker()
-    worker._outdated_tasks.put(_fake_task(created=PARAM_UPDATE_TS))
-    worker._outdated_tasks.put(_fake_task(created=PARAM_UPDATE_TS))
-
-    generate = _run_regenerate(worker, JobRunStatus.CANCELLED)
-
-    assert submitted.empty()
-    assert generate.call_count == 0
-    assert worker._scan_progress.completed(RUN_ID) == NUM_TASKS
-    assert worker._outdated_tasks.qsize() == 0
-
-
-def test_regenerate_uses_updated_parameters_after_pause() -> None:
-    """A parameter changed during a pause is applied when a stale task is regenerated."""
-    worker, submitted = _make_worker()
-    worker._parameter_dict = {"freq": UPDATED_FREQ}
-    worker._device_order = DEVICE_ORDER
-    stale = _fake_task(created=PARAM_UPDATE_TS - timedelta(seconds=10))
-    worker._outdated_tasks.put(stale)
-
-    generate = _run_regenerate(worker, JobRunStatus.PROCESSING)
-
-    assert submitted.queue == [stale]
-    assert stale.hardware_instructions == b"REGENERATED"
-    assert generate.call_args.kwargs["parameter_dict"]["freq"] == UPDATED_FREQ
-    assert generate.call_args.kwargs["device_order"] == DEVICE_ORDER
-
-
-def test_no_tight_loop_on_realtime_resume() -> None:
-    """The consumer<->hardware-worker round-trip must terminate for a realtime scan.
-
-    Reproduces the resume-after-parameter-update tight loop: a realtime task made
-    stale by a parameter update during a pause bounces between the consumer (which
-    resubmits it) and the hardware worker (which re-diverts it as outdated). Any fix
-    -- refreshing the task, dropping it, or exempting realtime from the staleness
-    divert -- must make the round-trip terminate.
-    """
-    worker, submitted = _make_worker()
-    worker._outdated_tasks.put(
-        _fake_task(created=PARAM_UPDATE_TS - timedelta(seconds=10), realtime=True)
-    )
-
-    for _ in range(MAX_ROUNDS):
-        while not submitted.empty():
-            submitted.get()
-        _run_regenerate(worker, JobRunStatus.PROCESSING)
-        # Model the hardware worker: divert each resubmission it still finds outdated.
-        while not submitted.empty():
-            task = submitted.get()
-            if should_divert_task(task, PARAM_UPDATE_TS, JobRunStatus.PROCESSING):
-                worker._outdated_tasks.put(task)
-        if worker._outdated_tasks.empty():
-            break
-
-    assert worker._outdated_tasks.empty()
-
-
-def test_should_divert_task_diverts_paused() -> None:
-    """A paused job always diverts, regardless of scan type or staleness."""
-    fresh = _fake_task(created=PARAM_UPDATE_TS + timedelta(seconds=10))
-    assert should_divert_task(fresh, NAIVE_TS, JobRunStatus.PAUSED)
-
-
-def test_should_divert_task_never_diverts_realtime_for_staleness() -> None:
-    """Realtime tasks are exempt from the staleness divert (only pause diverts them)."""
-    stale_realtime = _fake_task(
-        created=PARAM_UPDATE_TS - timedelta(seconds=10), realtime=True
-    )
-    assert not should_divert_task(stale_realtime, NAIVE_TS, JobRunStatus.PROCESSING)
-
-
-def test_should_divert_task_staleness_for_regular_scans() -> None:
-    """Regular tasks divert only when built before the (tz-naive) parameter update."""
-    stale = _fake_task(created=PARAM_UPDATE_TS - timedelta(seconds=10))
-    fresh = _fake_task(created=PARAM_UPDATE_TS + timedelta(seconds=10))
-    assert should_divert_task(stale, NAIVE_TS, JobRunStatus.PROCESSING)
-    assert not should_divert_task(fresh, NAIVE_TS, JobRunStatus.PROCESSING)
-    # No parameter update recorded yet -> nothing is stale.
-    assert not should_divert_task(stale, None, JobRunStatus.PROCESSING)
+    assert [task.data_point_index for task in _queued_tasks(worker._task_queue)] == [
+        0,
+        1,
+    ]
 
 
 def test_create_hardware_instructions_follows_the_job_runs_device_order() -> None:
