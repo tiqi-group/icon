@@ -35,7 +35,7 @@ paths:
             type: string
             default: 20
           required: false
-          description: Priority of the experiment job.
+          description: Priority of the experiment job, between 0 and 20. Lower values run first.
         - in: query
           name: repetitions
           schema:
