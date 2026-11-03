@@ -22,7 +22,7 @@ The backend server runs as multiple processes, each with a clear responsibility:
     One or more workers that prepare jobs before execution (`server.pre_processing.workers`). For each job, they:
 
     * Fetch the relevant parameters from InfluxDB.
-    * Generate JSON sequences for each data point using the experiment library.
+    * Generate JSON sequences for the data points using the experiment library, several at a time (`server.pre_processing.instruction_pool_size`).
     * Place the prepared data points into the queue consumed by the hardware worker.
 
 * **Hardware Worker**
