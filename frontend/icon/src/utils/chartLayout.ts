@@ -45,7 +45,13 @@ export const chartToolbox = (
     itemSize: 14,
     itemGap: 10,
     feature: {
-      dataZoom: { yAxisIndex: "none" },
+      // filterMode "none" only moves the axis windows instead of dropping
+      // out-of-window points, so lines run to the plot edge rather than
+      // breaking where a filtered point used to be. No restore feature: the
+      // restore action re-creates the toolbox view while the old brush
+      // handler stays attached, making the next box-zoom apply twice; the
+      // back arrow covers un-zooming.
+      dataZoom: { filterMode: "none" },
       myCopyToClipboard: {
         show: true,
         title: "Copy to Clipboard",

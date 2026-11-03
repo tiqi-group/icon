@@ -619,6 +619,7 @@ export const JobView = ({
                     />
                   ) : (
                     <ResultChannelPlot
+                      key={jobId}
                       experimentData={experimentData}
                       channelNames={win.channel_names}
                       loading={loading}
