@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import multiprocessing
 import queue
 from datetime import datetime, timedelta, timezone
@@ -13,6 +14,7 @@ from icon.server.pre_processing.worker import (
     ExperimentIdentifier,
     PreProcessingWorker,
     create_hardware_instructions,
+    create_hardware_instructions_batch,
 )
 from icon.server.shared_resource_manager import ScanProgress
 
@@ -29,6 +31,8 @@ STALE_RUN_ID = 99  # a job run that finished before the current one started
 UPDATED_FREQ = 2.0  # parameter value after a calibration during a pause
 MAX_ROUNDS = 5  # bound on consumer<->hardware round-trips before we call it a loop
 DEVICE_ORDER = ["main", "sub"]  # the job run's device order, loaded when it starts
+POOL_SIZE = 4  # data points whose hardware instructions are generated concurrently
+NUM_DATA_POINTS = 10  # data points of the regular scan
 
 
 def _scan_parameters(*, realtime: bool) -> list[Any]:
@@ -278,3 +282,83 @@ def test_create_hardware_instructions_follows_the_job_runs_device_order() -> Non
         ("sub", "sub instructions"),
         ("extra", "extra instructions"),
     ]
+
+
+def test_create_hardware_instructions_batch_keeps_the_data_point_order() -> None:
+    """Results follow the data points, even when later ones finish first."""
+
+    class _Client:
+        async def create_hardware_instructions(
+            self, *, parameter_dict: dict[str, Any], **_: Any
+        ) -> dict[str, str]:
+            x = parameter_dict["x"]
+            await asyncio.sleep(0.01 * (POOL_SIZE - x))
+            return {"sub": f"sub {x}", "main": f"main {x}"}
+
+    assert create_hardware_instructions_batch(
+        cast("Any", _Client()),
+        n_shots=1,
+        parameter_dicts=[{"x": x} for x in range(POOL_SIZE)],
+        device_order=DEVICE_ORDER,
+        namespace=ExperimentIdentifier("module", "Class", "instance"),
+    ) == [[("main", f"main {x}"), ("sub", f"sub {x}")] for x in range(POOL_SIZE)]
+
+
+def test_regular_scan_submits_batches_in_data_point_order() -> None:
+    """Instructions are generated a pool at a time; tasks are submitted in order."""
+    worker, _ = _make_worker()
+    lane: queue.Queue[Any] = queue.Queue()
+    worker._hw_processing_queue = lane
+    batch_sizes: list[int] = []
+
+    def generate_batch(
+        _client: Any, *, parameter_dicts: list[dict[str, Any]], **_: Any
+    ) -> list[list[tuple[str, str]]]:
+        batch_sizes.append(len(parameter_dicts))
+        return [[("main", str(p["x"]))] for p in parameter_dicts]
+
+    def create_task(**kwargs: Any) -> Any:
+        # Model the hardware worker finishing the data point.
+        worker._scan_progress.complete(RUN_ID)
+        return SimpleNamespace(
+            data_point_index=kwargs["index"],
+            hardware_instructions=kwargs["hardware_instructions"],
+            created=kwargs["created"],
+            pre_processing_task=kwargs["pre_processing_task"],
+        )
+
+    scan_parameter = SimpleNamespace(
+        realtime=False, unique_id=lambda: "x", scan_values=list(range(NUM_DATA_POINTS))
+    )
+    pre_processing_task = SimpleNamespace(
+        job=SimpleNamespace(
+            id=1, number_of_shots=100, repetitions=1, scan_parameters=[scan_parameter]
+        ),
+        job_run=SimpleNamespace(id=RUN_ID),
+    )
+    with (
+        patch("icon.server.pre_processing.worker.get_config") as config,
+        patch("icon.server.pre_processing.worker.JobRunRepository") as repo,
+        patch(
+            "icon.server.pre_processing.worker.create_hardware_instructions_batch",
+            side_effect=generate_batch,
+        ),
+        patch.object(worker, "_create_hardware_task", side_effect=create_task),
+    ):
+        config.return_value.server.pre_processing.instruction_pool_size = POOL_SIZE
+        repo.get_run_by_job_id.return_value = _run_mock(JobRunStatus.PROCESSING)
+        for _ in worker._handle_regular_scan(
+            cast("Any", pre_processing_task),
+            namespace=cast("Any", object()),
+            client=cast("Any", object()),
+            src_dir=None,
+        ):
+            pass
+
+    tasks = list(lane.queue)
+    assert batch_sizes == [4, 4, 2]
+    assert [task.data_point_index for task in tasks] == list(range(NUM_DATA_POINTS))
+    assert [task.hardware_instructions for task in tasks] == [
+        [("main", str(x))] for x in range(NUM_DATA_POINTS)
+    ]
+    assert len({task.created for task in tasks[:POOL_SIZE]}) == 1
