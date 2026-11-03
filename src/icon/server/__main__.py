@@ -54,6 +54,7 @@ def start_server() -> None:
         HardwareProcessingWorker,
     )
     from icon.server.post_processing.worker import PostProcessingWorker
+    from icon.server.pre_processing.arbiter import TaskQueue
     from icon.server.pre_processing.worker import PreProcessingWorker
     from icon.server.scheduler.scheduler import Scheduler
     from icon.server.web_server.sio_setup import patch_sio_setup
@@ -81,9 +82,11 @@ def start_server() -> None:
         PreProcessingWorker(
             experiment_library_client=exp_lib_client,
             worker_number=i,
-            hardware_processing_queue=SRM.hardware_processing_queue,
             pre_processing_queue=SRM.pre_processing_queue,
             update_queue=queue,
+            task_queue=TaskQueue(
+                SRM.task_arbiter, i, size=config.server.pre_processing.queue_size
+            ),
             manager=SRM,
         ).start()
 
@@ -92,7 +95,7 @@ def start_server() -> None:
     )
 
     hardware_processing_worker = HardwareProcessingWorker(
-        hardware_processing_queue=SRM.hardware_processing_queue,
+        arbiter=SRM.task_arbiter,
         post_processing_queue=post_processing_queue,
         manager=SRM,
         devices=devices,

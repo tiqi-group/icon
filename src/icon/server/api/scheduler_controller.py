@@ -235,8 +235,8 @@ class SchedulerController(pydase.DataService):
 
         The pre-processing worker holding the job will finish any in-flight work and
         then block in a polling loop, keeping the remaining scan state in memory.
-        Tasks already queued for the hardware worker are diverted back to the
-        pre-processing worker via the existing ``outdated_tasks`` rewind mechanism.
+        It holds the job's prepared data points in its task queue, so the hardware
+        worker only finishes the data point it is running.
 
         No-op if the job run is not in ``PROCESSING`` state.
 
@@ -254,9 +254,9 @@ class SchedulerController(pydase.DataService):
     def resume_job(self, *, job_id: int) -> None:
         """Resume a paused job.
 
-        The pre-processing worker observes the status change, regenerates any tasks
-        the hardware worker diverted while paused (picking up fresh parameter values
-        in the process), and continues producing data points from where it left off.
+        The pre-processing worker observes the status change, releases its task queue
+        (data points whose parameters changed during the pause are prepared again
+        first), and continues producing data points from where it left off.
 
         No-op if the job run is not in ``PAUSED`` state.
 

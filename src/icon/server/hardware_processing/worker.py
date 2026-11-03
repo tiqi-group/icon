@@ -5,7 +5,7 @@ import multiprocessing
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor, wait
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 import pydase
@@ -21,9 +21,6 @@ from icon.server.data_access.experiment_data import (
     Readouts,
 )
 from icon.server.data_access.models.enums import DeviceStatus, JobRunStatus
-from icon.server.data_access.models.sqlite.scan_parameter import (
-    contains_realtime_parameter,
-)
 from icon.server.data_access.repositories.device_repository import DeviceRepository
 from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
@@ -36,12 +33,10 @@ from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrup
 from icon.server.utils.pydase_client import client_call_with_timeout
 
 if TYPE_CHECKING:
-    import queue
-
     from icon.server.data_access.experiment_data import DatabaseValueType
     from icon.server.data_access.models.sqlite.device import Device
     from icon.server.hardware_processing.devices import Devices, Hardware
-    from icon.server.hardware_processing.task import HardwareProcessingTask
+    from icon.server.pre_processing.arbiter import Arbiter
     from icon.server.shared_resource_manager import SharedResourceManager
 
 logger = logging.getLogger(__name__)
@@ -99,31 +94,6 @@ def parse_parameter_id(param_id: str) -> tuple[str | None, str]:
     return None, param_id
 
 
-def should_divert_task(
-    task: HardwareProcessingTask,
-    parameter_update_timestamp: datetime | None,
-    job_run_status: JobRunStatus,
-) -> bool:
-    """Whether the hardware worker should divert a task back to pre-processing.
-
-    A paused job always diverts. Otherwise a task is diverted when its parameters
-    went stale (it was built before the last parameter update) -- except for realtime
-    scans, whose sequences the realtime handler regenerates in place, so diverting a
-    stale realtime task would just bounce it back and forth in a tight loop.
-
-    ``parameter_update_timestamp`` is stored without timezone info (as UTC), so it is
-    made timezone-aware before comparing with the task's timezone-aware ``created``.
-    """
-    if job_run_status == JobRunStatus.PAUSED:
-        return True
-    if contains_realtime_parameter(task.pre_processing_task.scan_parameters):
-        return False
-    return (
-        parameter_update_timestamp is not None
-        and task.created < parameter_update_timestamp.replace(tzinfo=UTC)
-    )
-
-
 def run_device(
     device_id: str,
     device: HardwareController,
@@ -147,13 +117,13 @@ def run_device(
 class HardwareProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
-        hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask],
+        arbiter: Arbiter,
         post_processing_queue: multiprocessing.Queue[PostProcessingTask],
         manager: SharedResourceManager,
         devices: Devices,
     ) -> None:
         super().__init__()
-        self._queue = hardware_processing_queue
+        self._arbiter = arbiter
         self._post_processing_queue = post_processing_queue
         self._manager = manager
         self._pydase_clients: dict[str, pydase.Client] = {}
@@ -346,24 +316,15 @@ class HardwareProcessingWorker(multiprocessing.Process):
         }
 
         while True:
-            task = self._queue.get()
+            task = self._arbiter.pull()
 
-            # One fetch covers both checks: the run carries the current status
-            # (cancel/pause) and the parameter-update timestamp.
             job_run = JobRunRepository.get_run_by_job_id(
                 job_id=task.pre_processing_task.job.id,
             )
             if job_run.status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
-                task.scan_progress.complete(task.pre_processing_task.job_run.id)
+                self._arbiter.mark_finished(task.pre_processing_task.job_run.id)
                 continue
 
-            if should_divert_task(
-                task,
-                job_run.parameter_update_timestamp,
-                job_run.status,
-            ):
-                task.outdated_tasks.put(task)
-                continue
             try:
                 self._set_pydase_service_values(scanned_params=task.scanned_params)
 
@@ -423,4 +384,4 @@ class HardwareProcessingWorker(multiprocessing.Process):
                     log=str(e),
                 )
             finally:
-                task.scan_progress.complete(task.pre_processing_task.job_run.id)
+                self._arbiter.mark_finished(task.pre_processing_task.job_run.id)

@@ -23,12 +23,16 @@ The backend server runs as multiple processes, each with a clear responsibility:
 
     * Fetch the relevant parameters from InfluxDB.
     * Generate JSON sequences for each data point using the experiment library.
-    * Place the prepared data points into the queue consumed by the hardware worker.
+    * Place the prepared data points into their own task queue, in order, keeping at most `server.pre_processing.queue_size` of them queued.
+    * Take queued data points back out of their task queue when the job's parameters change (they are prepared again with the new parameters), and hold them while the job is paused.
+
+    The **arbiter** pulls the hardware worker's next data point out of the workers' task queues once it is ready to run it, or waits for one to be queued if they are all empty or held. The arbiter and the task queues live in the shared resource manager's process. Data points of jobs with a lower priority value go first, then the ones prepared first. Only jobs that a pre-processing worker has picked up take part.
 
 * **Hardware Worker**
 
     A single worker that interfaces with the control hardware and external devices. For each data point:
 
+    * Takes the next data point from the arbiter, and tells the arbiter once it is done.
     * Ensures device parameters are set if they are part of the scan.
     * Executes the JSON sequence on the control hardware.
     * Places the raw results into the queue for post-processing.
