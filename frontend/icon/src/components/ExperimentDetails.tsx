@@ -29,6 +29,7 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
           key={experimentKey + group}
           collapseKey="experimentDetails"
           name={group}
+          defaultCollapsed
           disableGutters // Removes extra padding/margin from Accordion
           square
         >
@@ -54,6 +55,7 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
             key={section}
             collapseKey="experimentDetails"
             name={section}
+            defaultCollapsed
             disableGutters
             square
           >
