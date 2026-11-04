@@ -1,16 +1,5 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
-
-// Notifies hooks in this window; other windows get a storage event
-const listeners = new Set<() => void>();
-
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  window.addEventListener("storage", listener);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener("storage", listener);
-  };
-};
+import { notifyStorageChange, subscribeToStorage } from "../utils/storageSubscription";
 
 const parseNames = (raw: string | null): string[] => {
   try {
@@ -27,7 +16,7 @@ const setFlag = (key: string, name: string, value: boolean) => {
   if (names.includes(name) === value) return;
   const next = value ? [...names, name] : names.filter((n) => n !== name);
   localStorage.setItem(key, JSON.stringify(next));
-  listeners.forEach((listener) => listener());
+  notifyStorageChange();
 };
 
 /**
@@ -38,7 +27,7 @@ const setFlag = (key: string, name: string, value: boolean) => {
  * @returns A function telling whether a flag is set, and one setting it
  */
 export function useStoredFlags(key: string) {
-  const raw = useSyncExternalStore(subscribe, () => localStorage.getItem(key));
+  const raw = useSyncExternalStore(subscribeToStorage, () => localStorage.getItem(key));
   const isSet = useMemo(() => {
     const names = parseNames(raw);
     return (name: string) => names.includes(name);
@@ -56,7 +45,7 @@ export function useStoredFlags(key: string) {
  * changes, not when another flag of the set does.
  */
 export function useStoredFlag(key: string, name: string) {
-  const value = useSyncExternalStore(subscribe, () =>
+  const value = useSyncExternalStore(subscribeToStorage, () =>
     parseNames(localStorage.getItem(key)).includes(name),
   );
   const set = useCallback(
