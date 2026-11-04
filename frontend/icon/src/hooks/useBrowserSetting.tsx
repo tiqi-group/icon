@@ -21,24 +21,26 @@ const parseValue = <T extends SettingValue>(raw: string | null, defaultValue: T)
 /**
  * Hook to manage a browser setting stored in localStorage with reactive updates.
  *
- * @param key The localStorage key
+ * @param key The storage key
  * @param defaultValue Default value when nothing is stored. Setting null removes the
  *   stored value.
+ * @param storage sessionStorage for a setting of this browser tab only
  */
 export function useBrowserSetting<T extends SettingValue>(
   key: string,
   defaultValue: T,
+  storage: Storage = localStorage,
 ) {
-  const raw = useSyncExternalStore(subscribeToStorage, () => localStorage.getItem(key));
+  const raw = useSyncExternalStore(subscribeToStorage, () => storage.getItem(key));
   const value = parseValue(raw, defaultValue);
 
   const setValue = useCallback(
     (newValue: T) => {
-      if (newValue === null) localStorage.removeItem(key);
-      else localStorage.setItem(key, JSON.stringify(newValue));
+      if (newValue === null) storage.removeItem(key);
+      else storage.setItem(key, JSON.stringify(newValue));
       notifyStorageChange();
     },
-    [key],
+    [key, storage],
   );
 
   return [value, setValue] as const;
