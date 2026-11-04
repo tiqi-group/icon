@@ -607,6 +607,7 @@ export const JobView = ({
           <Grid size={{ xs: 12 }}>
             <FitPanel
               jobId={jobId}
+              experimentSourceId={jobInfo.experiment_source_id}
               experimentData={experimentData}
               clickedX={clickedX}
               scanParameters={jobInfo?.scan_parameters}
