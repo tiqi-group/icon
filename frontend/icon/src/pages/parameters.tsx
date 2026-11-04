@@ -28,9 +28,8 @@ const ParameterPage = () => {
         ([namespace, displayGroupList]) => (
           <RememberedAccordion
             key={namespace}
-            collapseKey="parameters"
+            storageKey="expandedNamespaces"
             name={namespace}
-            defaultCollapsed
             disableGutters
             sx={{ "&:before": { display: "none" } }}
             slotProps={{ transition: { unmountOnExit: true } }}

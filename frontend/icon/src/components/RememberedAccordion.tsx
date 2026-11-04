@@ -1,27 +1,31 @@
 import { Accordion, AccordionProps } from "@mui/material";
-import { useSectionCollapsed } from "../hooks/useCollapseState";
+import { useStoredFlag } from "../hooks/useStoredFlags";
 
 interface RememberedAccordionProps extends Omit<
   AccordionProps,
   "expanded" | "defaultExpanded" | "onChange"
 > {
-  /** Identifies the set of sections, see useCollapseState */
-  collapseKey: string;
+  /** localStorage key of the set of expanded sections, see useStoredFlags */
+  storageKey: string;
   /** Identifies this section within the set */
   name: string;
-  defaultCollapsed?: boolean;
 }
 
 /**
- * Accordion whose collapsed state is remembered. Toggling it re-renders only this
- * accordion, not the page around it.
+ * Accordion that starts collapsed and remembers whether it is expanded. Toggling it
+ * re-renders only this accordion, not the page around it.
  */
 export const RememberedAccordion = ({
-  collapseKey,
+  storageKey,
   name,
-  defaultCollapsed,
   ...props
 }: RememberedAccordionProps) => {
-  const [collapsed, toggle] = useSectionCollapsed(collapseKey, name, defaultCollapsed);
-  return <Accordion {...props} expanded={!collapsed} onChange={toggle} />;
+  const [expanded, setExpanded] = useStoredFlag(storageKey, name);
+  return (
+    <Accordion
+      {...props}
+      expanded={expanded}
+      onChange={(_, value) => setExpanded(value)}
+    />
+  );
 };

@@ -24,7 +24,7 @@ import { useExperimentData } from "../hooks/useExperimentData";
 import { useJobRunInfo } from "../hooks/useJobRunInfo";
 import { useJobInfo } from "../hooks/useJobInfo";
 import { useBrowserSetting } from "../hooks/useBrowserSetting";
-import { useCollapseState } from "../hooks/useCollapseState";
+import { useStoredFlags } from "../hooks/useStoredFlags";
 import { DEFAULT_WINDOW_SIZE } from "../pages/settings";
 import { runMethod } from "../socket";
 import { ExperimentMetadata } from "../types/ExperimentMetadata";
@@ -173,11 +173,11 @@ export const JobView = ({
     return v ? JSON.parse(v) : false;
   });
 
-  const [isShotChannelCollapsed, toggleShotChannel] = useCollapseState(
-    `shotChannels:${jobInfo?.experiment_source_id}`,
+  const [isShotChannelCollapsed, setShotChannelCollapsed] = useStoredFlags(
+    `collapsedShotChannels_${jobInfo?.experiment_source_id}`,
   );
-  const [isResultChannelCollapsed, toggleResultChannel] = useCollapseState(
-    `resultChannels:${jobInfo?.experiment_source_id}`,
+  const [isResultChannelCollapsed, setResultChannelCollapsed] = useStoredFlags(
+    `collapsedResultChannels_${jobInfo?.experiment_source_id}`,
   );
 
   // Per-result-window view mode: "plot" (default) or "table".
@@ -498,7 +498,12 @@ export const JobView = ({
                   <IconButton
                     size="small"
                     title={isShotChannelCollapsed(win.name) ? "Expand" : "Collapse"}
-                    onClick={() => toggleShotChannel(win.name)}
+                    onClick={() =>
+                      setShotChannelCollapsed(
+                        win.name,
+                        !isShotChannelCollapsed(win.name),
+                      )
+                    }
                   >
                     {isShotChannelCollapsed(win.name) ? <ExpandMore /> : <ExpandLess />}
                   </IconButton>
@@ -553,7 +558,12 @@ export const JobView = ({
                   <IconButton
                     size="small"
                     title={isResultChannelCollapsed(win.name) ? "Expand" : "Collapse"}
-                    onClick={() => toggleResultChannel(win.name)}
+                    onClick={() =>
+                      setResultChannelCollapsed(
+                        win.name,
+                        !isResultChannelCollapsed(win.name),
+                      )
+                    }
                   >
                     {isResultChannelCollapsed(win.name) ? (
                       <ExpandMore />
