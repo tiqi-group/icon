@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ExperimentData, FitResult } from "../types/ExperimentData";
 import { ReactECharts, ReactEChartsProps } from "./ReactEcharts";
 import { EChartsOption } from "echarts";
@@ -15,6 +15,7 @@ import {
 } from "../utils/chartLayout";
 import { buildResultChannelChartSeries } from "../utils/buildResultChannelChartSeries";
 import { formatDateTime, formatTime, hasDayBreak } from "../utils/timeUtils";
+import { useStoredFlags } from "../hooks/useStoredFlags";
 
 interface ResultChannelPlotProps {
   experimentData: ExperimentData;
@@ -29,6 +30,7 @@ interface ResultChannelPlotProps {
   yRange?: { min: number | null; max: number | null };
   fits?: Record<string, FitResult>;
   onChartClick?: (xValue: number) => void;
+  hiddenTracesKey: string;
 }
 
 const formatAxisLabel = (value: string): string => {
@@ -58,11 +60,14 @@ const ResultChannelPlot = ({
   yRange,
   fits = {},
   onChartClick,
+  hiddenTracesKey,
 }: ResultChannelPlotProps) => {
   const [chart, setChart] = useState<ECharts | null>(null);
   const notifications = useNotifications();
 
   const [selectedChannel, setSelectedChannel] = useState<string | undefined>(undefined);
+  // Traces hidden by clicking the legend, not used in 2D plots
+  const [, setTraceHidden, hiddenTraces] = useStoredFlags(hiddenTracesKey);
 
   const is2D = scanParameters.length === 2;
 
@@ -382,7 +387,11 @@ const ResultChannelPlot = ({
       tooltip: { trigger: "axis" },
       toolbox: chartToolbox(chart, notifications.show),
       animation: false,
-      legend: CHART_LEGEND,
+      // Not a dependency: the chart applies legend clicks itself, see below
+      legend: {
+        ...CHART_LEGEND,
+        selected: Object.fromEntries(hiddenTraces.map((name) => [name, false])),
+      },
       grid: CHART_GRID,
       xAxis,
       yAxis,
@@ -429,21 +438,40 @@ const ResultChannelPlot = ({
     };
   }, [chart, onChartClick]);
 
-  // When the user picks a different channel in the legend, update selectedChannel so
-  // the useMemo recomputes the option (including the correct visualMap range) for the
-  // newly active channel.
+  // When the user picks a different channel in the legend of a 2D plot, update
+  // selectedChannel so the useMemo recomputes the option (including the correct
+  // visualMap range) for the newly active channel. In other plots remember which
+  // traces are hidden.
   useEffect(() => {
-    if (!is2D || !chart) return;
+    if (!chart) return;
 
+    const handler = (e: { name: string; selected: Record<string, boolean> }) => {
+      if (is2D) setSelectedChannel(e.name);
+      else setTraceHidden(e.name, !e.selected[e.name]);
+    };
     // @ts-expect-error Typing is incorrect
-    chart.on("legendselectchanged", (e: { name: string }) => {
-      setSelectedChannel(e.name);
-    });
+    chart.on("legendselectchanged", handler);
 
     return () => {
-      chart.off("legendselectchanged");
+      chart.off("legendselectchanged", handler);
     };
-  }, [chart, is2D]);
+  }, [chart, is2D, setTraceHidden]);
+
+  // Apply traces hidden or shown in another window. Updating the legend instead of
+  // the option keeps the zoom.
+  const appliedHiddenTraces = useRef(hiddenTraces);
+  useEffect(() => {
+    if (!chart || is2D) return;
+
+    const applied = appliedHiddenTraces.current;
+    for (const name of hiddenTraces)
+      if (!applied.includes(name))
+        chart.dispatchAction({ type: "legendUnSelect", name });
+    for (const name of applied)
+      if (!hiddenTraces.includes(name))
+        chart.dispatchAction({ type: "legendSelect", name });
+    appliedHiddenTraces.current = hiddenTraces;
+  }, [chart, is2D, hiddenTraces]);
 
   return (
     <>

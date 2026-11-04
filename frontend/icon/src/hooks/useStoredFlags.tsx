@@ -24,20 +24,19 @@ const setFlag = (key: string, name: string, value: boolean) => {
  * are expanded. Only the names of the flags that are set are stored.
  *
  * @param key The localStorage key
- * @returns A function telling whether a flag is set, and one setting it
+ * @returns A function telling whether a flag is set, one setting it, and the names of
+ *   the flags that are set
  */
 export function useStoredFlags(key: string) {
   const raw = useSyncExternalStore(subscribeToStorage, () => localStorage.getItem(key));
-  const isSet = useMemo(() => {
-    const names = parseNames(raw);
-    return (name: string) => names.includes(name);
-  }, [raw]);
+  const names = useMemo(() => parseNames(raw), [raw]);
+  const isSet = useCallback((name: string) => names.includes(name), [names]);
   const set = useCallback(
     (name: string, value: boolean) => setFlag(key, name, value),
     [key],
   );
 
-  return [isSet, set] as const;
+  return [isSet, set, names] as const;
 }
 
 /**

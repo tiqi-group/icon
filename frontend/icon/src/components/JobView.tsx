@@ -597,6 +597,7 @@ export const JobView = ({
                       yRange={{ min: yMin, max: yMax }}
                       fits={showFitPanel && is1D ? deviceData.fits : undefined}
                       onChartClick={showFitPanel && is1D ? handleChartClick : undefined}
+                      hiddenTracesKey={`hiddenTraces_${jobInfo?.experiment_source_id}_${win.name}`}
                     />
                   ))}
               </CardContent>
