@@ -45,6 +45,14 @@ class ExperimentLibraryClient:
         """
         return nullcontext(self)
 
+    def reuse_venv(self) -> "AbstractContextManager[None]":
+        """Create a context manager keeping the library loaded between its calls.
+
+        The calls in the context may share state the library keeps. By default the
+        library is not kept loaded.
+        """
+        return nullcontext()
+
     async def load_metadata(self) -> "tuple[ExperimentDict, ParameterMetadataDict]":
         """Load the experiment and parameter metadata.
 
