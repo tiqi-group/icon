@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import queue
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
@@ -26,7 +26,6 @@ if TYPE_CHECKING:
 PARAM_UPDATE_TS = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
 STALE_TS = PARAM_UPDATE_TS - timedelta(seconds=10)
 RUN_ID = 1  # the job run the worker is currently scanning
-OTHER_RUN_ID = 99  # a job run whose tasks are still in the task queue
 DEVICE_ORDER = ["main", "sub"]  # the job run's device order, loaded when it starts
 TASK_QUEUE_SIZE = 6  # tasks the worker keeps queued for the hardware worker
 NUM_DATA_POINTS = 10  # data points of the regular scan
@@ -65,20 +64,25 @@ def _pre_processing_task(**job: Any) -> Any:
 
 
 def _make_worker(task_queue_size: int = TASK_QUEUE_SIZE) -> PreProcessingWorker:
+    task_queue = TaskQueue(Arbiter(), 0, size=task_queue_size)
+    # As the worker does when it picks up the job run
+    task_queue.start_run(RUN_ID)
     return PreProcessingWorker(
         worker_number=0,
         pre_processing_queue=queue.PriorityQueue(),
         update_queue=cast("Any", queue.Queue()),
-        task_queue=TaskQueue(Arbiter(), 0, size=task_queue_size),
+        task_queue=task_queue,
         manager=MagicMock(),
         experiment_library_client=MagicMock(),
     )
 
 
 def _queued_tasks(task_queue: TaskQueue) -> list[Any]:
+    """Pull the queued tasks that are not held, as the hardware worker does."""
+    arbiter = task_queue._arbiter
     tasks = []
-    while (task := task_queue.pop()) is not None:
-        tasks.append(task)
+    while arbiter._next_worker() is not None:
+        tasks.append(arbiter.pull())
     return tasks
 
 
@@ -118,16 +122,16 @@ def _handle_parameter_update(
 
 
 def test_parameter_update_takes_back_the_runs_tasks() -> None:
-    """Their data points are prepared again first; other runs' tasks stay queued."""
+    """Their data points are prepared again first."""
     worker = _make_worker()
-    for task in (_fake_task(0, run_id=OTHER_RUN_ID), _fake_task(1), _fake_task(3)):
+    for task in (_fake_task(1), _fake_task(3)):
         worker._task_queue.put(task)
     worker._data_points_to_process.put((2, {"x": 2}))
 
     update = _handle_parameter_update(worker, {"event": "update_parameters"})
 
     assert update.call_count == 1
-    assert [task.data_point_index for task in _queued_tasks(worker._task_queue)] == [0]
+    assert _queued_tasks(worker._task_queue) == []
     assert list(consume_queue(worker._data_points_to_process)) == [
         (1, {"x": 1}),
         (2, {"x": 2}),
@@ -161,26 +165,83 @@ def _wait_while_paused(
         )
 
 
-def test_pause_holds_the_tasks() -> None:
-    """Nothing is handed over while paused; the tasks run as they are on resume."""
+def test_pause_keeps_the_tasks() -> None:
+    """The worker waits for the resume; the tasks run as they are then."""
     worker = _make_worker()
     worker._task_queue.put(_fake_task(0))
     worker._task_queue.put(_fake_task(1))
-    handed_over_while_paused: list[Any] = []
+    sleeps: list[Any] = []
 
     job_run = _wait_while_paused(
         worker,
-        [JobRunStatus.PAUSED, JobRunStatus.PROCESSING],
-        on_sleep=lambda _: handed_over_while_paused.append(worker._task_queue.pop()),
+        [JobRunStatus.PAUSED, JobRunStatus.PAUSED, JobRunStatus.PROCESSING],
+        on_sleep=sleeps.append,
     )
 
     assert job_run.status == JobRunStatus.PROCESSING
-    assert handed_over_while_paused == [None]
+    assert len(sleeps) == 2  # noqa: PLR2004
     assert [task.data_point_index for task in _queued_tasks(worker._task_queue)] == [
         0,
         1,
     ]
     assert worker._data_points_to_process.empty()
+
+
+@pytest.mark.parametrize("failing", [False, True])
+def test_job_run_is_started_and_ended_in_the_task_queue(*, failing: bool) -> None:
+    """Its finished tasks are counted from zero, also if its ID was used before.
+
+    Ending it empties the task queue for the next job run, also of a job run that failed
+    or was cancelled while paused, and forgets its hold.
+    """
+    worker = _make_worker()
+    arbiter = worker._task_queue._arbiter
+    arbiter.mark_finished(RUN_ID)
+    finished_at_start: list[int] = []
+
+    def process_task(*_: Any, **__: Any) -> None:
+        finished_at_start.append(worker._task_queue.finished(RUN_ID))
+        arbiter.hold(RUN_ID)
+        worker._task_queue.put(_fake_task(0))
+        if failing:
+            raise RuntimeError("failed")
+
+    worker._queue = MagicMock()
+    worker._queue.get.side_effect = [
+        _pre_processing_task(experiment_source_id=1),
+        KeyboardInterrupt,
+    ]
+
+    with (
+        patch.object(worker, "_process_task", side_effect=process_task),
+        patch("icon.server.pre_processing.worker.JobRunRepository"),
+        patch("icon.server.pre_processing.worker.try_update_run_by_id"),
+        patch("icon.server.pre_processing.worker.JobRepository"),
+        patch("icon.server.pre_processing.worker.try_auto_fit"),
+    ):
+        worker.run()
+
+    assert finished_at_start == [0]
+    assert not arbiter._tasks[0]
+    assert not arbiter._held
+    assert not arbiter._finished
+
+
+@pytest.mark.parametrize("error", [KeyboardInterrupt, OSError("queue is gone")])
+def test_worker_stops_its_venv_calls_on_exit(error: BaseException) -> None:
+    worker = _make_worker()
+    worker._queue = MagicMock()
+    worker._queue.get.side_effect = error
+
+    with (
+        patch("icon.server.pre_processing.worker.venv_exec.shutdown") as shutdown,
+        pytest.raises(OSError, match="queue is gone")
+        if isinstance(error, OSError)
+        else nullcontext(),
+    ):
+        worker.run()
+
+    shutdown.assert_called_once_with()
 
 
 def test_parameter_update_while_paused_takes_back_the_tasks() -> None:
@@ -201,8 +262,7 @@ def test_parameter_update_while_paused_takes_back_the_tasks() -> None:
 
 def test_cancelled_regular_scan_drops_its_tasks() -> None:
     worker = _make_worker()
-    worker._task_queue.put(_fake_task(0, run_id=OTHER_RUN_ID))
-    worker._task_queue.put(_fake_task(1))
+    worker._task_queue.put(_fake_task(0))
     scan_parameter = SimpleNamespace(
         realtime=False, unique_id=lambda: "x", scan_values=[0]
     )
@@ -216,7 +276,7 @@ def test_cancelled_regular_scan_drops_its_tasks() -> None:
             src_dir=None,
         )
 
-    assert [task.data_point_index for task in _queued_tasks(worker._task_queue)] == [0]
+    assert _queued_tasks(worker._task_queue) == []
 
 
 def _create_task(worker: PreProcessingWorker) -> Any:
@@ -291,11 +351,23 @@ def test_regular_scan_fills_the_task_queue_in_data_point_order() -> None:
     ]
 
 
-def _run_realtime_scan(worker: PreProcessingWorker, wait_for_space: Any) -> MagicMock:
-    """Scan a realtime parameter with two values; return the generate mock."""
+def _run_realtime_scan(
+    worker: PreProcessingWorker, wait_for_space: Any, handed_over: list[Any]
+) -> MagicMock:
+    """Scan a realtime parameter with two values; return the generate mock.
+
+    Whenever the worker waits for the scan's last data points, the hardware worker is
+    modelled to run the queued tasks, which are added to ``handed_over``.
+    """
     realtime_parameter = SimpleNamespace(realtime=True, scan_values=[0.0, 1.0])
     with (
         patch("icon.server.pre_processing.worker.JobRunRepository") as repo,
+        patch(
+            "icon.server.pre_processing.worker.time.sleep",
+            side_effect=lambda _: handed_over.extend(
+                _hand_over_tasks(worker._task_queue)
+            ),
+        ),
         patch(
             "icon.server.pre_processing.worker.create_hardware_instructions"
         ) as generate,
@@ -332,9 +404,8 @@ def test_realtime_scan_prepares_taken_back_data_points_first() -> None:
             handed_over.extend(_hand_over_tasks(worker._task_queue))
         return wait_for_space(timeout=timeout)
 
-    generate = _run_realtime_scan(worker, update_then_hand_over)
+    generate = _run_realtime_scan(worker, update_then_hand_over, handed_over)
 
-    handed_over.extend(_queued_tasks(worker._task_queue))
     assert [task.data_point_index for task in handed_over] == [0, 1]
     # The first data point is generated twice, the second reuses its instructions.
     assert generate.call_count == REALTIME_GENERATIONS
@@ -344,14 +415,26 @@ def test_realtime_scan_queues_copies_of_reused_tasks() -> None:
     """Reusing a data point's instructions doesn't change its task still queued."""
     worker = _make_worker()
     worker._global_parameter_timestamp = STALE_TS
+    handed_over: list[Any] = []
 
-    generate = _run_realtime_scan(worker, worker._task_queue.wait_for_space)
+    generate = _run_realtime_scan(
+        worker, worker._task_queue.wait_for_space, handed_over
+    )
 
     assert generate.call_count == 1
-    assert [task.data_point_index for task in _queued_tasks(worker._task_queue)] == [
-        0,
-        1,
-    ]
+    assert [task.data_point_index for task in handed_over] == [0, 1]
+
+
+def test_realtime_scan_ends_once_its_data_points_ran() -> None:
+    """So the worker only takes the next job run with an empty task queue."""
+    worker = _make_worker()
+    worker._global_parameter_timestamp = STALE_TS
+    handed_over: list[Any] = []
+
+    _run_realtime_scan(worker, worker._task_queue.wait_for_space, handed_over)
+
+    assert len(handed_over) == worker._task_queue.finished(RUN_ID) == 2  # noqa: PLR2004
+    assert not worker._task_queue._arbiter._tasks[0]
 
 
 def test_create_hardware_instructions_follows_the_job_runs_device_order() -> None:
@@ -393,6 +476,14 @@ class _RecordingClient:
     def checkout_revision(self, revision: str | None) -> str:  # noqa: ARG002
         self.events.append("checkout_revision")
         return "src"
+
+    @contextmanager
+    def pinned(self) -> Iterator[None]:
+        self.events.append("enter pinned")
+        try:
+            yield
+        finally:
+            self.events.append("exit pinned")
 
     @contextmanager
     def reuse_venv(self) -> Iterator[None]:
@@ -463,6 +554,7 @@ def test_job_run_keeps_the_library_loaded_after_the_checkout() -> None:
     _process_task(client, n_data_points=2)
 
     assert client.events == [
+        "enter pinned",
         "checkout_revision",
         "enter reuse_venv",
         "get_experiment_readout_metadata",
@@ -470,6 +562,7 @@ def test_job_run_keeps_the_library_loaded_after_the_checkout() -> None:
         "create_hardware_instructions",
         "create_hardware_instructions",
         "exit reuse_venv",
+        "exit pinned",
     ]
 
 
@@ -479,4 +572,8 @@ def test_failed_job_run_stops_keeping_the_library_loaded() -> None:
     with pytest.raises(RuntimeError, match="bad sequence"):
         _process_task(client, n_data_points=2)
 
-    assert client.events[-2:] == ["create_hardware_instructions", "exit reuse_venv"]
+    assert client.events[-3:] == [
+        "create_hardware_instructions",
+        "exit reuse_venv",
+        "exit pinned",
+    ]

@@ -45,6 +45,13 @@ class ExperimentLibraryClient:
         """
         return nullcontext(self)
 
+    def pinned(self) -> "AbstractContextManager[None]":
+        """Create a context manager keeping the configuration of the client in it.
+
+        By default the client does not follow changes of the configuration.
+        """
+        return nullcontext()
+
     def reuse_venv(self) -> "AbstractContextManager[None]":
         """Create a context manager keeping the library loaded between its calls.
 

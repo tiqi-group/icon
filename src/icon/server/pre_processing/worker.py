@@ -17,6 +17,7 @@ import psutil
 import pytz
 
 from icon.config.config import get_config
+from icon.server.data_access import venv_exec
 from icon.server.data_access.db_context.influxdb.parameters_backend import (
     get_specifiers_from_parameter_identifier,
 )
@@ -42,7 +43,7 @@ from icon.server.hardware_processing.task import HardwareProcessingTask
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
 
     from icon.server.data_access.experiment_library_client import (
         ExperimentLibraryClient,
@@ -61,7 +62,7 @@ ScanCombination = frozenset[tuple[str, DatabaseValueType]]
 
 POLL_INTERVAL = 0.1
 """Seconds to wait for room in the task queue, or for the hardware worker to finish a
-regular scan's data points, before handling parameter updates and pauses again."""
+scan's last data points, before handling parameter updates and pauses again."""
 
 GLOBAL_NAMESPACE_SEGMENT = "globals"
 """Module path segment identifying the experiment library's global parameters.
@@ -212,6 +213,14 @@ class PreProcessingWorker(multiprocessing.Process):
 
     @handle_keyboard_interrupt(logger)
     def run(self) -> None:
+        try:
+            self._process_tasks()
+        finally:
+            # Also if the worker fails, so that its exit does not wait for a call still
+            # running, see `venv_exec.shutdown`
+            venv_exec.shutdown()
+
+    def _process_tasks(self) -> None:
         with self._experiment_library_client.isolated() as isolated_lib_client:
             logger.debug(
                 "Created isolated experiment library client: %s",
@@ -222,6 +231,7 @@ class PreProcessingWorker(multiprocessing.Process):
                 pre_processing_task = self._queue.get()
 
                 clear_queue(self._data_points_to_process)
+                self._task_queue.start_run(pre_processing_task.job_run.id)
 
                 try:
                     self._process_task(
@@ -263,6 +273,9 @@ class PreProcessingWorker(multiprocessing.Process):
                     JobRepository.update_job_status(
                         job_id=pre_processing_task.job.id, status=JobStatus.PROCESSED
                     )
+                    # Empties the task queue before the next job run, also of a run
+                    # that failed or was cancelled (maybe while paused)
+                    self._task_queue.end_run(pre_processing_task.job_run.id)
 
     def _process_task(
         self,
@@ -295,17 +308,23 @@ class PreProcessingWorker(multiprocessing.Process):
             else isolated_lib_client
         )
 
-        src_dir = client.checkout_revision(pre_processing_task.git_commit_hash)
+        # A change of the experiment library's configuration takes effect with the next
+        # job run, so that the whole run uses one library, kept loaded below.
+        with client.pinned():
+            src_dir = client.checkout_revision(pre_processing_task.git_commit_hash)
 
-        self._update_parameter_dict(pre_processing_task, namespace)
+            self._update_parameter_dict(pre_processing_task, namespace)
 
-        # Starting the library for every call took most of the time to generate the
-        # hardware instructions of a data point. The library is loaded on the first
-        # call, so after the checkout above.
-        with client.reuse_venv():
-            self._run_scan(
-                pre_processing_task, client=client, src_dir=src_dir, namespace=namespace
-            )
+            # Starting the library for every call took most of the time to generate
+            # the hardware instructions of a data point. The library is loaded on the
+            # first call, so after the checkout above.
+            with client.reuse_venv():
+                self._run_scan(
+                    pre_processing_task,
+                    client=client,
+                    src_dir=src_dir,
+                    namespace=namespace,
+                )
 
     def _run_scan(
         self,
@@ -466,8 +485,8 @@ class PreProcessingWorker(multiprocessing.Process):
     ) -> JobRun:
         """Block until the job run's status is no longer ``PAUSED``.
 
-        The task queue is held meanwhile, so the hardware worker doesn't run the job's
-        prepared data points; they run as they are on resume.
+        Pausing the job holds its prepared data points in the task queue, so the
+        hardware worker doesn't run them; they run as they are on resume.
 
         Parameter-update events are still drained while paused, so calibrations or
         parameter edits the user makes during the pause take effect on resume: they take
@@ -479,15 +498,12 @@ class PreProcessingWorker(multiprocessing.Process):
             The run as it was last read, so callers can reuse its status.
         """
         job_run = JobRunRepository.get_run_by_job_id(job_id=pre_processing_task.job.id)
-        if job_run.status != JobRunStatus.PAUSED:
-            return job_run
-        with self._task_queue.held():
-            while job_run.status == JobRunStatus.PAUSED:
-                self._handle_parameter_updates(pre_processing_task, namespace=namespace)
-                time.sleep(0.2)
-                job_run = JobRunRepository.get_run_by_job_id(
-                    job_id=pre_processing_task.job.id
-                )
+        while job_run.status == JobRunStatus.PAUSED:
+            self._handle_parameter_updates(pre_processing_task, namespace=namespace)
+            time.sleep(0.2)
+            job_run = JobRunRepository.get_run_by_job_id(
+                job_id=pre_processing_task.job.id
+            )
         return job_run
 
     def _wait_for_turn(
@@ -525,11 +541,54 @@ class PreProcessingWorker(multiprocessing.Process):
         for combination in enumerate(scan_parameter_value_combinations):
             self._data_points_to_process.put(combination)
 
-        while self._task_queue.finished(pre_processing_task.job_run.id) < len(
-            scan_parameter_value_combinations
-        ):
+        def prepare(
+            index: int, data_point: dict[str, DatabaseValueType]
+        ) -> HardwareProcessingTask:
+            return self._create_hardware_task(
+                pre_processing_task=pre_processing_task,
+                index=index,
+                data_point=data_point,
+                hardware_instructions=create_hardware_instructions(
+                    client,
+                    n_shots=pre_processing_task.job.number_of_shots,
+                    parameter_dict={**self._parameter_dict, **data_point},
+                    namespace=namespace,
+                    device_order=self._device_order,
+                ),
+                src_dir=src_dir,
+            )
+
+        self._queue_until_finished(
+            pre_processing_task,
+            namespace,
+            n_data_points=len(scan_parameter_value_combinations),
+            prepare=prepare,
+        )
+
+    def _queue_until_finished(
+        self,
+        pre_processing_task: PreProcessingTask,
+        namespace: ExperimentIdentifier,
+        *,
+        n_data_points: int,
+        prepare: Callable[[int, dict[str, DatabaseValueType]], HardwareProcessingTask],
+    ) -> None:
+        """Queue the data points to process until the job run's are all finished.
+
+        Data points taken back in the meantime (e.g. as the parameters changed) are
+        prepared again, so the job run's task queue is empty when this returns.
+
+        Args:
+            pre_processing_task: The job run's task.
+            namespace: Experiment the job run scans.
+            n_data_points: Number of data points the hardware worker finishes for the
+                job run in total.
+            prepare: Creates the task of a data point, given its index and scanned
+                parameter values.
+        """
+        while self._task_queue.finished(pre_processing_task.job_run.id) < n_data_points:
             if not self._wait_for_turn(pre_processing_task, namespace):
-                break
+                return
 
             # TODO: this should probably be done with multiple workers to
             # speed up the preparation of JSONs
@@ -539,21 +598,25 @@ class PreProcessingWorker(multiprocessing.Process):
                 time.sleep(POLL_INTERVAL)
                 continue
 
-            self._task_queue.put(
-                self._create_hardware_task(
-                    pre_processing_task=pre_processing_task,
-                    index=index,
-                    data_point=data_point,
-                    hardware_instructions=create_hardware_instructions(
-                        client,
-                        n_shots=pre_processing_task.job.number_of_shots,
-                        parameter_dict={**self._parameter_dict, **data_point},
-                        namespace=namespace,
-                        device_order=self._device_order,
-                    ),
-                    src_dir=src_dir,
-                )
-            )
+            self._task_queue.put(prepare(index, data_point))
+
+    def _queue_data_points(
+        self,
+        pre_processing_task: PreProcessingTask,
+        namespace: ExperimentIdentifier,
+        prepare: Callable[[int, dict[str, DatabaseValueType]], HardwareProcessingTask],
+    ) -> bool:
+        """Queue the data points to process as the task queue has room for them.
+
+        Returns:
+            False if the job run was cancelled or failed; its tasks are taken back.
+        """
+        while not self._data_points_to_process.empty():
+            if not self._wait_for_turn(pre_processing_task, namespace):
+                return False
+
+            self._task_queue.put(prepare(*self._data_points_to_process.get()))
+        return True
 
     def _create_hardware_task(
         self,
@@ -588,6 +651,36 @@ class PreProcessingWorker(multiprocessing.Process):
 
         hardware_tasks: dict[ScanCombination, HardwareProcessingTask] = {}
 
+        def prepare(
+            index: int, data_point: dict[str, DatabaseValueType]
+        ) -> HardwareProcessingTask:
+            """Reuse the data point's task unless the parameters changed since."""
+            frozen_data_point = freeze_dict(data_point)
+            hardware_task = hardware_tasks.get(frozen_data_point)
+            if (
+                hardware_task is None
+                or hardware_task.global_parameter_timestamp
+                < self._global_parameter_timestamp
+            ):
+                hardware_task = self._create_hardware_task(
+                    pre_processing_task=pre_processing_task,
+                    index=index,
+                    data_point=data_point,
+                    hardware_instructions=create_hardware_instructions(
+                        client,
+                        n_shots=pre_processing_task.job.number_of_shots,
+                        parameter_dict={**self._parameter_dict, **data_point},
+                        namespace=namespace,
+                        device_order=self._device_order,
+                    ),
+                    src_dir=src_dir,
+                )
+                hardware_tasks[frozen_data_point] = hardware_task
+            # A copy, as the task queue may still hold an earlier one.
+            return hardware_task.model_copy(
+                update={"created": datetime.now(timezone), "data_point_index": index}
+            )
+
         realtime_scan_counter = itertools.count()
         # n_scan_values iterations if n_scan_values > 0
         # ∞ iterations if n_scan_values == 0
@@ -599,41 +692,17 @@ class PreProcessingWorker(multiprocessing.Process):
                 )
             if self._data_points_to_process.qsize() == 0:
                 self._data_points_to_process.put((next(realtime_scan_counter), {}))
-            while not self._data_points_to_process.empty():
-                if not self._wait_for_turn(pre_processing_task, namespace):
-                    return
+            if not self._queue_data_points(pre_processing_task, namespace, prepare):
+                return
 
-                index, data_point = self._data_points_to_process.get()
-                frozen_data_point = freeze_dict(data_point)
-                hardware_task = hardware_tasks.get(frozen_data_point)
-                if (
-                    hardware_task is None
-                    or hardware_task.global_parameter_timestamp
-                    < self._global_parameter_timestamp
-                ):
-                    hardware_task = self._create_hardware_task(
-                        pre_processing_task=pre_processing_task,
-                        index=index,
-                        data_point=data_point,
-                        hardware_instructions=create_hardware_instructions(
-                            client,
-                            n_shots=pre_processing_task.job.number_of_shots,
-                            parameter_dict={**self._parameter_dict, **data_point},
-                            namespace=namespace,
-                            device_order=self._device_order,
-                        ),
-                        src_dir=src_dir,
-                    )
-                    hardware_tasks[frozen_data_point] = hardware_task
-                # A copy, as the task queue may still hold an earlier one.
-                self._task_queue.put(
-                    hardware_task.model_copy(
-                        update={
-                            "created": datetime.now(timezone),
-                            "data_point_index": index,
-                        }
-                    )
-                )
+        # The job run is only done once its last data points ran, and the worker only
+        # takes the next one once its task queue is empty.
+        self._queue_until_finished(
+            pre_processing_task,
+            namespace,
+            n_data_points=next(realtime_scan_counter),
+            prepare=prepare,
+        )
 
 
 T = TypeVar("T")

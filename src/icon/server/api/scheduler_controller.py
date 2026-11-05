@@ -28,6 +28,7 @@ from icon.server.data_access.repositories.job_run_repository import JobRunReposi
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
 )
+from icon.server.pre_processing.arbiter import Arbiter
 
 JOB_LIST_PAGE_SIZE = 100
 """Default number of jobs returned in a `get_job_list` page."""
@@ -45,6 +46,7 @@ class SchedulerController(pydase.DataService):
         self,
         devices_controller: DevicesController,
         parameters_controller: ParametersController,
+        task_arbiter: Arbiter,
     ) -> None:
         """Create a new SchedulerController.
 
@@ -53,10 +55,13 @@ class SchedulerController(pydase.DataService):
                 current values of device parameters when casting scan values.
             parameters_controller: Reference to the parameters controller. Used to
                 resolve display names for scan parameters at submission time.
+            task_arbiter: The pre-processing workers' task queues. Used to hold the
+                prepared data points of paused jobs.
         """
         super().__init__()
         self._devices_controller = devices_controller
         self._parameters_controller = parameters_controller
+        self._task_arbiter = task_arbiter
 
     def _resolve_display_name(self, parameter_id: str) -> str:
         metadata = self._parameters_controller._all_parameter_metadata.get(parameter_id)
@@ -233,10 +238,10 @@ class SchedulerController(pydase.DataService):
     def pause_job(self, *, job_id: int) -> None:
         """Pause a running job.
 
-        The pre-processing worker holding the job will finish any in-flight work and
-        then block in a polling loop, keeping the remaining scan state in memory.
-        It holds the job's prepared data points in its task queue, so the hardware
-        worker only finishes the data point it is running.
+        The job's prepared data points are held in the task queue right away, so the
+        hardware worker only finishes the data point it is running. The pre-processing
+        worker holding the job will finish any in-flight work and then block in a
+        polling loop, keeping the remaining scan state in memory.
 
         No-op if the job run is not in ``PROCESSING`` state.
 
@@ -244,19 +249,25 @@ class SchedulerController(pydase.DataService):
             job_id: ID of the job to pause.
         """
         job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
-        JobRunRepository.update_run_by_id(
+        # Held before the status changes, so that no data point of a paused run is
+        # handed over
+        self._task_arbiter.hold(job_run.id)
+        paused = JobRunRepository.update_run_by_id(
             run_id=job_run.id,
             status=JobRunStatus.PAUSED,
             log="Paused through user interaction.",
             only_if_status=(JobRunStatus.PROCESSING,),
         )
+        if paused is None:
+            self._task_arbiter.release(job_run.id)
 
     def resume_job(self, *, job_id: int) -> None:
         """Resume a paused job.
 
-        The pre-processing worker observes the status change, releases its task queue
-        (data points whose parameters changed during the pause are prepared again
-        first), and continues producing data points from where it left off.
+        The job's prepared data points in the task queue are handed over again (those
+        whose parameters changed during the pause were already taken back to be
+        prepared again). The pre-processing worker observes the status change and
+        continues producing data points from where it left off.
 
         No-op if the job run is not in ``PAUSED`` state.
 
@@ -264,11 +275,13 @@ class SchedulerController(pydase.DataService):
             job_id: ID of the job to resume.
         """
         job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
-        JobRunRepository.update_run_by_id(
+        resumed = JobRunRepository.update_run_by_id(
             run_id=job_run.id,
             status=JobRunStatus.PROCESSING,
             only_if_status=(JobRunStatus.PAUSED,),
         )
+        if resumed is not None:
+            self._task_arbiter.release(job_run.id)
 
     def get_scheduled_jobs(
         self,
