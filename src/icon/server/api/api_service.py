@@ -30,6 +30,7 @@ if TYPE_CHECKING:
         ReconfigurableExperimentLibraryClient,
     )
     from icon.server.hardware_processing.devices import Devices
+    from icon.server.pre_processing.arbiter import Arbiter
     from icon.server.utils.types import UpdateQueue
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,7 @@ class APIService(pydase.DataService):
         pre_processing_event_queues: list[multiprocessing.Queue[UpdateQueue]],
         experiment_library_client: ReconfigurableExperimentLibraryClient,
         devices: Devices,
+        task_arbiter: Arbiter,
     ) -> None:
         """Create a new APIService.
 
@@ -62,6 +64,8 @@ class APIService(pydase.DataService):
             pre-processing workers.
         experiment_library_client: Client for an experiment library
         devices: Controllers for the hardware devices
+        task_arbiter: The pre-processing workers' task queues, which hold the prepared
+            data points of paused jobs
         """
         super().__init__()
 
@@ -74,6 +78,7 @@ class APIService(pydase.DataService):
         self.scheduler = SchedulerController(
             devices_controller=self.devices,
             parameters_controller=self.parameters,
+            task_arbiter=task_arbiter,
         )
         """Controller to submit, inspect, and cancel scheduled jobs."""
         self.experiments = ExperimentsController()

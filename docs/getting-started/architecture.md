@@ -22,11 +22,12 @@ The backend server runs as multiple processes, each with a clear responsibility:
     One or more workers that prepare jobs before execution. For each job, they:
 
     * Fetch the relevant parameters from InfluxDB.
-    * Generate JSON sequences for each data point using the experiment library.
+    * Generate JSON sequences for each data point using the experiment library, kept loaded in one process for the whole job. A change of the experiment library's configuration takes effect with the next job. The process is restarted, with a warning in the log, once its memory grew by more than 256 MiB, and how much it grew is logged at the end of the job.
     * Place the prepared data points into their own task queue, in order, keeping at most `server.pre_processing.queue_size` of them queued.
-    * Take queued data points back out of their task queue when the job's parameters change (they are prepared again with the new parameters), and hold them while the job is paused.
+    * Take queued data points back out of their task queue when the job's parameters change (they are prepared again with the new parameters).
+    * Wait until the hardware worker ran all of the job's data points before taking the next job, so their task queue only ever holds the data points of one job.
 
-    The **arbiter** pulls the hardware worker's next data point out of the workers' task queues once it is ready to run it, or waits for one to be queued if they are all empty or held. The arbiter and the task queues live in the shared resource manager's process. Data points of jobs with a lower priority value go first, then the ones prepared first. Only jobs that a pre-processing worker has picked up take part.
+    The **arbiter** pulls the hardware worker's next data point out of the workers' task queues once it is ready to run it, or waits for one to be queued if they are all empty or held. Pausing a job holds its queued data points right away, until the job is resumed. The arbiter and the task queues live in the shared resource manager's process. Data points of jobs with a lower priority value go first, then the ones prepared first. Only jobs that a pre-processing worker has picked up take part.
 
 * **Hardware Worker**
 

@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Any
 
 from confz import BaseConfig
-from pydantic import BaseModel
+from pydantic import BaseModel, PositiveInt
 
 __version__ = 3
 
@@ -57,7 +57,7 @@ class DevicesConfig(BaseModel):
 
 class PreProcessingConfig(BaseModel):
     workers: int = 2
-    queue_size: int = 4
+    queue_size: PositiveInt = 4
     """Number of prepared data points a pre-processing worker queues for the hardware
     worker. They are prepared again if their parameters change while queued."""
 

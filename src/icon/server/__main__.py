@@ -49,6 +49,7 @@ def start_server() -> None:
     import icon.server.web_server.icon_server
     from icon.config.config import get_config
     from icon.server.api.api_service import APIService
+    from icon.server.data_access import venv_exec
     from icon.server.data_access.db_context.sqlite.migrations import run_migrations
     from icon.server.hardware_processing.worker import (
         HardwareProcessingWorker,
@@ -107,16 +108,22 @@ def start_server() -> None:
     )
     post_processing_worker.start()
 
-    icon.server.web_server.icon_server.IconServer(
-        APIService(
-            experiment_library_client=exp_lib_client,
-            pre_processing_event_queues=pre_processing_update_queues,
-            devices=devices,
-        ),
-        host=get_config().server.host,
-        web_port=get_config().server.port,
-        frontend_src=Path(__file__).parent / "frontend",
-    ).run()
+    try:
+        icon.server.web_server.icon_server.IconServer(
+            APIService(
+                experiment_library_client=exp_lib_client,
+                pre_processing_event_queues=pre_processing_update_queues,
+                devices=devices,
+                task_arbiter=SRM.task_arbiter,
+            ),
+            host=get_config().server.host,
+            web_port=get_config().server.port,
+            frontend_src=Path(__file__).parent / "frontend",
+        ).run()
+    finally:
+        # The shutdown of the server cancels its tasks, but not their venv calls, e.g.
+        # of the metadata update, which the exit would wait for
+        venv_exec.shutdown()
 
 
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})

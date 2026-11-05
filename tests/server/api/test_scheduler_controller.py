@@ -1,4 +1,5 @@
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -16,15 +17,40 @@ from icon.server.data_access.models.sqlite import (
     Job,
     JobRun,
 )
+from icon.server.pre_processing.arbiter import Arbiter, TaskQueue
 from tests.server.conftest import SeedJob
 
 
 @pytest.fixture
-def controller() -> SchedulerController:
+def task_arbiter() -> Arbiter:
+    return Arbiter()
+
+
+@pytest.fixture
+def controller(task_arbiter: Arbiter) -> SchedulerController:
     return SchedulerController(
         devices_controller=MagicMock(),
         parameters_controller=MagicMock(),
+        task_arbiter=task_arbiter,
     )
+
+
+def _hands_over_the_runs_task(task_arbiter: Arbiter, run_id: int) -> bool:
+    """Whether a task of the job run in the task queue would be handed over."""
+    task_queue = TaskQueue(task_arbiter, 0, size=1)
+    task_queue.put(
+        cast(
+            "Any",
+            SimpleNamespace(
+                priority=0,
+                created=0,
+                pre_processing_task=SimpleNamespace(job_run=SimpleNamespace(id=run_id)),
+            ),
+        )
+    )
+    handed_over = task_arbiter._next_worker() is not None
+    task_queue.take_back(run_id)
+    return handed_over
 
 
 def _run_status(engine: sqlalchemy.engine.Engine, run_id: int) -> JobRunStatus:
@@ -57,6 +83,7 @@ def test_pause_job_guards_by_status(
     *,
     should_update: bool,
     controller: SchedulerController,
+    task_arbiter: Arbiter,
     database: sqlalchemy.engine.Engine,
     seed_job: SeedJob,
 ) -> None:
@@ -66,6 +93,7 @@ def test_pause_job_guards_by_status(
 
     expected = JobRunStatus.PAUSED if should_update else run_status
     assert _run_status(database, run_id) == expected
+    assert _hands_over_the_runs_task(task_arbiter, run_id) is not should_update
 
 
 @pytest.mark.parametrize(
@@ -84,15 +112,35 @@ def test_resume_job_guards_by_status(
     *,
     should_update: bool,
     controller: SchedulerController,
+    task_arbiter: Arbiter,
     database: sqlalchemy.engine.Engine,
     seed_job: SeedJob,
 ) -> None:
     job_id, run_id = seed_job(job_status=JobStatus.PROCESSING, run_status=run_status)
 
+    task_arbiter.hold(run_id)
+
     controller.resume_job(job_id=job_id)
 
     expected = JobRunStatus.PROCESSING if should_update else run_status
     assert _run_status(database, run_id) == expected
+    assert _hands_over_the_runs_task(task_arbiter, run_id) is should_update
+
+
+def test_paused_job_is_handed_over_again_on_resume(
+    controller: SchedulerController,
+    task_arbiter: Arbiter,
+    seed_job: SeedJob,
+) -> None:
+    job_id, run_id = seed_job(
+        job_status=JobStatus.PROCESSING, run_status=JobRunStatus.PROCESSING
+    )
+
+    controller.pause_job(job_id=job_id)
+    assert not _hands_over_the_runs_task(task_arbiter, run_id)
+
+    controller.resume_job(job_id=job_id)
+    assert _hands_over_the_runs_task(task_arbiter, run_id)
 
 
 @pytest.mark.parametrize(

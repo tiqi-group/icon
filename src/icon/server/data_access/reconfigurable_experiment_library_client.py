@@ -2,7 +2,8 @@
 
 import importlib
 import logging
-from contextlib import AbstractContextManager
+from collections.abc import Iterator
+from contextlib import AbstractContextManager, contextmanager
 from typing import TYPE_CHECKING, Any
 
 from icon.config.reloader import Reloader, ReloadError
@@ -56,9 +57,33 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
             },
         )
         self.client = self.reloader.reload()
+        self._pinned = False
+
+    def _reload(self) -> ExperimentLibraryClient:
+        """Return the client of the current configuration, or the pinned client."""
+        if not self._pinned:
+            self.client = self.reloader.reload()
+        return self.client
 
     def is_configured(self) -> bool:
         return self.reloader.is_configured()
+
+    @contextmanager
+    def pinned(self) -> Iterator[None]:
+        """Keep the client of the current configuration for the calls in the context.
+
+        A change of the configuration takes effect after the context, e.g. once a
+        pre-processing worker has finished its job.
+        """
+        if self._pinned:
+            yield
+            return
+        self._reload()
+        self._pinned = True
+        try:
+            yield
+        finally:
+            self._pinned = False
 
     def checkout_revision(self, revision: str | None) -> str | None:
         """Restore a state of the library defined by `revision`.
@@ -67,8 +92,7 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
 
         Should be implemented by experiment library clients based on a git repository.
         """
-        self.client = self.reloader.reload()
-        return self.client.checkout_revision(revision)
+        return self._reload().checkout_revision(revision)
 
     def isolated(self) -> AbstractContextManager[ExperimentLibraryClient]:
         """Create a context manager for a temporary isolated copy of the library.
@@ -76,16 +100,17 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
         By default isolation is not implemented and only a reference to
         the original library is returned.
         """
-        self.client = self.reloader.reload()
-        return self.client.isolated()
+        return self._reload().isolated()
 
-    def reuse_venv(self) -> AbstractContextManager[None]:
-        """Create a context manager keeping the library loaded between its calls.
+    @contextmanager
+    def reuse_venv(self) -> Iterator[None]:
+        """Keep the library loaded between the calls in the context.
 
-        The calls in the context may share state the library keeps.
+        The calls in the context may share state the library keeps. They are all made
+        with the client keeping the library loaded, see `pinned`.
         """
-        self.client = self.reloader.reload()
-        return self.client.reuse_venv()
+        with self.pinned(), self.client.reuse_venv():
+            yield
 
     async def load_metadata(self) -> "tuple[ExperimentDict, ParameterMetadataDict]":
         """Load the experiment and parameter metadata.
@@ -93,13 +118,11 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
         To support hot-reloading of user data modules, this is a method
         and not static data.
         """
-        self.client = self.reloader.reload()
-        return await self.client.load_metadata()
+        return await self._reload().load_metadata()
 
     async def load_device_order(self) -> list[str]:
         """Return the device ids in the order the devices should be handled by the hardware processor."""
-        self.client = self.reloader.reload()
-        return await self.client.load_device_order()
+        return await self._reload().load_device_order()
 
     async def create_hardware_instructions(
         self,
@@ -120,8 +143,7 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
         Returns:
             Mapping of device_ids to the instructions generated per device.
         """
-        self.client = self.reloader.reload()
-        return await self.client.create_hardware_instructions(
+        return await self._reload().create_hardware_instructions(
             exp_module_name=exp_module_name,
             exp_instance_name=exp_instance_name,
             parameter_dict=parameter_dict,
@@ -145,8 +167,7 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
         Returns:
             Device ID, readout metadata pairs for the experiment.
         """
-        self.client = self.reloader.reload()
-        return await self.client.get_experiment_readout_metadata(
+        return await self._reload().get_experiment_readout_metadata(
             exp_module_name=exp_module_name,
             exp_instance_name=exp_instance_name,
             parameter_dict=parameter_dict,
@@ -158,5 +179,4 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
         Returns:
             Dictionary containing a description of the experiment setup.
         """
-        self.client = self.reloader.reload()
-        return await self.client.get_setup_hardware_description()
+        return await self._reload().get_setup_hardware_description()
