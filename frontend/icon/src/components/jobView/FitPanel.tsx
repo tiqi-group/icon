@@ -25,14 +25,18 @@ import { useNotifications } from "@toolpad/core";
 import { ExperimentData, FitResult } from "../../types/ExperimentData";
 import { ScanParameter } from "../../types/ScanParameter";
 import { runMethod } from "../../socket";
+import { useBrowserSetting } from "../../hooks/useBrowserSetting";
 import {
   FIT_DEFAULT_UPDATE_PARAM,
   FIT_PARAM_NAMES,
   FIT_TYPES,
 } from "../../utils/fitFunctions";
 
+const DEFAULT_FUNC_TYPE = "lorentzian";
+
 interface FitPanelProps {
   jobId: string;
+  experimentSourceId: number;
   experimentData: ExperimentData;
   clickedX: number | null;
   scanParameters?: ScanParameter[];
@@ -40,6 +44,7 @@ interface FitPanelProps {
 
 export default function FitPanel({
   jobId,
+  experimentSourceId,
   experimentData,
   clickedX,
   scanParameters = [],
@@ -49,8 +54,21 @@ export default function FitPanel({
   const deviceData = experimentData?.device_data?.[0];
   const deviceId = deviceData?.device_id;
   const channelNames = Object.keys(deviceData?.readouts?.result_channels ?? []);
-  const [selectedChannel, setSelectedChannel] = useState<string>(channelNames[0] ?? "");
-  const [funcType, setFuncType] = useState<string>("lorentzian");
+  // The channel and model are remembered per experiment
+  const [storedChannel, setSelectedChannel] = useBrowserSetting<string>(
+    `fitChannel_${experimentSourceId}`,
+    "",
+  );
+  const selectedChannel = channelNames.includes(storedChannel)
+    ? storedChannel
+    : (channelNames[0] ?? "");
+  const [storedFuncType, setFuncType] = useBrowserSetting<string>(
+    `fitModel_${experimentSourceId}`,
+    DEFAULT_FUNC_TYPE,
+  );
+  const funcType = FIT_TYPES.some((ft) => ft === storedFuncType)
+    ? storedFuncType
+    : DEFAULT_FUNC_TYPE;
   const [xMin, setXMin] = useState<string>("");
   const [xMax, setXMax] = useState<string>("");
   const [initOverrides, setInitOverrides] = useState<Record<string, string>>({});
@@ -58,16 +76,6 @@ export default function FitPanel({
 
   const [updateParamId, setUpdateParamId] = useState<string>("");
   const [updateValue, setUpdateValue] = useState<string>("");
-
-  const channelKey = channelNames.join(",");
-  useEffect(() => {
-    if (
-      channelNames.length > 0 &&
-      (!selectedChannel || !channelNames.includes(selectedChannel))
-    ) {
-      setSelectedChannel(channelNames[0]);
-    }
-  }, [channelKey]);
 
   // Reset form state when switching jobs
   useEffect(() => {
