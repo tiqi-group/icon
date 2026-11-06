@@ -1,17 +1,13 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { notifyStorageChange, subscribeToStorage } from "../utils/storageSubscription";
 
-type SettingValue = string | boolean | number | null;
+type SettingValue = string | boolean | number;
 
 const parseValue = <T extends SettingValue>(raw: string | null, defaultValue: T): T => {
   if (raw === null) return defaultValue;
   try {
     const parsed: unknown = JSON.parse(raw);
-    const valid =
-      defaultValue === null
-        ? parsed !== null && typeof parsed !== "object"
-        : typeof parsed === typeof defaultValue;
-    if (valid) return parsed as T;
+    if (typeof parsed === typeof defaultValue) return parsed as T;
   } catch {
     // fall through
   }
@@ -22,8 +18,7 @@ const parseValue = <T extends SettingValue>(raw: string | null, defaultValue: T)
  * Hook to manage a browser setting stored in localStorage with reactive updates.
  *
  * @param key The storage key
- * @param defaultValue Default value when nothing is stored. Setting null removes the
- *   stored value.
+ * @param defaultValue Default value when nothing is stored
  * @param storage sessionStorage for a setting of this browser tab only
  */
 export function useBrowserSetting<T extends SettingValue>(
@@ -36,8 +31,7 @@ export function useBrowserSetting<T extends SettingValue>(
 
   const setValue = useCallback(
     (newValue: T) => {
-      if (newValue === null) storage.removeItem(key);
-      else storage.setItem(key, JSON.stringify(newValue));
+      storage.setItem(key, JSON.stringify(newValue));
       notifyStorageChange();
     },
     [key, storage],
