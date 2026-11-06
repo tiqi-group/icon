@@ -271,10 +271,19 @@ export const getScanParameterSearchOptions = (
     ),
   );
 
+// True when `word` occurs at the start of a word in `text`, like "half" in "pi-half".
+const startsWord = (text: string, word: string): boolean => {
+  for (let i = text.indexOf(word); i !== -1; i = text.indexOf(word, i + 1)) {
+    if (i === 0 || !/[\p{L}\p{N}]/u.test(text[i - 1])) return true;
+  }
+  return false;
+};
+
 /**
  * Returns the options containing every whitespace-separated word of `query`.
- * Exact, then prefix, then other display name matches come first; otherwise
- * options keep their list order.
+ * Exact and prefix display name matches come first, then options where every
+ * word starts a word (in the display name, then anywhere), then other display
+ * name matches. Within each step options keep their list order.
  */
 export const searchScanParameterOptions = (
   options: ScanParameterSearchOption[],
@@ -286,8 +295,10 @@ export const searchScanParameterOptions = (
     const name = option.displayName.toLowerCase();
     if (name === phrase) return 0;
     if (name.startsWith(phrase)) return 1;
-    if (words.every((word) => name.includes(word))) return 2;
-    return 3;
+    if (words.every((word) => startsWord(name, word))) return 2;
+    if (words.every((word) => startsWord(option.searchText, word))) return 3;
+    if (words.every((word) => name.includes(word))) return 4;
+    return 5;
   };
   if (words.length === 0) return [];
   return options

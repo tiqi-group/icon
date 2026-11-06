@@ -322,4 +322,21 @@ describe("scanUtils: searchScanParameterOptions", () => {
       "amplitude",
     ]);
   });
+
+  it("ranks words found at the start of a word above words found inside one", () => {
+    const options = searchOptionsOf([
+      ["Carrier", "stark shift - pi-half - sm1/2"],
+      ["Carrier", "stark shift - sm1/2 - radial 2"],
+      ["Carrier", "time - radial 1"],
+      ["Pi-half 1 settings", "duration"],
+    ]);
+    expect(search(options, "radial 1")).toEqual([
+      "time - radial 1",
+      "stark shift - sm1/2 - radial 2",
+    ]);
+    expect(search(options, "pi half 1")).toEqual([
+      "duration",
+      "stark shift - pi-half - sm1/2",
+    ]);
+  });
 });
