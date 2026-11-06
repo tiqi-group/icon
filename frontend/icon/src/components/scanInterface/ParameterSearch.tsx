@@ -38,8 +38,10 @@ export const ParameterSearch = ({
         // Same elevation as the Select menus, so the popup has the same background.
         paper: { elevation: 8 },
         // About five and a half result rows, so a cut-off row shows there are more.
-        listbox: { sx: { maxHeight: 316 } },
+        // Short windows keep MUI's default 40vh.
+        listbox: { sx: { maxHeight: "min(316px, 40vh)" } },
         popupIndicator: {
+          "aria-hidden": true,
           disableRipple: true,
           sx: { pointerEvents: "none", transform: "none" },
         },
@@ -50,8 +52,9 @@ export const ParameterSearch = ({
       onClose={() => setOpen(false)}
       // Always empty after a pick: the dropdowns below show the selection.
       value={null}
-      // Typed text survives clicking elsewhere, it is only cleared by a pick.
+      // Typed text survives clicking elsewhere, it is cleared by a pick or Escape.
       clearOnBlur={false}
+      clearOnEscape
       inputValue={inputValue}
       onInputChange={(_, value, reason) =>
         setInputValue(reason === "input" ? value : "")
