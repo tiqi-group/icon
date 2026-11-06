@@ -128,7 +128,7 @@ export const SettingsPage = () => {
   useEffect(() => {
     if (tab === -1) {
       tab = 0;
-      setSearchParams({ tab: tabLabels[tab] });
+      setSearchParams({ tab: tabLabels[tab] }, { replace: true });
     }
   }, []);
 
