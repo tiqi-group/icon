@@ -20,6 +20,8 @@ import ResultChannelPlot from "../components/ResultChannelPlot";
 import ResultChannelTable from "./jobView/ResultChannelTable";
 import { JobStatusIndicator } from "../components/JobStatusIndicator";
 import { ParameterGroupDisplay } from "../components/ParameterGroupDisplay";
+import { ResultScanParameters } from "./jobView/ResultScanParameters";
+import { resultScanKey } from "../utils/resultScanParameters";
 import { useExperimentData } from "../hooks/useExperimentData";
 import { useJobRunInfo } from "../hooks/useJobRunInfo";
 import { useJobInfo } from "../hooks/useJobInfo";
@@ -655,6 +657,15 @@ export const JobView = ({
           <Card>
             <CardContent>
               <div style={{ display: "flex", flexDirection: "column" }}>
+                {jobInfo?.scan_parameters.some((scan) => !scan.realtime) && (
+                  <div style={{ marginBottom: 16 }}>
+                    <ResultScanParameters
+                      parameters={experimentMetadata?.parameters ?? {}}
+                      scanParameters={jobInfo.scan_parameters}
+                      experimentId={jobInfo.experiment_source.experiment_id}
+                    />
+                  </div>
+                )}
                 <Typography variant="h6">Parameter Values</Typography>
                 {Object.entries(experimentMetadata?.parameters || {}).map(
                   ([displayGroup, parameters], index) => (
@@ -665,6 +676,9 @@ export const JobView = ({
                         parameters={parameters}
                         values={experimentData.parameters}
                         readOnly={true}
+                        readOnlyScanKeys={
+                          jobInfo?.scan_parameters.map(resultScanKey) ?? []
+                        }
                       />
                       {index <
                         Object.keys(experimentMetadata?.parameters || {}).length -
