@@ -36,6 +36,7 @@ import { pauseJob } from "../utils/pauseJob";
 import { resumeJob } from "../utils/resumeJob";
 import HistogramPlot from "./jobView/HistogramPlot";
 import FitPanel from "./jobView/FitPanel";
+import { JobPlanSummary } from "./jobView/JobPlanSummary";
 
 const PLOT_CARD_CONTENT_SX = {
   padding: 1,
@@ -368,6 +369,7 @@ export const JobView = ({
                 )}
               </Typography>
               <Typography variant="body1">{jobInfo?.status}</Typography>
+              {jobInfo && <JobPlanSummary job={jobInfo} />}
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <Typography variant="body2">Show repetitions</Typography>
                 <Tooltip

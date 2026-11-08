@@ -13,6 +13,7 @@ export interface Job {
   local_parameters_timestamp: string;
   parent_job_id?: number | null;
   priority: number;
+  number_of_shots?: number;
   repetitions: number;
   scan_parameters: ScanParameter[];
   status: JobStatus;
