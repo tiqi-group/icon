@@ -14,6 +14,8 @@ interface ExperimentContextMenuProps {
   onClose: () => void;
   onAssign: (group: string) => void;
   onNewGroup: () => void;
+  allFavorites: boolean;
+  onToggleFavorites: () => void;
 }
 
 export const ExperimentContextMenu = ({
@@ -23,6 +25,8 @@ export const ExperimentContextMenu = ({
   onClose,
   onAssign,
   onNewGroup,
+  allFavorites,
+  onToggleFavorites,
 }: ExperimentContextMenuProps) => {
   const experimentIds = menu?.experimentIds ?? [];
   const currentGroups = new Set(
@@ -52,6 +56,10 @@ export const ExperimentContextMenu = ({
         </ListSubheader>
       )}
       {experimentIds.length > 1 && <Divider />}
+      <MenuItem onClick={onToggleFavorites}>
+        {allFavorites ? "Unpin from favorites" : "Pin to favorites"}
+      </MenuItem>
+      <Divider />
       {targetGroups.length > 0 && (
         <ListSubheader sx={{ lineHeight: "32px" }}>Add to group</ListSubheader>
       )}

@@ -2,14 +2,20 @@ import { Fragment, MouseEvent, useMemo, useRef, useState } from "react";
 import {
   Collapse,
   List,
+  ListItem,
+  IconButton,
+  Tooltip,
   ListItemButton,
   ListItemIcon,
   ListItemText,
   ListSubheader,
 } from "@mui/material";
-import { ChevronRight, ExpandMore } from "@mui/icons-material";
+import { ChevronRight, ExpandMore, Star, StarBorder } from "@mui/icons-material";
 import { ExperimentDict } from "../types/ExperimentMetadata";
 import { useExperimentGroups } from "../hooks/useExperimentGroups";
+import { useExperimentFavorites } from "../hooks/useExperimentFavorites";
+import { availableFavorites } from "../utils/experimentFavorites";
+import "./experimentList/favorites.css";
 import {
   ExperimentContextMenu,
   ExperimentMenuState,
@@ -41,6 +47,7 @@ export const ExperimentList = ({
   onSelect,
 }: ExperimentListProps) => {
   const [groupsState, updateGroups] = useExperimentGroups();
+  const [favorites, toggleFavorites] = useExperimentFavorites();
   const [experimentMenu, setExperimentMenu] = useState<ExperimentMenuState | null>(
     null,
   );
@@ -65,9 +72,19 @@ export const ExperimentList = ({
   // The default group gets no heading if it is the only group
   const hasGroups = groupNames.length > 0;
 
-  const visibleIds = groups
-    .filter((group) => !hasGroups || !groupsState.collapsed.includes(group.name))
-    .flatMap((group) => group.experimentIds);
+  const favoriteIds = availableFavorites(Object.keys(experiments), favorites);
+  const remainingGroups = groups
+    .map((group) => ({
+      ...group,
+      experimentIds: group.experimentIds.filter((id) => !favoriteIds.includes(id)),
+    }))
+    .filter((group) => group.experimentIds.length > 0);
+  const visibleIds = [
+    ...favoriteIds,
+    ...remainingGroups
+      .filter((group) => !hasGroups || !groupsState.collapsed.includes(group.name))
+      .flatMap((group) => group.experimentIds),
+  ];
   // Only marks that are visible count
   const markedIds = visibleIds.filter((id) => marked.includes(id));
 
@@ -107,29 +124,58 @@ export const ExperimentList = ({
   };
 
   const renderExperiment = (experimentId: string) => (
-    <ListItemButton
+    <ListItem
       key={experimentId}
-      selected={selectedExperiment === experimentId}
-      onClick={(event) => handleExperimentClick(event, experimentId)}
-      onContextMenu={(event) => handleExperimentContextMenu(event, experimentId)}
-      // Keep a shift click from selecting text
-      onMouseDown={(event) => {
-        if (event.shiftKey) event.preventDefault();
-      }}
-      sx={{
-        ...(hasGroups && { pl: 5.5 }),
-        ...(markedIds.includes(experimentId) && {
-          bgcolor: "action.selected",
-          "&:hover": { bgcolor: "action.selected" },
-          boxShadow: "inset 3px 0 0 var(--mui-palette-primary-main)",
-        }),
-      }}
+      disablePadding
+      className="icon-experiment-row"
+      secondaryAction={
+        <Tooltip
+          title={
+            favorites.includes(experimentId)
+              ? "Unpin from favorites"
+              : "Pin to favorites"
+          }
+        >
+          <IconButton
+            edge="end"
+            size="small"
+            className="icon-experiment-favorite"
+            aria-label={`${favorites.includes(experimentId) ? "Unpin" : "Pin"} ${getExperimentNameFromExperimentId(experimentId)} ${favorites.includes(experimentId) ? "from" : "to"} favorites`}
+            aria-pressed={favorites.includes(experimentId)}
+            onClick={() => toggleFavorites([experimentId])}
+          >
+            {favorites.includes(experimentId) ? (
+              <Star fontSize="small" />
+            ) : (
+              <StarBorder fontSize="small" />
+            )}
+          </IconButton>
+        </Tooltip>
+      }
     >
-      <ListItemText
-        primary={getExperimentNameFromExperimentId(experimentId)}
-        secondary={experiments[experimentId].class_name}
-      />
-    </ListItemButton>
+      <ListItemButton
+        selected={selectedExperiment === experimentId}
+        onClick={(event) => handleExperimentClick(event, experimentId)}
+        onContextMenu={(event) => handleExperimentContextMenu(event, experimentId)}
+        // Keep a shift click from selecting text
+        onMouseDown={(event) => {
+          if (event.shiftKey) event.preventDefault();
+        }}
+        sx={{
+          ...(hasGroups && { pl: 5.5 }),
+          ...(markedIds.includes(experimentId) && {
+            bgcolor: "action.selected",
+            "&:hover": { bgcolor: "action.selected" },
+            boxShadow: "inset 3px 0 0 var(--mui-palette-primary-main)",
+          }),
+        }}
+      >
+        <ListItemText
+          primary={getExperimentNameFromExperimentId(experimentId)}
+          secondary={experiments[experimentId].class_name}
+        />
+      </ListItemButton>
+    </ListItem>
   );
 
   const renderGroup = (group: ExperimentGroup) => {
@@ -187,14 +233,32 @@ export const ExperimentList = ({
           </ListSubheader>
         }
       >
+        {favoriteIds.length > 0 && (
+          <>
+            <ListSubheader disableSticky>Favorites</ListSubheader>
+            {favoriteIds.map(renderExperiment)}
+            {remainingGroups.length > 0 && (
+              <ListSubheader disableSticky>Experiments</ListSubheader>
+            )}
+          </>
+        )}
         {hasGroups
-          ? groups.map(renderGroup)
-          : groups.flatMap((group) => group.experimentIds).map(renderExperiment)}
+          ? remainingGroups.map(renderGroup)
+          : remainingGroups
+              .flatMap((group) => group.experimentIds)
+              .map(renderExperiment)}
       </List>
       <ExperimentContextMenu
         menu={experimentMenu}
         groupNames={groupNames}
         assignments={groupsState.assignments}
+        allFavorites={(experimentMenu?.experimentIds ?? []).every((id) =>
+          favorites.includes(id),
+        )}
+        onToggleFavorites={() => {
+          toggleFavorites(experimentMenu?.experimentIds ?? []);
+          setExperimentMenu(null);
+        }}
         onClose={() => setExperimentMenu(null)}
         onAssign={(group) => {
           const experimentIds = experimentMenu?.experimentIds ?? [];

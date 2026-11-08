@@ -1,0 +1,16 @@
+.icon-experiment-row .icon-experiment-favorite {
+  opacity: 0;
+}
+.icon-experiment-row:hover .icon-experiment-favorite,
+.icon-experiment-row:focus-within .icon-experiment-favorite,
+.icon-experiment-row .icon-experiment-favorite[aria-pressed="true"] {
+  opacity: 1;
+}
+.icon-experiment-row .MuiListItemButton-root {
+  padding-right: 44px !important;
+}
+@media (hover: none) {
+  .icon-experiment-row .icon-experiment-favorite {
+    opacity: 1;
+  }
+}
