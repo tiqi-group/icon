@@ -1,6 +1,7 @@
 import DeleteIcon from "@mui/icons-material/Delete";
 import {
   FormControl,
+  FormHelperText,
   IconButton,
   InputLabel,
   MenuItem,
@@ -27,6 +28,7 @@ import {
   scanPatterns,
 } from "../../types/ScanParameterInfo";
 import { isScannableParameterType } from "../../utils/scanUtils";
+import { scanSpacingHint } from "../../utils/scanSpacingHint";
 
 const renderPatternLabel = (pattern: ScanPattern): string => {
   switch (pattern) {
@@ -71,19 +73,20 @@ export const ParameterCard = ({
 
   // Create a mapping from namespace to experiment display name
   const namespaceToDisplayName: Record<string, string> = Object.fromEntries(
-    Object.keys(experiments).map(expId => [
+    Object.keys(experiments).map((expId) => [
       experimentIdToNamespace(expId),
-      getExperimentNameFromExperimentId(expId)
-    ])
+      getExperimentNameFromExperimentId(expId),
+    ]),
   );
 
   // Filter namespaces to include only relevant ones
   const filteredNamespaces = useMemo(() => {
     return Object.fromEntries(
-      Object.entries(parameterNamespaceToDisplayGroups).filter(([namespace]) =>
-        namespace.endsWith(".globals.global_parameters") ||
-        (experimentId && namespace === experimentIdToNamespace(experimentId))
-      )
+      Object.entries(parameterNamespaceToDisplayGroups).filter(
+        ([namespace]) =>
+          namespace.endsWith(".globals.global_parameters") ||
+          (experimentId && namespace === experimentIdToNamespace(experimentId)),
+      ),
     );
   }, [parameterNamespaceToDisplayGroups, experimentId]);
 
@@ -117,6 +120,7 @@ export const ParameterCard = ({
             shortId,
             {
               displayName: shortId,
+              unit: undefined,
               min: null,
               max: null,
             },
@@ -137,6 +141,7 @@ export const ParameterCard = ({
           paramId,
           {
             displayName: meta.display_name,
+            unit: meta.unit,
             min: meta.min_value,
             max: meta.max_value,
           },
@@ -161,6 +166,13 @@ export const ParameterCard = ({
   };
 
   const [liveValue] = useParameter(param.id);
+  const selectedMetadata = parameterOptions[param.id];
+  const spacingHint = scanSpacingHint(
+    param,
+    { min: selectedMetadata?.min ?? null, max: selectedMetadata?.max ?? null },
+    selectedMetadata?.unit,
+    liveValue,
+  );
   const midpoint = (param.generation.start + param.generation.stop) / 2;
   const spanCentreText =
     typeof liveValue === "number"
@@ -246,16 +258,20 @@ export const ParameterCard = ({
               });
             }}
             renderValue={(selected) => {
-              const displayName = selected === "Devices" || selected === "Real Time"
-                ? selected
-                : (namespaceToDisplayName[selected] || getDisplayNameFromNamespace(selected));
+              const displayName =
+                selected === "Devices" || selected === "Real Time"
+                  ? selected
+                  : namespaceToDisplayName[selected] ||
+                    getDisplayNameFromNamespace(selected);
               return truncateDisplayName(displayName);
             }}
           >
             {Object.keys(parameterSources).map((namespace) => {
-              const displayName = namespace === "Devices" || namespace === "Real Time"
-                ? namespace
-                : (namespaceToDisplayName[namespace] || getDisplayNameFromNamespace(namespace));
+              const displayName =
+                namespace === "Devices" || namespace === "Real Time"
+                  ? namespace
+                  : namespaceToDisplayName[namespace] ||
+                    getDisplayNameFromNamespace(namespace);
               return (
                 <MenuItem key={namespace} value={namespace}>
                   {displayName}
@@ -503,10 +519,12 @@ export const ParameterCard = ({
             />
           </div>
           <FormControl fullWidth size="small">
-            <InputLabel>Scan pattern</InputLabel>
+            <InputLabel id={`scan-pattern-label-${index}`}>Scan pattern</InputLabel>
             <Select
               disabled={!param.id}
               label="Scan pattern"
+              labelId={`scan-pattern-label-${index}`}
+              aria-describedby={spacingHint ? `scan-spacing-${index}` : undefined}
               value={param.generation.pattern}
               onChange={(e) => {
                 dispatchScanInfoStateUpdate({
@@ -528,6 +546,11 @@ export const ParameterCard = ({
                 </MenuItem>
               ))}
             </Select>
+            {spacingHint && (
+              <FormHelperText id={`scan-spacing-${index}`}>
+                {spacingHint}
+              </FormHelperText>
+            )}
           </FormControl>
         </>
       ) : (
