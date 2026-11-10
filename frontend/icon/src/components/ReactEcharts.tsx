@@ -46,6 +46,9 @@ export function ReactECharts({
   const chartDivRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<ECharts | null>(null);
   const { mode } = useColorScheme();
+  // While the mouse button is held on the chart, the newest option waits here
+  const pressedRef = useRef(false);
+  const pendingUpdateRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!chartDivRef.current) return;
@@ -67,15 +70,54 @@ export function ReactECharts({
     };
   }, [mode, onChartReady]);
 
+  // setOption rebuilds the legend and toolbox, and zrender drops a click whose
+  // mousedown and mouseup hit different elements. Updates arriving during a click,
+  // e.g. live data points, are therefore held until the click has been handled.
   useEffect(() => {
-    chartInstanceRef.current?.setOption(
-      {
-        ...option,
-        backgroundColor: mode === "dark" ? "#1e1e1e" : "#ffffff",
-      },
-      { notMerge: true },
-    );
+    const update = () =>
+      chartInstanceRef.current?.setOption(
+        {
+          ...option,
+          backgroundColor: mode === "dark" ? "#1e1e1e" : "#ffffff",
+        },
+        { notMerge: true },
+      );
+    if (pressedRef.current) pendingUpdateRef.current = update;
+    else update();
   }, [option, mode]);
+
+  useEffect(() => {
+    const chartDiv = chartDivRef.current;
+    if (!chartDiv) return;
+
+    let flushTimer: number | undefined;
+    const press = (event: PointerEvent) => {
+      if (event.button === 0) pressedRef.current = true;
+    };
+    const release = () => {
+      if (!pressedRef.current) return;
+      pressedRef.current = false;
+      // Apply the held update after the click event following pointerup
+      flushTimer = window.setTimeout(() => {
+        if (pressedRef.current) return;
+        const update = pendingUpdateRef.current;
+        pendingUpdateRef.current = null;
+        update?.();
+      });
+    };
+
+    chartDiv.addEventListener("pointerdown", press);
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    window.addEventListener("blur", release);
+    return () => {
+      chartDiv.removeEventListener("pointerdown", press);
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+      window.removeEventListener("blur", release);
+      window.clearTimeout(flushTimer);
+    };
+  }, []);
 
   useEffect(() => {
     if (!chartInstanceRef.current) return;
