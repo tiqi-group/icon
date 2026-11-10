@@ -21,6 +21,13 @@ export interface ReactEChartsProps {
   loading?: boolean;
   /** Called once after the chart is created */
   onChartReady?: (chart: ECharts) => void;
+  /**
+   * Merge each option into the chart instead of replacing it, which keeps the legend
+   * selection, zoom, hover and tooltip state. Series are matched by id and removed
+   * when missing, so every series needs an id, and every option has to set all keys
+   * that any option sets.
+   */
+  merge?: boolean;
 }
 
 echarts.use([
@@ -42,6 +49,7 @@ export function ReactECharts({
   style,
   loading,
   onChartReady,
+  merge = false,
 }: ReactEChartsProps) {
   const chartDivRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<ECharts | null>(null);
@@ -80,11 +88,11 @@ export function ReactECharts({
           ...option,
           backgroundColor: mode === "dark" ? "#1e1e1e" : "#ffffff",
         },
-        { notMerge: true },
+        merge ? { replaceMerge: ["series"] } : { notMerge: true },
       );
     if (pressedRef.current) pendingUpdateRef.current = update;
     else update();
-  }, [option, mode]);
+  }, [option, mode, merge]);
 
   useEffect(() => {
     const chartDiv = chartDivRef.current;

@@ -161,6 +161,7 @@ export const HistogramPlot = ({
         },
       ],
       series: series.map((s) => ({
+        id: s.name,
         type: "bar",
         name: s.name,
         data: s.data,
@@ -216,6 +217,8 @@ export const HistogramPlot = ({
           loading={loading}
           style={{ width: "100%", height: CHART_HEIGHT }}
           onChartReady={updateChart}
+          // Keeps the legend selection, zoom, hover and tooltip across new shots
+          merge
         />
       )}
     </>
