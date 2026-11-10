@@ -36,6 +36,7 @@ interface FitPanelProps {
   experimentData: ExperimentData;
   clickedX: number | null;
   scanParameters?: ScanParameter[];
+  allowParameterUpdates?: boolean;
 }
 
 export default function FitPanel({
@@ -43,6 +44,7 @@ export default function FitPanel({
   experimentData,
   clickedX,
   scanParameters = [],
+  allowParameterUpdates = true,
 }: FitPanelProps) {
   const notifications = useNotifications();
   // Take main device for now:
@@ -147,7 +149,7 @@ export default function FitPanel({
   };
 
   const handleUpdateParameter = () => {
-    if (!updateParamId || updateValue === "") return;
+    if (!allowParameterUpdates || !updateParamId || updateValue === "") return;
     const displayName =
       ordinaryScanParams.find((sp) => sp.variable_id === updateParamId)?.name ??
       updateParamId;
@@ -320,47 +322,51 @@ export default function FitPanel({
                   </TableBody>
                 </Table>
 
-                <Typography variant="subtitle2" sx={{ mt: 2 }}>
-                  Update Parameter
-                </Typography>
-                <Grid container spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
-                  <Grid size={{ xs: 5 }}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Parameter</InputLabel>
-                      <Select
-                        value={updateParamId}
-                        label="Parameter"
-                        onChange={(e) => setUpdateParamId(e.target.value)}
-                      >
-                        {ordinaryScanParams.map((sp) => (
-                          <MenuItem key={sp.variable_id} value={sp.variable_id}>
-                            {sp.name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid size={{ xs: 4 }}>
-                    <TextField
-                      size="small"
-                      label="Value"
-                      type="number"
-                      fullWidth
-                      value={updateValue}
-                      onChange={(e) => setUpdateValue(e.target.value)}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 3 }}>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={handleUpdateParameter}
-                      disabled={!updateParamId || updateValue === ""}
-                    >
-                      Update
-                    </Button>
-                  </Grid>
-                </Grid>
+                {allowParameterUpdates && (
+                  <>
+                    <Typography variant="subtitle2" sx={{ mt: 2 }}>
+                      Update Parameter
+                    </Typography>
+                    <Grid container spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+                      <Grid size={{ xs: 5 }}>
+                        <FormControl fullWidth size="small">
+                          <InputLabel>Parameter</InputLabel>
+                          <Select
+                            value={updateParamId}
+                            label="Parameter"
+                            onChange={(e) => setUpdateParamId(e.target.value)}
+                          >
+                            {ordinaryScanParams.map((sp) => (
+                              <MenuItem key={sp.variable_id} value={sp.variable_id}>
+                                {sp.name}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid size={{ xs: 4 }}>
+                        <TextField
+                          size="small"
+                          label="Value"
+                          type="number"
+                          fullWidth
+                          value={updateValue}
+                          onChange={(e) => setUpdateValue(e.target.value)}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 3 }}>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={handleUpdateParameter}
+                          disabled={!updateParamId || updateValue === ""}
+                        >
+                          Update
+                        </Button>
+                      </Grid>
+                    </Grid>
+                  </>
+                )}
               </>
             )}
           </div>

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
+import type { ComponentType, CSSProperties } from "react";
 import type { ECharts } from "echarts/core";
-import { ReactECharts } from "../ReactEcharts";
+import { ReactECharts, ReactEChartsProps } from "../ReactEcharts";
 import { ExperimentData } from "../../types/ExperimentData";
 import type { EChartsOption } from "echarts/types/dist/shared";
 import { useNotifications } from "@toolpad/core";
@@ -99,6 +100,8 @@ interface HistogramPlotProps {
   title: string;
   subtitle: string;
   loading: boolean;
+  ChartComponent?: ComponentType<ReactEChartsProps>;
+  chartStyle?: CSSProperties;
 }
 
 export const HistogramPlot = ({
@@ -107,6 +110,8 @@ export const HistogramPlot = ({
   subtitle,
   loading,
   channelNames,
+  ChartComponent = ReactECharts,
+  chartStyle,
 }: HistogramPlotProps) => {
   const [chart, setChart] = useState<ECharts | null>(null);
   const notifications = useNotifications();
@@ -211,10 +216,10 @@ export const HistogramPlot = ({
           </div>
         )
       ) : (
-        <ReactECharts
+        <ChartComponent
           option={option}
           loading={loading}
-          style={{ width: "100%", height: CHART_HEIGHT }}
+          style={{ width: "100%", height: CHART_HEIGHT, ...chartStyle }}
           onChartReady={updateChart}
         />
       )}
