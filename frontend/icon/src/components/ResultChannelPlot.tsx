@@ -33,6 +33,10 @@ interface ResultChannelPlotProps {
   hiddenTracesKey: string;
 }
 
+// Stable defaults, so that a missing prop does not recompute the option on every render
+const NO_SCAN_PARAMETERS: ScanParameter[] = [];
+const NO_FITS: Record<string, FitResult> = {};
+
 const formatAxisLabel = (value: string): string => {
   const num = parseFloat(value);
   if (isNaN(num)) return value;
@@ -55,10 +59,10 @@ const ResultChannelPlot = ({
   channelNames,
   repetitions = 1,
   showRepetitions = false,
-  scanParameters = [],
+  scanParameters = NO_SCAN_PARAMETERS,
   windowSize = null,
   yRange,
-  fits = {},
+  fits = NO_FITS,
   onChartClick,
   hiddenTracesKey,
 }: ResultChannelPlotProps) => {

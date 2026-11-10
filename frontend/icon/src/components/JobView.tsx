@@ -116,6 +116,8 @@ export const JobView = ({
   const effectiveWindowSize = windowSize ?? defaultWindowSize;
   const [yMin, setYMin] = useState<number | null>(null);
   const [yMax, setYMax] = useState<number | null>(null);
+  // Stable so that the plots don't recompute their options on every render
+  const yRange = useMemo(() => ({ min: yMin, max: yMax }), [yMin, yMax]);
 
   const hasRepetitions = (jobInfo?.repetitions ?? 0) > 1;
   // take main device for now:
@@ -594,7 +596,7 @@ export const JobView = ({
                       showRepetitions={showRepetitions}
                       scanParameters={jobInfo?.scan_parameters}
                       windowSize={effectiveWindowSize}
-                      yRange={{ min: yMin, max: yMax }}
+                      yRange={yRange}
                       fits={showFitPanel && is1D ? deviceData.fits : undefined}
                       onChartClick={showFitPanel && is1D ? handleChartClick : undefined}
                       hiddenTracesKey={`hiddenTraces_${jobInfo?.experiment_source_id}_${win.name}`}
