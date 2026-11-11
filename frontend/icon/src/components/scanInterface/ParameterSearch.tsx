@@ -82,13 +82,13 @@ export const ParameterSearch = ({
         </li>
       )}
       noOptionsText={
-        <ResultText primary="No matching parameters" secondary="Try other words" />
+        <ResultText primary="No matching parameters" secondary="" />
       }
       renderInput={(params) => (
         <TextField
           {...params}
           label="Search for parameters"
-          placeholder="Type words or parts of words"
+          placeholder="Search by name, group, or namespace"
           slotProps={{ inputLabel: { ...params.InputLabelProps, shrink: true } }}
         />
       )}
