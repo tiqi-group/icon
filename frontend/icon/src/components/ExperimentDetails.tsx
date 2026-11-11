@@ -27,7 +27,7 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
       {Object.keys(experiment.parameters).map((group) => (
         <RememberedAccordion
           key={experimentKey + group}
-          storageKey="expandedParameterGroups"
+          storageKey={`expandedParameterGroups_${experimentKey}`}
           name={group}
           disableGutters // Removes extra padding/margin from Accordion
           square
