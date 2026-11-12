@@ -7,6 +7,7 @@ import {
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { ExperimentsContext } from "../contexts/ExperimentsContext";
+import { ScanProvider } from "../contexts/ScanProvider";
 import { ParameterGroupDisplay } from "./ParameterGroupDisplay";
 import ScanInterface from "./scanInterface/ScanInterfaceComponent";
 import { DeviceInfoContext } from "../contexts/DeviceInfoContext";
@@ -26,47 +27,55 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column" }}>
-      <ScanInterface experimentId={experimentKey} />
-      {Object.keys(experiment.parameters).map((group) => (
-        <Accordion
-          key={experimentKey + group}
-          defaultExpanded
-          disableGutters // Removes extra padding/margin from Accordion
-          square
-        >
-          <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ m: 0 }}>
-            <Typography variant="h6">{group}</Typography>
-          </AccordionSummary>
-          <AccordionDetails sx={{ m: 0 }}>
-            <ParameterGroupDisplay
-              experimentKey={experimentKey}
-              experimentGroup={group}
-              parameters={experiments[experimentKey]?.parameters?.[group] || {}}
-            />
-          </AccordionDetails>
-        </Accordion>
-      ))}
-
-      {experiment.device_parameter_groups?.map((deviceName) => {
-        const isReachable = reachableDevices.includes(deviceName);
-
-        return (
-          <Accordion key={`Device ${deviceName}`} defaultExpanded disableGutters square>
+    // Keyed so each experiment mounts with its own scan state.
+    <ScanProvider key={experimentKey} experimentId={experimentKey}>
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        <ScanInterface experimentId={experimentKey} />
+        {Object.keys(experiment.parameters).map((group) => (
+          <Accordion
+            key={experimentKey + group}
+            defaultExpanded
+            disableGutters // Removes extra padding/margin from Accordion
+            square
+          >
             <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ m: 0 }}>
-              <Typography variant="h6">Device: {deviceName}</Typography>
+              <Typography variant="h6">{group}</Typography>
             </AccordionSummary>
             <AccordionDetails sx={{ m: 0 }}>
-              {isReachable ? (
-                <ScannableParameterInterface name={deviceName} />
-              ) : (
-                <>Device not reachable</>
-              )}
+              <ParameterGroupDisplay
+                experimentKey={experimentKey}
+                experimentGroup={group}
+                parameters={experiments[experimentKey]?.parameters?.[group] || {}}
+              />
             </AccordionDetails>
           </Accordion>
-        );
-      })}
-    </div>
+        ))}
+
+        {experiment.device_parameter_groups?.map((deviceName) => {
+          const isReachable = reachableDevices.includes(deviceName);
+
+          return (
+            <Accordion
+              key={`Device ${deviceName}`}
+              defaultExpanded
+              disableGutters
+              square
+            >
+              <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ m: 0 }}>
+                <Typography variant="h6">Device: {deviceName}</Typography>
+              </AccordionSummary>
+              <AccordionDetails sx={{ m: 0 }}>
+                {isReachable ? (
+                  <ScannableParameterInterface name={deviceName} />
+                ) : (
+                  <>Device not reachable</>
+                )}
+              </AccordionDetails>
+            </Accordion>
+          );
+        })}
+      </div>
+    </ScanProvider>
   );
 };
 
