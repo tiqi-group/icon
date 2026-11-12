@@ -2,6 +2,7 @@ import { useContext } from "react";
 import { Typography, AccordionSummary, AccordionDetails } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { ExperimentsContext } from "../contexts/ExperimentsContext";
+import { ScanProvider } from "../contexts/ScanProvider";
 import { ParameterGroupDisplay } from "./ParameterGroupDisplay";
 import ScanInterface from "./scanInterface/ScanInterfaceComponent";
 import { DeviceInfoContext } from "../contexts/DeviceInfoContext";
@@ -22,55 +23,58 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column" }}>
-      <ScanInterface experimentId={experimentKey} />
-      {Object.keys(experiment.parameters).map((group) => (
-        <RememberedAccordion
-          key={experimentKey + group}
-          storageKey={`expandedParameterGroups_${experimentKey}`}
-          name={group}
-          disableGutters // Removes extra padding/margin from Accordion
-          square
-        >
-          <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ m: 0 }}>
-            <Typography variant="h6">{group}</Typography>
-          </AccordionSummary>
-          <AccordionDetails sx={{ m: 0 }}>
-            <ParameterGroupDisplay
-              experimentKey={experimentKey}
-              experimentGroup={group}
-              parameters={experiments[experimentKey]?.parameters?.[group] || {}}
-            />
-          </AccordionDetails>
-        </RememberedAccordion>
-      ))}
-
-      {experiment.device_parameter_groups?.map((deviceName) => {
-        const isReachable = reachableDevices.includes(deviceName);
-        const section = `Device ${deviceName}`;
-
-        return (
+    // Keyed so each experiment mounts with its own scan state.
+    <ScanProvider key={experimentKey} experimentId={experimentKey}>
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        <ScanInterface experimentId={experimentKey} />
+        {Object.keys(experiment.parameters).map((group) => (
           <RememberedAccordion
-            key={section}
-            storageKey="expandedParameterGroups"
-            name={section}
-            disableGutters
+            key={experimentKey + group}
+            storageKey={`expandedParameterGroups_${experimentKey}`}
+            name={group}
+            disableGutters // Removes extra padding/margin from Accordion
             square
           >
             <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ m: 0 }}>
-              <Typography variant="h6">Device: {deviceName}</Typography>
+              <Typography variant="h6">{group}</Typography>
             </AccordionSummary>
             <AccordionDetails sx={{ m: 0 }}>
-              {isReachable ? (
-                <ScannableParameterInterface name={deviceName} />
-              ) : (
-                <>Device not reachable</>
-              )}
+              <ParameterGroupDisplay
+                experimentKey={experimentKey}
+                experimentGroup={group}
+                parameters={experiments[experimentKey]?.parameters?.[group] || {}}
+              />
             </AccordionDetails>
           </RememberedAccordion>
-        );
-      })}
-    </div>
+        ))}
+
+        {experiment.device_parameter_groups?.map((deviceName) => {
+          const isReachable = reachableDevices.includes(deviceName);
+          const section = `Device ${deviceName}`;
+
+          return (
+            <RememberedAccordion
+              key={section}
+              storageKey="expandedParameterGroups"
+              name={section}
+              disableGutters
+              square
+            >
+              <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ m: 0 }}>
+                <Typography variant="h6">Device: {deviceName}</Typography>
+              </AccordionSummary>
+              <AccordionDetails sx={{ m: 0 }}>
+                {isReachable ? (
+                  <ScannableParameterInterface name={deviceName} />
+                ) : (
+                  <>Device not reachable</>
+                )}
+              </AccordionDetails>
+            </RememberedAccordion>
+          );
+        })}
+      </div>
+    </ScanProvider>
   );
 };
 

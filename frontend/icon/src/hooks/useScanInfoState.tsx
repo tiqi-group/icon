@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from "react";
+import { useReducer } from "react";
 import { ScanParameterInfo } from "../types/ScanParameterInfo";
 import { ScanParameterGenerationSpec } from "../types/ScanParameterGenerationSpec";
 import {
@@ -127,15 +127,9 @@ export const reducer =
 export const useScanInfoState = (experimentId: string) => {
   const [scanInfoState, dispatchScanInfoStateUpdate] = useReducer(
     reducer(experimentId),
-    getScanInfoStateFromLocalStorage(experimentId),
+    experimentId,
+    getScanInfoStateFromLocalStorage,
   );
-
-  useEffect(() => {
-    dispatchScanInfoStateUpdate({
-      type: "RESET",
-      payload: getScanInfoStateFromLocalStorage(experimentId),
-    });
-  }, [experimentId]);
 
   return { scanInfoState, dispatchScanInfoStateUpdate };
 };

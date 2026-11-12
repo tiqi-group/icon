@@ -7,6 +7,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Self, TypeVar
 
 from icon.server.hardware_processing.rpc.client import MsgPackRPCClient
+from icon.server.hardware_processing.rpc.connection import DEFAULT_KEEPALIVE_ENABLE
 from icon.server.hardware_processing.rpc.errors import RPCError
 
 if TYPE_CHECKING:
@@ -50,9 +51,15 @@ class Zedboard:
         hostname: str = "zedboard.lab",
         port: int = 6007,
         timeout: float | None = 5,
+        *,
+        keepalive_enable: bool = DEFAULT_KEEPALIVE_ENABLE,
     ) -> None:
         self._client = MsgPackRPCClient(
-            hostname=hostname, port=port, timeout=timeout, framed=True
+            hostname=hostname,
+            port=port,
+            timeout=timeout,
+            keepalive_enable=keepalive_enable,
+            framed=True,
         )
 
     def __repr__(self) -> str:

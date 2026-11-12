@@ -66,20 +66,18 @@ class ExperimentLibraryClient:
         exp_module_name: str,
         exp_instance_name: str,
         parameter_dict: "dict[str, DatabaseValueType]",
-        device_id: str,
         n_shots: int,
-    ) -> str:
+    ) -> dict[str, str]:
         """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
-            device_id: Id of the hardware for which to create the instructions.
             n_shots: Number of shots
 
         Returns:
-            JSON string containing the generated sequence.
+            Mapping of device_ids to the instructions generated for per device.
         """
         raise NotImplementedError("Must be implemented by a subclass")
 
@@ -132,22 +130,20 @@ class FallbackExperimentLibraryClient(ExperimentLibraryClient):
         exp_module_name: str,  # noqa: ARG002
         exp_instance_name: str,  # noqa: ARG002
         parameter_dict: "dict[str, DatabaseValueType]",  # noqa: ARG002
-        device_id: str,  # noqa: ARG002
         n_shots: int,  # noqa: ARG002
-    ) -> str:
+    ) -> dict[str, str]:
         """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
-            device_id: Id of the hardware for which to create the instructions.
             n_shots: Number of shots.
 
         Returns:
-            JSON string containing the generated sequence.
+            Mapping of device IDs to the instructions generated for that device.
         """
-        return ""
+        return {}
 
     async def get_experiment_readout_metadata(
         self,

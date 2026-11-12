@@ -17,6 +17,8 @@ from icon.config.config import get_config
 from icon.server.data_access.experiment_data import (
     ExperimentDataPoint,
     ExperimentDeviceDataPoint,
+    HardwareProcessingError,
+    Readouts,
 )
 from icon.server.data_access.models.enums import DeviceStatus, JobRunStatus
 from icon.server.data_access.models.sqlite.scan_parameter import (
@@ -44,6 +46,30 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 timezone = pytz.timezone(get_config().date.timezone)
+
+
+def error_device_data_point(
+    device_id: str, instructions: str, error_msg: str | None = None
+) -> ExperimentDeviceDataPoint:
+    """Returns the device data of a data point that failed on the devices.
+
+    Args:
+        device_id: ID of the device.
+        instructions: Hardware instructions of the device for this data point.
+        error_msg: Error raised by the device. None if the device itself did not fail,
+            but returned no readouts because of another device's error.
+
+    Returns:
+        The device data holding a `HardwareProcessingError` with `error_msg`, or
+        empty readouts if `error_msg` is None.
+    """
+    return ExperimentDeviceDataPoint(
+        device_id,
+        readouts=HardwareProcessingError(message=error_msg)
+        if error_msg is not None
+        else Readouts(result_channels={}, vector_channels={}, shot_channels={}),
+        hardware_instructions=instructions,
+    )
 
 
 def parse_parameter_id(param_id: str) -> tuple[str | None, str]:
@@ -137,7 +163,23 @@ class HardwareProcessingWorker(multiprocessing.Process):
 
         self._devices = devices
 
+    def _start_delay(self, device_index: int, num_devices: int) -> float:
+        """Returns the delay to apply before starting a device.
+
+        The first device in a multi-device experiment is delayed to allow the other
+        devices to arm first. This is necessary for some devices that require a
+        trigger signal from another device to start their operation.
+        """
+        if device_index == 0 and num_devices > 1:
+            return self._main_device_start_delay
+        return 0.0
+
     def get_device(self, device_id: str) -> Hardware:
+        try:
+            return self._devices[device_id]
+        except KeyError:
+            pass
+        self._devices.retry_disconnected()
         try:
             return self._devices[device_id]
         except KeyError as e:
@@ -235,6 +277,63 @@ class HardwareProcessingWorker(multiprocessing.Process):
             )
         return self._executor
 
+    def _run_devices(
+        self, hardware_instructions: list[tuple[str, HardwareController, str]]
+    ) -> tuple[list[ExperimentDeviceDataPoint], dict[str, str]]:
+        """Send the hardware instructions to the devices, then run them.
+
+        A device that raises any error while sending, running or receiving gets a
+        `HardwareProcessingError` in place of its readouts. Devices that did not
+        return readouts because of another device's error get empty readouts.
+
+        Returns:
+            The data and errors of every device.
+        """
+        errors: dict[str, str] = {}
+
+        # Dispatch instructions
+        for device_id, device, instructions in hardware_instructions:
+            try:
+                device.send(data=instructions)
+            except Exception as e:
+                logger.exception("Sending to device '%s' failed", device_id)
+                errors[device_id] = extract_hardware_error_message(e)
+
+        if errors:
+            return [
+                error_device_data_point(device_id, instructions, errors.get(device_id))
+                for device_id, _, instructions in hardware_instructions
+            ], errors
+
+        # Execute instructions in parallel
+        num_devices = len(hardware_instructions)
+        executor = self._get_executor(num_devices)
+        futures = {
+            device_id: executor.submit(
+                run_device,
+                device_id,
+                device,
+                instructions,
+                delay=self._start_delay(i, num_devices),
+            )
+            for i, (device_id, device, instructions) in enumerate(hardware_instructions)
+        }
+        wait(futures.values())
+
+        device_data: list[ExperimentDeviceDataPoint] = []
+        for device_id, _, instructions in hardware_instructions:
+            try:
+                device_data.append(futures[device_id].result())
+            except Exception as e:
+                logger.exception("Running device '%s' failed", device_id)
+                errmsg = extract_hardware_error_message(e)
+                errors[device_id] = errmsg
+                device_data.append(
+                    error_device_data_point(device_id, instructions, errmsg)
+                )
+
+        return device_data, errors
+
     @handle_keyboard_interrupt(logger)
     def run(self) -> None:
         self._pydase_clients = {
@@ -268,7 +367,6 @@ class HardwareProcessingWorker(multiprocessing.Process):
             try:
                 self._set_pydase_service_values(scanned_params=task.scanned_params)
 
-                timestamp = datetime.now(timezone)
                 all_hardware_instructions = [
                     (device_id, self.get_device(device_id).controller, instructions)
                     for device_id, instructions in task.hardware_instructions
@@ -278,50 +376,51 @@ class HardwareProcessingWorker(multiprocessing.Process):
                     for device_id, device, instructions in all_hardware_instructions
                     if isinstance(device, HardwareController)
                 ]
-                for _, device, instructions in hardware_instructions:
-                    device.send(data=instructions)
-
-                num_devices = len(hardware_instructions)
-                executor = self._get_executor(num_devices)
-                futures = [
-                    executor.submit(
-                        run_device,
-                        device_id,
-                        device,
-                        instructions,
-                        delay=self._main_device_start_delay
-                        if i == 0 and num_devices > 1
-                        else 0.0,
-                    )
-                    for i, (device_id, device, instructions) in enumerate(
-                        hardware_instructions
-                    )
-                ]
-                wait(futures)
-                device_data = [future.result() for future in futures]
-
-                experiment_data_point = ExperimentDataPoint(
-                    index=task.data_point_index,
-                    scan_params=task.scanned_params,
-                    device_data=device_data,
-                    timestamp=timestamp.isoformat(),
-                )
+                timestamp = datetime.now(timezone)
+                device_data, device_errors = self._run_devices(hardware_instructions)
 
                 post_processing_task = PostProcessingTask(
                     priority=task.priority,
                     pre_processing_task=task.pre_processing_task,
-                    data_point=experiment_data_point,
+                    data_point=ExperimentDataPoint(
+                        index=task.data_point_index,
+                        scan_params=task.scanned_params,
+                        device_data=device_data,
+                        timestamp=timestamp.isoformat(),
+                    ),
                     src_dir=task.src_dir,
                     created=task.created,
                 )
 
                 self._post_processing_queue.put(post_processing_task)
+
+                if device_errors:
+                    err_msgs = "; ".join(
+                        f"DeviceError ('{did}') {err}"
+                        for did, err in device_errors.items()
+                    )
+                    logger.error(
+                        "Terminating job run %s due to error in device(s): %s",
+                        task.pre_processing_task.job_run.id,
+                        err_msgs,
+                    )
+
+                    # Keep the status of runs cancelled in the meantime.
+                    try_update_run_by_id(
+                        run_id=task.pre_processing_task.job_run.id,
+                        status=JobRunStatus.FAILED,
+                        log=err_msgs,
+                        only_if_status=(JobRunStatus.PROCESSING, JobRunStatus.PAUSED),
+                    )
             except Exception as e:
-                logger.exception("Error in hardware worker.")
+                logger.exception(
+                    "Terminating job run %s due to error in hardware worker",
+                    task.pre_processing_task.job_run.id,
+                )
                 try_update_run_by_id(
                     run_id=task.pre_processing_task.job_run.id,
                     status=JobRunStatus.FAILED,
-                    log=extract_hardware_error_message(e),
+                    log=str(e),
                 )
             finally:
                 task.scan_progress.complete(task.pre_processing_task.job_run.id)

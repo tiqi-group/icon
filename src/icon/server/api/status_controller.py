@@ -109,7 +109,6 @@ class StatusController(pydase.DataService):
             )
             for cfg, dev in self.__devices.status()
         ]
-        enabled_devices = set(self.__devices.enabled_ids())
         status += [
             HardwareStatus(
                 display_name=name,
@@ -119,7 +118,7 @@ class StatusController(pydase.DataService):
                 error="Not reachable / not configured",
                 warning=None,
             )
-            for name in library_devices - enabled_devices
+            for name in library_devices - {s["display_name"] for s in status}
         ]
         self._hardware_status = status
         emit_queue.put({"event": "status.hardware", "data": status})

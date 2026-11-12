@@ -43,20 +43,18 @@ class BlockingExperimentLibraryClient:
         exp_module_name: str,
         exp_instance_name: str,
         parameter_dict: "dict[str, DatabaseValueType]",
-        device_id: str,
         n_shots: int,
-    ) -> str:
+    ) -> dict[str, str]:
         """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
-            device_id: Id of the hardware for which to create the instructions
             n_shots: Number of shots.
 
         Returns:
-            JSON string containing the generated sequence.
+            Mapping of device_ids to the instructions generated per device.
         """
         raise NotImplementedError("Must be implemented by a subclass")
 
@@ -131,20 +129,18 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
         exp_module_name: str,
         exp_instance_name: str,
         parameter_dict: "dict[str, DatabaseValueType]",
-        device_id: str,
         n_shots: int,
-    ) -> str:
+    ) -> dict[str, str]:
         """Generate hardware instructions for an experiment.
 
         Args:
             exp_module_name: Module name of the experiment.
             exp_instance_name: Name of the experiment instance.
             parameter_dict: Mapping of parameter IDs to values.
-            device_id: Id of the hardware for which to create the instructions.
             n_shots: Number of shots.
 
         Returns:
-            JSON string containing the generated sequence.
+            Mapping of device_ids to the instructions generated per device.
         """
         return await self.venv.run(
             self.client.create_hardware_instructions,
@@ -152,7 +148,6 @@ class VEnvExperimentLibraryClient(ExperimentLibraryClient):
                 "exp_module_name": exp_module_name,
                 "exp_instance_name": exp_instance_name,
                 "parameter_dict": parameter_dict,
-                "device_id": device_id,
                 "n_shots": n_shots,
             },
             logger=venv_logger,
