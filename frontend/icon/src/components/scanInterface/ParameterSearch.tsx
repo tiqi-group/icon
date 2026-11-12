@@ -49,7 +49,10 @@ export const ParameterSearch = ({
       // Results only appear while there is something typed.
       open={open && inputValue.trim() !== ""}
       onOpen={() => setOpen(true)}
-      onClose={() => setOpen(false)}
+      onClose={(_, reason) => {
+        setOpen(false);
+        if (reason === "escape") setInputValue("");
+      }}
       // Always empty after a pick: the dropdowns below show the selection.
       value={null}
       // Typed text survives clicking elsewhere, it is cleared by a pick or Escape.
