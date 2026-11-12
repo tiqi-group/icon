@@ -1,10 +1,5 @@
 import { useContext } from "react";
-import {
-  Typography,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-} from "@mui/material";
+import { Typography, AccordionSummary, AccordionDetails } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { ExperimentsContext } from "../contexts/ExperimentsContext";
 import { ScanProvider } from "../contexts/ScanProvider";
@@ -12,6 +7,7 @@ import { ParameterGroupDisplay } from "./ParameterGroupDisplay";
 import ScanInterface from "./scanInterface/ScanInterfaceComponent";
 import { DeviceInfoContext } from "../contexts/DeviceInfoContext";
 import { ScannableParameterInterface } from "./devices/ScannableParameterInterface";
+import { RememberedAccordion } from "./RememberedAccordion";
 
 const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
   const experiments = useContext(ExperimentsContext);
@@ -32,9 +28,10 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
       <div style={{ display: "flex", flexDirection: "column" }}>
         <ScanInterface experimentId={experimentKey} />
         {Object.keys(experiment.parameters).map((group) => (
-          <Accordion
+          <RememberedAccordion
             key={experimentKey + group}
-            defaultExpanded
+            storageKey={`expandedParameterGroups_${experimentKey}`}
+            name={group}
             disableGutters // Removes extra padding/margin from Accordion
             square
           >
@@ -48,16 +45,18 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
                 parameters={experiments[experimentKey]?.parameters?.[group] || {}}
               />
             </AccordionDetails>
-          </Accordion>
+          </RememberedAccordion>
         ))}
 
         {experiment.device_parameter_groups?.map((deviceName) => {
           const isReachable = reachableDevices.includes(deviceName);
+          const section = `Device ${deviceName}`;
 
           return (
-            <Accordion
-              key={`Device ${deviceName}`}
-              defaultExpanded
+            <RememberedAccordion
+              key={section}
+              storageKey="expandedParameterGroups"
+              name={section}
               disableGutters
               square
             >
@@ -71,7 +70,7 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
                   <>Device not reachable</>
                 )}
               </AccordionDetails>
-            </Accordion>
+            </RememberedAccordion>
           );
         })}
       </div>

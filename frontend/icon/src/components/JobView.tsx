@@ -24,6 +24,7 @@ import { useExperimentData } from "../hooks/useExperimentData";
 import { useJobRunInfo } from "../hooks/useJobRunInfo";
 import { useJobInfo } from "../hooks/useJobInfo";
 import { useBrowserSetting } from "../hooks/useBrowserSetting";
+import { useStoredFlags } from "../hooks/useStoredFlags";
 import { DEFAULT_WINDOW_SIZE } from "../pages/settings";
 import { runMethod } from "../socket";
 import { ExperimentMetadata } from "../types/ExperimentMetadata";
@@ -115,6 +116,8 @@ export const JobView = ({
   const effectiveWindowSize = windowSize ?? defaultWindowSize;
   const [yMin, setYMin] = useState<number | null>(null);
   const [yMax, setYMax] = useState<number | null>(null);
+  // Stable so that the plots don't recompute their options on every render
+  const yRange = useMemo(() => ({ min: yMin, max: yMax }), [yMin, yMax]);
 
   const hasRepetitions = (jobInfo?.repetitions ?? 0) > 1;
   // take main device for now:
@@ -172,13 +175,12 @@ export const JobView = ({
     return v ? JSON.parse(v) : false;
   });
 
-  // States to track whether the plot sections are expanded or collapsed
-  const [expandedShotChannels, setExpandedShotChannels] = useState<
-    Record<string, boolean>
-  >({});
-  const [expandedResultChannels, setExpandedResultChannels] = useState<
-    Record<string, boolean>
-  >({});
+  const [isShotChannelCollapsed, setShotChannelCollapsed] = useStoredFlags(
+    `collapsedShotChannels_${jobInfo?.experiment_source_id}`,
+  );
+  const [isResultChannelCollapsed, setResultChannelCollapsed] = useStoredFlags(
+    `collapsedResultChannels_${jobInfo?.experiment_source_id}`,
+  );
 
   // Per-result-window view mode: "plot" (default) or "table".
   const [resultViewMode, setResultViewMode] = useState<
@@ -194,48 +196,9 @@ export const JobView = ({
     );
   };
 
-  const toggleShotChannel = (name: string) => {
-    const newState = {
-      ...expandedShotChannels,
-      [name]: expandedShotChannels[name] === false,
-    };
-    setExpandedShotChannels(newState);
-    localStorage.setItem(
-      `shotChannelsState_${jobInfo?.experiment_source_id}`,
-      JSON.stringify(newState),
-    );
-  };
-
-  const toggleResultChannel = (name: string) => {
-    const newState = {
-      ...expandedResultChannels,
-      [name]: expandedResultChannels[name] === false,
-    };
-    setExpandedResultChannels(newState);
-    localStorage.setItem(
-      `resultChannelsState_${jobInfo?.experiment_source_id}`,
-      JSON.stringify(newState),
-    );
-  };
-
-  // Load expanded/collapsed state from localStorage once after jobInfo has loaded
+  // Load the plot settings from localStorage once after jobInfo has loaded
   useEffect(() => {
     if (jobInfo) {
-      const storedShotChannelsState = localStorage.getItem(
-        `shotChannelsState_${jobInfo.experiment_source_id}`,
-      );
-      const storedResultChannelsState = localStorage.getItem(
-        `resultChannelsState_${jobInfo.experiment_source_id}`,
-      );
-
-      setExpandedShotChannels(
-        storedShotChannelsState ? JSON.parse(storedShotChannelsState) : {},
-      );
-
-      setExpandedResultChannels(
-        storedResultChannelsState ? JSON.parse(storedResultChannelsState) : {},
-      );
-
       const storedResultViewMode = localStorage.getItem(
         `resultViewMode_${jobInfo.experiment_source_id}`,
       );
@@ -524,31 +487,30 @@ export const JobView = ({
           <Grid size={{ xs: 12, sm: 12, lg: 6 }} key={`shot-${win.index}`}>
             <Card
               sx={{
-                height: expandedShotChannels[win.name] === false ? "auto" : "100%",
+                height: isShotChannelCollapsed(win.name) ? "auto" : "100%",
               }}
             >
               <CardContent sx={PLOT_CARD_CONTENT_SX}>
                 <div style={plotCardHeaderStyle}>
-                  {expandedShotChannels[win.name] === false && (
+                  {isShotChannelCollapsed(win.name) && (
                     <Typography variant="subtitle1" noWrap sx={{ mr: "auto", pl: 0.5 }}>
                       {win.name}
                     </Typography>
                   )}
                   <IconButton
                     size="small"
-                    title={
-                      expandedShotChannels[win.name] === false ? "Expand" : "Collapse"
+                    title={isShotChannelCollapsed(win.name) ? "Expand" : "Collapse"}
+                    onClick={() =>
+                      setShotChannelCollapsed(
+                        win.name,
+                        !isShotChannelCollapsed(win.name),
+                      )
                     }
-                    onClick={() => toggleShotChannel(win.name)}
                   >
-                    {expandedShotChannels[win.name] === false ? (
-                      <ExpandMore />
-                    ) : (
-                      <ExpandLess />
-                    )}
+                    {isShotChannelCollapsed(win.name) ? <ExpandMore /> : <ExpandLess />}
                   </IconButton>
                 </div>
-                {expandedShotChannels[win.name] !== false && (
+                {!isShotChannelCollapsed(win.name) && (
                   <HistogramPlot
                     key={jobId}
                     experimentData={experimentData}
@@ -570,18 +532,18 @@ export const JobView = ({
           <Grid size={{ xs: 12, sm: 12, lg: 6 }} key={`result-${win.index}`}>
             <Card
               sx={{
-                height: expandedResultChannels[win.name] === false ? "auto" : "100%",
+                height: isResultChannelCollapsed(win.name) ? "auto" : "100%",
               }}
             >
               <CardContent sx={PLOT_CARD_CONTENT_SX}>
                 <div style={plotCardHeaderStyle}>
-                  {expandedResultChannels[win.name] === false && (
+                  {isResultChannelCollapsed(win.name) && (
                     <Typography variant="subtitle1" noWrap sx={{ mr: "auto", pl: 0.5 }}>
                       {win.name}
                     </Typography>
                   )}
                   <div style={{ flexGrow: 1 }} />
-                  {expandedResultChannels[win.name] !== false && (
+                  {!isResultChannelCollapsed(win.name) && (
                     <ToggleButtonGroup
                       size="small"
                       exclusive
@@ -597,19 +559,22 @@ export const JobView = ({
                   )}
                   <IconButton
                     size="small"
-                    title={
-                      expandedResultChannels[win.name] === false ? "Expand" : "Collapse"
+                    title={isResultChannelCollapsed(win.name) ? "Expand" : "Collapse"}
+                    onClick={() =>
+                      setResultChannelCollapsed(
+                        win.name,
+                        !isResultChannelCollapsed(win.name),
+                      )
                     }
-                    onClick={() => toggleResultChannel(win.name)}
                   >
-                    {expandedResultChannels[win.name] === false ? (
+                    {isResultChannelCollapsed(win.name) ? (
                       <ExpandMore />
                     ) : (
                       <ExpandLess />
                     )}
                   </IconButton>
                 </div>
-                {expandedResultChannels[win.name] !== false &&
+                {!isResultChannelCollapsed(win.name) &&
                   (resultViewMode[win.name] === "table" ? (
                     <ResultChannelTable
                       experimentData={experimentData}
@@ -631,9 +596,10 @@ export const JobView = ({
                       showRepetitions={showRepetitions}
                       scanParameters={jobInfo?.scan_parameters}
                       windowSize={effectiveWindowSize}
-                      yRange={{ min: yMin, max: yMax }}
+                      yRange={yRange}
                       fits={showFitPanel && is1D ? deviceData.fits : undefined}
                       onChartClick={showFitPanel && is1D ? handleChartClick : undefined}
+                      hiddenTracesKey={`hiddenTraces_${jobInfo?.experiment_source_id}_${win.name}`}
                     />
                   ))}
               </CardContent>
@@ -644,6 +610,7 @@ export const JobView = ({
           <Grid size={{ xs: 12 }}>
             <FitPanel
               jobId={jobId}
+              experimentSourceId={jobInfo.experiment_source_id}
               experimentData={experimentData}
               clickedX={clickedX}
               scanParameters={jobInfo?.scan_parameters}

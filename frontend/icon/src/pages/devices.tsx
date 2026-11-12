@@ -1,4 +1,5 @@
 import { useContext, useState } from "react";
+import { useSearchParams } from "react-router";
 import {
   Divider,
   Button,
@@ -19,7 +20,8 @@ const DevicesPage = () => {
   const devices = useContext(DeviceInfoContext);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deviceView, setDeviceView] = useState<"scannable" | "pydase">("scannable");
-  const [selectedDeviceName, setSelectedDeviceName] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedDeviceName = searchParams.get("device");
 
   const entries = Object.entries(devices);
   const enabled = entries.filter(([, d]) => d.status === DeviceStatus.ENABLED);
@@ -64,7 +66,7 @@ const DevicesPage = () => {
               <ListItemButton
                 key={name}
                 selected={selectedDeviceName === name}
-                onClick={() => setSelectedDeviceName(name)}
+                onClick={() => setSearchParams({ device: name })}
               >
                 <div style={{ display: "flex", alignItems: "center" }}>
                   <ReachabilityIndicator
@@ -86,7 +88,7 @@ const DevicesPage = () => {
               <ListItemButton
                 key={name}
                 selected={selectedDeviceName === name}
-                onClick={() => setSelectedDeviceName(name)}
+                onClick={() => setSearchParams({ device: name })}
               >
                 <div style={{ display: "flex", alignItems: "center" }}>
                   <ReachabilityIndicator

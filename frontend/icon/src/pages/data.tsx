@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { useContext, useEffect, useMemo, useRef } from "react";
 import {
   Button,
   CircularProgress,
@@ -14,6 +14,7 @@ import {
 import SsidChartIcon from "@mui/icons-material/SsidChart";
 import { JobsContext } from "../contexts/JobsContext";
 import { JobView } from "../components/JobView";
+import { useBrowserSetting } from "../hooks/useBrowserSetting";
 import { useNavigate, useSearchParams } from "react-router";
 import { JobListItem } from "../types/JobListItem";
 import { JobStatus } from "../types/enums";
@@ -49,7 +50,16 @@ export function DataPage() {
     return group;
   }, [jobs]);
 
-  const [alwaysShowLatest, setAlwaysShowLatest] = useState(false);
+  // Per tab, so that looking at an older job in one tab does not stop another tab from
+  // following the newest job. A tab opened on a specific job shows that job.
+  const [alwaysShowLatest, setAlwaysShowLatest] = useBrowserSetting<boolean>(
+    "alwaysShowLatest",
+    selectedJobId === null,
+    sessionStorage,
+  );
+  // Store the default of the first visit, as following the newest job puts a job into
+  // the URL
+  useEffect(() => setAlwaysShowLatest(alwaysShowLatest), []);
 
   const latestJobId = useMemo(() => {
     let latest: number | null = null;
@@ -62,11 +72,12 @@ export function DataPage() {
 
   useEffect(() => {
     if (alwaysShowLatest && latestJobId !== null) {
-      setSearchParams({ jobId: String(latestJobId) });
+      setSearchParams({ jobId: String(latestJobId) }, { replace: true });
     }
   }, [alwaysShowLatest, latestJobId]);
 
   const handleSelectJob = (jobId: number) => {
+    if (jobId !== latestJobId) setAlwaysShowLatest(false);
     setSearchParams({ jobId: String(jobId) });
   };
 
@@ -104,7 +115,7 @@ export function DataPage() {
           borderRight: "1px solid var(--mui-palette-divider)",
         }}
       >
-        <Tooltip title="Switch to newest job as it's created">
+        <Tooltip title="Switch to newest job as it's created. Selecting an older job turns this off.">
           <FormControlLabel
             control={
               <Switch
