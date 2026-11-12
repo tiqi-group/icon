@@ -196,17 +196,12 @@ export const getScanParameterOptions = (
     const device = devices[deviceNameOrDisplayGroup];
     if (!device) return {};
 
-    const prefixLength = makeScannedParamKey(
-      "",
-      namespace,
-      deviceNameOrDisplayGroup,
-    ).length;
-
     return Object.fromEntries(
       device.scannable_params.map((paramId) => {
-        const shortId = paramId.slice(prefixLength);
+        const shortId = extractScannedParamId(paramId, namespace, deviceNameOrDisplayGroup);
         return [shortId, { displayName: shortId, min: null, max: null }];
       }),
+    );
     );
   }
 
