@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import json
 import select
 import socket
@@ -12,29 +13,34 @@ from typing import TYPE_CHECKING, Any
 
 import msgpack
 import pytest
+from gateway_client import (
+    DeviceInfo,
+    GatewayError,
+    NotificationTopic,
+    Session,
+    TaskNotification,
+    TaskResult,
+    TaskStatus,
+    TaskStatusReport,
+    ZCU216Client,
+)
 
 from icon.server.data_access.experiment_data import Readouts
 from icon.server.hardware_processing.gateway_controller import CLIENT_NAME
+from icon.server.hardware_processing.hardware_controller import StatusFlag
 from icon.server.hardware_processing.rfsoc_controller import (
     ChannelLayout,
     RFSoCController,
     _decode_header,
     to_zedboard_readouts,
 )
-from icon.server.hardware_processing.rpc.gateway import (
-    DeviceInfo,
-    GatewayError,
-    Session,
-    TaskNotification,
-    TaskResult,
-    TaskStatus,
-    TaskStatusReport,
-)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
 DEVICE_ID = "rfsoc"
+
+HEALTH = {"cpu_temperature": 45.0, "clk_status": "external"}
 
 DEVICE_INFO = {
     "board_model": "ZCU216",
@@ -91,6 +97,9 @@ class FakeGateway:
     """Unframed msgpack-rpc server with the task state machine of the firmware."""
 
     def __init__(self) -> None:
+        assert ZCU216Client.API_VERSION is not None
+        self.api_version = dataclasses.asdict(ZCU216Client.API_VERSION)
+        """Interface version the firmware reports, the one the client implements."""
         self.status = TaskStatus.IDLE
         self.update_state = "none"
         self.sessions_supported = True
@@ -128,7 +137,7 @@ class FakeGateway:
         unpacker = msgpack.Unpacker(raw=False)
         while not self._closed:
             for notification in self._notifications:
-                conn.sendall(_pack([2, "exp.TaskNotification", [notification]]))
+                conn.sendall(_pack([2, NotificationTopic.TASK.value, [notification]]))
             self._notifications.clear()
             readable, _, _ = select.select([conn], [], [], 0.001)
             if readable:
@@ -167,35 +176,39 @@ class FakeGateway:
 
     def _handle(self, method: str, params: list[Any]) -> Any:  # noqa: C901, PLR0911, PLR0912
         match method:
-            case "sys.RegisterSession" if self.sessions_supported:
+            case "sys.getApiVersion":
+                return self.api_version
+            case "sys.getHealth":
+                return HEALTH
+            case "sys.registerSession" if self.sessions_supported:
                 self.sessions.append(params[0])
-            case "sys.ListSessions" if self.sessions_supported:
+            case "sys.listSessions" if self.sessions_supported:
                 return [[name, "127.0.0.1", 50000] for name in self.sessions]
-            case "sys.GetDeviceInfo":
+            case "sys.getDeviceInfo":
                 return DEVICE_INFO
-            case "sys.CheckUpdate":
+            case "sys.checkUpdate":
                 return self.update_state
-            case "sys.ConfirmUpdate":
+            case "sys.confirmUpdate":
                 self.update_state = params[0]
-            case "exp.GetDeviceID":
+            case "exp.getDeviceID":
                 return DEVICE_ID
-            case "exp.AbortTask":
+            case "exp.abortTask":
                 self.status = TaskStatus.IDLE
                 self._notifications.append(TaskNotification.ABORTED.value)
-            case "exp.SetupTask":
+            case "exp.setupTask":
                 self._require(TaskStatus.IDLE)
                 self.status = TaskStatus.SETUP
-            case "exp.StartTask":
+            case "exp.startTask":
                 self._require(TaskStatus.SETUP)
                 self.status = TaskStatus.RUNNING
                 self._task_start = time.monotonic()
-            case "exp.GetTaskStatus":
+            case "exp.getTaskStatus":
                 return f"Status {self.status}, executed 0 / 2 shots in 0 ms\n"
-            case "exp.GetTaskResults":
+            case "exp.getTaskResults":
                 self._require(TaskStatus.FINISHED)
                 self.status = TaskStatus.IDLE
                 return [DATA, {name: [] for name in DATA}, ""]
-            case "exp.RunTask":
+            case "exp.runTask":
                 self._require(TaskStatus.IDLE)
                 return [DATA, {name: [] for name in DATA}, ""]
             case _:
@@ -243,8 +256,35 @@ def test_task_round_trip(gateway: FakeGateway, controller: RFSoCController) -> N
     assert readouts == EXPECTED
     assert gateway.status is TaskStatus.IDLE
     # Waited on the notification alone, and consumed it
-    assert "exp.GetTaskStatus" not in gateway.methods
-    assert controller._gateway._client.consume_notifications() == []
+    assert "exp.getTaskStatus" not in gateway.methods
+    assert not controller._gateway.wait_for_task(timeout=0)
+    assert controller._gateway.consume_notifications() == []
+
+
+def test_connect_rejects_incompatible_firmware(
+    gateway: FakeGateway,
+    controller: RFSoCController,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    gateway.api_version["major"] += 1
+    controller.connect()
+    assert not controller.connected
+    assert controller.query_device_id() is None
+    # Neither registers a session nor touches the firmware update
+    assert gateway.methods == ["sys.getApiVersion"]
+    assert "incompatible" in caplog.text
+
+
+def test_status_reports_health(controller: RFSoCController) -> None:
+    controller.connect()
+    assert controller.status() == (StatusFlag.SUCCESS, "OK", HEALTH)
+
+
+def test_status_when_disconnected(controller: RFSoCController) -> None:
+    flag, message, data = controller.status()
+    assert flag is StatusFlag.UNKNOWN
+    assert "not connected" in message
+    assert data is None
 
 
 def test_connect_confirms_trial_firmware(
@@ -300,7 +340,7 @@ def test_send_aborts_leftover_task(
     controller.connect()
     controller.send(SEQUENCE)
     assert gateway.status is TaskStatus.SETUP
-    assert gateway.methods[-2:] == ["exp.AbortTask", "exp.SetupTask"]
+    assert gateway.methods[-2:] == ["exp.abortTask", "exp.setupTask"]
 
 
 def test_receive_ignores_notification_of_leftover_task(
@@ -323,7 +363,7 @@ def test_receive_polls_on_missed_notification(gateway: FakeGateway) -> None:
     controller.send(SEQUENCE)
     controller.run()
     assert controller.receive() == EXPECTED
-    assert gateway.methods.count("exp.GetTaskStatus") == 1
+    assert gateway.methods.count("exp.getTaskStatus") == 1
     # The timed out wait left the connection open
     assert controller.connected
 
@@ -339,8 +379,8 @@ def test_receive_aborts_unfinished_task(gateway: FakeGateway) -> None:
         controller.receive()
     assert time.monotonic() - start >= 0.1  # noqa: PLR2004
     assert gateway.status is TaskStatus.IDLE
-    assert gateway.methods.count("exp.GetTaskStatus") > 1
-    assert gateway.methods[-1] == "exp.AbortTask"
+    assert gateway.methods.count("exp.getTaskStatus") > 1
+    assert gateway.methods[-1] == "exp.abortTask"
 
 
 def test_task_timeout_covers_the_shots(gateway: FakeGateway) -> None:
@@ -382,12 +422,12 @@ def test_receive_fails_on_task_aborted_by_other_client(
 
 
 def test_call_timeout_names_the_call(gateway: FakeGateway) -> None:
-    gateway.hang_on = "exp.StartTask"
+    gateway.hang_on = "exp.startTask"
     controller = make_controller(gateway, timeout=0.1)
     controller.connect()
     controller.send(SEQUENCE)
     with pytest.raises(
-        TimeoutError, match=r"^no response to exp\.StartTask within 0\.1s$"
+        TimeoutError, match=r"^no response to exp\.startTask within 0\.1s$"
     ):
         controller.run()
     # The answer may still arrive, so the connection is dropped
@@ -439,8 +479,8 @@ def test_short_task_runs_with_one_call(
     controller.run()
 
     assert controller.receive() == EXPECTED
-    assert "exp.RunTask" in gateway.methods
-    assert not {"exp.SetupTask", "exp.StartTask"} & set(gateway.methods)
+    assert "exp.runTask" in gateway.methods
+    assert not {"exp.setupTask", "exp.startTask"} & set(gateway.methods)
 
 
 @pytest.mark.parametrize(
@@ -460,8 +500,8 @@ def test_task_runs_in_steps(
     controller.run()
 
     assert controller.receive() == EXPECTED
-    assert "exp.SetupTask" in gateway.methods
-    assert "exp.RunTask" not in gateway.methods
+    assert "exp.setupTask" in gateway.methods
+    assert "exp.runTask" not in gateway.methods
 
 
 def test_short_task_aborts_leftover_task(
@@ -474,4 +514,4 @@ def test_short_task_aborts_leftover_task(
     controller.run()
 
     assert controller.receive() == EXPECTED
-    assert gateway.methods[-3:] == ["exp.GetTaskStatus", "exp.AbortTask", "exp.RunTask"]
+    assert gateway.methods[-3:] == ["exp.getTaskStatus", "exp.abortTask", "exp.runTask"]

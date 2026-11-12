@@ -20,10 +20,10 @@ def test_job_list_has_log_of_failed_run(seed_job: SeedJob) -> None:
     JobRunRepository.update_run_by_id(
         run_id=run_id,
         status=JobRunStatus.FAILED,
-        log="rfsoc: no response to exp.StartTask within 5s",
+        log="rfsoc: no response to exp.startTask within 5s",
     )
 
     (item,) = JobRepository.get_job_list()
     assert item["id"] == job_id
     assert item["run_status"] == JobRunStatus.FAILED.value
-    assert item["run_log"] == "rfsoc: no response to exp.StartTask within 5s"
+    assert item["run_log"] == "rfsoc: no response to exp.startTask within 5s"

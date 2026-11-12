@@ -2,16 +2,22 @@ import logging
 import socket
 from typing import Any, Final, Generic, TypeVar
 
+from gateway_client import (
+    ApiVersionError,
+    GatewayClient,
+    RPCError,
+    RPCResponseError,
+    UpdateState,
+)
+
 from icon.server.hardware_processing.hardware_controller import (
     HardwareController,
     StatusFlag,
 )
-from icon.server.hardware_processing.rpc.errors import RPCError, RPCResponseError
-from icon.server.hardware_processing.rpc.gateway import Gateway, UpdateState
 
 logger = logging.getLogger(__name__)
 
-GatewayT = TypeVar("GatewayT", bound=Gateway)
+GatewayT = TypeVar("GatewayT", bound=GatewayClient)
 
 CLIENT_NAME: Final = f"ICON@{socket.gethostname()}"
 """Client name of the sessions ICON registers on gateway devices."""
@@ -35,8 +41,12 @@ class GatewayController(HardwareController, Generic[GatewayT]):
 
     def connect(self) -> None:
         try:
+            # Also checks the interface version of the firmware
             self._gateway.connect()
-        except OSError as e:
+        except ApiVersionError as e:
+            logger.error("Could not connect to %s: %s", self.display_name, e)  # noqa: TRY400
+            return
+        except (RPCError, OSError) as e:
             logger.warning("Could not connect to %s: %s", self.display_name, e)
             return
         logger.info("Connected to %r", self._gateway)
@@ -95,9 +105,9 @@ class GatewayController(HardwareController, Generic[GatewayT]):
         return f"{kind}@{self._gateway.hostname}:{self._gateway.port}"
 
     def status(self) -> tuple[StatusFlag, str, Any]:
+        # TODO: report sys.getStatus once the firmware implements it
         try:
-            status = self._gateway.get_status()
+            health = self._gateway.get_health()
         except (RPCError, OSError) as e:
             return (StatusFlag.UNKNOWN, str(e), None)
-        flag = StatusFlag.SUCCESS if status == "OK" else StatusFlag.ERROR
-        return (flag, str(status), status)
+        return (StatusFlag.SUCCESS, "OK", health)

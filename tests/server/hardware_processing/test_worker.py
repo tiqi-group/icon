@@ -6,7 +6,9 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
+import gateway_client
 import pytest
+from gateway_client import GatewayError
 
 from icon.server.data_access.experiment_data import HardwareProcessingError, Readouts
 from icon.server.data_access.models.enums import JobRunStatus
@@ -14,7 +16,6 @@ from icon.server.data_access.models.sqlite import Job, JobRun
 from icon.server.hardware_processing import worker as worker_module
 from icon.server.hardware_processing.hardware_controller import HardwareController
 from icon.server.hardware_processing.rpc.errors import RPCResponseError
-from icon.server.hardware_processing.rpc.gateway import GatewayError
 from icon.server.hardware_processing.worker import HardwareProcessingWorker
 from icon.server.pre_processing.task import PreProcessingTask
 
@@ -137,12 +138,18 @@ def _run_worker(
 @pytest.mark.parametrize(
     ("error", "message"),
     [
+        # Zedboard
         (RPCResponseError(1, [0, "Sequence too long"]), "Sequence too long"),
+        # Gateway
+        (
+            gateway_client.RPCResponseError(1, [0, "Sequence too long"]),
+            "Sequence too long",
+        ),
         (GatewayError("the task was aborted"), "the task was aborted"),
         # The device locked up
         (
-            TimeoutError("no response to exp.StartTask within 5s"),
-            "no response to exp.StartTask within 5s",
+            TimeoutError("no response to exp.startTask within 5s"),
+            "no response to exp.startTask within 5s",
         ),
     ],
 )

@@ -7,19 +7,21 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any, Final, Self, TypeVar
 
+from gateway_client import (
+    GatewayError,
+    RPCError,
+    RPCResponseError,
+    TaskStatus,
+    ZCU216Client,
+)
+
 from icon.server.data_access.experiment_data import Readouts
 from icon.server.hardware_processing.gateway_controller import GatewayController
-from icon.server.hardware_processing.rpc.errors import RPCError, RPCResponseError
-from icon.server.hardware_processing.rpc.gateway import (
-    GatewayError,
-    RFSoC,
-    TaskStatus,
-)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from icon.server.hardware_processing.rpc.gateway import TaskResult
+    from gateway_client import TaskResult
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +31,12 @@ SEQUENCE_TIME_FACTOR: Final = 1.5
 """Factor on the time the shots of a task take, to allow for the overhead per shot."""
 
 
-class RFSoCController(GatewayController[RFSoC]):
+class RFSoCController(GatewayController[ZCU216Client]):
     """RFSoC (ZCU216) Hardware Controller using the experiment API of the gateway.
 
     A sequence runs as a task: :meth:`send` sets it up, :meth:`run` starts it and
     :meth:`receive` waits for it to finish and collects its results. A short task instead
-    runs with a single blocking ``exp.RunTask`` call in :meth:`receive`, which saves the
+    runs with a single blocking ``exp.runTask`` call in :meth:`receive`, which saves the
     round trips, but leaves the device unable to answer other requests (like an abort)
     while the task runs.
     """
@@ -64,7 +66,7 @@ class RFSoCController(GatewayController[RFSoC]):
                 run with a single blocking call. Sequences without their time always
                 run in steps. 0 disables blocking runs.
         """
-        super().__init__(RFSoC(hostname=host, port=port, timeout=timeout))
+        super().__init__(ZCU216Client(hostname=host, port=port, timeout=timeout))
         self._poll_interval = poll_interval
         self._task_timeout_margin = task_timeout_margin
         self._task_timeout = task_timeout_margin

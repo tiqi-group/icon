@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11, <3.14"
 resolution-markers = [
     "python_full_version >= '3.12' and sys_platform == 'win32'",
@@ -852,6 +852,25 @@ wheels = [
 ]
 
 [[package]]
+name = "gateway-client"
+version = "0.1.0"
+source = { editable = "../gateway/client" }
+dependencies = [
+    { name = "msgpack" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "msgpack", specifier = ">=1.0.5,<2" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=1.13.0" },
+    { name = "pyright", specifier = ">=1.1.391" },
+    { name = "pytest", specifier = ">=8.3.4" },
+    { name = "ruff", specifier = ">=0.8.4" },
+]
+
+[[package]]
 name = "ghp-import"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1034,6 +1053,7 @@ pycrystal = [
 server = [
     { name = "alembic" },
     { name = "click" },
+    { name = "gateway-client" },
     { name = "h5py" },
     { name = "influxdb" },
     { name = "msgpack" },
@@ -1077,6 +1097,7 @@ docs = [
 requires-dist = [
     { name = "alembic", marker = "extra == 'server'", specifier = ">=1.14.0" },
     { name = "click", marker = "extra == 'server'", specifier = ">=8.1.0" },
+    { name = "gateway-client", marker = "extra == 'server'", editable = "../gateway/client" },
     { name = "h5py", marker = "extra == 'server'", specifier = ">=3.12.1" },
     { name = "influxdb", marker = "extra == 'server'", specifier = ">=5.3.2" },
     { name = "ipympl", marker = "extra == 'client'", specifier = ">=0.9.5" },

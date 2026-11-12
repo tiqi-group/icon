@@ -16,6 +16,7 @@ dependencies = [
 server = [
     "alembic>=1.14.0",
     "click>=8.1.0",
+    "gateway-client>=0.1.0",
     "influxdb>=5.3.2",
     "msgpack>=1.0.5,<2",
     "scipy>=1.14.0",
@@ -187,6 +188,8 @@ markers = [
     "container: marks tests which need a container runtime",
 ]
 
-# [tool.uv.sources]
+[tool.uv.sources]
+# TODO: use the published package once gateway-client is released
+gateway-client = { path = "../gateway/client", editable = true }
 # tiqi-zedboard = { path = "../tiqi-zedboard", editable = true }
 # pydase = { path = "../pydase/", editable = true }
