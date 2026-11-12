@@ -8,6 +8,7 @@ import { getScanIndex } from "../utils/scanUtils";
 import { useResponsiveGridColumns } from "../hooks/useResponsiveGridColumns";
 import { ParameterMetadata } from "../types/ExperimentMetadata";
 import { ParameterValue } from "../types/ExperimentData";
+import { ResultScanValue } from "./jobView/ResultScanValue";
 
 interface ParameterGroupDisplayProps {
   parameters: Record<string, ParameterMetadata>;
@@ -17,6 +18,8 @@ interface ParameterGroupDisplayProps {
   namespace?: string;
   displayGroup?: string;
   readOnly?: boolean;
+  /** Saved job axes on result pages; omitted in the live parameter editor. */
+  readOnlyScanKeys?: string[];
 }
 
 const extractNamespaceFromParamId = (parameterId: string): string | null => {
@@ -32,6 +35,7 @@ export const ParameterGroupDisplay = ({
   parameters,
   values,
   readOnly = false,
+  readOnlyScanKeys,
 }: ParameterGroupDisplayProps) => {
   const { scannedParamKeys, handleRightClick } = useScanContext();
   const gridTemplateColumns = useResponsiveGridColumns();
@@ -52,8 +56,23 @@ export const ParameterGroupDisplay = ({
       }}
     >
       {sortedParameters.map(([paramId, paramMetadata]) => {
-        const scanIndex = getScanIndex(paramId, scannedParamKeys);
+        const scanIndex = getScanIndex(
+          paramId,
+          readOnly ? (readOnlyScanKeys ?? scannedParamKeys) : scannedParamKeys,
+        );
         const value = values?.[paramId]?.value;
+
+        if (readOnly && readOnlyScanKeys && scanIndex !== null) {
+          return (
+            <ResultScanValue
+              key={paramId}
+              parameterId={paramId}
+              label={paramMetadata.display_name}
+              scanIndex={scanIndex}
+              value={value}
+            />
+          );
+        }
 
         if (readOnly || paramMetadata.read_only) {
           return (
