@@ -112,3 +112,23 @@ class TestRunCurveFit:
         assert "chi2_red" in result.goodness
         assert "aic" in result.goodness
         assert "bic" in result.goodness
+
+
+class TestOpenXRange:
+    @pytest.mark.parametrize(
+        ("x_range", "expected_min", "expected_max"),
+        [([4.0, None], 4.0, 10.0), ([None, 6.0], 0.0, 6.0), ([None, None], 0.0, 10.0)],
+    )
+    def test_one_sided_range(
+        self,
+        x_range: list[float | None],
+        expected_min: float,
+        expected_max: float,
+    ) -> None:
+        x, y, _ = _synthetic_lorentzian()
+        result = run_curve_fit(x, y, "ch1", "lorentzian", x_range=x_range)
+        assert result.success
+        assert result.x_range == x_range
+        assert result.fit_curve is not None
+        assert result.fit_curve["x"][0] == pytest.approx(expected_min, abs=0.11)
+        assert result.fit_curve["x"][-1] == pytest.approx(expected_max, abs=0.11)

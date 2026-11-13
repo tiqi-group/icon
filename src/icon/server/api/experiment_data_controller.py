@@ -103,7 +103,7 @@ class ExperimentDataController(pydase.DataService):
         device_id: str,
         result_channel: str,
         func_type: str,
-        x_range: list[float] | None = None,
+        x_range: list[float | None] | None = None,
         init: dict[str, float] | None = None,
     ) -> dict[str, Any]:
         """Run a curve fit on a result channel of a finished job.
@@ -113,7 +113,8 @@ class ExperimentDataController(pydase.DataService):
             device_id: ID of the device whose readout data should be fitted.
             result_channel: Name of the result channel to fit.
             func_type: Fit model name (e.g. "lorentzian").
-            x_range: Optional [min, max] to restrict fit domain.
+            x_range: Optional [min, max] to restrict fit domain. Either can be
+                None for no bound on that side.
             init: Optional initial parameter overrides.
 
         Returns:
