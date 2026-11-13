@@ -286,10 +286,22 @@ export const JobView = ({
                   <>
                     <div style={{ flexGrow: 1 }} />
                     <Button
+                      variant="outlined"
+                      color="primary"
+                      disabled={jobInfo === null}
+                      size="small"
+                      onClick={() => {
+                        if (jobId) updateJobParams(Number(jobId));
+                      }}
+                    >
+                      Update Scan Parameters
+                    </Button>
+                    <Button
                       variant="contained"
                       color="primary"
                       disabled={jobRunInfo?.status !== JobRunStatus.PAUSED}
                       size="small"
+                      sx={{ ml: 1 }}
                       onClick={() => {
                         if (jobId) resumeJob(Number(jobId));
                       }}
@@ -639,18 +651,6 @@ export const JobView = ({
                     </div>
                   ),
                 )}
-                <div style={{ flexGrow: 1, alignContent: "center" }} />
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  disabled={jobInfo === null}
-                  size="small"
-                  onClick={() => {
-                    if (jobId) updateJobParams(Number(jobId));
-                  }}
-                >
-                  Update Scan Parameters
-                </Button>
               </div>
             </CardContent>
           </Card>
