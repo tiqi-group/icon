@@ -149,7 +149,7 @@ class FitResult:
 
     result_channel: str
     func_type: str
-    x_range: list[float] | None
+    x_range: list[float | None] | None
     init: dict[str, float]
     result: dict[str, float]
     goodness: dict[str, float]

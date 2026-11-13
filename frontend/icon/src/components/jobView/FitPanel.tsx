@@ -119,8 +119,10 @@ export default function FitPanel({
 
   const handleFit = () => {
     setFitting(true);
+    // An empty bound leaves that side open
+    const parseBound = (value: string) => (value === "" ? null : parseFloat(value));
     const xRange =
-      xMin !== "" && xMax !== "" ? [parseFloat(xMin), parseFloat(xMax)] : null;
+      xMin !== "" || xMax !== "" ? [parseBound(xMin), parseBound(xMax)] : null;
 
     const init: Record<string, number> = {};
     for (const [key, val] of Object.entries(effectiveInit)) {
@@ -221,6 +223,7 @@ export default function FitPanel({
               size="small"
               label="X min"
               type="number"
+              placeholder="No limit"
               fullWidth
               value={xMin}
               onChange={(e) => setXMin(e.target.value)}
@@ -231,6 +234,7 @@ export default function FitPanel({
               size="small"
               label="X max"
               type="number"
+              placeholder="No limit"
               fullWidth
               value={xMax}
               onChange={(e) => setXMax(e.target.value)}

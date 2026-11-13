@@ -37,7 +37,7 @@ export interface ParameterValue {
 export interface FitResult {
   result_channel: string;
   func_type: string;
-  x_range: [number, number] | null;
+  x_range: [number | null, number | null] | null;
   init: Record<string, number>;
   result: Record<string, number>;
   goodness: Record<string, number>;
