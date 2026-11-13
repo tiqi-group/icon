@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import logging
+import warnings
 
 import numpy as np
 import numpy.typing as npt
-from scipy.optimize import curve_fit  # type: ignore[import-untyped]
+from scipy.optimize import (  # type: ignore[import-untyped]
+    OptimizeWarning,
+    curve_fit,
+)
 
 from icon.server.data_access.experiment_data import FitResult
 from icon.server.fitting.models import FIT_MODELS, FitFunctionType
@@ -119,7 +123,11 @@ def run_curve_fit(  # noqa: C901
     init_dict = dict(zip(model.param_names, p0, strict=True))
 
     try:
-        popt, _ = curve_fit(model.func, x, y, p0=p0, maxfev=_MAX_FIT_EVALS)
+        with warnings.catch_warnings():
+            # Warns when the covariance can't be estimated. It is then inf and the
+            # errors are left out.
+            warnings.simplefilter("ignore", OptimizeWarning)
+            popt, pcov = curve_fit(model.func, x, y, p0=p0, maxfev=_MAX_FIT_EVALS)
     except (RuntimeError, ValueError) as exc:
         return _make_error(
             result_channel,
@@ -130,9 +138,14 @@ def run_curve_fit(  # noqa: C901
         )
 
     result_dict = dict(zip(model.param_names, (float(v) for v in popt), strict=True))
+    with np.errstate(invalid="ignore"):
+        errors = dict(zip(model.param_names, np.sqrt(np.diag(pcov)), strict=True))
 
     if model.derived_params:
-        result_dict.update(model.derived_params(result_dict))
+        with np.errstate(invalid="ignore"):
+            derived_values, derived_errors = model.derived_params(popt, pcov, x)
+        result_dict.update(derived_values)
+        errors.update(derived_errors)
 
     y_fit = model.func(x, *popt)
     goodness = _compute_goodness(y, y_fit, len(model.param_names))
@@ -154,4 +167,5 @@ def run_curve_fit(  # noqa: C901
         success=True,
         message="Fit converged",
         fit_curve=fit_curve,
+        errors={name: float(e) for name, e in errors.items() if np.isfinite(e)},
     )
