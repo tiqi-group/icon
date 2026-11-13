@@ -57,6 +57,9 @@ class DevicesConfig(BaseModel):
 
 class PreProcessingConfig(BaseModel):
     workers: int = 2
+    instruction_pool_size: int = 4
+    """Number of data points whose hardware instructions a pre-processing worker
+    generates concurrently, one experiment library process each."""
 
 
 class ServerConfig(BaseModel):
