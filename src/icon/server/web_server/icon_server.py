@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import queue
 import re
@@ -66,11 +67,21 @@ class IconServer(pydase.Server):
                     emit_event = await asyncio.to_thread(emit_queue.get, timeout=1.0)
                 except queue.Empty:
                     continue
-                await sio.emit(
-                    event=emit_event["event"],
-                    data=emit_event.get("data", None),
-                    room=emit_event.get("room", None),
-                )
+                    json.dumps(emit_event.get("data", None))
+                try:
+                    await sio.emit(
+                        event=emit_event["event"],
+                        data=emit_event.get("data", None),
+                        room=emit_event.get("room", None),
+                    )
+                except TypeError:
+                    # A non-JSON-serializable payload would kill this worker and
+                    # silently drop every subsequent event, so drop just this one.
+                    logger.exception(
+                        "Dropping event %r: data is not JSON serializable",
+                        emit_event["event"],
+                    )
+                    continue
 
         asyncio.create_task(emit_worker())
 
