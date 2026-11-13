@@ -622,7 +622,28 @@ export const JobView = ({
           <Card>
             <CardContent>
               <div style={{ display: "flex", flexDirection: "column" }}>
-                <Typography variant="h6">Parameter Values</Typography>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 8,
+                  }}
+                >
+                  <Typography variant="h6">Parameter Values</Typography>
+                  <div style={{ flexGrow: 1 }} />
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    disabled={jobInfo === null}
+                    size="small"
+                    onClick={() => {
+                      if (jobId) updateJobParams(Number(jobId));
+                    }}
+                  >
+                    Update global and local parameters
+                  </Button>
+                </div>
                 {Object.entries(experimentMetadata?.parameters || {}).map(
                   ([displayGroup, parameters], index) => (
                     <div key={displayGroup}>
@@ -639,18 +660,6 @@ export const JobView = ({
                     </div>
                   ),
                 )}
-                <div style={{ flexGrow: 1, alignContent: "center" }} />
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  disabled={jobInfo === null}
-                  size="small"
-                  onClick={() => {
-                    if (jobId) updateJobParams(Number(jobId));
-                  }}
-                >
-                  Update Scan Parameters
-                </Button>
               </div>
             </CardContent>
           </Card>
