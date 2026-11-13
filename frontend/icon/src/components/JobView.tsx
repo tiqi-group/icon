@@ -181,6 +181,9 @@ export const JobView = ({
   const [isResultChannelCollapsed, setResultChannelCollapsed] = useStoredFlags(
     `collapsedResultChannels_${jobInfo?.experiment_source_id}`,
   );
+  const [isParameterGroupCollapsed, setParameterGroupCollapsed] = useStoredFlags(
+    `collapsedParameterValueGroups_${jobInfo?.experiment_source_id}`,
+  );
 
   // Per-result-window view mode: "plot" (default) or "table".
   const [resultViewMode, setResultViewMode] = useState<
@@ -626,13 +629,45 @@ export const JobView = ({
                 {Object.entries(experimentMetadata?.parameters || {}).map(
                   ([displayGroup, parameters], index) => (
                     <div key={displayGroup}>
-                      <Typography variant="h6">{displayGroup}</Typography>
-                      <ParameterGroupDisplay
-                        displayGroup={displayGroup}
-                        parameters={parameters}
-                        values={experimentData.parameters}
-                        readOnly={true}
-                      />
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          cursor: "pointer",
+                        }}
+                        onClick={() =>
+                          setParameterGroupCollapsed(
+                            displayGroup,
+                            !isParameterGroupCollapsed(displayGroup),
+                          )
+                        }
+                      >
+                        <Typography variant="h6" sx={{ flexGrow: 1 }}>
+                          {displayGroup}
+                        </Typography>
+                        <IconButton
+                          size="small"
+                          title={
+                            isParameterGroupCollapsed(displayGroup)
+                              ? "Expand"
+                              : "Collapse"
+                          }
+                        >
+                          {isParameterGroupCollapsed(displayGroup) ? (
+                            <ExpandMore />
+                          ) : (
+                            <ExpandLess />
+                          )}
+                        </IconButton>
+                      </div>
+                      {!isParameterGroupCollapsed(displayGroup) && (
+                        <ParameterGroupDisplay
+                          displayGroup={displayGroup}
+                          parameters={parameters}
+                          values={experimentData.parameters}
+                          readOnly={true}
+                        />
+                      )}
                       {index <
                         Object.keys(experimentMetadata?.parameters || {}).length -
                           1 && <Divider sx={{ pt: 2 }} />}
