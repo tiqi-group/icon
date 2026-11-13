@@ -8,6 +8,7 @@ import ScanInterface from "./scanInterface/ScanInterfaceComponent";
 import { DeviceInfoContext } from "../contexts/DeviceInfoContext";
 import { ScannableParameterInterface } from "./devices/ScannableParameterInterface";
 import { RememberedAccordion } from "./RememberedAccordion";
+import { useRememberedGroupOrder } from "../hooks/useRememberedGroupOrder";
 
 const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
   const experiments = useContext(ExperimentsContext);
@@ -15,6 +16,14 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
   const reachableDevices = Object.entries(useContext(DeviceInfoContext))
     .filter(([, d]) => d.reachable)
     .map(([name]) => name);
+  const groups = useRememberedGroupOrder(
+    `parameterGroupOrder_${experimentKey}`,
+    Object.keys(experiment?.parameters ?? {}),
+  );
+  const deviceGroups = useRememberedGroupOrder(
+    `deviceGroupOrder_${experimentKey}`,
+    experiment?.device_parameter_groups ?? [],
+  );
 
   if (!experiment) {
     return (
@@ -27,7 +36,7 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
     <ScanProvider key={experimentKey} experimentId={experimentKey}>
       <div style={{ display: "flex", flexDirection: "column" }}>
         <ScanInterface experimentId={experimentKey} />
-        {Object.keys(experiment.parameters).map((group) => (
+        {groups.map((group) => (
           <RememberedAccordion
             key={experimentKey + group}
             storageKey={`expandedParameterGroups_${experimentKey}`}
@@ -48,7 +57,7 @@ const ExperimentDetails = ({ experimentKey }: { experimentKey: string }) => {
           </RememberedAccordion>
         ))}
 
-        {experiment.device_parameter_groups?.map((deviceName) => {
+        {deviceGroups.map((deviceName) => {
           const isReachable = reachableDevices.includes(deviceName);
           const section = `Device ${deviceName}`;
 

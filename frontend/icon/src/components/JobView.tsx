@@ -25,6 +25,7 @@ import { useJobRunInfo } from "../hooks/useJobRunInfo";
 import { useJobInfo } from "../hooks/useJobInfo";
 import { useBrowserSetting } from "../hooks/useBrowserSetting";
 import { useStoredFlags } from "../hooks/useStoredFlags";
+import { useRememberedGroupOrder } from "../hooks/useRememberedGroupOrder";
 import { DEFAULT_WINDOW_SIZE } from "../pages/settings";
 import { runMethod } from "../socket";
 import { ExperimentMetadata } from "../types/ExperimentMetadata";
@@ -100,6 +101,8 @@ export const JobView = ({
 }) => {
   const [experimentMetadata, setExperimentMetadata] =
     useState<ExperimentMetadata | null>(null);
+  // Experiment the metadata was fetched for, as it lags behind when switching jobs
+  const [metadataExperimentId, setMetadataExperimentId] = useState<string | null>(null);
 
   const jobInfo = useJobInfo(jobId);
   const jobRunInfo = useJobRunInfo(jobId);
@@ -175,6 +178,15 @@ export const JobView = ({
     return v ? JSON.parse(v) : false;
   });
 
+  // Same order as on the experiment page
+  const experimentId = jobInfo?.experiment_source.experiment_id;
+  const parameterGroups = useRememberedGroupOrder(
+    `parameterGroupOrder_${experimentId}`,
+    experimentId && metadataExperimentId === experimentId
+      ? Object.keys(experimentMetadata?.parameters ?? {})
+      : [],
+  );
+
   const [isShotChannelCollapsed, setShotChannelCollapsed] = useStoredFlags(
     `collapsedShotChannels_${jobInfo?.experiment_source_id}`,
   );
@@ -232,6 +244,7 @@ export const JobView = ({
           setExperimentMetadata(
             deserialize(ack as SerializedObject) as ExperimentMetadata,
           );
+          setMetadataExperimentId(jobInfo.experiment_source.experiment_id);
         },
       );
 
@@ -623,22 +636,18 @@ export const JobView = ({
             <CardContent>
               <div style={{ display: "flex", flexDirection: "column" }}>
                 <Typography variant="h6">Parameter Values</Typography>
-                {Object.entries(experimentMetadata?.parameters || {}).map(
-                  ([displayGroup, parameters], index) => (
-                    <div key={displayGroup}>
-                      <Typography variant="h6">{displayGroup}</Typography>
-                      <ParameterGroupDisplay
-                        displayGroup={displayGroup}
-                        parameters={parameters}
-                        values={experimentData.parameters}
-                        readOnly={true}
-                      />
-                      {index <
-                        Object.keys(experimentMetadata?.parameters || {}).length -
-                          1 && <Divider sx={{ pt: 2 }} />}
-                    </div>
-                  ),
-                )}
+                {parameterGroups.map((displayGroup, index) => (
+                  <div key={displayGroup}>
+                    <Typography variant="h6">{displayGroup}</Typography>
+                    <ParameterGroupDisplay
+                      displayGroup={displayGroup}
+                      parameters={experimentMetadata!.parameters[displayGroup]}
+                      values={experimentData.parameters}
+                      readOnly={true}
+                    />
+                    {index < parameterGroups.length - 1 && <Divider sx={{ pt: 2 }} />}
+                  </div>
+                ))}
                 <div style={{ flexGrow: 1, alignContent: "center" }} />
                 <Button
                   variant="outlined"
