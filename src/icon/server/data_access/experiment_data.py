@@ -156,6 +156,9 @@ class FitResult:
     success: bool
     message: str
     fit_curve: dict[str, list[float]] | None = None
+    errors: dict[str, float] = field(default_factory=dict)
+    """1-sigma errors of the entries of `result`, from the fit's covariance matrix
+    scaled by the residuals. Left out where the covariance can't be estimated."""
 
 
 @dataclass
