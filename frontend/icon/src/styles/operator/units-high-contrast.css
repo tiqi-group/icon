@@ -1,0 +1,124 @@
+/*
+ * Higher-contrast unit treatment for faster class recognition or lower-quality
+ * displays. Unit text remains the primary cue; color is redundant.
+ *
+ * Maintenance note: parameter classes are detected through the current
+ * HelpButton aria-label. Recheck these selectors if ICON changes that DOM.
+ */
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .EndAdornment {
+  right: 5px;
+  top: 50%;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid #9aa9b8;
+  border-radius: 3px;
+  background: #e7edf2;
+  color: #273746;
+  transform: translateY(-50%);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.015em;
+  pointer-events: none;
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .Input:has(+ .EndAdornment) {
+  padding-right: 52px;
+}
+
+/* Unit text remains explicit; color is a redundant fast-scanning cue. */
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  div:has(> .Field):has(button[aria-label*="ParameterTypes.AMPLITUDE"])
+  .EndAdornment {
+  border-color: #6b7f93;
+  background: #e6edf4;
+  color: #1f3f5d;
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  div:has(> .Field):has(button[aria-label*="ParameterTypes.TIME"])
+  .EndAdornment {
+  border-color: #876caf;
+  background: #eee7f7;
+  color: #46266f;
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  div:has(> .Field):has(button[aria-label*="ParameterTypes.FREQUENCY"])
+  .EndAdornment {
+  border-color: #4f9188;
+  background: #e2f1ef;
+  color: #0d514b;
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  div:has(> .Field):has(button[aria-label*="ParameterTypes.PHASE"])
+  .EndAdornment {
+  border-color: #b07a2a;
+  background: #fff0ce;
+  color: #603b05;
+}
+
+/* Scan/stale value state outranks the secondary parameter-type color cue. */
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .Input[style*="background-color"]
+  + .EndAdornment {
+  border-color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.84);
+  color: #273746;
+}
+
+:is(
+    html[data-toolpad-color-scheme="light"]
+      body:has(a[href="/experiments"].Mui-selected),
+    html[data-toolpad-color-scheme="light"] body:has(a[href="/parameters"].Mui-selected)
+  )
+  main
+  .InputWrapper:focus-within
+  .EndAdornment {
+  outline: 2px solid rgba(21, 111, 195, 0.28);
+  outline-offset: 1px;
+}
