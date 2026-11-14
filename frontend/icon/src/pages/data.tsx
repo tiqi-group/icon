@@ -1,7 +1,8 @@
-import React, { useContext, useEffect, useMemo, useRef } from "react";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   CircularProgress,
+  Collapse,
   FormControlLabel,
   List,
   ListItem,
@@ -12,6 +13,7 @@ import {
   Tooltip,
 } from "@mui/material";
 import SsidChartIcon from "@mui/icons-material/SsidChart";
+import { ExpandLess, ExpandMore } from "@mui/icons-material";
 import { JobsContext } from "../contexts/JobsContext";
 import { JobView } from "../components/JobView";
 import { useBrowserSetting } from "../hooks/useBrowserSetting";
@@ -21,6 +23,21 @@ import { JobStatus } from "../types/enums";
 import { JobStatusIndicator } from "../components/JobStatusIndicator";
 import { openJobWindow, openVisualizerWindow } from "../utils/windowUtils";
 import { getExperimentNameFromExperimentId } from "../utils/experimentUtils";
+import { groupJobsByDay } from "../utils/jobDays";
+
+const dateTimeFormat = new Intl.DateTimeFormat("ch", {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+const timeFormat = new Intl.DateTimeFormat("ch", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
 
 type GroupName = "In Progress" | "Queued" | "Finished";
 
@@ -49,6 +66,19 @@ export function DataPage() {
 
     return group;
   }, [jobs]);
+
+  // Finished jobs are listed by day, as there can be many
+  const finishedDays = useMemo(
+    () => groupJobsByDay(groupedJobs.Finished),
+    [groupedJobs.Finished],
+  );
+  const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set());
+  const toggleDay = (day: string) =>
+    setCollapsedDays((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(day)) next.add(day);
+      return next;
+    });
 
   // Per tab, so that looking at an older job in one tab does not stop another tab from
   // following the newest job. A tab opened on a specific job shows that job.
@@ -103,6 +133,25 @@ export function DataPage() {
     return () => observer.disconnect();
   }, [hasMore, loadMore, finishedCount]);
 
+  const renderJob = (job: JobListItem, format: Intl.DateTimeFormat) => (
+    <ListItemButton
+      key={job.id}
+      selected={String(job.id) === selectedJobId}
+      onClick={() => handleSelectJob(job.id)}
+      onDoubleClick={() => openJobWindow(job.id, job.experiment_id)}
+    >
+      <JobStatusIndicator status={job.run_status ?? undefined} log={null} />
+      <ListItemText
+        primary={`${getExperimentNameFromExperimentId(job.experiment_id)} (${
+          job.num_scan_parameters === 0
+            ? "continuous scan"
+            : `${job.num_scan_parameters}d scan`
+        })`}
+        secondary={format.format(new Date(job.created))}
+      />
+    </ListItemButton>
+  );
+
   return (
     <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
       <div
@@ -141,38 +190,34 @@ export function DataPage() {
                   >
                     {status}
                   </ListSubheader>
-                  {jobList.map((job) => {
-                    const formattedTime = new Intl.DateTimeFormat("ch", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      second: "2-digit",
-                    }).format(new Date(job.created));
-
-                    return (
-                      <ListItemButton
-                        key={job.id}
-                        selected={String(job.id) === selectedJobId}
-                        onClick={() => handleSelectJob(job.id)}
-                        onDoubleClick={() => openJobWindow(job.id, job.experiment_id)}
-                      >
-                        <JobStatusIndicator
-                          status={job.run_status ?? undefined}
-                          log={null}
-                        />
-                        <ListItemText
-                          primary={`${getExperimentNameFromExperimentId(job.experiment_id)} (${
-                            job.num_scan_parameters === 0
-                              ? "continuous scan"
-                              : `${job.num_scan_parameters}d scan`
-                          })`}
-                          secondary={formattedTime}
-                        />
-                      </ListItemButton>
-                    );
-                  })}
+                  {status === "Finished"
+                    ? finishedDays.map((day) => (
+                        <React.Fragment key={day.key}>
+                          <ListItemButton
+                            dense
+                            onClick={() => toggleDay(day.key)}
+                            sx={{
+                              py: 0,
+                              color: "text.secondary",
+                              borderBottom: "1px solid var(--mui-palette-divider)",
+                            }}
+                          >
+                            <ListItemText
+                              primary={`${day.label} (${day.jobs.length})`}
+                              slotProps={{ primary: { variant: "subtitle2" } }}
+                            />
+                            {collapsedDays.has(day.key) ? (
+                              <ExpandMore fontSize="small" />
+                            ) : (
+                              <ExpandLess fontSize="small" />
+                            )}
+                          </ListItemButton>
+                          <Collapse in={!collapsedDays.has(day.key)} unmountOnExit>
+                            {day.jobs.map((job) => renderJob(job, timeFormat))}
+                          </Collapse>
+                        </React.Fragment>
+                      ))
+                    : jobList.map((job) => renderJob(job, dateTimeFormat))}
                   {status === "Finished" && hasMore && (
                     <ListItem
                       ref={sentinelRef}
