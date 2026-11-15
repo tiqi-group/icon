@@ -1,48 +1,41 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
+import { notifyStorageChange, subscribeToStorage } from "../utils/storageSubscription";
+
+type SettingValue = string | boolean | number;
+
+const parseValue = <T extends SettingValue>(raw: string | null, defaultValue: T): T => {
+  if (raw === null) return defaultValue;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed === typeof defaultValue) return parsed as T;
+  } catch {
+    // fall through
+  }
+  return defaultValue;
+};
 
 /**
  * Hook to manage a browser setting stored in localStorage with reactive updates.
  *
- * @param key The localStorage key
+ * @param key The storage key
  * @param defaultValue Default value when nothing is stored
+ * @param storage sessionStorage for a setting of this browser tab only
  */
-export function useBrowserSetting<T extends string | boolean | number>(
+export function useBrowserSetting<T extends SettingValue>(
   key: string,
   defaultValue: T,
+  storage: Storage = localStorage,
 ) {
-  // Read from localStorage (or fallback to default)
-  const readValue = (): T => {
-    const item = localStorage.getItem(key);
-    if (item === null) return defaultValue;
-    if (typeof defaultValue === "boolean") return (item === "true") as T;
-    if (typeof defaultValue === "number") {
-      const num = Number(item);
-      return (Number.isFinite(num) ? num : defaultValue) as T;
-    }
-    return item as T;
-  };
+  const raw = useSyncExternalStore(subscribeToStorage, () => storage.getItem(key));
+  const value = parseValue(raw, defaultValue);
 
-  const [value, setValue] = useState<T>(readValue);
-
-  // Keep value updated if localStorage changes
-  useEffect(() => {
-    const handler = (e: StorageEvent) => {
-      if (e.key === key) {
-        setValue(readValue());
-      }
-    };
-    window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
-  }, [key]);
-
-  // Save to localStorage when value changes
-  const setAndStoreValue = useCallback(
+  const setValue = useCallback(
     (newValue: T) => {
-      setValue(newValue);
-      localStorage.setItem(key, String(newValue));
+      storage.setItem(key, JSON.stringify(newValue));
+      notifyStorageChange();
     },
-    [key],
+    [key, storage],
   );
 
-  return [value, setAndStoreValue] as const;
+  return [value, setValue] as const;
 }

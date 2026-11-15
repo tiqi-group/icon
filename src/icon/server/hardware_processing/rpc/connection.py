@@ -34,8 +34,9 @@ DEFAULT_MAX_MESSAGE_SIZE: Final = 256 * 1024 * 1024
 
 _NOTHING: Final = object()
 
-DEFAULT_KEEPALIVE_IDLE: Final = 10
-DEFAULT_KEEPALIVE_INTERVAL: Final = 5
+DEFAULT_KEEPALIVE_ENABLE: Final = True
+DEFAULT_KEEPALIVE_IDLE: Final = 60
+DEFAULT_KEEPALIVE_INTERVAL: Final = 20
 DEFAULT_KEEPALIVE_COUNT: Final = 3
 
 MsgPackRecord = Any
@@ -110,7 +111,7 @@ class Connection:
         lock_timeout: How long :meth:`transaction` waits for another thread's round trip
             to finish before giving up acquiring the lock.
         max_message_size: Messages larger than this will not be accepted and the connection closed.
-        keepalive: Enable OS-level TCP keepalive.
+        keepalive_enable: Enable OS-level TCP keepalive.
         keepalive_idle: Seconds of inactivity before the first probe.
         keepalive_interval: Seconds between probes once they start.
         keepalive_count: Unanswered probes before the connection is declared dead.
@@ -127,7 +128,7 @@ class Connection:
         timeout: float | None = None,
         lock_timeout: float = 1.0,
         max_message_size: int = DEFAULT_MAX_MESSAGE_SIZE,
-        keepalive: bool = True,
+        keepalive_enable: bool = DEFAULT_KEEPALIVE_ENABLE,
         keepalive_idle: int = DEFAULT_KEEPALIVE_IDLE,
         keepalive_interval: int = DEFAULT_KEEPALIVE_INTERVAL,
         keepalive_count: int = DEFAULT_KEEPALIVE_COUNT,
@@ -138,7 +139,7 @@ class Connection:
         self._timeout = timeout
         self._lock_timeout = lock_timeout
         self._max_message_size = max_message_size
-        self._keepalive = keepalive
+        self._keepalive = keepalive_enable
         self._keepalive_idle = keepalive_idle
         self._keepalive_interval = keepalive_interval
         self._keepalive_count = keepalive_count
