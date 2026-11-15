@@ -332,6 +332,7 @@ function PlotViewer({
                       windowSize={windowSize}
                       fits={plotData.device_data[0].fits}
                       onChartClick={canFit ? setClickedX : undefined}
+                      hiddenTracesKey={`hiddenTraces_${job?.experiment_source_id ?? jobId}_${selection.plot.name}`}
                       ChartComponent={ViewerTraceChart}
                       chartStyle={chartStyle}
                     />
@@ -371,7 +372,7 @@ function PlotViewer({
                 ` Requested ${windowSize.toLocaleString()}; ${points.toLocaleString()} are available${heldData ? " in this held view. Choose Follow live to load more history" : " within the loaded history"}.`}
             </Typography>
           )}
-        {canFit && plotData && (
+        {canFit && plotData && job && (
           <Box>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               Set the fit range below; zoom and window size do not set the fit range.
@@ -379,9 +380,10 @@ function PlotViewer({
             </Typography>
             <FitPanel
               jobId={jobId}
+              experimentSourceId={job.experiment_source_id}
               experimentData={plotData}
               clickedX={clickedX}
-              scanParameters={job?.scan_parameters}
+              scanParameters={job.scan_parameters}
               allowParameterUpdates={false}
             />
           </Box>

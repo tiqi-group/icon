@@ -268,6 +268,19 @@ describe("ScanInfoSelectionHistory.handleParamUpdate", () => {
       expect(updatedParam).toEqual(param("Devices", "LaserA", "frequency", gen(1, 2)));
     });
 
+    it("recalls a device parameter's generator when id, namespace and device change together", () => {
+      // As a search pick does, coming from an experiment parameter.
+      const history = record(
+        emptyScanInfoHistory,
+        param("Devices", "LaserA", "frequency", gen(5, 6)),
+      );
+      const { updatedParam } = mkMgr(history).handleParamUpdate(
+        param("E", "grp", "p1", gen(0, 1)),
+        { id: "frequency", namespace: "Devices", deviceNameOrDisplayGroup: "LaserA" },
+      );
+      expect(updatedParam).toEqual(param("Devices", "LaserA", "frequency", gen(5, 6)));
+    });
+
     it("recalls a stored generator by bare id for a device parameter", () => {
       const history = record(
         emptyScanInfoHistory,

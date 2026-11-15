@@ -26,7 +26,11 @@ import {
   ScanPattern,
   scanPatterns,
 } from "../../types/ScanParameterInfo";
-import { isScannableParameterType } from "../../utils/scanUtils";
+import {
+  getScanParameterOptions,
+  getScanParameterSearchOptions,
+} from "../../utils/scanUtils";
+import { ParameterSearch } from "./ParameterSearch";
 
 const renderPatternLabel = (pattern: ScanPattern): string => {
   switch (pattern) {
@@ -46,6 +50,14 @@ const getDisplayNameFromNamespace = (namespace: string): string => {
   const parts = namespace.split(".");
   return parts[parts.length - 1];
 };
+
+const getNamespaceLabel = (
+  namespace: string,
+  namespaceToDisplayName: Record<string, string>,
+): string =>
+  namespace === "Devices" || namespace === "Real Time"
+    ? namespace
+    : namespaceToDisplayName[namespace] || getDisplayNameFromNamespace(namespace);
 
 const truncateDisplayName = (displayName: string): string => {
   return displayName.length > 30 ? displayName.slice(0, 30) + "..." : displayName;
@@ -70,27 +82,31 @@ export const ParameterCard = ({
   const parameterStore = useContext(ParameterStoreContext);
 
   // Create a mapping from namespace to experiment display name
-  const namespaceToDisplayName: Record<string, string> = Object.fromEntries(
-    Object.keys(experiments).map(expId => [
-      experimentIdToNamespace(expId),
-      getExperimentNameFromExperimentId(expId)
-    ])
+  const namespaceToDisplayName: Record<string, string> = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.keys(experiments).map((expId) => [
+          experimentIdToNamespace(expId),
+          getExperimentNameFromExperimentId(expId),
+        ]),
+      ),
+    [experiments],
   );
 
   // Filter namespaces to include only relevant ones
-  const filteredNamespaces = useMemo(() => {
-    return Object.fromEntries(
-      Object.entries(parameterNamespaceToDisplayGroups).filter(([namespace]) =>
-        namespace.endsWith(".globals.global_parameters") ||
-        (experimentId && namespace === experimentIdToNamespace(experimentId))
-      )
-    );
-  }, [parameterNamespaceToDisplayGroups, experimentId]);
-
-  const ordinaryParameterSources: Record<string, string[]> = {
-    ...filteredNamespaces,
-    Devices: Object.keys(deviceInfo),
-  };
+  const ordinaryParameterSources: Record<string, string[]> = useMemo(
+    () => ({
+      ...Object.fromEntries(
+        Object.entries(parameterNamespaceToDisplayGroups).filter(
+          ([namespace]) =>
+            namespace.endsWith(".globals.global_parameters") ||
+            (experimentId && namespace === experimentIdToNamespace(experimentId)),
+        ),
+      ),
+      Devices: Object.keys(deviceInfo),
+    }),
+    [parameterNamespaceToDisplayGroups, experimentId, deviceInfo],
+  );
   const parameterSources: Record<string, string[]> = showRealtime
     ? {
         ...ordinaryParameterSources,
@@ -98,51 +114,38 @@ export const ParameterCard = ({
       }
     : ordinaryParameterSources;
 
-  const parameterOptions = useMemo(() => {
-    if (!param.namespace || !param.deviceNameOrDisplayGroup) return {};
+  const parameterOptions = useMemo(
+    () =>
+      getScanParameterOptions(
+        param.namespace,
+        param.deviceNameOrDisplayGroup,
+        parameterDisplayGroups,
+        deviceInfo,
+      ),
+    [
+      param.namespace,
+      param.deviceNameOrDisplayGroup,
+      parameterDisplayGroups,
+      deviceInfo,
+    ],
+  );
 
-    const groupKey = param.deviceNameOrDisplayGroup;
-
-    if (param.namespace === "Devices") {
-      const device = deviceInfo[groupKey];
-      if (!device) return {};
-
-      const prefix = `devices.device_proxies["${groupKey}"].`;
-      const prefixLength = prefix.length;
-
-      return Object.fromEntries(
-        device.scannable_params.map((paramId) => {
-          const shortId = paramId.slice(prefixLength);
-          return [
-            shortId,
-            {
-              displayName: shortId,
-              min: null,
-              max: null,
-            },
-          ];
-        }),
-      );
-    }
-
-    const key = `${param.namespace} (${groupKey})`;
-    const group = parameterDisplayGroups[key] || {};
-
-    return Object.fromEntries(
-      Object.entries(group)
-        .filter(
-          ([paramId, meta]) => isScannableParameterType(paramId) && !meta.read_only,
-        )
-        .map(([paramId, meta]) => [
-          paramId,
-          {
-            displayName: meta.display_name,
-            min: meta.min_value,
-            max: meta.max_value,
-          },
-        ]),
-    );
-  }, [param, parameterDisplayGroups, deviceInfo]);
+  // Real Time has no groups or parameters to search, it stays in the namespace list.
+  const searchOptions = useMemo(
+    () =>
+      getScanParameterSearchOptions(
+        ordinaryParameterSources,
+        parameterDisplayGroups,
+        deviceInfo,
+        (namespace) => getNamespaceLabel(namespace, namespaceToDisplayName),
+      ),
+    [
+      ordinaryParameterSources,
+      parameterDisplayGroups,
+      deviceInfo,
+      namespaceToDisplayName,
+    ],
+  );
 
   const inputMode: ScanInputMode = param.generation.inputMode ?? "startStop";
 
@@ -166,6 +169,21 @@ export const ParameterCard = ({
     typeof liveValue === "number"
       ? `Centred on current value: ${roundFloatNoise(liveValue)}`
       : `Centred on ${roundFloatNoise(midpoint)}`;
+
+  const selectParameter = (
+    update: Pick<ScanParameterInfo, "id"> & Partial<ScanParameterInfo>,
+  ) => {
+    // In Span mode, restore the new parameter's own remembered settings, re-centred
+    // on its live value (if numeric) while keeping its own span.
+    const rawValue =
+      inputMode === "spanCenter" ? parameterStore?.get(update.id) : undefined;
+    dispatchScanInfoStateUpdate({
+      type: "UPDATE_PARAMETER",
+      index,
+      payload: update,
+      recenterOn: typeof rawValue === "number" ? rawValue : undefined,
+    });
+  };
 
   const handleInputModeChange = (
     _: React.MouseEvent,
@@ -219,53 +237,21 @@ export const ParameterCard = ({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <FormControl fullWidth size="small">
-          <InputLabel>Namespace</InputLabel>
-          <Select
-            label="Namespace"
-            title={param.namespace}
-            value={param.namespace}
-            onChange={(e) => {
-              const isRealtime = e.target.value === "Real Time";
-              dispatchScanInfoStateUpdate({
-                type: "UPDATE_PARAMETER",
-                index,
-                payload: {
-                  id: isRealtime ? "Real Time" : undefined,
-                  namespace: e.target.value,
-                  n_scan_points: isRealtime ? 0 : undefined,
-                },
-              });
-            }}
-            renderValue={(selected) => {
-              const displayName = selected === "Devices" || selected === "Real Time"
-                ? selected
-                : (namespaceToDisplayName[selected] || getDisplayNameFromNamespace(selected));
-              return truncateDisplayName(displayName);
-            }}
-          >
-            {Object.keys(parameterSources).map((namespace) => {
-              const displayName = namespace === "Devices" || namespace === "Real Time"
-                ? namespace
-                : (namespaceToDisplayName[namespace] || getDisplayNameFromNamespace(namespace));
-              return (
-                <MenuItem key={namespace} value={namespace}>
-                  {displayName}
-                </MenuItem>
-              );
-            })}
-          </Select>
-        </FormControl>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 8 }}>
+      <div style={{ display: "flex", alignItems: "center" }}>
+        <ParameterSearch
+          options={searchOptions}
+          onSelect={(option) =>
+            selectParameter({
+              id: option.id,
+              namespace: option.namespace,
+              deviceNameOrDisplayGroup: option.deviceNameOrDisplayGroup,
+            })
+          }
+        />
         {scanInfoState.parameters.length > 1 && (
           <IconButton
+            title="Remove scan parameter"
             onClick={() =>
               dispatchScanInfoStateUpdate({ type: "REMOVE_PARAMETER", index })
             }
@@ -274,6 +260,35 @@ export const ParameterCard = ({
           </IconButton>
         )}
       </div>
+      <FormControl fullWidth size="small">
+        <InputLabel>Namespace</InputLabel>
+        <Select
+          label="Namespace"
+          title={param.namespace}
+          value={param.namespace}
+          onChange={(e) => {
+            const isRealtime = e.target.value === "Real Time";
+            dispatchScanInfoStateUpdate({
+              type: "UPDATE_PARAMETER",
+              index,
+              payload: {
+                id: isRealtime ? "Real Time" : undefined,
+                namespace: e.target.value,
+                n_scan_points: isRealtime ? 0 : undefined,
+              },
+            });
+          }}
+          renderValue={(selected) =>
+            truncateDisplayName(getNamespaceLabel(selected, namespaceToDisplayName))
+          }
+        >
+          {Object.keys(parameterSources).map((namespace) => (
+            <MenuItem key={namespace} value={namespace}>
+              {getNamespaceLabel(namespace, namespaceToDisplayName)}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
       {param.namespace !== "Real Time" ? (
         <>
           <FormControl fullWidth size="small" disabled={!param.namespace}>
@@ -320,29 +335,7 @@ export const ParameterCard = ({
               label="Parameter"
               value={param.id}
               title={param.id}
-              onChange={(e) => {
-                const newParamId = e.target.value;
-
-                if (inputMode === "spanCenter") {
-                  // Restore the new parameter's own remembered settings, re-centred
-                  // on its live value (if numeric) while keeping its own span.
-                  const rawValue = parameterStore?.get(newParamId);
-                  const recenterOn =
-                    typeof rawValue === "number" ? rawValue : undefined;
-                  dispatchScanInfoStateUpdate({
-                    type: "UPDATE_PARAMETER",
-                    index,
-                    payload: { id: newParamId },
-                    recenterOn,
-                  });
-                } else {
-                  dispatchScanInfoStateUpdate({
-                    type: "UPDATE_PARAMETER",
-                    index,
-                    payload: { id: newParamId },
-                  });
-                }
-              }}
+              onChange={(e) => selectParameter({ id: e.target.value })}
               renderValue={(value) => {
                 const selectedDisplayName = parameterOptions[value]?.displayName;
                 if (selectedDisplayName === undefined) return value;
