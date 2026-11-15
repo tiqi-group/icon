@@ -1,0 +1,70 @@
+.icon-data-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+  max-width: 320px;
+}
+.icon-data-filter-disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  margin: 4px 8px 0;
+  padding: 3px 2px;
+  color: var(--mui-palette-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  list-style: none;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.icon-data-filter-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.icon-data-filter-disclosure > summary:hover {
+  color: var(--mui-palette-text-primary);
+}
+.icon-data-filter-disclosure > summary:focus-visible {
+  outline: 2px solid var(--mui-palette-primary-main);
+  outline-offset: 2px;
+}
+.icon-data-filter-disclosure > summary .MuiSvgIcon-root {
+  font-size: 14px;
+}
+.icon-data-filter-disclosure[open] .icon-data-filter-chevron {
+  transform: rotate(90deg);
+}
+.icon-data-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 8px 4px;
+  border-bottom: 1px solid var(--mui-palette-divider);
+}
+.icon-data-date-range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+}
+.icon-data-date-range input {
+  min-width: 0;
+  padding-inline: 6px;
+  font-size: 0.75rem;
+}
+.icon-data-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.icon-data-filter-actions .MuiButton-root {
+  text-transform: none;
+}
+.icon-data-job-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.icon-data-query-message {
+  padding: 8px;
+  font-size: 0.8125rem;
+}

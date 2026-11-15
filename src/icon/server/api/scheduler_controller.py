@@ -4,7 +4,9 @@ from typing import Any
 import pydase
 
 import icon.server.data_access.models.sqlite.scan_parameter as sqlite_scan_parameter
+from icon.config.config import get_config
 from icon.server.api.devices_controller import DevicesController
+from icon.server.api.job_filters import job_date_bounds
 from icon.server.api.models.scan_parameter import (
     DatabaseParameter,
     RealtimeParameter,
@@ -302,6 +304,10 @@ class SchedulerController(pydase.DataService):
         *,
         before_id: int | None = None,
         limit: int = JOB_LIST_PAGE_SIZE,
+        experiment_ids: list[str] | None = None,
+        created_from: str | None = None,
+        created_to: str | None = None,
+        job_id: int | None = None,
     ) -> list[JobListItemDict]:
         """Return one page of finished jobs, newest first.
 
@@ -313,29 +319,63 @@ class SchedulerController(pydase.DataService):
             before_id: Exclusive upper bound on the job ID. Pass the lowest ID of
                 the previous page to fetch the next one; omit it for the first page.
             limit: Maximum number of jobs to return.
+            experiment_ids: Exact experiment identifiers; None includes all, [] none.
+            created_from: Inclusive YYYY-MM-DD date in ICON's time zone.
+            created_to: Inclusive YYYY-MM-DD date in ICON's time zone.
+            job_id: Optional exact job identifier.
 
         Returns:
             List of job-list entries ordered by descending job ID. A result
             shorter than `limit` means the end of the list has been reached.
         """
+        start, stop = job_date_bounds(created_from, created_to)
         return JobRepository.get_job_list(
-            statuses=[JobStatus.PROCESSED], before_id=before_id, limit=limit
+            statuses=[JobStatus.PROCESSED],
+            before_id=before_id,
+            limit=limit,
+            experiment_ids=experiment_ids,
+            start=start,
+            stop=stop,
+            job_id=job_id,
         )
 
     def get_active_jobs(
-        self, *, limit: int = JOB_LIST_PAGE_SIZE
+        self,
+        *,
+        limit: int = JOB_LIST_PAGE_SIZE,
+        experiment_ids: list[str] | None = None,
+        created_from: str | None = None,
+        created_to: str | None = None,
+        job_id: int | None = None,
     ) -> list[JobListItemDict]:
         """Return the queued and currently running jobs, newest first.
 
         Args:
             limit: Maximum number of jobs to return.
+            experiment_ids: Exact experiment identifiers; None includes all, [] none.
+            created_from: Inclusive YYYY-MM-DD date in ICON's time zone.
+            created_to: Inclusive YYYY-MM-DD date in ICON's time zone.
+            job_id: Optional exact job identifier.
 
         Returns:
             List of job-list entries ordered by descending job ID.
         """
+        start, stop = job_date_bounds(created_from, created_to)
         return JobRepository.get_job_list(
-            statuses=[JobStatus.PROCESSING, JobStatus.SUBMITTED], limit=limit
+            statuses=[JobStatus.PROCESSING, JobStatus.SUBMITTED],
+            limit=limit,
+            experiment_ids=experiment_ids,
+            start=start,
+            stop=stop,
+            job_id=job_id,
         )
+
+    def get_job_filter_options(self) -> dict[str, Any]:
+        """Return historical experiment IDs and the calendar-date filter time zone."""
+        return {
+            "experiment_ids": JobRepository.get_job_experiment_ids(),
+            "timezone": get_config().date.timezone,
+        }
 
     def get_job_by_id(self, *, job_id: int) -> Job:
         """Fetch a job with its experiment source and scan parameters.

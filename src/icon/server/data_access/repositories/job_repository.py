@@ -212,11 +212,28 @@ class JobRepository:
             return session.execute(stmt).unique().scalars().all()
 
     @staticmethod
-    def get_job_list(
+    def get_job_experiment_ids() -> list[str]:
+        """Include historical experiments absent from the current library."""
+        with sqlalchemy.orm.Session(engine) as session:
+            return list(
+                session.scalars(
+                    select(ExperimentSource.experiment_id)
+                    .join(Job, Job.experiment_source_id == ExperimentSource.id)
+                    .distinct()
+                    .order_by(ExperimentSource.experiment_id)
+                )
+            )
+
+    @staticmethod
+    def get_job_list(  # noqa: C901 - independent optional query predicates
         *,
         statuses: Sequence[JobStatus] | None = None,
         before_id: int | None = None,
         limit: int | None = None,
+        experiment_ids: list[str] | None = None,
+        start: datetime.datetime | None = None,
+        stop: datetime.datetime | None = None,
+        job_id: int | None = None,
     ) -> list[JobListItemDict]:
         """List jobs as lightweight `JobListItemDict` items.
 
@@ -228,6 +245,10 @@ class JobRepository:
             before_id: Exclusive upper bound on the job ID; pass the lowest ID of
                 the previous page to fetch the next one.
             limit: Maximum number of jobs to return.
+            experiment_ids: Exact experiment identifiers; None includes all, [] none.
+            start: Inclusive creation timestamp in ICON's local database time.
+            stop: Exclusive creation timestamp in ICON's local database time.
+            job_id: Optional exact job identifier.
 
         Returns:
             Job list entries ordered by descending job ID.
@@ -247,6 +268,14 @@ class JobRepository:
             stmt = stmt.where(Job.status.in_(statuses))
         if before_id is not None:
             stmt = stmt.where(Job.id < before_id)
+        if experiment_ids is not None:
+            stmt = stmt.where(ExperimentSource.experiment_id.in_(experiment_ids))
+        if start is not None:
+            stmt = stmt.where(Job.created >= start)
+        if stop is not None:
+            stmt = stmt.where(Job.created < stop)
+        if job_id is not None:
+            stmt = stmt.where(Job.id == job_id)
         if limit is not None:
             stmt = stmt.limit(limit)
 
