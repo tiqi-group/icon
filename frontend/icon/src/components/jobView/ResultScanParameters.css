@@ -1,0 +1,97 @@
+.result-scan-frame {
+  container-type: inline-size;
+  min-width: 0;
+  width: 100%;
+}
+.result-scan-parameters .MuiTableCell-head {
+  text-align: left;
+}
+.result-scan-parameters .MuiTableBody-root .MuiTableCell-root {
+  padding: 0;
+  vertical-align: top;
+}
+.result-scan-parameters .MuiTableBody-root .MuiTableCell-root:first-child {
+  padding: 12px 8px;
+  text-align: center;
+}
+.result-scan-parameters .MuiTableRow-root:last-child .MuiTableCell-body {
+  border-bottom: 0;
+}
+.result-scan-row dl {
+  margin: 0;
+}
+.result-scan-identity {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid;
+}
+.result-scan-details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.65fr);
+  gap: 20px;
+  padding: 12px 16px 16px;
+}
+.result-scan-range {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.result-scan-range .result-scan-field:only-child {
+  grid-column: 1 / -1;
+}
+.result-scan-metrics {
+  display: grid;
+  grid-template-columns: minmax(48px, 0.4fr) repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  border-left: 1px solid;
+  padding-left: 20px;
+}
+.result-scan-field {
+  min-width: 0;
+}
+.result-scan-field dt {
+  margin-bottom: 4px;
+  font-size: 0.75rem;
+}
+.result-scan-field dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-variant-numeric: tabular-nums;
+}
+.result-scan-field small {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+@container (max-width: 1000px) {
+  .result-scan-details {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .result-scan-metrics {
+    border-left: 0;
+    border-top: 1px solid;
+    padding: 12px 0 0;
+  }
+}
+@container (max-width: 600px) {
+  .result-scan-range {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .result-scan-identity {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .result-scan-identity,
+  .result-scan-details {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .result-scan-metrics {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+}
