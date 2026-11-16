@@ -502,6 +502,7 @@ class PreProcessingWorker(multiprocessing.Process):
             )
         for combination in enumerate(scan_parameter_value_combinations):
             self._data_points_to_process.put(combination)
+        pool_size = get_config().server.pre_processing.instruction_pool_size
 
         while self._scan_progress.completed(pre_processing_task.job_run.id) < len(
             scan_parameter_value_combinations
@@ -514,30 +515,39 @@ class PreProcessingWorker(multiprocessing.Process):
             if run_cancelled_or_failed(job_run):
                 break
 
-            # TODO: this should probably be done with multiple workers to
-            # speed up the preparation of JSONs
-            try:
-                index, data_point = self._data_points_to_process.get(block=False)
-            except queue.Empty:
+            batch = list(
+                itertools.islice(consume_queue(self._data_points_to_process), pool_size)
+            )
+            if not batch:
                 time.sleep(SCAN_COMPLETION_POLL_INTERVAL)
                 continue
 
             yield
-            self._submit_task_to_hw_worker(
-                task=self._create_hardware_task(
-                    pre_processing_task=pre_processing_task,
-                    index=index,
-                    data_point=data_point,
-                    hardware_instructions=create_hardware_instructions(
-                        client,
-                        n_shots=pre_processing_task.job.number_of_shots,
-                        parameter_dict={**self._parameter_dict, **data_point},
-                        namespace=namespace,
-                        device_order=self._device_order,
-                    ),
-                    src_dir=src_dir,
-                )
+            # Taken before generating, so the tasks count as stale for parameter
+            # updates that land while their instructions are being generated.
+            created = datetime.now(timezone)
+            batch_hardware_instructions = create_hardware_instructions_batch(
+                client,
+                n_shots=pre_processing_task.job.number_of_shots,
+                parameter_dicts=[
+                    {**self._parameter_dict, **data_point} for _, data_point in batch
+                ],
+                namespace=namespace,
+                device_order=self._device_order,
             )
+            for (index, data_point), hardware_instructions in zip(
+                batch, batch_hardware_instructions, strict=True
+            ):
+                self._submit_task_to_hw_worker(
+                    task=self._create_hardware_task(
+                        pre_processing_task=pre_processing_task,
+                        index=index,
+                        data_point=data_point,
+                        hardware_instructions=hardware_instructions,
+                        src_dir=src_dir,
+                        created=created,
+                    )
+                )
 
     def _create_hardware_task(
         self,
@@ -547,6 +557,7 @@ class PreProcessingWorker(multiprocessing.Process):
         data_point: dict[str, DatabaseValueType],
         hardware_instructions: list[tuple[str, str]],
         src_dir: str | None,
+        created: datetime | None = None,
     ) -> HardwareProcessingTask:
         return HardwareProcessingTask(
             data_point_index=index,
@@ -558,7 +569,7 @@ class PreProcessingWorker(multiprocessing.Process):
             hardware_instructions=hardware_instructions,
             scan_progress=self._scan_progress,
             outdated_tasks=self._outdated_tasks,
-            created=datetime.now(timezone),
+            created=datetime.now(timezone) if created is None else created,
         )
 
     def _regenerate_outdated_jobs(
@@ -694,14 +705,53 @@ def create_hardware_instructions(
     device_order: list[str],
     namespace: ExperimentIdentifier,
 ) -> list[tuple[str, str]]:
-    instructions = asyncio.run(
-        client.create_hardware_instructions(
-            n_shots=n_shots,
-            parameter_dict=parameter_dict,
-            exp_module_name=namespace.module_name,
-            exp_instance_name=namespace.instance_name,
+    return create_hardware_instructions_batch(
+        client,
+        n_shots=n_shots,
+        parameter_dicts=[parameter_dict],
+        device_order=device_order,
+        namespace=namespace,
+    )[0]
+
+
+def create_hardware_instructions_batch(
+    client: ExperimentLibraryClient,
+    n_shots: int,
+    parameter_dicts: list[dict[str, DatabaseValueType]],
+    device_order: list[str],
+    namespace: ExperimentIdentifier,
+) -> list[list[tuple[str, str]]]:
+    """Generate the hardware instructions of several data points concurrently.
+
+    Returns:
+        The hardware instructions of each data point, in the order of
+        ``parameter_dicts``.
+    """
+
+    async def create_all() -> list[dict[str, str]]:
+        # gather returns the results in the order of its arguments, regardless of
+        # the order the calls finish in.
+        return await asyncio.gather(
+            *(
+                client.create_hardware_instructions(
+                    n_shots=n_shots,
+                    parameter_dict=parameter_dict,
+                    exp_module_name=namespace.module_name,
+                    exp_instance_name=namespace.instance_name,
+                )
+                for parameter_dict in parameter_dicts
+            )
         )
-    )
+
+    return [
+        order_by_device(instructions, device_order)
+        for instructions in asyncio.run(create_all())
+    ]
+
+
+def order_by_device(
+    instructions: dict[str, str], device_order: list[str]
+) -> list[tuple[str, str]]:
     device_ids = list(instructions)
     position = {d: i for i, d in enumerate(device_order)}
     unordered = [d for d in device_ids if d not in position]

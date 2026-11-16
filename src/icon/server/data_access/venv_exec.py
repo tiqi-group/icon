@@ -34,7 +34,7 @@ class VirtualEnvironment:
         with open(__file__) as f:
             self.venv_runtime = f.read()
 
-    async def run(
+    async def run(  # noqa: C901
         self,
         callback: Callable[..., Any],
         args: dict[str, Any] | None = None,
@@ -76,6 +76,12 @@ class VirtualEnvironment:
                 proc.kill()
                 await proc.communicate()
                 raise RuntimeError("Venv subprocess timed out after 60 s") from None
+            except asyncio.CancelledError:
+                # E.g. another call of a concurrent batch failed: don't leave the
+                # subprocess running.
+                proc.kill()
+                await proc.communicate()
+                raise
 
             if logger is not None:
                 if stdout.strip():

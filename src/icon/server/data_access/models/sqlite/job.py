@@ -71,7 +71,7 @@ class Job(Base):
     priority: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
         default=20,
     )
-    """Job priority, between 0 (lowest) and 20 (highest)."""
+    """Job priority, between 0 (highest, runs first) and 20 (lowest)."""
 
     repetitions: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
         default=1,

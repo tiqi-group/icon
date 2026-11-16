@@ -15,14 +15,14 @@ The backend server runs as multiple processes, each with a clear responsibility:
 
 * **Scheduler**
 
-    Retrieves jobs from the SQLite database and dispatches them to workers. Jobs are assigned a priority, then pushed into a priority queue consumed by the pre-processing workers.
+    Retrieves jobs from the SQLite database and dispatches them to workers. Jobs are assigned a priority between 0 and 20 (lower values run first), then pushed into a priority queue consumed by the pre-processing workers.
 
 * **Pre-Processing Workers**
 
-    One or more workers that prepare jobs before execution. For each job, they:
+    One or more workers that prepare jobs before execution (`server.pre_processing.workers`). For each job, they:
 
     * Fetch the relevant parameters from InfluxDB.
-    * Generate JSON sequences for each data point using the experiment library.
+    * Generate JSON sequences for the data points using the experiment library, several at a time (`server.pre_processing.instruction_pool_size`).
     * Place the prepared data points into the queue consumed by the hardware worker.
 
 * **Hardware Worker**

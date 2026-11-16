@@ -128,7 +128,7 @@ class SchedulerController(pydase.DataService):
             experiment_id: Experiment identifier (from experiment library).
             scan_parameters: List of scan parameter specs (id, values, optional
                 device_name).
-            priority: Higher values run sooner.
+            priority: Lower values run sooner (0 is the highest priority).
             local_parameters_timestamp: ISO timestamp to snapshot local parameters;
                 defaults to `datetime.now(tz=timezone)`.
             repetitions: Number of experiment repetitions.
