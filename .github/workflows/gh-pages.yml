@@ -43,4 +43,4 @@ jobs:
         run: uv sync --no-dev --group docs
 
       - name: Deploy documentation
-        run: uv run mkdocs gh-deploy --force
+        run: uv run mkdocs gh-deploy --no-history
