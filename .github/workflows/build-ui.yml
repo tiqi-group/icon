@@ -33,7 +33,7 @@ jobs:
 
       - name: Build UI assets
         working-directory: frontend
-        run: pnpm run build
+        run: pnpm run '/^build:/'
 
       - name: Upload UI assets
         uses: actions/upload-artifact@v4
