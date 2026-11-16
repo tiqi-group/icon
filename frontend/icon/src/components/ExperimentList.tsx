@@ -10,6 +10,7 @@ import {
 import { ChevronRight, ExpandMore } from "@mui/icons-material";
 import { ExperimentDict } from "../types/ExperimentMetadata";
 import { useExperimentGroups } from "../hooks/useExperimentGroups";
+import { useScrollIntoViewOnce } from "../hooks/useScrollIntoViewOnce";
 import {
   ExperimentContextMenu,
   ExperimentMenuState,
@@ -70,6 +71,9 @@ export const ExperimentList = ({
     .flatMap((group) => group.experimentIds);
   // Only marks that are visible count
   const markedIds = visibleIds.filter((id) => marked.includes(id));
+  const selectedRef = useScrollIntoViewOnce<HTMLDivElement>(
+    Object.keys(experiments).length > 0,
+  );
 
   const handleExperimentClick = (event: MouseEvent, experimentId: string) => {
     if (event.shiftKey) {
@@ -109,6 +113,11 @@ export const ExperimentList = ({
   const renderExperiment = (experimentId: string) => (
     <ListItemButton
       key={experimentId}
+      ref={
+        selectedExperiment === experimentId && visibleIds.includes(experimentId)
+          ? selectedRef
+          : undefined
+      }
       selected={selectedExperiment === experimentId}
       onClick={(event) => handleExperimentClick(event, experimentId)}
       onContextMenu={(event) => handleExperimentContextMenu(event, experimentId)}

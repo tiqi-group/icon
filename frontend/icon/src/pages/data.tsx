@@ -15,6 +15,7 @@ import SsidChartIcon from "@mui/icons-material/SsidChart";
 import { JobsContext } from "../contexts/JobsContext";
 import { JobView } from "../components/JobView";
 import { useBrowserSetting } from "../hooks/useBrowserSetting";
+import { useScrollIntoViewOnce } from "../hooks/useScrollIntoViewOnce";
 import { useNavigate, useSearchParams } from "react-router";
 import { JobListItem } from "../types/JobListItem";
 import { JobStatus } from "../types/enums";
@@ -80,6 +81,8 @@ export function DataPage() {
     if (jobId !== latestJobId) setAlwaysShowLatest(false);
     setSearchParams({ jobId: String(jobId) });
   };
+
+  const selectedJobRef = useScrollIntoViewOnce<HTMLDivElement>(!loading);
 
   // Infinite scroll: load the next page once the sentinel below the finished
   // jobs comes into view. The observer is re-created whenever the list grows, so
@@ -154,6 +157,9 @@ export function DataPage() {
                     return (
                       <ListItemButton
                         key={job.id}
+                        ref={
+                          String(job.id) === selectedJobId ? selectedJobRef : undefined
+                        }
                         selected={String(job.id) === selectedJobId}
                         onClick={() => handleSelectJob(job.id)}
                         onDoubleClick={() => openJobWindow(job.id, job.experiment_id)}
