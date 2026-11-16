@@ -107,7 +107,7 @@ class SchedulerController:
         *,
         experiment_id: str,
         priority: int,
-        local_parameters_timestamp: datetime,
+        local_parameters_timestamp: datetime | None = None,
         # scan_info: ScanInfo,
         repetitions: int = 1,
     ) -> JobProxy:

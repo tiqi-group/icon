@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from icon.server.api.models.experiment_dict import ExperimentMetadata
-from icon.server.data_access.models.sqlite.now import now
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -386,8 +385,8 @@ class ExperimentProxy:
             number_of_shots:
                 Number of hardware shots per scan point (default: 50).
             local_parameters_timestamp:
-                Timestamp of the local parameters to be used. Defaults to the current
-                time.
+                Timestamp of the local parameters to be used. Defaults to the time the
+                server receives the job.
             git_commit_hash:
                 Git commit hash of the experiment library. If None is provided, it will
                 take the latest commit on the main/master branch. Defaults to None.
@@ -400,8 +399,6 @@ class ExperimentProxy:
         """
         if scan_parameters is None:
             scan_parameters = []
-        if local_parameters_timestamp is None:
-            local_parameters_timestamp = now()
         job_id: int = self._client.trigger_method(
             "scheduler.submit_job",
             kwargs={
