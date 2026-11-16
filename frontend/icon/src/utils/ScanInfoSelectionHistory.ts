@@ -36,15 +36,26 @@ const paramFromLeaf = (
 });
 
 /**
+ * The input mode (Start/Stop or Span) to show a parameter in: the one it was last
+ * scanned in, or the card's current mode for a parameter not scanned before.
+ */
+const modeFor = (
+  remembered: ScanParameterGenerationSpec | undefined,
+  current: ScanParameterInfo,
+): ScanInputMode =>
+  remembered
+    ? (remembered.inputMode ?? "startStop")
+    : (current.generation.inputMode ?? "startStop");
+
+/**
  * Re-expresses a leaf so its active start/stop/points/pattern belong to
  * `targetMode`, without recomputing one mode's numbers from the other's.
  *
  * If the leaf was already recorded in `targetMode`, it's returned as-is (just
  * relabelled). Otherwise its active quadruple and `otherModeSpec` are swapped —
  * mirroring the swap the UI performs when the user toggles modes directly — so
- * switching parameter/namespace/group while in a given mode surfaces that
- * parameter's own remembered settings for *that* mode, not whichever quadruple
- * happened to be active when it was last saved.
+ * a parameter not scanned before takes over the card's mode with its own settings
+ * for *that* mode, not whichever quadruple happened to be active when it was saved.
  */
 const alignLeafToMode = (
   leaf: ScanParameterGenerationSpec,
@@ -87,6 +98,10 @@ export class ScanInfoSelectionHistory extends MruSelectionTree<ScanParameterGene
     super(2, defaultLeaf, history);
   }
 
+  /**
+   * @param recenterOn Live value of the parameter switched to, to centre its range on
+   *   if it comes back in Span mode
+   */
   handleParamUpdate(
     current: ScanParameterInfo,
     update: Partial<ScanParameterInfo>,
@@ -121,13 +136,12 @@ export class ScanInfoSelectionHistory extends MruSelectionTree<ScanParameterGene
         namespace,
         deviceNameOrDisplayGroup,
       );
-      let leaf = this.lookupLeaf(leafKey) ?? this.defaultLeaf();
-      // Input mode (start/stop vs. center/span) is a card-level view setting, not
-      // something tied to the target parameter's own memory — keep whatever mode
-      // was active before the switch, surfacing that parameter's own settings for
-      // that mode (not whichever quadruple it happened to be last saved under).
-      leaf = alignLeafToMode(leaf, current.generation.inputMode ?? "startStop");
-      if (recenterOn !== undefined) {
+      const remembered = this.lookupLeaf(leafKey);
+      // Each parameter comes back in the input mode (Start/Stop or Span) it was last
+      // scanned in, with that mode's settings.
+      const mode = modeFor(remembered, current);
+      let leaf = alignLeafToMode(remembered ?? this.defaultLeaf(), mode);
+      if (recenterOn !== undefined && mode === "spanCenter") {
         // Recentre on the new parameter's live value while keeping its own
         // remembered span (and, since only start/stop change, its own points
         // and pattern too).
@@ -155,11 +169,10 @@ export class ScanInfoSelectionHistory extends MruSelectionTree<ScanParameterGene
       ];
       const { path, leafKey, leaf: resolvedLeaf } = this.resolve(partialPath);
       const id = extractScannedParamId(leafKey, path[0], path[1]);
-      // Preserve the current view mode across namespace/display-group changes,
-      // rather than adopting whatever mode the resolved parameter last used.
+      // The resolved parameter comes back in the mode it was last scanned in
       const leaf = alignLeafToMode(
         resolvedLeaf,
-        current.generation.inputMode ?? "startStop",
+        modeFor(this.lookupLeaf(leafKey), current),
       );
       updatedParam = paramFromLeaf(path[0], path[1], id, leaf);
       updatedScanInfoHistory = this.update(path, leafKey, leaf).serialize();

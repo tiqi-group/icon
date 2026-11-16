@@ -173,10 +173,9 @@ export const ParameterCard = ({
   const selectParameter = (
     update: Pick<ScanParameterInfo, "id"> & Partial<ScanParameterInfo>,
   ) => {
-    // In Span mode, restore the new parameter's own remembered settings, re-centred
-    // on its live value (if numeric) while keeping its own span.
-    const rawValue =
-      inputMode === "spanCenter" ? parameterStore?.get(update.id) : undefined;
+    // Restore the new parameter's own remembered settings and mode. In Span mode
+    // they are re-centred on its live value (if numeric), keeping its own span.
+    const rawValue = parameterStore?.get(update.id);
     dispatchScanInfoStateUpdate({
       type: "UPDATE_PARAMETER",
       index,
