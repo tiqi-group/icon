@@ -1,8 +1,10 @@
 import { useContext } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
+import { Button } from "@mui/material";
 import { ExperimentsContext } from "../contexts/ExperimentsContext";
 import ExperimentDetails from "../components/ExperimentDetails";
 import { ExperimentList } from "../components/ExperimentList";
+import { experimentDataUrl } from "../utils/dataFilters";
 
 const ExperimentsPage = () => {
   const experiments = useContext(ExperimentsContext);
@@ -33,7 +35,17 @@ const ExperimentsPage = () => {
 
       <div style={{ flexGrow: 1, height: "100%", overflow: "auto" }}>
         {selectedExperiment ? (
-          <ExperimentDetails experimentKey={selectedExperiment} />
+          <>
+            <Button
+              component={Link}
+              to={experimentDataUrl(selectedExperiment)}
+              size="small"
+              sx={{ mx: 1, mt: 0.5, textTransform: "none" }}
+            >
+              View data for this experiment
+            </Button>
+            <ExperimentDetails experimentKey={selectedExperiment} />
+          </>
         ) : (
           <div style={{ padding: 16 }}>
             Select an experiment from the list to view details.

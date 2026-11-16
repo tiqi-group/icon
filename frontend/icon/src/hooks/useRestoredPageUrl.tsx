@@ -10,16 +10,23 @@ const PAGES = ["/experiments", "/data", "/devices", "/settings"];
  * the previous selection can be restored. Back and forward show the page as it was.
  */
 export function useRestoredPageUrl(): string | null {
-  const { pathname, search } = useLocation();
+  const { pathname, search, state } = useLocation();
   const navigationType = useNavigationType();
   const storageKey = `lastSearch:${pathname}`;
   const remembered = PAGES.includes(pathname);
+  const clearRememberedSearch = state?.clearRememberedSearch === true;
 
   useEffect(() => {
-    if (remembered && search) sessionStorage.setItem(storageKey, search);
-  }, [remembered, storageKey, search]);
+    if (!remembered) return;
+    if (search) sessionStorage.setItem(storageKey, search);
+    else if (clearRememberedSearch) sessionStorage.removeItem(storageKey);
+  }, [remembered, storageKey, search, clearRememberedSearch]);
 
-  const restore = remembered && !search && navigationType === NavigationType.Push;
+  const restore =
+    remembered &&
+    !search &&
+    !clearRememberedSearch &&
+    navigationType === NavigationType.Push;
   const lastSearch = restore ? sessionStorage.getItem(storageKey) : null;
   return lastSearch ? pathname + lastSearch : null;
 }
