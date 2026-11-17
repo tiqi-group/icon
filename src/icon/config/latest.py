@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Any
 
-from confz import BaseConfig
 from pydantic import BaseModel
 
 __version__ = 3
@@ -77,7 +76,7 @@ class HardwareConfig(BaseModel):
     main_device_start_delay: float = 0.05
 
 
-class ServiceConfig(BaseConfig):  # type: ignore[misc, metaclass]
+class ServiceConfig(BaseModel):
     version: int = __version__
     experiment_library: ExperimentLibraryConfig = ExperimentLibraryConfig()
     databases: DatabaseConfig = DatabaseConfig()

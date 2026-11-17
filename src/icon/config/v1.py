@@ -1,4 +1,3 @@
-from confz import BaseConfig
 from pydantic import BaseModel
 
 from icon.config.latest import (
@@ -19,7 +18,7 @@ class ExperimentLibraryConfig(BaseModel):
     update_interval: int = 30
 
 
-class ServiceConfig(BaseConfig):  # type: ignore[misc, metaclass]
+class ServiceConfig(BaseModel):
     version: int = __version__
     experiment_library: ExperimentLibraryConfig = ExperimentLibraryConfig()
     databases: DatabaseConfig = DatabaseConfig()

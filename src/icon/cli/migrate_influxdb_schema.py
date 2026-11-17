@@ -609,7 +609,7 @@ def run_rollback(dry_run: bool, force: bool) -> int:
     "config_path",
     type=click.Path(dir_okay=False, path_type=Path),
     default=None,
-    help="Path to the ICON config file to use (defaults to $ICON_CONFIG, else "
+    help="Path to the ICON config file to use (defaults to "
     "~/.config/icon/config.yaml).",
 )
 @click.option("-v", "--verbose", is_flag=True, help="Enable verbose logging.")
