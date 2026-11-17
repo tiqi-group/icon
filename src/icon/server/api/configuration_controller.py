@@ -3,7 +3,6 @@ from collections.abc import Callable
 from typing import Any
 
 import pydase
-from confz import DataSource
 
 from icon.config.config import get_config, save_config
 from icon.config.latest import ServiceConfig
@@ -53,7 +52,7 @@ class ConfigurationController(pydase.DataService):
             set_nested(current_config, key, value)
 
             # Validate the updated configuration
-            updated_config = ServiceConfig(config_sources=DataSource(current_config))
+            updated_config = ServiceConfig.model_validate(current_config)
 
             # Save the updated configuration back to the file
             save_config(updated_config)

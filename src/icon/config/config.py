@@ -2,10 +2,9 @@ import logging
 import os
 from contextlib import suppress
 from pathlib import Path, PosixPath
-from typing import Any
 
 import yaml
-from confz import BaseConfig, FileSource
+from pydantic import BaseModel
 
 from icon.config import latest, v1, v2
 from icon.config.migrations import migration_by_version
@@ -14,7 +13,7 @@ _ENV_KEY = "ICON_CONFIG"
 
 logger = logging.getLogger("config")
 
-VERSIONS: dict[int, type[BaseConfig]] = {
+VERSIONS: dict[int, type[BaseModel]] = {
     cfg.__version__: cfg.ServiceConfig for cfg in (v1, v2, latest)
 }
 
@@ -47,7 +46,7 @@ def get_config() -> latest.ServiceConfig:
     schema = VERSIONS.get(config_version)
     if schema is None:
         raise RuntimeError(f"Unsupported configuration version: {config_version}")
-    config: Any = schema(config_sources=FileSource(source))
+    config = schema.model_validate(content)
     original_config_version = config.version
     while config.version < latest.__version__:
         config = migration_by_version[config.version](config)
