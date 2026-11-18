@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     )
     from icon.server.data_access.experiment_data import (
         DatabaseValueType,
+        ExperimentDataPoint,
         ReadoutMetadata,
     )
 
@@ -114,6 +115,29 @@ class ExperimentLibraryClient:
             Device ID, readout metadata pairs for the experiment.
         """
         raise NotImplementedError("Must be implemented by a subclass")
+
+    async def post_process(
+        self,
+        *,
+        exp_module_name: str,  # noqa: ARG002
+        exp_instance_name: str,  # noqa: ARG002
+        parameter_dict: "dict[str, DatabaseValueType]",  # noqa: ARG002
+        data_point: "ExperimentDataPoint",  # noqa: ARG002
+    ) -> "ExperimentDataPoint | None":
+        """Run the experiment's post-processing on a data point.
+
+        Args:
+            exp_module_name: Module name of the experiment.
+            exp_instance_name: Name of the experiment instance.
+            parameter_dict: Parameter values the data point's hardware instructions
+                were generated with.
+            data_point: The data point as read out from the devices.
+
+        Returns:
+            The processed data point, or None if the experiment defines no
+            post-processing. By default experiments define none.
+        """
+        return None
 
     async def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:
         """Fetch hardware description from experiment library.

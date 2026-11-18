@@ -104,7 +104,8 @@ def start_server() -> None:
     hardware_processing_worker.start()
 
     post_processing_worker = PostProcessingWorker(
-        post_processing_queue=post_processing_queue
+        post_processing_queue=post_processing_queue,
+        experiment_library_client=exp_lib_client,
     )
     post_processing_worker.start()
 

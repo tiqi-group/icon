@@ -635,6 +635,8 @@ class PreProcessingWorker(multiprocessing.Process):
             scanned_params=data_point,
             src_dir=src_dir,
             hardware_instructions=hardware_instructions,
+            # The values the callers generate the hardware instructions with
+            parameter_dict={**self._parameter_dict, **data_point},
             created=datetime.now(timezone),
         )
 

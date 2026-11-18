@@ -349,6 +349,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                         device_data=device_data,
                         timestamp=timestamp.isoformat(),
                     ),
+                    parameter_dict=task.parameter_dict,
                     src_dir=task.src_dir,
                     created=task.created,
                 )

@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -567,3 +568,105 @@ def test_get_hardware_instructions_skips_runs_without_a_file(
 def mock_scan_parameter(variable_id: str, *, realtime: bool = False) -> Any:
     """Wrapper returning an Any type."""
     return MockScanParameter(variable_id, realtime=realtime)
+
+
+# "derived" is declared for an experiment's post-processing; the device only returns
+# "raw_counts".
+DERIVED_READOUT_METADATA = [
+    (
+        "Der Gerät",
+        ReadoutMetadata(
+            readout_channel_names=["raw_counts", "derived"],
+            shot_channel_names=[],
+            vector_channel_names=[],
+            readout_channel_windows=[PLOT_WINDOW],
+            shot_channel_windows=[],
+            vector_channel_windows=[],
+        ),
+    ),
+]
+
+
+def _prepare_derived_metadata(h5file: h5py.File) -> None:
+    experiment_data_repository.prepare_readout_metadata(
+        h5file,
+        job_id=-1,
+        experiment_id="test.MockExperiment (MockExperiment)",
+        number_of_shots=3,
+        repetitions=1,
+        readout_metadata=DERIVED_READOUT_METADATA,
+        local_parameter_timestamp=None,
+        parameters=[mock_scan_parameter("x")],
+    )
+
+
+def _data_point(index: int, result_channels: dict[str, float]) -> ExperimentDataPoint:
+    return ExperimentDataPoint(
+        index=index,
+        scan_params={"x": 42.0},
+        timestamp="2026-03-24 16:46:09.638101",
+        device_data=[
+            ExperimentDeviceDataPoint(
+                device_id="Der Gerät",
+                readouts=Readouts(
+                    result_channels=result_channels,
+                    vector_channels={},
+                    shot_channels={},
+                ),
+                hardware_instructions="...",
+            )
+        ],
+    )
+
+
+def test_declared_result_channel_missing_in_data_point_is_stored_as_nan() -> None:
+    with h5py.File.in_memory() as h5file:
+        _prepare_derived_metadata(h5file)
+        experiment_data_repository.write_experiment_data_point(
+            h5file, _data_point(0, {"raw_counts": 2.5, "derived": 1.0})
+        )
+        experiment_data_repository.write_experiment_data_point(
+            h5file, _data_point(1, {"raw_counts": 5.0})
+        )
+        data = experiment_data_repository.load_experiment_data(h5file)
+
+    result_channels = data.device_data[0].readouts.result_channels
+    assert result_channels["raw_counts"] == {0: 2.5, 1: 5.0}
+    assert result_channels["derived"][0] == 1.0
+    assert math.isnan(result_channels["derived"][1])
+
+
+def test_undeclared_result_channel_raises() -> None:
+    with h5py.File.in_memory() as h5file:
+        _prepare_derived_metadata(h5file)
+        with pytest.raises(
+            RuntimeError, match=r"\['other'\] of device 'Der Gerät' are not declared"
+        ):
+            experiment_data_repository.write_experiment_data_point(
+                h5file, _data_point(0, {"raw_counts": 2.5, "other": 1.0})
+            )
+
+
+def test_missing_result_channel_is_emitted_as_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = SimpleNamespace(data=latest.DataConfiguration(results_dir=str(tmp_path)))
+    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+    monkeypatch.setattr(
+        experiment_data_repository, "get_filename_by_job_id", lambda _: "job-1.h5"
+    )
+    emit_queue = MagicMock()
+    monkeypatch.setattr(experiment_data_repository, "emit_queue", emit_queue)
+    with h5py.File(tmp_path / "job-1.h5", "w") as h5file:
+        _prepare_derived_metadata(h5file)
+
+    Repo.write_experiment_data_by_job_id(
+        job_id=1, data_point=_data_point(0, {"raw_counts": 2.5})
+    )
+
+    # JSON has no NaN, so the GUI gets null
+    event = emit_queue.put.call_args.args[0]
+    assert event["data"]["device_data"][0]["readouts"]["result_channels"] == {
+        "raw_counts": 2.5,
+        "derived": None,
+    }

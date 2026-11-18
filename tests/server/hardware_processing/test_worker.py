@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 RUN_ID = 7
 DATA_POINT_INDEX = 4
 HARDWARE_INSTRUCTIONS = [("main", '{"main": "..."}'), ("sub", '{"sub": "..."}')]
+PARAMETER_DICT = {"param": 1.5}
 EMPTY_READOUTS = Readouts(result_channels={}, vector_channels={}, shot_channels={})
 ACTIVE_RUN_STATUSES = (JobRunStatus.PROCESSING, JobRunStatus.PAUSED)
 
@@ -88,6 +89,7 @@ def _hardware_task() -> Any:
         data_point_index=DATA_POINT_INDEX,
         scanned_params={},
         hardware_instructions=HARDWARE_INSTRUCTIONS,
+        parameter_dict=PARAMETER_DICT,
         src_dir=None,
         created=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
@@ -250,5 +252,7 @@ def test_successful_run_emits_readouts(monkeypatch: pytest.MonkeyPatch) -> None:
         controllers["main"].receive(),
         controllers["sub"].receive(),
     ]
+    # Post-processing reads the parameters the hardware instructions were made with
+    assert tasks[0].parameter_dict == PARAMETER_DICT
     assert controllers["main"].sent == [HARDWARE_INSTRUCTIONS[0][1]]
     update_run.assert_not_called()

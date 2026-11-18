@@ -2,6 +2,7 @@ import errno
 import itertools
 import json
 import logging
+import math
 import threading
 import time
 from collections.abc import Generator, Sequence
@@ -118,6 +119,13 @@ def _recent_result_paths(results_dir: Path) -> list[Path]:
             limit=MOST_RECENT_JOB_RUNS
         )
     ]
+
+
+def nan_to_none(values: dict[Any, Any]) -> None:
+    """Replace the NaN values by None, which JSON encodes as null as it has no NaN."""
+    for key, value in values.items():
+        if isinstance(value, float) and math.isnan(value):
+            values[key] = None
 
 
 def resize_dataset(dataset: h5py.Dataset, next_index: int, axis: int) -> None:
@@ -266,13 +274,30 @@ def write_results_to_dataset(
 ) -> None:
     """Write scalar result channels into the 'result_channels' dataset.
 
+    Channels of the dataset missing in `result_channels` are added to it as NaN, e.g.
+    the channels an experiment's post-processing failed to derive.
+
     Args:
         h5file: Open HDF5 file handle.
         data_point_index: Index of the current data point.
         result_channels: Mapping of channel name to float value.
         device_id: ID of the device the data was read out from.
         number_of_data_points: Current total number of stored data points.
+
+    Raises:
+        RuntimeError: `result_channels` has channels the dataset has not.
     """
+    existing_dataset = h5file.get("result_channels", {}).get(device_id)
+    if existing_dataset is not None:
+        undeclared = set(result_channels) - set(existing_dataset.dtype.names)
+        if undeclared:
+            raise RuntimeError(
+                f"Result channels {sorted(undeclared)} of device {device_id!r} are not "
+                "declared in the readout metadata"
+            )
+        for channel_name in existing_dataset.dtype.names:
+            result_channels.setdefault(channel_name, math.nan)
+
     if not result_channels:
         return
 
@@ -479,10 +504,13 @@ class ExperimentDataRepository:
         if data_point.failed:
             return
 
+        payload = asdict(data_point)
+        for device_data in payload["device_data"]:
+            nan_to_none(device_data["readouts"]["result_channels"])
         emit_queue.put(
             {
                 "event": f"experiment_{job_id}",
-                "data": asdict(data_point),
+                "data": payload,
             }
         )
 

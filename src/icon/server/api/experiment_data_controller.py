@@ -10,6 +10,7 @@ from icon.server.data_access.repositories.experiment_data_repository import (
     DEFAULT_MAX_TRANSFER_BYTES,
     ExperimentDataRepository,
     delete_fit_result_by_job_id,
+    nan_to_none,
     write_fit_result_by_job_id,
 )
 from icon.server.fitting import run_curve_fit
@@ -66,7 +67,11 @@ class ExperimentDataController(pydase.DataService):
         )
         # TODO: workaround for avoiding the costly serialization which stalls the event loop for large objects.
         #   Packing as JSON string makes it opaque to the serializer.
-        return json.dumps(asdict(result))
+        payload = asdict(result)
+        for device_data in payload["device_data"]:
+            for values in device_data["readouts"]["result_channels"].values():
+                nan_to_none(values)
+        return json.dumps(payload)
 
     async def get_hardware_instructions(
         self,

@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from icon.server.api.models.experiment_dict import ExperimentDict
     from icon.server.data_access.experiment_data import (
         DatabaseValueType,
+        ExperimentDataPoint,
         ReadoutMetadata,
     )
 
@@ -171,6 +172,34 @@ class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
             exp_module_name=exp_module_name,
             exp_instance_name=exp_instance_name,
             parameter_dict=parameter_dict,
+        )
+
+    async def post_process(
+        self,
+        *,
+        exp_module_name: str,
+        exp_instance_name: str,
+        parameter_dict: "dict[str, DatabaseValueType]",
+        data_point: "ExperimentDataPoint",
+    ) -> "ExperimentDataPoint | None":
+        """Run the experiment's post-processing on a data point.
+
+        Args:
+            exp_module_name: Module name of the experiment.
+            exp_instance_name: Name of the experiment instance.
+            parameter_dict: Parameter values the data point's hardware instructions
+                were generated with.
+            data_point: The data point as read out from the devices.
+
+        Returns:
+            The processed data point, or None if the experiment defines no
+            post-processing.
+        """
+        return await self._reload().post_process(
+            exp_module_name=exp_module_name,
+            exp_instance_name=exp_instance_name,
+            parameter_dict=parameter_dict,
+            data_point=data_point,
         )
 
     async def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:

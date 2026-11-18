@@ -5,15 +5,17 @@ import warnings
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import icon.server.utils.git_helpers
 from icon.server.api.models.experiment_dict import (
     ExperimentMetadata,
 )
 from icon.server.data_access.experiment_data import (
+    ExperimentDataPoint,
     PlotWindowMetadata,
     ReadoutMetadata,
+    Readouts,
 )
 from icon.server.data_access.experiment_library_client import ExperimentLibraryClient
 from icon.server.data_access.venv_experiment_library_client import (
@@ -248,6 +250,60 @@ class PyCrystalClient(BlockingExperimentLibraryClient):
             )
             for device_id, readout in readout_per_device
         ]
+
+    def post_process(
+        self,
+        *,
+        exp_module_name: str,
+        exp_instance_name: str,
+        parameter_dict: "dict[str, DatabaseValueType]",
+        data_point: ExperimentDataPoint,
+    ) -> ExperimentDataPoint | None:
+        """Run the experiment's `post_processing(data_point)`, if it defines one.
+
+        The parameters read the values the data point's hardware instructions were
+        generated with. Changing them has no effect outside of the call.
+
+        Args:
+            exp_module_name: Module name of the experiment.
+            exp_instance_name: Name of the experiment instance.
+            parameter_dict: Parameter values the data point's hardware instructions
+                were generated with.
+            data_point: The data point as read out from the devices.
+
+        Returns:
+            The processed data point, or None if the experiment defines no
+            `post_processing`.
+        """
+        import pycrystal.database.local_cache  # noqa: PLC0415
+        import pycrystal.parameters  # noqa: PLC0415
+        from pycrystal.utils.helpers import import_experiment_instance  # noqa: PLC0415
+
+        pycrystal.parameters.Parameter.db = pycrystal.database.local_cache.LocalCache(
+            key_val_dict=dict(parameter_dict),
+        )
+
+        exp_instance = import_experiment_instance(exp_module_name, exp_instance_name)
+        post_processing = getattr(exp_instance, "post_processing", None)
+        if post_processing is None:
+            return None
+
+        processed: ExperimentDataPoint = post_processing(data_point)
+        # The result is returned as JSON, which has no numpy types
+        for device_data in processed.device_data:
+            readouts = cast("Readouts", device_data.readouts)
+            readouts.result_channels = {
+                name: float(value) for name, value in readouts.result_channels.items()
+            }
+            readouts.vector_channels = {
+                name: [float(v) for v in values]
+                for name, values in readouts.vector_channels.items()
+            }
+            readouts.shot_channels = {
+                name: [int(v) for v in values]
+                for name, values in readouts.shot_channels.items()
+            }
+        return processed
 
     def get_setup_hardware_description(self) -> dict[str, dict[str, Any]]:
         """Fetch hardware description from experiment library.

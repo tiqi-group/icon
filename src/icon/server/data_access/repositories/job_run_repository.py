@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from typing import Any
 
 import sqlalchemy.orm
 from sqlalchemy import select, update
@@ -66,20 +67,25 @@ class JobRunRepository:
         Args:
             run_id: The ID of the job run to update.
             status: New status of the run.
-            log: Optional log message (e.g. failure reason).
+            log: Optional log message (e.g. failure reason). If None, the run keeps
+                its log, e.g. a post-processing error logged while it was processing.
             only_if_status: Apply the update only if current status is in the list.
 
         Returns:
             The updated job run, or None when the current status is non of the
             `only_if_status` statuses.
         """
+        updated_properties: dict[str, Any] = {"status": status}
+        if log is not None:
+            updated_properties["log"] = log
+
         with sqlalchemy.orm.Session(engine) as session:
             stmt = update(JobRun).where(JobRun.id == run_id)
             if only_if_status is not None:
                 stmt = stmt.where(JobRun.status.in_(only_if_status))
 
             run = session.execute(
-                stmt.values(status=status, log=log).returning(JobRun)
+                stmt.values(**updated_properties).returning(JobRun)
             ).scalar_one_or_none()
 
             if run is None:
@@ -97,8 +103,8 @@ class JobRunRepository:
                 "data": {
                     "run_id": run_id,
                     "updated_properties": {
+                        **updated_properties,
                         "status": status.value,
-                        "log": log,
                     },
                 },
             }

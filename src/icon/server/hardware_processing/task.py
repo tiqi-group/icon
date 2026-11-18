@@ -16,5 +16,7 @@ class HardwareProcessingTask(pydantic.BaseModel):
     scanned_params: dict[str, DatabaseValueType]
     global_parameter_timestamp: datetime
     hardware_instructions: list[tuple[str, str]]
+    parameter_dict: dict[str, DatabaseValueType] = pydantic.Field(default_factory=dict)
+    """Parameter values the hardware instructions were generated with."""
     src_dir: str | None
     created: datetime
