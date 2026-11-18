@@ -1,3 +1,4 @@
+import datetime
 import enum
 import logging
 from collections.abc import Sequence
@@ -39,6 +40,7 @@ class DeviceRepository:
             The persisted device with database-generated fields (e.g., `id`) populated.
         """
         with sqlalchemy.orm.session.Session(get_engine()) as session:
+            device.created = datetime.datetime.now(timezone)
             session.add(device)
             session.commit()
             session.refresh(device)

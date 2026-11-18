@@ -81,6 +81,7 @@ def _insert_job_and_run(
         status=JobStatus.PROCESSED,
         repetitions=1,
         number_of_shots=1,
+        created=datetime.now(timezone.utc),
     )
     session.add(job)
     session.flush()  # populate job.id
@@ -328,6 +329,7 @@ def _insert_job_and_run_2d(
         status=JobStatus.PROCESSED,
         repetitions=1,
         number_of_shots=1,
+        created=datetime.now(timezone.utc),
     )
     session.add(job)
     session.flush()
