@@ -4,12 +4,13 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import pydase
 import pydase.units as u
+import pytz
 import socketio.exceptions
 from pydase.task.decorator import task
-from pydase.utils.serialization.serializer import dump
 from socketio.exceptions import BadNamespaceError  # type: ignore
 
-from icon.config.config import get_config
+from icon.config.config import Config
+from icon.serialization.serializer import dump
 from icon.server.api.models.device_dict import DeviceDict
 from icon.server.data_access.models.enums import DeviceStatus
 from icon.server.data_access.models.sqlite.device import Device
@@ -40,8 +41,9 @@ class DevicesController(pydase.DataService):
     for integration with ICON scans.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, config: Config) -> None:
         super().__init__()
+        self._config = config
         self._devices: dict[str, pydase.Client] = {}
         self.device_proxies: dict[str, ProxyClass] = {}
         """Live pydase proxies keyed by device name."""
@@ -80,7 +82,8 @@ class DevicesController(pydase.DataService):
                 description=description,
                 retry_delay_seconds=retry_delay_seconds,
                 retry_attempts=retry_attempts,
-            )
+            ),
+            timezone=pytz.timezone(self._config.get().date.timezone),
         )
 
         if status == "enabled":
@@ -171,13 +174,19 @@ class DevicesController(pydase.DataService):
         elif type_ == "Quantity" and isinstance(new_value, dict):
             new_value = u.Quantity(new_value["magnitude"], new_value["unit"])  # type: ignore
 
-        timeout = get_config().devices.set_value_timeout_seconds
+        timeout = self._config.get().devices.set_value_timeout_seconds
         try:
             await asyncio.to_thread(
                 client_call_with_timeout,
                 client=self._devices[name],
                 event="update_value",
-                data={"access_path": parameter_id, "value": dump(new_value)},
+                data={
+                    "access_path": parameter_id,
+                    "value": dump(
+                        new_value,
+                        timezone=pytz.timezone(self._config.get().date.timezone),
+                    ),
+                },
                 timeout=timeout,
             )
         except BadNamespaceError:
@@ -210,7 +219,7 @@ class DevicesController(pydase.DataService):
             The parameter value as returned by the device, or `None` if the device is
                 unreachable or unknown.
         """
-        timeout = get_config().devices.set_value_timeout_seconds
+        timeout = self._config.get().devices.set_value_timeout_seconds
         try:
             return await asyncio.to_thread(
                 client_call_with_timeout,
@@ -253,7 +262,9 @@ class DevicesController(pydase.DataService):
             Mapping from device name to a `DeviceDict` payload suitable for the API.
         """
         device_dict: dict[str, DeviceDict] = {
-            device.name: SQLAlchemyDictEncoder.encode(device)
+            device.name: SQLAlchemyDictEncoder(
+                pytz.timezone(self._config.get().date.timezone)
+            ).encode(device)
             for device in DeviceRepository.get_devices_by_status(status=status)
         }
 

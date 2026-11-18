@@ -9,12 +9,12 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 import requests
 from influxdb import InfluxDBClient
 
-from icon.config.config import get_config
-
 if TYPE_CHECKING:
     from types import TracebackType
 
     from influxdb.resultset import ResultSet
+
+    from icon.config.latest import InfluxDBv1Config
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
@@ -34,19 +34,19 @@ def escape_tag_value(value: str) -> str:
     return value.replace("\\", "\\\\").replace("'", r"\'")
 
 
-def is_responsive() -> bool:
+def is_responsive(influxdbv1: InfluxDBv1Config) -> bool:
     success = 200
 
     params = {
-        "u": f"{get_config().databases.influxdbv1.username}",
-        "p": f"{get_config().databases.influxdbv1.password}",
+        "u": f"{influxdbv1.username}",
+        "p": f"{influxdbv1.password}",
         "q": "SHOW DATABASES",
     }
 
     url = (
-        f"http{'s' if get_config().databases.influxdbv1.ssl else ''}://"
-        f"{get_config().databases.influxdbv1.host}:"
-        f"{get_config().databases.influxdbv1.port}/query"
+        f"http{'s' if influxdbv1.ssl else ''}://"
+        f"{influxdbv1.host}:"
+        f"{influxdbv1.port}/query"
     )
 
     try:
@@ -55,7 +55,7 @@ def is_responsive() -> bool:
         return False
     return (
         response.status_code == success
-        and f'["{get_config().databases.influxdbv1.database}"]' in response.text
+        and f'["{influxdbv1.database}"]' in response.text
     )
 
 
@@ -67,7 +67,7 @@ class InfluxDBv1Session:
 
     Example:
         ```python
-        with InfluxDBv1Session() as influx_client:
+        with InfluxDBv1Session(config.get().databases.influxdbv1) as influx_client:
             # Writing data to a database
             points = [
                 {
@@ -85,8 +85,8 @@ class InfluxDBv1Session:
         ```
     """
 
-    def __init__(self) -> None:
-        self._config = get_config().databases.influxdbv1
+    def __init__(self, config: InfluxDBv1Config) -> None:
+        self._config = config
         self._client: InfluxDBClient
         self._host = self._config.host
         self._port = self._config.port
@@ -173,7 +173,7 @@ class InfluxDBv1Session:
             ...         },
             ...     }
             ... ]
-            >>> with InfluxDBv1Session() as client:
+            >>> with InfluxDBv1Session(influx_config) as client:
             ...     client.write_points(points=points)
             ```
         """
@@ -225,5 +225,5 @@ InfluxDBSessionProvider = Callable[
 ]
 
 
-def default_session_provider() -> contextlib.AbstractContextManager[InfluxDBv1Session]:
-    return InfluxDBv1Session()
+def default_session_provider(influx: InfluxDBv1Config) -> InfluxDBSessionProvider:
+    return lambda: InfluxDBv1Session(influx)

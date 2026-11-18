@@ -19,12 +19,16 @@ from icon.server.fitting.fit_runner import run_curve_fit
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from icon.server.data_access.experiment_data import ExperimentData, FitResult
 
 logger = logging.getLogger(__name__)
 
 
-def try_auto_fit(job_id: int, experiment_source_id: int) -> None:
+def try_auto_fit(
+    h5_dir: Path, job_id: int, experiment_source_id: int, timeout: float
+) -> None:
     """Auto-fit the new job using the fit config from the previous job.
 
     Looks up the most recent previous PROCESSED job for the same experiment
@@ -32,27 +36,36 @@ def try_auto_fit(job_id: int, experiment_source_id: int) -> None:
     with fresh initial guesses.  Failures are logged but never raised.
 
     Args:
+        h5_dir: Directory where hdf5 files are stored.
         job_id: The newly completed job.
         experiment_source_id: The experiment source to find previous jobs.
+        timeout: Seconds to wait for a lock on hdf5 files.
     """
     try:
-        _auto_fit(job_id, experiment_source_id)
+        _auto_fit(h5_dir, job_id, experiment_source_id, timeout)
     except Exception:
         logger.exception("Auto-fit failed for job %d", job_id)
 
 
-def _auto_fit(job_id: int, experiment_source_id: int) -> None:
+def _auto_fit(
+    h5_dir: Path, job_id: int, experiment_source_id: int, timeout: float
+) -> None:
     previous_job_id = _find_previous_job_with_fit(
-        experiment_source_id, exclude_job_id=job_id
+        h5_dir,
+        experiment_source_id,
+        exclude_job_id=job_id,
+        timeout=timeout,
     )
     if previous_job_id is None:
         return
 
-    previous_fits = get_fit_results_by_job_id(job_id=previous_job_id)
+    previous_fits = get_fit_results_by_job_id(
+        h5_dir=h5_dir, job_id=previous_job_id, timeout=timeout
+    )
     if not previous_fits:
         return
 
-    data = ExperimentDataRepository.get_experiment_data_by_job_id(
+    data = ExperimentDataRepository(h5_dir, timeout).get_experiment_data_by_job_id(
         job_id=job_id,
         max_transfer_bytes=2**62,
     )
@@ -65,11 +78,20 @@ def _auto_fit(job_id: int, experiment_source_id: int) -> None:
         for channel_name, fit_data in device.items():
             if fit_data.success and fit_data.func_type:
                 _fit_channel(
-                    job_id, device_id, data, scan_param_name, channel_name, fit_data
+                    h5_dir,
+                    timeout,
+                    job_id,
+                    device_id,
+                    data,
+                    scan_param_name,
+                    channel_name,
+                    fit_data,
                 )
 
 
 def _fit_channel(
+    h5_dir: Path,
+    timeout: float,
     job_id: int,
     device_id: str,
     data: ExperimentData,
@@ -104,7 +126,12 @@ def _fit_channel(
     )
 
     if fit_result.success:
-        write_fit_result_by_job_id(job_id=job_id, fit_results=[(device_id, fit_result)])
+        write_fit_result_by_job_id(
+            h5_dir=h5_dir,
+            timeout=timeout,
+            job_id=job_id,
+            fit_results=[(device_id, fit_result)],
+        )
         emit_queue.put(
             {
                 "event": f"experiment_fit_{job_id}",
@@ -131,8 +158,10 @@ _MAX_PREVIOUS_JOBS_TO_CHECK = 10
 
 
 def _find_previous_job_with_fit(
+    h5_dir: Path,
     experiment_source_id: int,
     exclude_job_id: int,
+    timeout: float,
 ) -> int | None:
     """Find the most recent PROCESSED job with a stored fit.
 
@@ -147,7 +176,7 @@ def _find_previous_job_with_fit(
     for (job,) in reversed(rows):
         if job.id == exclude_job_id:
             continue
-        fits = get_fit_results_by_job_id(job_id=job.id)
+        fits = get_fit_results_by_job_id(h5_dir=h5_dir, job_id=job.id, timeout=timeout)
         if fits:
             return job.id
         checked += 1

@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import logging
 import pathlib
+from functools import partial
 from typing import TYPE_CHECKING
 
 import click
+import pytz
 
-from icon.config.config import set_config_path
+from icon.config.config import Config
 from icon.logging import setup_logging
 from icon.server.data_access.reconfigurable_experiment_library_client import (
     ReconfigurableExperimentLibraryClient,
@@ -19,16 +21,18 @@ if TYPE_CHECKING:
     from icon.server.post_processing.task import PostProcessingTask
 
 
-def patch_serialization_methods() -> None:
+def patch_serialization_methods(timezone: pytz.BaseTzInfo) -> None:
     import pydase.server.web_server.api.v1.endpoints
     import pydase.server.web_server.sio_setup
 
     import icon.serialization
 
-    pydase.server.web_server.sio_setup.dump = icon.serialization.dump  # type: ignore
+    pydase.server.web_server.sio_setup.dump = partial(  # type: ignore[assignment]
+        icon.serialization.dump, timezone=timezone
+    )
     pydase.server.web_server.api.v1.endpoints.loads = icon.serialization.loads
     pydase.server.web_server.api.v1.endpoints.Serializer = (
-        icon.serialization.IconSerializer
+        icon.serialization.IconSerializer.with_timezone(timezone)
     )
 
 
@@ -37,7 +41,7 @@ def _level_from_verbosity(v: int) -> int:
     return min(max(level, logging.DEBUG), logging.CRITICAL)
 
 
-def start_server() -> None:
+def start_server(config: Config) -> None:
     from typing import TYPE_CHECKING
 
     if TYPE_CHECKING:
@@ -47,8 +51,8 @@ def start_server() -> None:
 
     import icon.server.shared_resource_manager
     import icon.server.web_server.icon_server
-    from icon.config.config import get_config
     from icon.server.api.api_service import APIService
+    from icon.server.data_access.db_context.sqlite.engine import initialize_engine
     from icon.server.data_access.db_context.sqlite.migrations import run_migrations
     from icon.server.hardware_processing.worker import (
         HardwareProcessingWorker,
@@ -61,24 +65,25 @@ def start_server() -> None:
 
     patch_sio_setup()
     patch_web_server()
-    patch_serialization_methods()
+    patch_serialization_methods(pytz.timezone(config.get().date.timezone))
+    initialize_engine(config)
     run_migrations()
 
     SRM.start_srm()
 
-    scheduler = Scheduler(pre_processing_queue=SRM.pre_processing_queue)
+    scheduler = Scheduler(config, pre_processing_queue=SRM.pre_processing_queue)
     scheduler.start()
-    config = get_config()
 
-    number_of_pre_processing_workers = config.server.pre_processing.workers
+    number_of_pre_processing_workers = config.get().server.pre_processing.workers
     pre_processing_update_queues: list[multiprocessing.Queue[UpdateQueue]] = [
         multiprocessing.Queue() for _ in range(number_of_pre_processing_workers)
     ]
-    exp_lib_client = ReconfigurableExperimentLibraryClient()
-    devices = Devices()
+    exp_lib_client = ReconfigurableExperimentLibraryClient(config)
+    devices = Devices(config)
 
     for i, queue in enumerate(pre_processing_update_queues):
         PreProcessingWorker(
+            config=config,
             experiment_library_client=exp_lib_client,
             worker_number=i,
             hardware_processing_queue=SRM.hardware_processing_queue,
@@ -92,6 +97,7 @@ def start_server() -> None:
     )
 
     hardware_processing_worker = HardwareProcessingWorker(
+        config=config,
         hardware_processing_queue=SRM.hardware_processing_queue,
         post_processing_queue=post_processing_queue,
         manager=SRM,
@@ -100,18 +106,19 @@ def start_server() -> None:
     hardware_processing_worker.start()
 
     post_processing_worker = PostProcessingWorker(
-        post_processing_queue=post_processing_queue
+        config=config, post_processing_queue=post_processing_queue
     )
     post_processing_worker.start()
 
     icon.server.web_server.icon_server.IconServer(
         APIService(
+            config=config,
             experiment_library_client=exp_lib_client,
             pre_processing_event_queues=pre_processing_update_queues,
             devices=devices,
         ),
-        host=get_config().server.host,
-        web_port=get_config().server.port,
+        host=config.get().server.host,
+        web_port=config.get().server.port,
         frontend_src=Path(__file__).parent / "frontend",
     ).run()
 
@@ -140,9 +147,9 @@ def main(*, version: bool, verbose: int, quiet: int, config: pathlib.Path) -> No
     level = _level_from_verbosity(verbose - quiet)
     setup_logging(level)
 
-    set_config_path(config or pathlib.Path.home() / ".config/icon/config.yaml")
+    icon_config = Config(config)
     try:
-        start_server()
+        start_server(icon_config)
     except KeyboardInterrupt:
         logging.getLogger(__name__).info("Exit")
 

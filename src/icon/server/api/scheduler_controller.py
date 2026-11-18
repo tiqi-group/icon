@@ -2,8 +2,10 @@ from datetime import datetime
 from typing import Any
 
 import pydase
+import pytz
 
 import icon.server.data_access.models.sqlite.scan_parameter as sqlite_scan_parameter
+from icon.config.config import Config
 from icon.server.api.devices_controller import DevicesController
 from icon.server.api.models.scan_parameter import (
     DatabaseParameter,
@@ -17,7 +19,6 @@ from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
 from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.models.sqlite.job_run import JobRun
-from icon.server.data_access.models.sqlite.now import now
 from icon.server.data_access.repositories import job_transactions
 from icon.server.data_access.repositories.device_repository import DeviceRepository
 from icon.server.data_access.repositories.experiment_source_repository import (
@@ -43,18 +44,21 @@ class SchedulerController(pydase.DataService):
 
     def __init__(
         self,
+        config: Config,
         devices_controller: DevicesController,
         parameters_controller: ParametersController,
     ) -> None:
         """Create a new SchedulerController.
 
         Args:
+            config: Configuration.
             devices_controller: Reference to the devices controller. Used to read
                 current values of device parameters when casting scan values.
             parameters_controller: Reference to the parameters controller. Used to
                 resolve display names for scan parameters at submission time.
         """
         super().__init__()
+        self._config = config
         self._devices_controller = devices_controller
         self._parameters_controller = parameters_controller
 
@@ -141,7 +145,9 @@ class SchedulerController(pydase.DataService):
             The persisted job ID.
         """
         if local_parameters_timestamp is None:
-            local_parameters_timestamp = now()
+            local_parameters_timestamp = datetime.now(
+                tz=pytz.timezone(self._config.get().date.timezone)
+            )
 
         experiment_source = ExperimentSource(experiment_id=experiment_id)
 
@@ -211,7 +217,9 @@ class SchedulerController(pydase.DataService):
             auto_calibration=auto_calibration,
             debug_mode=git_commit_hash is None,
         )
-        job = JobRepository.submit_job(job=job)
+        job = JobRepository(pytz.timezone(self._config.get().date.timezone)).submit_job(
+            job=job
+        )
 
         return job.id
 
@@ -318,9 +326,9 @@ class SchedulerController(pydase.DataService):
             List of job-list entries ordered by descending job ID. A result
             shorter than `limit` means the end of the list has been reached.
         """
-        return JobRepository.get_job_list(
-            statuses=[JobStatus.PROCESSED], before_id=before_id, limit=limit
-        )
+        return JobRepository(
+            pytz.timezone(self._config.get().date.timezone)
+        ).get_job_list(statuses=[JobStatus.PROCESSED], before_id=before_id, limit=limit)
 
     def get_active_jobs(
         self, *, limit: int = JOB_LIST_PAGE_SIZE
@@ -333,7 +341,9 @@ class SchedulerController(pydase.DataService):
         Returns:
             List of job-list entries ordered by descending job ID.
         """
-        return JobRepository.get_job_list(
+        return JobRepository(
+            pytz.timezone(self._config.get().date.timezone)
+        ).get_job_list(
             statuses=[JobStatus.PROCESSING, JobStatus.SUBMITTED], limit=limit
         )
 

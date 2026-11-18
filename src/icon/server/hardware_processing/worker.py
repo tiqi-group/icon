@@ -11,9 +11,8 @@ from typing import TYPE_CHECKING
 import pydase
 import pytz
 import socketio.exceptions
-from pydase.utils.serialization.serializer import dump
 
-from icon.config.config import get_config
+from icon.serialization.serializer import dump
 from icon.server.data_access.experiment_data import (
     ExperimentDataPoint,
     ExperimentDeviceDataPoint,
@@ -38,6 +37,7 @@ from icon.server.utils.pydase_client import client_call_with_timeout
 if TYPE_CHECKING:
     import queue
 
+    from icon.config.config import Config
     from icon.server.data_access.experiment_data import DatabaseValueType
     from icon.server.data_access.models.sqlite.device import Device
     from icon.server.hardware_processing.devices import Devices, Hardware
@@ -45,7 +45,6 @@ if TYPE_CHECKING:
     from icon.server.shared_resource_manager import SharedResourceManager
 
 logger = logging.getLogger(__name__)
-timezone = pytz.timezone(get_config().date.timezone)
 
 
 def error_device_data_point(
@@ -151,6 +150,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
         post_processing_queue: multiprocessing.Queue[PostProcessingTask],
         manager: SharedResourceManager,
         devices: Devices,
+        config: Config,
     ) -> None:
         super().__init__()
         self._queue = hardware_processing_queue
@@ -159,7 +159,8 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self._pydase_clients: dict[str, pydase.Client] = {}
         self._executor: ThreadPoolExecutor | None = None
         self._executor_size = 0
-        self._main_device_start_delay = get_config().hardware.main_device_start_delay
+        self._main_device_start_delay = config.get().hardware.main_device_start_delay
+        self._icon_config = config
 
         self._devices = devices
 
@@ -191,12 +192,18 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self, device: Device, access_path: str, new_value: DatabaseValueType
     ) -> None:
         client = self._pydase_clients[device.name]
-        timeout = get_config().devices.set_value_timeout_seconds
+        timeout = self._icon_config.get().devices.set_value_timeout_seconds
         try:
             client_call_with_timeout(
                 client=client,
                 event="update_value",
-                data={"access_path": access_path, "value": dump(new_value)},
+                data={
+                    "access_path": access_path,
+                    "value": dump(
+                        new_value,
+                        timezone=pytz.timezone(self._icon_config.get().date.timezone),
+                    ),
+                },
                 timeout=timeout,
             )
         except socketio.exceptions.BadNamespaceError as e:
@@ -376,6 +383,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                     for device_id, device, instructions in all_hardware_instructions
                     if isinstance(device, HardwareController)
                 ]
+                timezone = pytz.timezone(self._icon_config.get().date.timezone)
                 timestamp = datetime.now(timezone)
                 device_data, device_errors = self._run_devices(hardware_instructions)
 

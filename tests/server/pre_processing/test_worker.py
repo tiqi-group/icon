@@ -3,10 +3,12 @@ from __future__ import annotations
 import multiprocessing
 import queue
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import MagicMock, patch
 
+from icon.config.config import Config
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.hardware_processing.worker import should_divert_task
 from icon.server.pre_processing.worker import (
@@ -29,6 +31,7 @@ STALE_RUN_ID = 99  # a job run that finished before the current one started
 UPDATED_FREQ = 2.0  # parameter value after a calibration during a pause
 MAX_ROUNDS = 5  # bound on consumer<->hardware round-trips before we call it a loop
 DEVICE_ORDER = ["main", "sub"]  # the job run's device order, loaded when it starts
+TEST_CONFIG_PATH = Path(__file__).parent.parent.parent / "config.yaml"
 
 
 def _scan_parameters(*, realtime: bool) -> list[Any]:
@@ -86,6 +89,7 @@ def _fake_task(
 def _make_worker() -> tuple[PreProcessingWorker, queue.PriorityQueue[Any]]:
     hw_queue: queue.PriorityQueue[Any] = queue.PriorityQueue()
     worker = PreProcessingWorker(
+        config=Config(TEST_CONFIG_PATH),
         worker_number=0,
         pre_processing_queue=queue.PriorityQueue(),
         update_queue=multiprocessing.Queue(),

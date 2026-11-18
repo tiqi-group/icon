@@ -15,7 +15,6 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
-from icon.config.config import get_config
 from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
     InfluxDBSessionProvider,
     InfluxDBv1Session,
@@ -25,6 +24,7 @@ from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
 )
 
 if TYPE_CHECKING:
+    from icon.config.latest import InfluxDBv1Config
     from icon.server.data_access.experiment_data import DatabaseValueType
 
 
@@ -98,7 +98,9 @@ def _assert_schema(
         raise AssertionError(msg)
 
 
-def assert_parameter_db(*, wrap_connection_errors: bool = True) -> ParameterDBSchema:
+def assert_parameter_db(
+    influx: InfluxDBv1Config, *, wrap_connection_errors: bool = True
+) -> ParameterDBSchema:
     """Assert the parameter database is reachable and return its schema version.
 
     Determines the schema version from which parameter measurement exists:
@@ -109,6 +111,7 @@ def assert_parameter_db(*, wrap_connection_errors: bool = True) -> ParameterDBSc
        - :attr:`ParameterDBSchema.PRISTINE`: neither exists.
 
     Args:
+        influx: The InfluxDB connection settings from the ICON configuration.
         wrap_connection_errors: When ``True`` (the CLI default), connection failures are
             wrapped in ``AssertionError`` for a friendly message. When ``False`` (used by
             the server), the native ``requests`` / ``urllib3`` exceptions propagate so the
@@ -118,11 +121,10 @@ def assert_parameter_db(*, wrap_connection_errors: bool = True) -> ParameterDBSc
         AssertionError: if the database is missing or a parameter measurement exists with
             an unexpected schema.
     """
-    influx = get_config().databases.influxdbv1
     base_measurement = influx.measurement
     r2_name = r2_measurement_name(base_measurement)
 
-    with InfluxDBv1Session() as session:
+    with InfluxDBv1Session(influx) as session:
         try:
             databases = session.get_databases()
         except Exception as exc:
@@ -208,8 +210,12 @@ class InfluxDBParameterBackend(ABC):
     schema: ParameterDBSchema
     measurement: str
 
-    def __init__(self, session_provider: InfluxDBSessionProvider | None = None) -> None:
-        self._session_provider = session_provider or default_session_provider
+    def __init__(
+        self,
+        influx: InfluxDBv1Config,
+        session_provider: InfluxDBSessionProvider | None = None,
+    ) -> None:
+        self._session_provider = session_provider or default_session_provider(influx)
 
     @abstractmethod
     def get_influxdb_parameters(
@@ -271,11 +277,13 @@ def value_from_point(point: dict[str, Any]) -> DatabaseValueType | None:
 class ParameterBackendR2(InfluxDBParameterBackend):
     schema = ParameterDBSchema.R2
 
-    def __init__(self, session_provider: InfluxDBSessionProvider | None = None) -> None:
-        self.measurement = r2_measurement_name(
-            get_config().databases.influxdbv1.measurement
-        )
-        super().__init__(session_provider)
+    def __init__(
+        self,
+        influx: InfluxDBv1Config,
+        session_provider: InfluxDBSessionProvider | None = None,
+    ) -> None:
+        self.measurement = r2_measurement_name(influx.measurement)
+        super().__init__(influx, session_provider)
 
     def get_influxdb_parameters(
         self,
@@ -335,9 +343,13 @@ class ParameterBackendR2(InfluxDBParameterBackend):
 class ParameterBackendR1(InfluxDBParameterBackend):
     schema = ParameterDBSchema.R1
 
-    def __init__(self, session_provider: InfluxDBSessionProvider | None = None) -> None:
-        self.measurement = get_config().databases.influxdbv1.measurement
-        super().__init__(session_provider)
+    def __init__(
+        self,
+        influx: InfluxDBv1Config,
+        session_provider: InfluxDBSessionProvider | None = None,
+    ) -> None:
+        self.measurement = influx.measurement
+        super().__init__(influx, session_provider)
 
     def get_influxdb_parameters(
         self,
@@ -394,7 +406,9 @@ _BACKENDS: dict[ParameterDBSchema, type[InfluxDBParameterBackend]] = {
 
 
 def create_parameter_backend(
-    version: ParameterDBSchema, session_provider: InfluxDBSessionProvider | None = None
+    version: ParameterDBSchema,
+    influx: InfluxDBv1Config,
+    session_provider: InfluxDBSessionProvider | None = None,
 ) -> InfluxDBParameterBackend:
     """Instantiate the parameter backend for a detected schema version."""
-    return _BACKENDS[version](session_provider=session_provider)
+    return _BACKENDS[version](influx=influx, session_provider=session_provider)

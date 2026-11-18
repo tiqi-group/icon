@@ -5,7 +5,7 @@ from typing import Any, TypedDict
 import pydase
 from pydase.task.decorator import task
 
-from icon.config.config import get_config
+from icon.config.config import Config
 from icon.server.data_access.db_context.influxdb import influxdb_v1
 from icon.server.data_access.experiment_library_client import ExperimentLibraryClient
 from icon.server.hardware_processing.devices import Devices, Hardware
@@ -38,7 +38,10 @@ class StatusController(pydase.DataService):
     """
 
     def __init__(
-        self, devices: Devices, experiment_library_client: ExperimentLibraryClient
+        self,
+        config: Config,
+        devices: Devices,
+        experiment_library_client: ExperimentLibraryClient,
     ) -> None:
         super().__init__()
         self.__devices = devices
@@ -46,6 +49,7 @@ class StatusController(pydase.DataService):
         self._experiment_library_client = experiment_library_client
         self._hardware_status: list[HardwareStatus] = []
         self._refresh_requested = asyncio.Event()
+        self._config = config
 
     def get_status(self) -> Status:
         """Return the current system status flags.
@@ -70,7 +74,7 @@ class StatusController(pydase.DataService):
 
         Emits a `"status.influxdb"` event to the Socket.IO queue.
         """
-        status = influxdb_v1.is_responsive()
+        status = influxdb_v1.is_responsive(self._config.get().databases.influxdbv1)
 
         self._influxdb_available = status
         emit_queue.put({"event": "status.influxdb", "data": status})
@@ -142,5 +146,5 @@ class StatusController(pydase.DataService):
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(
                     self._refresh_requested.wait(),
-                    timeout=get_config().health_check.interval_seconds,
+                    timeout=self._config.get().health_check.interval_seconds,
                 )

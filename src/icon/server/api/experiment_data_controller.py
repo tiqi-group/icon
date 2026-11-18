@@ -1,11 +1,13 @@
 import asyncio
 import json
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pydase
 
+from icon.config.config import Config
 from icon.server.data_access.repositories.experiment_data_repository import (
     DEFAULT_MAX_TRANSFER_BYTES,
     ExperimentDataRepository,
@@ -23,6 +25,13 @@ class ExperimentDataController(pydase.DataService):
 
     Provides API methods to fetch experiment data associated with jobs.
     """
+
+    def __init__(self, config: Config) -> None:
+        super().__init__()
+        self._config = config
+
+    def experiment_data_repo(self) -> ExperimentDataRepository:
+        return ExperimentDataRepository.from_config(self._config)
 
     async def get_experiment_data_by_job_id(
         self,
@@ -58,7 +67,7 @@ class ExperimentDataController(pydase.DataService):
             instance.
         """
         result = await asyncio.to_thread(
-            ExperimentDataRepository.get_experiment_data_by_job_id,
+            self.experiment_data_repo().get_experiment_data_by_job_id,
             job_id=job_id,
             max_transfer_bytes=max_transfer_bytes,
             include_hardware_instructions=include_hardware_instructions,
@@ -91,7 +100,7 @@ class ExperimentDataController(pydase.DataService):
             stored for the requested scope.
         """
         return await asyncio.to_thread(
-            ExperimentDataRepository.get_hardware_instructions,
+            self.experiment_data_repo().get_hardware_instructions,
             job_id=job_id,
             index=index,
             device_id=device_id,
@@ -120,7 +129,7 @@ class ExperimentDataController(pydase.DataService):
             Serialised FitResult dict.
         """
         data = await asyncio.to_thread(
-            ExperimentDataRepository.get_experiment_data_by_job_id,
+            self.experiment_data_repo().get_experiment_data_by_job_id,
             job_id=job_id,
         )
 
@@ -165,6 +174,8 @@ class ExperimentDataController(pydase.DataService):
                 write_fit_result_by_job_id,
                 job_id=job_id,
                 fit_results=[(device_id, fit_result)],
+                h5_dir=Path(self._config.get().data.results_dir),
+                timeout=self._config.get().data.h5_open_timeout_seconds,
             )
 
         result_dict = asdict(fit_result)
@@ -194,6 +205,8 @@ class ExperimentDataController(pydase.DataService):
             job_id=job_id,
             device_id=device_id,
             result_channel=result_channel,
+            h5_dir=Path(self._config.get().data.results_dir),
+            timeout=self._config.get().data.h5_open_timeout_seconds,
         )
         emit_queue.put(
             {

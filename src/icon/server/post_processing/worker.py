@@ -14,6 +14,7 @@ from icon.server.data_access.repositories.job_run_repository import (
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
 
 if TYPE_CHECKING:
+    from icon.config.config import Config
     from icon.server.post_processing.task import PostProcessingTask
 
 logger = logging.getLogger(__name__)
@@ -22,9 +23,11 @@ logger = logging.getLogger(__name__)
 class PostProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
+        config: Config,
         post_processing_queue: multiprocessing.Queue[PostProcessingTask],
     ) -> None:
         super().__init__()
+        self._icon_config = config
         self._post_processing_queue = post_processing_queue
 
     @handle_keyboard_interrupt(logger)
@@ -38,7 +41,9 @@ class PostProcessingWorker(multiprocessing.Process):
             task = self._post_processing_queue.get()
 
             try:
-                ExperimentDataRepository.write_experiment_data_by_job_id(
+                ExperimentDataRepository.from_config(
+                    self._icon_config
+                ).write_experiment_data_by_job_id(
                     job_id=task.pre_processing_task.job.id,
                     data_point=task.data_point,
                 )

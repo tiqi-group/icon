@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pydase
 
@@ -13,6 +13,9 @@ from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
 )
 from icon.server.web_server.socketio_emit_queue import emit_queue
+
+if TYPE_CHECKING:
+    from icon.config.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +56,9 @@ class ParametersController(pydase.DataService):
     InfluxDB backend.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, config: "Config") -> None:
         super().__init__()
+        self._config = config
         self._all_parameter_metadata: dict[str, ParameterMetadata] = {}
         self._display_group_metadata: dict[str, dict[str, ParameterMetadata]] = {}
 
@@ -143,10 +147,12 @@ class ParametersController(pydase.DataService):
         the shared resource manager, and marks the `ParametersRepository` as
         initialized.
         """
+        ParametersRepository.initialize(
+            shared_parameters=icon.server.shared_resource_manager.SRM.parameters_dict,
+            influx_config=self._config.get().databases.influxdbv1,
+        )
         icon.server.shared_resource_manager.SRM.parameters_dict.update(
             ParametersRepository.get_influxdb_parameters()
         )
-        ParametersRepository.initialize(
-            shared_parameters=icon.server.shared_resource_manager.SRM.parameters_dict
-        )
+        ParametersRepository.initialised = True
         logger.info("ParametersRepository successfully initialised.")

@@ -13,6 +13,7 @@ from icon.server.web_server.socketio_emit_queue import emit_queue
 if TYPE_CHECKING:
     from multiprocessing.managers import DictProxy
 
+    from icon.config.latest import InfluxDBv1Config
     from icon.server.data_access.experiment_data import DatabaseValueType
 
 logger = logging.getLogger(__name__)
@@ -32,14 +33,19 @@ class ParametersRepository:
 
     _shared_parameters: DictProxy[str, DatabaseValueType]
     initialised: bool = False
+    _influx_config: ClassVar[InfluxDBv1Config | None] = None
     _backend: ClassVar[InfluxDBParameterBackend | None] = None
 
     @classmethod
     def _get_backend(cls) -> InfluxDBParameterBackend:
         """Return the schema-specific influxDB parameter backend."""
         if cls._backend is None:
-            schema_revision = assert_parameter_db(wrap_connection_errors=False)
-            cls._backend = create_parameter_backend(schema_revision)
+            if cls._influx_config is None:
+                raise NotInitialisedError("ParametersRepository is not initialised.")
+            schema_revision = assert_parameter_db(
+                cls._influx_config, wrap_connection_errors=False
+            )
+            cls._backend = create_parameter_backend(schema_revision, cls._influx_config)
             logger.info(
                 "Detected InfluxDB parameter schema %s; using %s.",
                 schema_revision.value,
@@ -49,15 +55,22 @@ class ParametersRepository:
 
     @classmethod
     def initialize(
-        cls, *, shared_parameters: DictProxy[str, DatabaseValueType]
+        cls,
+        *,
+        shared_parameters: DictProxy[str, DatabaseValueType],
+        influx_config: InfluxDBv1Config,
     ) -> None:
         """Initialize the repository with a shared parameters dict.
 
+        The `initialised` flag is set by the caller once the initial InfluxDB read
+        has completed, so that failed initialisation attempts can be retried.
+
         Args:
             shared_parameters: Proxy dictionary used to store shared state.
+            influx_config: InfluxDB connection settings from the ICON configuration.
         """
         cls._shared_parameters = shared_parameters
-        cls.initialised = True
+        cls._influx_config = influx_config
 
     @classmethod
     def _check_initialised(cls) -> None:
