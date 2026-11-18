@@ -2,7 +2,6 @@ import datetime
 from typing import TYPE_CHECKING
 
 import sqlalchemy
-import sqlalchemy.event
 import sqlalchemy.orm
 
 from icon.server.data_access.models.enums import JobStatus
@@ -44,10 +43,8 @@ class Job(Base):
     )
     """Primary key identifier for the job."""
 
-    created: sqlalchemy.orm.Mapped[datetime.datetime] = sqlalchemy.orm.mapped_column(
-        default=now
-    )
-    """Timestamp when the job was created. This cannot be set manually."""
+    created: sqlalchemy.orm.Mapped[datetime.datetime] = sqlalchemy.orm.mapped_column()
+    """Timestamp when the job was created. Set by `JobRepository` on submit."""
     experiment_source_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
         sqlalchemy.ForeignKey("experiment_sources.id")
     )
@@ -128,14 +125,3 @@ class Job(Base):
             f"<Job id={self.id} priority={self.priority} "
             f"created={self.created} status={self.status}>"
         )
-
-
-@sqlalchemy.event.listens_for(Job, "before_insert")
-def receive_before_insert(
-    mapper: sqlalchemy.orm.Mapper[Job],  # noqa: ARG001
-    connection: sqlalchemy.engine.Connection,  # noqa: ARG001
-    target: Job,
-) -> None:
-    """Prevent manually setting the 'created' field on insert."""
-    if target.created:
-        raise ValueError(f"Cannot set 'created' on {Job}")

@@ -61,6 +61,7 @@ class JobRepository:
             The persisted job with generated fields populated.
         """
         with sqlalchemy.orm.Session(get_engine()) as session:
+            job.created = datetime.datetime.now(self.timezone)
             session.add(job)
             session.commit()
             session.refresh(job)
@@ -106,9 +107,9 @@ class JobRepository:
             if not job.parent_job_id:
                 job.parent_job_id = job.id
 
-            # PK and created are set by DB on insert
+            # PK is set by DB on insert; created is refreshed on resubmit
             job.id = None  # type: ignore
-            job.created = None  # type: ignore
+            job.created = datetime.datetime.now(self.timezone)
 
             session.add(job)
             session.commit()

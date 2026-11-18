@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
 from unittest.mock import MagicMock
 
@@ -71,7 +72,11 @@ def seed_job(database: sqlalchemy.engine.Engine) -> SeedJob:
             session.add(source)
             session.flush()
 
-            job = Job(experiment_source_id=source.id, status=job_status)
+            job = Job(
+                experiment_source_id=source.id,
+                status=job_status,
+                created=datetime.now(UTC),
+            )
             session.add(job)
             session.flush()
 
