@@ -4,9 +4,11 @@ import queue
 import time
 from typing import Any
 
+import pytz
+
+from icon.config.config import Config
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.job import Job
-from icon.server.data_access.models.sqlite.now import now
 from icon.server.data_access.repositories import job_transactions
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import (
@@ -52,15 +54,20 @@ def should_exit() -> bool:
 class Scheduler(multiprocessing.Process):
     def __init__(
         self,
+        config: Config,
         pre_processing_queue: queue.PriorityQueue[PreProcessingTask],
         **kwargs: Any,
     ) -> None:
         super().__init__()
         self.kwargs = kwargs
+        self._icon_config = config
         self._pre_processing_queue = pre_processing_queue
 
     def _dispatch(self, job_: Job) -> None:
-        dispatched = job_transactions.dispatch_job(job_id=job_.id)
+        dispatched = job_transactions.dispatch_job(
+            job_id=job_.id,
+            timezone=pytz.timezone(self._icon_config.get().date.timezone),
+        )
 
         if dispatched is None:
             logger.info("Job %s not in SUBMITTED state. Skipping it.", job_.id)
@@ -76,7 +83,7 @@ class Scheduler(multiprocessing.Process):
                     git_commit_hash=job.git_commit_hash,
                     scan_parameters=job.scan_parameters,
                     local_parameters_timestamp=job.local_parameters_timestamp.astimezone(
-                        tz=now().tzinfo
+                        tz=pytz.timezone(self._icon_config.get().date.timezone)
                     ).isoformat(),
                     priority=job.priority,
                     auto_calibration=job.auto_calibration,

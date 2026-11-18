@@ -1,5 +1,6 @@
 import pytest
 
+from icon.config.config import Config
 from icon.server.data_access.db_context.influxdb.influxdb_v1 import InfluxDBv1Session
 
 # ``InfluxDBv1Session`` is a schema-agnostic InfluxDB client: it only writes points and
@@ -10,7 +11,8 @@ from icon.server.data_access.db_context.influxdb.influxdb_v1 import InfluxDBv1Se
 @pytest.mark.container
 def test_write_and_query_round_trip(influxdbv1_service: None) -> None:  # noqa: ARG001
     measurement = "PytestGeneric"
-    with InfluxDBv1Session() as session:
+    influx = Config().get().databases.influxdbv1
+    with InfluxDBv1Session(influx) as session:
         session.query(f'DROP MEASUREMENT "{measurement}"')
         session.write_points(
             [

@@ -49,7 +49,7 @@ def database(monkeypatch: pytest.MonkeyPatch) -> sqlalchemy.engine.Engine:
     )
     Base.metadata.create_all(engine)
     for module in _REPOSITORY_MODULES:
-        monkeypatch.setattr(module, "engine", engine)
+        monkeypatch.setattr(module, "get_engine", lambda engine=engine: engine)
         # Not every repository emits events.
         monkeypatch.setattr(module, "emit_queue", MagicMock(), raising=False)
     return engine

@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import queue
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 import pytest
 
+from icon.config.config import Config
 from icon.server.data_access.experiment_data import HardwareProcessingError, Readouts
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.data_access.models.sqlite import Job, JobRun
@@ -128,6 +130,9 @@ def _run_worker(
     worker._executor = None
     worker._executor_size = 0
     worker._main_device_start_delay = 0.0
+    worker._icon_config = Config(  # type: ignore[assignment]
+        Path(__file__).parent.parent.parent / "config.yaml"
+    )
     worker.run()
 
     return list(post_processing_queue.queue), update_run, queued_at_update

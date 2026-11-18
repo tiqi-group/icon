@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 import pytest
 
+from icon.config.config import Config
 from icon.server.data_access.experiment_data import (
     ExperimentDataPoint,
     ExperimentDeviceDataPoint,
@@ -60,6 +62,9 @@ def _run_worker(
     )
     worker = PostProcessingWorker.__new__(PostProcessingWorker)
     worker._post_processing_queue = _SingleTaskQueue(task)  # type: ignore[assignment]
+    worker._icon_config = Config(  # type: ignore[assignment]
+        Path(__file__).parent.parent.parent / "config.yaml"
+    )
     worker.run()
 
 

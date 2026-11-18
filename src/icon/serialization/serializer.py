@@ -4,20 +4,19 @@ import inspect
 import logging
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import pydantic
 import pydase.units as u
 import pydase.utils.serialization.serializer
-import pytz
 import sqlalchemy.orm
 from pydase.data_service.abstract_data_service import AbstractDataService
 from pydase.utils.helpers import get_attribute_doc
 
-from icon.config.config import get_config
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
 
 if TYPE_CHECKING:
+    import pytz
     from pydase.utils.serialization.types import (
         SerializedDatetime,
         SerializedDict,
@@ -28,11 +27,33 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-timezone = pytz.timezone(get_config().date.timezone)
-
 
 class IconSerializer(pydase.utils.serialization.serializer.Serializer):
     """Serialization of pydantic models to the `pydase.utils.serialization.serializer.Serializer`."""
+
+    _timezone: ClassVar[pytz.BaseTzInfo | None] = None
+
+    @classmethod
+    def with_timezone(cls, timezone: pytz.BaseTzInfo) -> type[IconSerializer]:
+        """Return a subclass of ``cls`` carrying ``timezone``.
+
+        The base ``Serializer`` recurses through ``cls.serialize_object`` classmethods,
+        so the timezone must live on the class, not on an instance. Patching
+        ``endpoints.Serializer`` with the returned subclass keeps every recursive call
+        (and the timezone) on the same serializer.
+        """
+
+        class IconSerializerWithTimezone(cls):  # type: ignore[misc, valid-type]
+            _timezone: ClassVar[pytz.BaseTzInfo | None] = timezone
+
+        return IconSerializerWithTimezone
+
+    @classmethod
+    def _tz(cls) -> pytz.BaseTzInfo:
+        if cls._timezone is None:
+            msg = "IconSerializer has no timezone; use IconSerializer.with_timezone()."
+            raise RuntimeError(msg)
+        return cls._timezone
 
     @classmethod
     def serialize_object(cls, obj: Any, access_path: str = "") -> SerializedIconObject:  # type: ignore[override]  # noqa: C901, PLR0912
@@ -90,7 +111,7 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
     def _serialize_datetime(cls, obj: datetime, access_path: str) -> SerializedDatetime:
         return {
             "type": "datetime",
-            "value": obj.astimezone(timezone).isoformat(),
+            "value": obj.astimezone(cls._tz()).isoformat(),
             "doc": None,
             "full_access_path": access_path,
             "readonly": True,
@@ -116,7 +137,7 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
     def _serialize_orm(
         cls, obj: sqlalchemy.orm.DeclarativeBase, access_path: str
     ) -> SerializedDict:
-        dumped_model = SQLAlchemyDictEncoder.encode(obj=obj)
+        dumped_model = SQLAlchemyDictEncoder(cls._tz()).encode(obj=obj)
         return cls._serialize_dict(dumped_model, access_path)
 
     @classmethod
@@ -136,5 +157,5 @@ class IconSerializer(pydase.utils.serialization.serializer.Serializer):
         }
 
 
-def dump(obj: Any) -> SerializedIconObject:
-    return IconSerializer.serialize_object(obj)
+def dump(obj: Any, timezone: pytz.BaseTzInfo) -> SerializedIconObject:
+    return IconSerializer.with_timezone(timezone).serialize_object(obj)

@@ -1,15 +1,14 @@
 import logging
 import os
-from contextlib import suppress
+import threading
 from pathlib import Path, PosixPath
+from typing import Any
 
 import yaml
 from pydantic import BaseModel
 
 from icon.config import latest, v1, v2
 from icon.config.migrations import migration_by_version
-
-_ENV_KEY = "ICON_CONFIG"
 
 logger = logging.getLogger("config")
 
@@ -18,35 +17,93 @@ VERSIONS: dict[int, type[BaseModel]] = {
 }
 
 
-# https://github.com/yaml/pyyaml/issues/617#issuecomment-1039273397
-def path_representer(dumper: yaml.Dumper, data: Path) -> yaml.ScalarNode:
-    return dumper.represent_scalar("tag:yaml.org,2002:str", str(data))
+class SubConfig:
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.timestamp: int | None = None
+        self.current_config: dict[str, Any] = {}
+
+    def load(self) -> dict[str, Any]:
+        try:
+            timestamp = os.stat(self.path).st_mtime_ns
+        except FileNotFoundError:
+            self.current_config = {}
+            self.timestamp = None
+            return {}
+        if self.timestamp is not None and timestamp <= self.timestamp:
+            return self.current_config
+        with open(self.path, "rb") as f:
+            self.current_config = yaml.safe_load(f)
+            self.timestamp = timestamp
+        return self.current_config
 
 
-yaml.add_representer(PosixPath, path_representer)
+class Config:
+    def __init__(self, path: Path | None = None) -> None:
+        source = (
+            (path or Path.home() / ".config" / "icon" / "config.yaml")
+            .expanduser()
+            .resolve()
+        )
+        self._lock = threading.Lock()
+        self._main_config = SubConfig(source)
+        self._hardware_config = SubConfig(source.parent / "hardware.yaml")
+        if not source.is_file():
+            source.parent.mkdir(parents=True, exist_ok=True)
+            with source.open("a") as f:
+                f.write(yaml.dump(latest.ServiceConfig().model_dump()))
+        self._config = migrate_config(self._load_dict() or {}, source)
+
+    def get(self) -> latest.ServiceConfig:
+        with self._lock:
+            self._load()
+            return self._config
+
+    def set(self, config: latest.ServiceConfig) -> None:
+        with self._lock:
+            self._config = config
+            self._save()
+
+    def _load_dict(self) -> dict[str, Any] | None:
+        before = (self._main_config.timestamp, self._hardware_config.timestamp)
+        main_config = self._main_config.load()
+        hardware_config = self._hardware_config.load()
+        after = (self._main_config.timestamp, self._hardware_config.timestamp)
+        if before == after:
+            return None
+        # If hardware.yml exists, load it, otherwise use inline config:
+        if hardware_config:
+            main_config["hardware"] = hardware_config
+        return main_config
+
+    def _load(self) -> latest.ServiceConfig:
+        config = self._load_dict()
+        if config is not None:
+            self._config = latest.ServiceConfig.model_validate(config)
+        return self._config
+
+    def _save(self) -> None:
+        """Save the configuration to the source YAML file.
+
+        Serializes the updated configuration and writes it back to the file.
+        """
+        full_config = self._config.model_dump()
+        if self._hardware_config.timestamp is not None:
+            hardware_config = full_config.pop("hardware")
+            with self._hardware_config.path.open("w") as f:
+                f.write(yaml.dump(hardware_config))
+        with self._main_config.path.open("w") as f:
+            f.write(yaml.dump(full_config))
 
 
-def get_config() -> latest.ServiceConfig:
-    source = get_config_path()
-
-    if not source.is_file():
-        source.parent.mkdir(parents=True, exist_ok=True)
-        with source.open("a") as f:
-            f.write(yaml.dump(latest.ServiceConfig().model_dump()))
-
-    with source.open("r") as f:
-        content = yaml.safe_load(f)
-        config_version = content.get("version", None)
-
-    # If hardware.yml exists, load it, otherwise use inline config:
-    with suppress(FileNotFoundError), _hardware_config_path(source).open("r") as f:
-        hw_content = yaml.safe_load(f)
-        content["hardware"] = hw_content
-
-    schema = VERSIONS.get(config_version)
+def migrate_config(content: dict[str, Any], path: Path) -> latest.ServiceConfig:
+    config_version = content.get("version")
+    schema = VERSIONS.get(config_version) if config_version is not None else None
     if schema is None:
         raise RuntimeError(f"Unsupported configuration version: {config_version}")
-    config = schema.model_validate(content)
+    # The migration chain is dynamically typed (each step takes/returns the
+    # versioned model of its era), so the intermediate config is `Any`.
+    config: Any = schema.model_validate(content)
     original_config_version = config.version
     while config.version < latest.__version__:
         config = migration_by_version[config.version](config)
@@ -56,47 +113,14 @@ def get_config() -> latest.ServiceConfig:
             original_config_version,
             latest.__version__,
         )
-        with source.open("w") as file:
-            file.write(yaml.dump(config.model_dump()))
-
+        with path.open("w") as f:
+            f.write(yaml.dump(config.model_dump()))
     return config
 
 
-def save_config(config: latest.ServiceConfig) -> None:
-    """Save the configuration to the source YAML file.
-
-    Serializes the updated configuration and writes it back to the file.
-
-    Args:
-        config:
-            The validated configuration instance.
-    """
-    source = get_config_path()
-    full_config = config.model_dump()
-    hardware_config_path = _hardware_config_path(source)
-    if hardware_config_path.exists():
-        hardware_config = full_config.pop("hardware")
-        with hardware_config_path.open("w") as f:
-            f.write(yaml.dump(hardware_config))
-    with source.open("w") as f:
-        f.write(yaml.dump(full_config))
+# https://github.com/yaml/pyyaml/issues/617#issuecomment-1039273397
+def path_representer(dumper: yaml.Dumper, data: Path) -> yaml.ScalarNode:
+    return dumper.represent_scalar("tag:yaml.org,2002:str", str(data))
 
 
-def _normalize(p: str | Path) -> Path:
-    return Path(p).expanduser().resolve()
-
-
-def set_config_path(p: Path) -> None:
-    """Set once at startup; children inherit via environment."""
-    os.environ[_ENV_KEY] = str(_normalize(p))
-
-
-def get_config_path() -> Path:
-    """Read from env, else default."""
-    if env := os.environ.get(_ENV_KEY):
-        return _normalize(env)
-    return _normalize(Path.home() / ".config/icon/config.yaml")
-
-
-def _hardware_config_path(config_path: Path) -> Path:
-    return config_path.parent / "hardware.yaml"
+yaml.add_representer(PosixPath, path_representer)

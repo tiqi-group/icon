@@ -11,12 +11,12 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Self, TypeVar
 
 import psutil
 import pytz
 
-from icon.config.config import get_config
 from icon.server.data_access.db_context.influxdb.parameters_backend import (
     get_specifiers_from_parameter_identifier,
 )
@@ -45,6 +45,7 @@ from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrup
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
+    from icon.config.config import Config
     from icon.server.data_access.experiment_library_client import (
         ExperimentLibraryClient,
     )
@@ -58,7 +59,6 @@ if TYPE_CHECKING:
     from icon.server.utils.types import UpdateQueue
 
 logger = logging.getLogger(__name__)
-timezone = pytz.timezone(get_config().date.timezone)
 
 ScanCombination = frozenset[tuple[str, DatabaseValueType]]
 
@@ -191,6 +191,7 @@ def is_global_parameter(parameter_id: str) -> bool:
 class PreProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
+        config: Config,
         worker_number: int,
         pre_processing_queue: queue.PriorityQueue[PreProcessingTask],
         update_queue: multiprocessing.Queue[UpdateQueue],
@@ -214,9 +215,17 @@ class PreProcessingWorker(multiprocessing.Process):
             manager.PriorityQueue()
         )
         self._experiment_library_client = experiment_library_client
+        self._icon_config = config
+
+    def experiment_data_repo(self) -> ExperimentDataRepository:
+        return ExperimentDataRepository.from_config(self._icon_config)
 
     @handle_keyboard_interrupt(logger)
     def run(self) -> None:
+        ParametersRepository.initialize(
+            shared_parameters=self._manager.parameters_dict,
+            influx_config=self._config.get().databases.influxdbv1,
+        )
         with self._experiment_library_client.isolated() as isolated_lib_client:
             logger.debug(
                 "Created isolated experiment library client: %s",
@@ -246,10 +255,11 @@ class PreProcessingWorker(multiprocessing.Process):
                             JobRunStatus.PAUSED,
                         ),
                     )
-
                     try_auto_fit(
+                        h5_dir=Path(self._icon_config.get().data.results_dir),
                         job_id=pre_processing_task.job.id,
                         experiment_source_id=pre_processing_task.job.experiment_source_id,
+                        timeout=self._icon_config.get().data.h5_open_timeout_seconds,
                     )
                 except Exception as e:
                     logger.exception(
@@ -285,7 +295,7 @@ class PreProcessingWorker(multiprocessing.Process):
         if claimed is None:
             return
 
-        ExperimentDataRepository.initialize_for_job_id(job_id=job.id)
+        self.experiment_data_repo().initialize_for_job_id(job_id=job.id)
 
         namespace = ExperimentIdentifier.from_str(job.experiment_source.experiment_id)
         # Clear the worker's parameter dict for the new job
@@ -313,7 +323,7 @@ class PreProcessingWorker(multiprocessing.Process):
             )
         )
 
-        ExperimentDataRepository.update_metadata_by_job_id(
+        self.experiment_data_repo().update_metadata_by_job_id(
             job_id=job.id,
             number_of_shots=job.number_of_shots,
             repetitions=job.repetitions,
@@ -373,6 +383,8 @@ class PreProcessingWorker(multiprocessing.Process):
                     globals latest (default)
                   4) ONLY_NEW_PARAMETERS: only merge `new_parameters`, no DB queries
         """
+        timezone = pytz.timezone(self._icon_config.get().date.timezone)
+
         self._global_parameter_timestamp = datetime.now(timezone)
 
         JobRunRepository.set_parameter_update_timestamp(
@@ -382,7 +394,7 @@ class PreProcessingWorker(multiprocessing.Process):
         if mode == ParamUpdateMode.ONLY_NEW_PARAMETERS:
             if new_parameters:
                 self._parameter_dict.update(new_parameters)
-            ExperimentDataRepository.write_parameter_update_by_job_id(
+            self.experiment_data_repo().write_parameter_update_by_job_id(
                 job_id=pre_processing_task.job.id,
                 timestamp=self._global_parameter_timestamp.isoformat(),
                 parameter_values=self._parameter_dict,
@@ -413,7 +425,7 @@ class PreProcessingWorker(multiprocessing.Process):
 
         self._parameter_dict = {**self._parameter_dict, **global_values, **local_values}
 
-        ExperimentDataRepository.write_parameter_update_by_job_id(
+        self.experiment_data_repo().write_parameter_update_by_job_id(
             job_id=pre_processing_task.job.id,
             timestamp=self._global_parameter_timestamp.isoformat(),
             parameter_values=self._parameter_dict,
@@ -558,7 +570,7 @@ class PreProcessingWorker(multiprocessing.Process):
             hardware_instructions=hardware_instructions,
             scan_progress=self._scan_progress,
             outdated_tasks=self._outdated_tasks,
-            created=datetime.now(timezone),
+            created=datetime.now(pytz.timezone(self._icon_config.get().date.timezone)),
         )
 
     def _regenerate_outdated_jobs(
@@ -604,7 +616,9 @@ class PreProcessingWorker(multiprocessing.Process):
                     namespace=namespace,
                     device_order=self._device_order,
                 )
-                task.created = datetime.now(timezone)
+                task.created = datetime.now(
+                    pytz.timezone(self._icon_config.get().date.timezone)
+                )
             self._submit_task_to_hw_worker(task=task)
 
     def _handle_realtime_scan(
@@ -661,7 +675,9 @@ class PreProcessingWorker(multiprocessing.Process):
                         src_dir=src_dir,
                     )
                     hardware_tasks[frozen_data_point] = hardware_task
-                hardware_task.created = datetime.now(timezone)
+                hardware_task.created = datetime.now(
+                    pytz.timezone(self._icon_config.get().date.timezone)
+                )
                 hardware_task.data_point_index = index
                 yield
                 self._submit_task_to_hw_worker(task=hardware_task)

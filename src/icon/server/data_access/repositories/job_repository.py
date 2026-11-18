@@ -6,8 +6,7 @@ import pytz
 import sqlalchemy.orm
 from sqlalchemy import func, select, update
 
-from icon.config.config import get_config
-from icon.server.data_access.db_context.sqlite import engine
+from icon.server.data_access.db_context.sqlite.engine import get_engine
 from icon.server.data_access.job_list_item import JobListItemDict
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
@@ -19,8 +18,6 @@ from icon.server.web_server.socketio_emit_queue import emit_queue
 
 logger = logging.getLogger(__name__)
 
-timezone = pytz.timezone(get_config().date.timezone)
-
 
 def _job_list_item(
     *,
@@ -30,11 +27,12 @@ def _job_list_item(
     experiment_id: str,
     num_scan_parameters: int,
     run: tuple[int, JobRunStatus] | None,
+    timezone: pytz.BaseTzInfo,
 ) -> JobListItemDict:
     """Build a job list item from raw column values."""
     return {
         "id": job_id,
-        "created": SQLAlchemyDictEncoder.encode(created),
+        "created": SQLAlchemyDictEncoder(timezone).encode(created),
         "status": status.value,
         "experiment_id": experiment_id,
         "num_scan_parameters": num_scan_parameters,
@@ -50,8 +48,10 @@ class JobRepository:
     All methods open their own session and return detached ORM objects.
     """
 
-    @staticmethod
-    def submit_job(*, job: Job) -> Job:
+    def __init__(self, timezone: pytz.BaseTzInfo) -> None:
+        self.timezone = timezone
+
+    def submit_job(self, *, job: Job) -> Job:
         """Insert a new job and emit a creation event.
 
         Args:
@@ -60,7 +60,7 @@ class JobRepository:
         Returns:
             The persisted job with generated fields populated.
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             session.add(job)
             session.commit()
             session.refresh(job)
@@ -72,7 +72,7 @@ class JobRepository:
             {
                 "event": "job.new",
                 "data": {
-                    "job": SQLAlchemyDictEncoder.encode(
+                    "job": SQLAlchemyDictEncoder(self.timezone).encode(
                         JobRepository.get_job_by_id(
                             job_id=job.id,
                             load_experiment_source=True,
@@ -85,8 +85,7 @@ class JobRepository:
 
         return job
 
-    @staticmethod
-    def resubmit_job_by_id(*, job_id: int) -> Job:
+    def resubmit_job_by_id(self, *, job_id: int) -> Job:
         """Clone an existing job as a new submission.
 
         If the source job is not itself a resubmission, the new job's `parent_job_id` is
@@ -98,7 +97,7 @@ class JobRepository:
         Returns:
             The newly created job.
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             job = session.execute(
                 sqlalchemy.select(Job).where(Job.id == job_id)
             ).scalar_one()
@@ -120,7 +119,7 @@ class JobRepository:
             {
                 "event": "job.new",
                 "data": {
-                    "job": SQLAlchemyDictEncoder.encode(
+                    "job": SQLAlchemyDictEncoder(self.timezone).encode(
                         JobRepository.get_job_by_id(
                             job_id=job.id,
                             load_experiment_source=True,
@@ -144,7 +143,7 @@ class JobRepository:
         Returns:
             The updated job with relationships loaded.
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             session.execute(update(Job).where(Job.id == job_id).values(status=status))
             session.commit()
 
@@ -193,7 +192,7 @@ class JobRepository:
         Returns:
             Matching jobs ordered by priority then creation time.
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             stmt = (
                 select(Job)
                 .options(sqlalchemy.orm.joinedload(Job.experiment_source))
@@ -211,8 +210,8 @@ class JobRepository:
 
             return session.execute(stmt).unique().scalars().all()
 
-    @staticmethod
     def get_job_list(
+        self,
         *,
         statuses: Sequence[JobStatus] | None = None,
         before_id: int | None = None,
@@ -250,7 +249,7 @@ class JobRepository:
         if limit is not None:
             stmt = stmt.limit(limit)
 
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             rows = session.execute(stmt).all()
             if not rows:
                 return []
@@ -282,6 +281,7 @@ class JobRepository:
                 experiment_id=row.experiment_id,
                 num_scan_parameters=scan_parameter_counts.get(row.id, 0),
                 run=latest_runs.get(row.id),
+                timezone=self.timezone,
             )
             for row in rows
         ]
@@ -303,7 +303,7 @@ class JobRepository:
         Returns:
             The requested job.
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             stmt = select(Job).where(Job.id == job_id)
 
             if load_experiment_source:
@@ -328,7 +328,7 @@ class JobRepository:
         Returns:
             Rows containing `Job` objects, ordered by priority then creation time.
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             stmt = select(Job).where(Job.experiment_source_id == experiment_source_id)
 
             if status:

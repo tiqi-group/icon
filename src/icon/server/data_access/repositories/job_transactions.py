@@ -1,13 +1,14 @@
+import datetime
 import logging
 
+import pytz
 import sqlalchemy.orm
 from sqlalchemy import select, update
 
-from icon.server.data_access.db_context.sqlite import engine
+from icon.server.data_access.db_context.sqlite.engine import get_engine
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.models.sqlite.job_run import JobRun
-from icon.server.data_access.models.sqlite.now import now
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
@@ -53,7 +54,7 @@ def cancel_job(
         log: Reason recorded on the run, if there is one.
     """
     with (
-        sqlalchemy.orm.Session(engine, expire_on_commit=False) as session,
+        sqlalchemy.orm.Session(get_engine(), expire_on_commit=False) as session,
         session.begin(),
     ):
         updated_job_id = session.execute(
@@ -114,18 +115,21 @@ def fail_job(*, job_id: int, log: str | None = None) -> None:
     cancel_job(job_id=job_id, run_status=JobRunStatus.FAILED, log=log)
 
 
-def dispatch_job(*, job_id: int) -> tuple[Job, JobRun] | None:
+def dispatch_job(
+    *, job_id: int, timezone: pytz.BaseTzInfo
+) -> tuple[Job, JobRun] | None:
     """Insert a run for a SUBMITTED job and progress it to PROCESSING.
 
     Args:
         job_id: ID of the job to dispatch.
+        timezone: Timezone for timestamps in the database.
 
     Returns:
         The claimed job with its relationships loaded and its new run, or None
         when the job is no longer SUBMITTED, i.e. cancelled or processing.
     """
     with (
-        sqlalchemy.orm.Session(engine, expire_on_commit=False) as session,
+        sqlalchemy.orm.Session(get_engine(), expire_on_commit=False) as session,
         session.begin(),
     ):
         claimed_id = session.execute(
@@ -138,7 +142,7 @@ def dispatch_job(*, job_id: int) -> tuple[Job, JobRun] | None:
         if claimed_id is None:
             return None
 
-        run = JobRun(job_id=job_id, scheduled_time=now())
+        run = JobRun(job_id=job_id, scheduled_time=datetime.datetime.now(tz=timezone))
         session.add(run)
         session.flush()
 
@@ -169,7 +173,7 @@ def dispatch_job(*, job_id: int) -> tuple[Job, JobRun] | None:
     emit_queue.put(
         {
             "event": "job_run.new",
-            "data": {"job_run": SQLAlchemyDictEncoder.encode(obj=run)},
+            "data": {"job_run": SQLAlchemyDictEncoder(timezone).encode(obj=run)},
         }
     )
 

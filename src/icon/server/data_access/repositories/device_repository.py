@@ -2,11 +2,12 @@ import enum
 import logging
 from collections.abc import Sequence
 
+import pytz
 import sqlalchemy.exc
 import sqlalchemy.orm.session
 from sqlalchemy import select, update
 
-from icon.server.data_access.db_context.sqlite import engine
+from icon.server.data_access.db_context.sqlite.engine import get_engine
 from icon.server.data_access.models.enums import DeviceStatus
 from icon.server.data_access.models.sqlite.device import Device
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
@@ -27,16 +28,17 @@ class DeviceRepository:
     """
 
     @staticmethod
-    def add_device(*, device: Device) -> Device:
+    def add_device(*, device: Device, timezone: pytz.BaseTzInfo) -> Device:
         """Insert a new device into the database.
 
         Args:
             device: Device instance to persist.
+            timezone: Timezone used for timestamps in the database.
 
         Returns:
             The persisted device with database-generated fields (e.g., `id`) populated.
         """
-        with sqlalchemy.orm.session.Session(engine) as session:
+        with sqlalchemy.orm.session.Session(get_engine()) as session:
             session.add(device)
             session.commit()
             session.refresh(device)
@@ -46,7 +48,7 @@ class DeviceRepository:
             {
                 "event": "device.new",
                 "data": {
-                    "device": SQLAlchemyDictEncoder.encode(obj=device),
+                    "device": SQLAlchemyDictEncoder(timezone).encode(obj=device),
                 },
             }
         )
@@ -94,7 +96,7 @@ class DeviceRepository:
             if device.status == DeviceStatus.ENABLED:
                 raise RuntimeError("Cannot change url of an enabled device")
 
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             session.execute(
                 update(Device).where(Device.name == name).values(updated_properties)
             )
@@ -140,7 +142,7 @@ class DeviceRepository:
         Returns:
             All devices matching the filter (or all devices if no filter is given).
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             stmt = sqlalchemy.select(Device)
 
             if status is not None:
@@ -161,7 +163,7 @@ class DeviceRepository:
         Raises:
             NoResultFound: If no device exists with the given ID.
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             stmt = sqlalchemy.select(Device).where(Device.id == id)
             return session.execute(stmt).scalar_one()
 
@@ -179,7 +181,7 @@ class DeviceRepository:
             NoDeviceFoundError: If no device exists with the given name.
         """
         try:
-            with sqlalchemy.orm.Session(engine) as session:
+            with sqlalchemy.orm.Session(get_engine()) as session:
                 stmt = sqlalchemy.select(Device).where(Device.name == name)
                 return session.execute(stmt).scalar_one()
         except sqlalchemy.exc.NoResultFound:
@@ -194,6 +196,6 @@ class DeviceRepository:
         Returns:
             List of device names.
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             stmt = sqlalchemy.select(Device.name)
             return session.execute(stmt).scalars().all()

@@ -6,7 +6,7 @@ import sqlalchemy.orm
 from sqlalchemy import select, update
 from sqlalchemy.exc import NoResultFound
 
-from icon.server.data_access.db_context.sqlite import engine
+from icon.server.data_access.db_context.sqlite.engine import get_engine
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.data_access.models.sqlite.job_run import JobRun
 from icon.server.web_server.socketio_emit_queue import emit_queue
@@ -73,7 +73,7 @@ class JobRunRepository:
             The updated job run, or None when the current status is non of the
             `only_if_status` statuses.
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             stmt = update(JobRun).where(JobRun.id == run_id)
             if only_if_status is not None:
                 stmt = stmt.where(JobRun.status.in_(only_if_status))
@@ -124,7 +124,7 @@ class JobRunRepository:
         if not isinstance(status, list):
             status = [status]
 
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             stmt = (
                 select(JobRun)
                 .where(JobRun.status.in_(status))
@@ -147,7 +147,7 @@ class JobRunRepository:
         Returns:
             The run linked to the given job.
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             stmt = (
                 select(JobRun)
                 .where(JobRun.job_id == job_id)
@@ -172,7 +172,7 @@ class JobRunRepository:
         Returns:
             The scheduled start time of the run.
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             stmt = (
                 select(JobRun.scheduled_time)
                 .where(JobRun.job_id == job_id)
@@ -194,7 +194,7 @@ class JobRunRepository:
         Returns:
             Scheduled times ordered from newest to oldest.
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             stmt = (
                 select(JobRun.scheduled_time)
                 .where(JobRun.status != JobRunStatus.PENDING)
@@ -214,7 +214,7 @@ class JobRunRepository:
             run_id: ID of the job.
             timestamp: New parameter update timestamp.
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             stmt = (
                 update(JobRun)
                 .where(JobRun.id == run_id)
@@ -238,7 +238,7 @@ class JobRunRepository:
             The parameter update timestamp, or None if no parameter update has
             been recorded for this run yet.
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             stmt = select(JobRun.parameter_update_timestamp).where(JobRun.id == run_id)
 
             timestamp = session.execute(stmt).scalar_one()

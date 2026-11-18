@@ -2,7 +2,7 @@ import logging
 
 import sqlalchemy.orm
 
-from icon.server.data_access.db_context.sqlite import engine
+from icon.server.data_access.db_context.sqlite.engine import get_engine
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class ExperimentSourceRepository:
         Returns:
             The existing or newly created experiment source.
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(get_engine()) as session:
             experiment = (
                 session.query(ExperimentSource)
                 .filter_by(experiment_id=experiment_source.experiment_id)

@@ -13,6 +13,7 @@ from icon.server.data_access.experiment_library_client import (
 )
 
 if TYPE_CHECKING:
+    from icon.config.config import Config
     from icon.server.api.models.experiment_dict import ExperimentDict
     from icon.server.data_access.experiment_data import (
         DatabaseValueType,
@@ -44,9 +45,10 @@ def load_client(
 class ReconfigurableExperimentLibraryClient(ExperimentLibraryClient):
     """Wrapper reconfiguring an underlying client, whenever relevant config changes."""
 
-    def __init__(self) -> None:
+    def __init__(self, config: "Config") -> None:
         self.client = FallbackExperimentLibraryClient()
         self.reloader = Reloader(
+            config,
             load_client,
             fallback_obj=self.client,
             subconfig=lambda config: {
