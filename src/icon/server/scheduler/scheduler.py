@@ -5,8 +5,10 @@ import time
 from typing import Any
 
 import pytz
+from sqlalchemy.engine import Engine
 
 from icon.config.config import Config
+from icon.server.data_access.db_context.sqlite.engine import CachedEngine
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.repositories import job_transactions
@@ -20,31 +22,37 @@ from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrup
 logger = logging.getLogger(__name__)
 
 
-def initialise_job_tables() -> None:
+def initialise_job_tables(engine: Engine) -> None:
     # update job_runs table
     job_runs = JobRunRepository.get_runs_by_status(
+        engine=engine,
         status=[
             JobRunStatus.PENDING,
             JobRunStatus.PROCESSING,
             JobRunStatus.PAUSED,
-        ]
+        ],
     )
     for job_run in job_runs:
         JobRunRepository.update_run_by_id(
+            engine=engine,
             run_id=job_run.id,
             status=JobRunStatus.CANCELLED,
             log="Cancelled during scheduler initialization.",
         )
 
     # update jobs table
-    jobs = JobRepository.get_jobs_by_status_and_timeframe(status=JobStatus.PROCESSING)
+    jobs = JobRepository.get_jobs_by_status_and_timeframe(
+        engine=engine, status=JobStatus.PROCESSING
+    )
     for job in jobs:
         logger.warning(
             "Job '%s' was left in PROCESSING state and is being marked as PROCESSED "
             "during scheduler initialization (likely abandoned due to a server restart).",
             job.id,
         )
-        JobRepository.update_job_status(job_id=job.id, status=JobStatus.PROCESSED)
+        JobRepository.update_job_status(
+            engine=engine, job_id=job.id, status=JobStatus.PROCESSED
+        )
 
 
 def should_exit() -> bool:
@@ -56,15 +64,23 @@ class Scheduler(multiprocessing.Process):
         self,
         config: Config,
         pre_processing_queue: queue.PriorityQueue[PreProcessingTask],
+        engine_cache: CachedEngine,
         **kwargs: Any,
     ) -> None:
         super().__init__()
         self.kwargs = kwargs
         self._icon_config = config
         self._pre_processing_queue = pre_processing_queue
+        self._engine_cache = engine_cache
+
+    def _engine(self) -> Engine:
+        return self._engine_cache.get_cached(
+            self._icon_config.get().databases.sqlite.file
+        )
 
     def _dispatch(self, job_: Job) -> None:
         dispatched = job_transactions.dispatch_job(
+            engine=self._engine(),
             job_id=job_.id,
             timezone=pytz.timezone(self._icon_config.get().date.timezone),
         )
@@ -94,16 +110,18 @@ class Scheduler(multiprocessing.Process):
         except Exception:
             logger.exception("Failed to queue job %s, failing it", job_.id)
             job_transactions.fail_job(
-                job_id=job_.id, log="Failed to queue the pre-processing task."
+                engine=self._engine(),
+                job_id=job_.id,
+                log="Failed to queue the pre-processing task.",
             )
 
     @handle_keyboard_interrupt(logger)
     def run(self) -> None:
-        initialise_job_tables()
+        initialise_job_tables(self._engine())
         while not should_exit():
             try:
                 jobs = JobRepository.get_jobs_by_status_and_timeframe(
-                    status=JobStatus.SUBMITTED
+                    engine=self._engine(), status=JobStatus.SUBMITTED
                 )
                 for job_ in jobs:
                     try:

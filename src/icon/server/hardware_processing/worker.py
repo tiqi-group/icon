@@ -37,7 +37,10 @@ from icon.server.utils.pydase_client import client_call_with_timeout
 if TYPE_CHECKING:
     import queue
 
+    from sqlalchemy.engine import Engine
+
     from icon.config.config import Config
+    from icon.server.data_access.db_context.sqlite.engine import CachedEngine
     from icon.server.data_access.experiment_data import DatabaseValueType
     from icon.server.data_access.models.sqlite.device import Device
     from icon.server.hardware_processing.devices import Devices, Hardware
@@ -151,6 +154,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
         manager: SharedResourceManager,
         devices: Devices,
         config: Config,
+        engine_cache: CachedEngine,
     ) -> None:
         super().__init__()
         self._queue = hardware_processing_queue
@@ -161,8 +165,14 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self._executor_size = 0
         self._main_device_start_delay = config.get().hardware.main_device_start_delay
         self._icon_config = config
+        self._engine_cache = engine_cache
 
         self._devices = devices
+
+    def _engine(self) -> Engine:
+        return self._engine_cache.get_cached(
+            self._icon_config.get().databases.sqlite.file
+        )
 
     def _start_delay(self, device_index: int, num_devices: int) -> float:
         """Returns the delay to apply before starting a device.
@@ -257,7 +267,9 @@ class HardwareProcessingWorker(multiprocessing.Process):
             if device_name is None:
                 continue
 
-            device = DeviceRepository.get_device_by_name(name=device_name)
+            device = DeviceRepository.get_device_by_name(
+                engine=self._engine(), name=device_name
+            )
 
             if not device.status == DeviceStatus.ENABLED:
                 raise RuntimeError(
@@ -348,7 +360,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 url=device.url, block_until_connected=False, auto_update_proxy=False
             )
             for device in DeviceRepository.get_devices_by_status(
-                status=DeviceStatus.ENABLED
+                engine=self._engine(), status=DeviceStatus.ENABLED
             )
         }
 
@@ -358,6 +370,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
             # One fetch covers both checks: the run carries the current status
             # (cancel/pause) and the parameter-update timestamp.
             job_run = JobRunRepository.get_run_by_job_id(
+                engine=self._engine(),
                 job_id=task.pre_processing_task.job.id,
             )
             if job_run.status in (JobRunStatus.CANCELLED, JobRunStatus.FAILED):
@@ -415,6 +428,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
 
                     # Keep the status of runs cancelled in the meantime.
                     try_update_run_by_id(
+                        engine=self._engine(),
                         run_id=task.pre_processing_task.job_run.id,
                         status=JobRunStatus.FAILED,
                         log=err_msgs,
@@ -426,6 +440,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                     task.pre_processing_task.job_run.id,
                 )
                 try_update_run_by_id(
+                    engine=self._engine(),
                     run_id=task.pre_processing_task.job_run.id,
                     status=JobRunStatus.FAILED,
                     log=str(e),

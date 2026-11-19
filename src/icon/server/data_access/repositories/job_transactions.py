@@ -4,8 +4,8 @@ import logging
 import pytz
 import sqlalchemy.orm
 from sqlalchemy import select, update
+from sqlalchemy.engine import Engine
 
-from icon.server.data_access.db_context.sqlite.engine import get_engine
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.models.sqlite.job_run import JobRun
@@ -42,6 +42,7 @@ def _latest_run_id(job_id: int) -> sqlalchemy.ScalarSelect[int]:
 
 def cancel_job(
     *,
+    engine: Engine,
     job_id: int,
     log: str | None = None,
     run_status: JobRunStatus = JobRunStatus.CANCELLED,
@@ -49,12 +50,13 @@ def cancel_job(
     """Cancel a job and move its run to `run_status`.
 
     Args:
+        engine: SQLAlchemy engine to query the database with.
         job_id: ID of the job to retire.
         run_status: Terminal status to give the run.
         log: Reason recorded on the run, if there is one.
     """
     with (
-        sqlalchemy.orm.Session(get_engine(), expire_on_commit=False) as session,
+        sqlalchemy.orm.Session(engine, expire_on_commit=False) as session,
         session.begin(),
     ):
         updated_job_id = session.execute(
@@ -105,22 +107,24 @@ def cancel_job(
         )
 
 
-def fail_job(*, job_id: int, log: str | None = None) -> None:
+def fail_job(*, engine: Engine, job_id: int, log: str | None = None) -> None:
     """Cancel job and fail the run it may own.
 
     Args:
+        engine: SQLAlchemy engine to query the database with.
         job_id: ID of the job to fail.
         log: Optional reason recorded on the run.
     """
-    cancel_job(job_id=job_id, run_status=JobRunStatus.FAILED, log=log)
+    cancel_job(engine=engine, job_id=job_id, run_status=JobRunStatus.FAILED, log=log)
 
 
 def dispatch_job(
-    *, job_id: int, timezone: pytz.BaseTzInfo
+    *, engine: Engine, job_id: int, timezone: pytz.BaseTzInfo
 ) -> tuple[Job, JobRun] | None:
     """Insert a run for a SUBMITTED job and progress it to PROCESSING.
 
     Args:
+        engine: SQLAlchemy engine to query the database with.
         job_id: ID of the job to dispatch.
         timezone: Timezone for timestamps in the database.
 
@@ -129,7 +133,7 @@ def dispatch_job(
         when the job is no longer SUBMITTED, i.e. cancelled or processing.
     """
     with (
-        sqlalchemy.orm.Session(get_engine(), expire_on_commit=False) as session,
+        sqlalchemy.orm.Session(engine, expire_on_commit=False) as session,
         session.begin(),
     ):
         claimed_id = session.execute(

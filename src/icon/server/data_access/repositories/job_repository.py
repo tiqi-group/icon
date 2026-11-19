@@ -5,8 +5,8 @@ from collections.abc import Sequence
 import pytz
 import sqlalchemy.orm
 from sqlalchemy import func, select, update
+from sqlalchemy.engine import Engine
 
-from icon.server.data_access.db_context.sqlite.engine import get_engine
 from icon.server.data_access.job_list_item import JobListItemDict
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
@@ -48,8 +48,9 @@ class JobRepository:
     All methods open their own session and return detached ORM objects.
     """
 
-    def __init__(self, timezone: pytz.BaseTzInfo) -> None:
+    def __init__(self, timezone: pytz.BaseTzInfo, engine: Engine) -> None:
         self.timezone = timezone
+        self.engine = engine
 
     def submit_job(self, *, job: Job) -> Job:
         """Insert a new job and emit a creation event.
@@ -60,7 +61,7 @@ class JobRepository:
         Returns:
             The persisted job with generated fields populated.
         """
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(self.engine) as session:
             job.created = datetime.datetime.now(self.timezone)
             session.add(job)
             session.commit()
@@ -75,6 +76,7 @@ class JobRepository:
                 "data": {
                     "job": SQLAlchemyDictEncoder(self.timezone).encode(
                         JobRepository.get_job_by_id(
+                            engine=self.engine,
                             job_id=job.id,
                             load_experiment_source=True,
                             load_scan_parameters=True,
@@ -98,7 +100,7 @@ class JobRepository:
         Returns:
             The newly created job.
         """
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(self.engine) as session:
             job = session.execute(
                 sqlalchemy.select(Job).where(Job.id == job_id)
             ).scalar_one()
@@ -122,6 +124,7 @@ class JobRepository:
                 "data": {
                     "job": SQLAlchemyDictEncoder(self.timezone).encode(
                         JobRepository.get_job_by_id(
+                            engine=self.engine,
                             job_id=job.id,
                             load_experiment_source=True,
                             load_scan_parameters=True,
@@ -134,17 +137,18 @@ class JobRepository:
         return job
 
     @staticmethod
-    def update_job_status(*, job_id: int, status: JobStatus) -> Job:
+    def update_job_status(*, engine: Engine, job_id: int, status: JobStatus) -> Job:
         """Update a job's status and emit an update event.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             job_id: ID of the job to update.
             status: New job status.
 
         Returns:
             The updated job with relationships loaded.
         """
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(engine) as session:
             session.execute(update(Job).where(Job.id == job_id).values(status=status))
             session.commit()
 
@@ -179,6 +183,7 @@ class JobRepository:
     @staticmethod
     def get_jobs_by_status_and_timeframe(
         *,
+        engine: Engine,
         status: JobStatus | None = None,
         start: datetime.datetime | None = None,
         stop: datetime.datetime | None = None,
@@ -186,6 +191,7 @@ class JobRepository:
         """List jobs filtered by status and optional creation time window.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             status: Optional status filter.
             start: Inclusive start timestamp.
             stop: Exclusive stop timestamp.
@@ -193,7 +199,7 @@ class JobRepository:
         Returns:
             Matching jobs ordered by priority then creation time.
         """
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(engine) as session:
             stmt = (
                 select(Job)
                 .options(sqlalchemy.orm.joinedload(Job.experiment_source))
@@ -250,7 +256,7 @@ class JobRepository:
         if limit is not None:
             stmt = stmt.limit(limit)
 
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(self.engine) as session:
             rows = session.execute(stmt).all()
             if not rows:
                 return []
@@ -290,6 +296,7 @@ class JobRepository:
     @staticmethod
     def get_job_by_id(
         *,
+        engine: Engine,
         job_id: int,
         load_experiment_source: bool = False,
         load_scan_parameters: bool = False,
@@ -297,6 +304,7 @@ class JobRepository:
         """Fetch a job by ID with optional eager-loading.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             job_id: Job identifier.
             load_experiment_source: If True, eager-load `experiment_source`.
             load_scan_parameters: If True, eager-load `scan_parameters`.
@@ -304,7 +312,7 @@ class JobRepository:
         Returns:
             The requested job.
         """
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(engine) as session:
             stmt = select(Job).where(Job.id == job_id)
 
             if load_experiment_source:
@@ -317,19 +325,21 @@ class JobRepository:
     @staticmethod
     def get_job_by_experiment_source_and_status(
         *,
+        engine: Engine,
         experiment_source_id: int,
         status: JobStatus | None = None,
     ) -> Sequence[sqlalchemy.Row[tuple[Job]]]:
         """List jobs for an experiment source, optionally filtered by status.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             experiment_source_id: Foreign key of the experiment source.
             status: Optional status filter.
 
         Returns:
             Rows containing `Job` objects, ordered by priority then creation time.
         """
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(engine) as session:
             stmt = select(Job).where(Job.experiment_source_id == experiment_source_id)
 
             if status:

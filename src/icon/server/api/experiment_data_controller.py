@@ -6,8 +6,10 @@ from typing import Any
 
 import numpy as np
 import pydase
+from sqlalchemy.engine import Engine
 
 from icon.config.config import Config
+from icon.server.data_access.db_context.sqlite.engine import CachedEngine
 from icon.server.data_access.repositories.experiment_data_repository import (
     DEFAULT_MAX_TRANSFER_BYTES,
     ExperimentDataRepository,
@@ -26,12 +28,16 @@ class ExperimentDataController(pydase.DataService):
     Provides API methods to fetch experiment data associated with jobs.
     """
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, engine_cache: CachedEngine) -> None:
         super().__init__()
         self._config = config
+        self._engine_cache = engine_cache
+
+    def _engine(self) -> Engine:
+        return self._engine_cache.get_cached(self._config.get().databases.sqlite.file)
 
     def experiment_data_repo(self) -> ExperimentDataRepository:
-        return ExperimentDataRepository.from_config(self._config)
+        return ExperimentDataRepository.from_config(self._config, self._engine())
 
     async def get_experiment_data_by_job_id(
         self,
@@ -172,6 +178,7 @@ class ExperimentDataController(pydase.DataService):
         if fit_result.success:
             await asyncio.to_thread(
                 write_fit_result_by_job_id,
+                engine=self._engine(),
                 job_id=job_id,
                 fit_results=[(device_id, fit_result)],
                 h5_dir=Path(self._config.get().data.results_dir),
@@ -202,6 +209,7 @@ class ExperimentDataController(pydase.DataService):
         """
         await asyncio.to_thread(
             delete_fit_result_by_job_id,
+            engine=self._engine(),
             job_id=job_id,
             device_id=device_id,
             result_channel=result_channel,
