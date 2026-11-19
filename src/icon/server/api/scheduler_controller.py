@@ -49,6 +49,7 @@ class SchedulerController(pydase.DataService):
         config: Config,
         devices_controller: DevicesController,
         parameters_controller: ParametersController,
+        parameters_repository: ParametersRepository,
         engine_cache: CachedEngine,
     ) -> None:
         """Create a new SchedulerController.
@@ -59,12 +60,15 @@ class SchedulerController(pydase.DataService):
                 current values of device parameters when casting scan values.
             parameters_controller: Reference to the parameters controller. Used to
                 resolve display names for scan parameters at submission time.
+            parameters_repository: Repository for shared parameter values. Used to
+                read current values of shared parameters when casting scan values.
             engine_cache: Cache of the SQLAlchemy engine for the SQLite database.
         """
         super().__init__()
         self._config = config
         self._devices_controller = devices_controller
         self._parameters_controller = parameters_controller
+        self._parameters_repository = parameters_repository
         self._engine_cache = engine_cache
 
     def _engine(self) -> Engine:
@@ -418,7 +422,7 @@ class SchedulerController(pydase.DataService):
             )
 
         else:
-            current_value = ParametersRepository.get_shared_parameter_by_id(
+            current_value = self._parameters_repository.get_shared_parameter_by_id(
                 parameter_id=parameter_id
             )
             if current_value is None:

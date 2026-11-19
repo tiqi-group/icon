@@ -27,6 +27,7 @@ def controller(engine_cache: CachedEngine) -> SchedulerController:
         mock_config(),
         devices_controller=MagicMock(),
         parameters_controller=MagicMock(),
+        parameters_repository=MagicMock(),
         engine_cache=engine_cache,
     )
 

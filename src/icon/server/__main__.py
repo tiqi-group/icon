@@ -54,6 +54,9 @@ def start_server(config: Config) -> None:
     from icon.server.api.api_service import APIService
     from icon.server.data_access.db_context.sqlite.engine import CachedEngine
     from icon.server.data_access.db_context.sqlite.migrations import run_migrations
+    from icon.server.data_access.repositories.parameters_repository import (
+        ParametersRepository,
+    )
     from icon.server.hardware_processing.worker import (
         HardwareProcessingWorker,
     )
@@ -70,6 +73,11 @@ def start_server(config: Config) -> None:
     run_migrations(engine=engine_cache.get_cached(config.get().databases.sqlite.file))
 
     SRM.start_srm()
+
+    parameters_repository = ParametersRepository(
+        shared_parameters=SRM.parameters_dict,
+        influx_config=config.get().databases.influxdbv1,
+    )
 
     scheduler = Scheduler(
         config,
@@ -95,6 +103,7 @@ def start_server(config: Config) -> None:
             update_queue=queue,
             manager=SRM,
             engine_cache=engine_cache,
+            parameters_repository=parameters_repository,
         ).start()
 
     post_processing_queue: multiprocessing.Queue[PostProcessingTask] = (
@@ -124,6 +133,7 @@ def start_server(config: Config) -> None:
             experiment_library_client=exp_lib_client,
             pre_processing_event_queues=pre_processing_update_queues,
             devices=devices,
+            parameters_repository=parameters_repository,
             engine_cache=engine_cache,
         ),
         host=config.get().server.host,
