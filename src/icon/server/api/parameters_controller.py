@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Any
 
 import pydase
 
-import icon.server.shared_resource_manager
 from icon.server.api.models.parameter_metadata import ParameterMetadata
 from icon.server.data_access.experiment_data import DatabaseValueType
 from icon.server.data_access.experiment_library_client import (
@@ -56,9 +55,14 @@ class ParametersController(pydase.DataService):
     InfluxDB backend.
     """
 
-    def __init__(self, config: "Config") -> None:
+    def __init__(
+        self,
+        config: "Config",
+        parameters_repository: ParametersRepository,
+    ) -> None:
         super().__init__()
         self._config = config
+        self._parameters_repository = parameters_repository
         self._all_parameter_metadata: dict[str, ParameterMetadata] = {}
         self._display_group_metadata: dict[str, dict[str, ParameterMetadata]] = {}
 
@@ -71,7 +75,7 @@ class ParametersController(pydase.DataService):
         Returns:
             The current value stored in the shared parameters dict.
         """
-        return ParametersRepository.get_shared_parameters()[parameter_id]
+        return self._parameters_repository.get_shared_parameters()[parameter_id]
 
     def update_parameter_by_id(self, parameter_id: str, value: Any) -> None:
         """Update a single parameter value in InfluxDB.
@@ -80,7 +84,9 @@ class ParametersController(pydase.DataService):
             parameter_id: The unique identifier of the parameter.
             value: The new value to assign.
         """
-        ParametersRepository.update_parameters(parameter_mapping={parameter_id: value})
+        self._parameters_repository.update_parameters(
+            parameter_mapping={parameter_id: value}
+        )
 
     def get_all_parameters(self) -> dict[str, DatabaseValueType]:
         """Return the current values of all shared parameters.
@@ -88,7 +94,7 @@ class ParametersController(pydase.DataService):
         Returns:
             Mapping of parameter IDs to their values.
         """
-        return dict(ParametersRepository.get_shared_parameters())
+        return dict(self._parameters_repository.get_shared_parameters())
 
     def get_display_groups(self) -> dict[str, dict[str, ParameterMetadata]]:
         """Return metadata grouped by display group.
@@ -132,27 +138,10 @@ class ParametersController(pydase.DataService):
         InfluxDB. If not, initialize it by writing the default value via the
         `ParametersRepository`.
         """
-        influxdb_param_keys = ParametersRepository.get_influxdb_parameter_keys()
+        influxdb_param_keys = self._parameters_repository.get_influxdb_parameter_keys()
         for parameter_id, metadata in self._all_parameter_metadata.items():
             if parameter_id not in influxdb_param_keys:
                 logger.info(
                     "Creating entry %s: %s", parameter_id, metadata["default_value"]
                 )
                 self.update_parameter_by_id(parameter_id, metadata["default_value"])
-
-    def initialise_parameters_repository(self) -> None:
-        """Initialize the global `ParametersRepository`.
-
-        Loads existing parameters from InfluxDB, populates the shared parameters dict in
-        the shared resource manager, and marks the `ParametersRepository` as
-        initialized.
-        """
-        ParametersRepository.initialize(
-            shared_parameters=icon.server.shared_resource_manager.SRM.parameters_dict,
-            influx_config=self._config.get().databases.influxdbv1,
-        )
-        icon.server.shared_resource_manager.SRM.parameters_dict.update(
-            ParametersRepository.get_influxdb_parameters()
-        )
-        ParametersRepository.initialised = True
-        logger.info("ParametersRepository successfully initialised.")

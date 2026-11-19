@@ -35,9 +35,6 @@ from icon.server.data_access.repositories.job_run_repository import (
     run_cancelled_or_failed,
     try_update_run_by_id,
 )
-from icon.server.data_access.repositories.parameters_repository import (
-    ParametersRepository,
-)
 from icon.server.fitting.auto_fit import try_auto_fit
 from icon.server.hardware_processing.task import HardwareProcessingTask
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
@@ -54,6 +51,9 @@ if TYPE_CHECKING:
     )
     from icon.server.data_access.models.sqlite.job import Job
     from icon.server.data_access.models.sqlite.job_run import JobRun
+    from icon.server.data_access.repositories.parameters_repository import (
+        ParametersRepository,
+    )
     from icon.server.pre_processing.task import PreProcessingTask
     from icon.server.shared_resource_manager import (
         ScanProgress,
@@ -202,9 +202,11 @@ class PreProcessingWorker(multiprocessing.Process):
         manager: SharedResourceManager,
         experiment_library_client: ExperimentLibraryClient,
         engine_cache: CachedEngine,
+        parameters_repository: ParametersRepository,
     ) -> None:
         super().__init__()
         self._engine_cache = engine_cache
+        self._parameters_repository = parameters_repository
         self._queue = pre_processing_queue
         self._update_queue = update_queue
         self._hw_processing_queue = hardware_processing_queue
@@ -234,10 +236,6 @@ class PreProcessingWorker(multiprocessing.Process):
 
     @handle_keyboard_interrupt(logger)
     def run(self) -> None:
-        ParametersRepository.initialize(
-            shared_parameters=self._manager.parameters_dict,
-            influx_config=self._config.get().databases.influxdbv1,
-        )
         with self._experiment_library_client.isolated() as isolated_lib_client:
             logger.debug(
                 "Created isolated experiment library client: %s",
@@ -374,7 +372,7 @@ class PreProcessingWorker(multiprocessing.Process):
             if snapshot:
                 return snapshot
 
-        return ParametersRepository.get_influxdb_parameters(before=before)
+        return self._parameters_repository.get_influxdb_parameters(before=before)
 
     def _update_parameter_dict(
         self,
@@ -437,7 +435,7 @@ class PreProcessingWorker(multiprocessing.Process):
             ).items()
             if is_global_parameter(parameter_id)
         }
-        local_values = ParametersRepository.get_influxdb_parameters(
+        local_values = self._parameters_repository.get_influxdb_parameters(
             before=locals_before,
             namespace=str(namespace),
         )

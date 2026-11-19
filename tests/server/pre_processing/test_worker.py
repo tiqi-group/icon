@@ -102,6 +102,7 @@ def _make_worker(
         ),
         experiment_library_client=MagicMock(),
         engine_cache=engine_cache,
+        parameters_repository=MagicMock(),
     )
     worker._scan_progress.start(RUN_ID)
     return worker, hw_queue

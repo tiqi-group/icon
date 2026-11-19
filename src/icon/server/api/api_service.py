@@ -18,9 +18,6 @@ from icon.server.api.parameters_controller import ParametersController
 from icon.server.api.scans_controller import ScansController
 from icon.server.api.scheduler_controller import SchedulerController
 from icon.server.api.status_controller import StatusController
-from icon.server.data_access.repositories.parameters_repository import (
-    ParametersRepository,
-)
 
 if TYPE_CHECKING:
     import multiprocessing
@@ -29,6 +26,9 @@ if TYPE_CHECKING:
     from icon.server.data_access.db_context.sqlite.engine import CachedEngine
     from icon.server.data_access.reconfigurable_experiment_library_client import (
         ReconfigurableExperimentLibraryClient,
+    )
+    from icon.server.data_access.repositories.parameters_repository import (
+        ParametersRepository,
     )
     from icon.server.hardware_processing.devices import Devices
     from icon.server.utils.types import UpdateQueue
@@ -56,6 +56,7 @@ class APIService(pydase.DataService):
         pre_processing_event_queues: list[multiprocessing.Queue[UpdateQueue]],
         experiment_library_client: ReconfigurableExperimentLibraryClient,
         devices: Devices,
+        parameters_repository: ParametersRepository,
         engine_cache: CachedEngine,
     ) -> None:
         """Create a new APIService.
@@ -66,21 +67,24 @@ class APIService(pydase.DataService):
             pre-processing workers.
         experiment_library_client: Client for an experiment library
         devices: Controllers for the hardware devices
+        parameters_repository: Repository for shared parameter values.
         engine_cache: Cache of the SQLAlchemy engine for the SQLite database.
         """
         super().__init__()
         self._engine_cache = engine_cache
+        self._parameters_repository = parameters_repository
 
         status = StatusController(config, devices, experiment_library_client)
 
         self.devices = DevicesController(config, engine_cache)
         """Controller for managing external pydase-based devices."""
-        self.parameters = ParametersController(config)
+        self.parameters = ParametersController(config, parameters_repository)
         """Controller for parameter metadata and shared parameter values."""
         self.scheduler = SchedulerController(
             config,
             devices_controller=self.devices,
             parameters_controller=self.parameters,
+            parameters_repository=parameters_repository,
             engine_cache=engine_cache,
         )
         """Controller to submit, inspect, and cancel scheduled jobs."""
@@ -145,9 +149,9 @@ class APIService(pydase.DataService):
     @task(autostart=True)
     async def _initialise_parameters_repository_task(self) -> None:
         """Periodically attempts to initialise the ParametersRepository until successful."""
-        while not ParametersRepository.initialised:
+        while not self._parameters_repository.initialised:
             try:
-                self.parameters.initialise_parameters_repository()
+                self._parameters_repository.initialise()
             except (
                 urllib3.exceptions.MaxRetryError,
                 requests.exceptions.ConnectionError,
