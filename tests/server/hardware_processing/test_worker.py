@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 import pytest
+import qendra.device_client
+from qendra.device_client import DeviceError
 
 from icon.server.data_access.experiment_data import HardwareProcessingError, Readouts
 from icon.server.data_access.models.enums import JobRunStatus
@@ -133,10 +135,29 @@ def _run_worker(
     return list(post_processing_queue.queue), update_run, queued_at_update
 
 
+@pytest.mark.parametrize(
+    ("error", "message"),
+    [
+        # Zedboard
+        (RPCResponseError(1, [0, "Sequence too long"]), "Sequence too long"),
+        # Qendra Pulse
+        (
+            qendra.device_client.RPCResponseError(
+                "exp.setupTask", 1, "Sequence too long"
+            ),
+            "Sequence too long",
+        ),
+        (DeviceError("the task was aborted"), "the task was aborted"),
+        # The device locked up
+        (
+            TimeoutError("no response to exp.startTask within 5s"),
+            "no response to exp.startTask within 5s",
+        ),
+    ],
+)
 def test_run_error_emits_hardware_instructions_before_failing_job(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, error: Exception, message: str
 ) -> None:
-    error = RPCResponseError(1, [0, "Sequence too long"])
     controllers = {
         "main": _FakeController(1.0, receive_error=error),
         "sub": _FakeController(2.0),
@@ -151,14 +172,14 @@ def test_run_error_emits_hardware_instructions_before_failing_job(
         (d.device_id, d.hardware_instructions) for d in data_point.device_data
     ] == HARDWARE_INSTRUCTIONS
     assert [d.readouts for d in data_point.device_data] == [
-        HardwareProcessingError(message="Sequence too long"),
+        HardwareProcessingError(message=message),
         controllers["sub"].receive(),
     ]
 
     update_run.assert_called_once_with(
         run_id=RUN_ID,
         status=JobRunStatus.FAILED,
-        log="DeviceError ('main') Sequence too long",
+        log=f"DeviceError ('main') {message}",
         only_if_status=ACTIVE_RUN_STATUSES,
     )
     # The post-processing task is queued before the job is marked as failed.
@@ -169,6 +190,10 @@ def test_run_error_emits_hardware_instructions_before_failing_job(
     ("error", "message"),
     [
         (RPCResponseError(1, [0, "Invalid sequence"]), "Invalid sequence"),
+        (
+            DeviceError("Submitted sequence is not valid JSON. Can't run"),
+            "Submitted sequence is not valid JSON. Can't run",
+        ),
         (
             RuntimeError("Could not connect to the Zedboard"),
             "Could not connect to the Zedboard",
