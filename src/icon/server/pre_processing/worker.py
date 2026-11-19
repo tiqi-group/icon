@@ -45,7 +45,10 @@ from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrup
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
+    from sqlalchemy.engine import Engine
+
     from icon.config.config import Config
+    from icon.server.data_access.db_context.sqlite.engine import CachedEngine
     from icon.server.data_access.experiment_library_client import (
         ExperimentLibraryClient,
     )
@@ -198,8 +201,10 @@ class PreProcessingWorker(multiprocessing.Process):
         hardware_processing_queue: queue.PriorityQueue[HardwareProcessingTask],
         manager: SharedResourceManager,
         experiment_library_client: ExperimentLibraryClient,
+        engine_cache: CachedEngine,
     ) -> None:
         super().__init__()
+        self._engine_cache = engine_cache
         self._queue = pre_processing_queue
         self._update_queue = update_queue
         self._hw_processing_queue = hardware_processing_queue
@@ -217,8 +222,15 @@ class PreProcessingWorker(multiprocessing.Process):
         self._experiment_library_client = experiment_library_client
         self._icon_config = config
 
+    def _engine(self) -> Engine:
+        return self._engine_cache.get_cached(
+            self._icon_config.get().databases.sqlite.file
+        )
+
     def experiment_data_repo(self) -> ExperimentDataRepository:
-        return ExperimentDataRepository.from_config(self._icon_config)
+        return ExperimentDataRepository.from_config(
+            self._icon_config, engine=self._engine()
+        )
 
     @handle_keyboard_interrupt(logger)
     def run(self) -> None:
@@ -248,6 +260,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     )
 
                     JobRunRepository.update_run_by_id(
+                        engine=self._engine(),
                         run_id=pre_processing_task.job_run.id,
                         status=JobRunStatus.DONE,
                         only_if_status=(
@@ -256,6 +269,7 @@ class PreProcessingWorker(multiprocessing.Process):
                         ),
                     )
                     try_auto_fit(
+                        engine=self._engine(),
                         h5_dir=Path(self._icon_config.get().data.results_dir),
                         job_id=pre_processing_task.job.id,
                         experiment_source_id=pre_processing_task.job.experiment_source_id,
@@ -267,6 +281,7 @@ class PreProcessingWorker(multiprocessing.Process):
                     )
 
                     try_update_run_by_id(
+                        engine=self._engine(),
                         run_id=pre_processing_task.job_run.id,
                         status=JobRunStatus.FAILED,
                         log=str(e),
@@ -277,7 +292,9 @@ class PreProcessingWorker(multiprocessing.Process):
                     )
                 finally:
                     JobRepository.update_job_status(
-                        job_id=pre_processing_task.job.id, status=JobStatus.PROCESSED
+                        engine=self._engine(),
+                        job_id=pre_processing_task.job.id,
+                        status=JobStatus.PROCESSED,
                     )
 
     def _process_task(
@@ -288,6 +305,7 @@ class PreProcessingWorker(multiprocessing.Process):
         job = pre_processing_task.job
 
         claimed = JobRunRepository.update_run_by_id(
+            engine=self._engine(),
             run_id=pre_processing_task.job_run.id,
             status=JobRunStatus.PROCESSING,
             only_if_status=(JobRunStatus.PENDING,),
@@ -388,6 +406,7 @@ class PreProcessingWorker(multiprocessing.Process):
         self._global_parameter_timestamp = datetime.now(timezone)
 
         JobRunRepository.set_parameter_update_timestamp(
+            engine=self._engine(),
             run_id=pre_processing_task.job_run.id,
             timestamp=self._global_parameter_timestamp,
         )
@@ -475,12 +494,14 @@ class PreProcessingWorker(multiprocessing.Process):
         Returns:
             The run as it was last read, so callers can reuse its status.
         """
-        job_run = JobRunRepository.get_run_by_job_id(job_id=pre_processing_task.job.id)
+        job_run = JobRunRepository.get_run_by_job_id(
+            engine=self._engine(), job_id=pre_processing_task.job.id
+        )
         while job_run.status == JobRunStatus.PAUSED:
             self._handle_parameter_updates(pre_processing_task, namespace=namespace)
             time.sleep(0.2)
             job_run = JobRunRepository.get_run_by_job_id(
-                job_id=pre_processing_task.job.id
+                engine=self._engine(), job_id=pre_processing_task.job.id
             )
         self._regenerate_outdated_jobs(client, namespace)
         return job_run
@@ -588,7 +609,9 @@ class PreProcessingWorker(multiprocessing.Process):
             )
             # A single fetch covers every check below: the run carries both the
             # current status (pause/cancel) and the parameter-update timestamp.
-            job_run = JobRunRepository.get_run_by_job_id(job_id=job.id)
+            job_run = JobRunRepository.get_run_by_job_id(
+                engine=self._engine(), job_id=job.id
+            )
             # Don't resubmit into a paused hardware worker: it would only divert the
             # task straight back, so we would regenerate it on every lap. Leave the
             # remaining tasks queued until the job resumes.
@@ -647,6 +670,7 @@ class PreProcessingWorker(multiprocessing.Process):
                 self._data_points_to_process.put((next(realtime_scan_counter), {}))
             for index, data_point in consume_queue(self._data_points_to_process):
                 if job_run_cancelled_or_failed(
+                    engine=self._engine(),
                     job_id=pre_processing_task.job.id,
                 ):
                     return

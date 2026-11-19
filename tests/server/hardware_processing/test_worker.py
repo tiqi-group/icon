@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import queue
 from datetime import datetime, timezone
-from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 import pytest
 
-from icon.config.config import Config
 from icon.server.data_access.experiment_data import HardwareProcessingError, Readouts
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.data_access.models.sqlite import Job, JobRun
@@ -18,8 +16,10 @@ from icon.server.hardware_processing.hardware_controller import HardwareControll
 from icon.server.hardware_processing.rpc.errors import RPCResponseError
 from icon.server.hardware_processing.worker import HardwareProcessingWorker
 from icon.server.pre_processing.task import PreProcessingTask
+from tests.mock_config import mock_config
 
 if TYPE_CHECKING:
+    from icon.server.data_access.db_context.sqlite.engine import CachedEngine
     from icon.server.post_processing.task import PostProcessingTask
 
 RUN_ID = 7
@@ -95,7 +95,9 @@ def _hardware_task() -> Any:
 
 
 def _run_worker(
-    monkeypatch: pytest.MonkeyPatch, controllers: dict[str, _FakeController]
+    monkeypatch: pytest.MonkeyPatch,
+    controllers: dict[str, _FakeController],
+    engine_cache: CachedEngine,
 ) -> tuple[list[PostProcessingTask], MagicMock, list[int]]:
     """Run the worker on one task.
 
@@ -130,9 +132,8 @@ def _run_worker(
     worker._executor = None
     worker._executor_size = 0
     worker._main_device_start_delay = 0.0
-    worker._icon_config = Config(  # type: ignore[assignment]
-        Path(__file__).parent.parent.parent / "config.yaml"
-    )
+    worker._icon_config = mock_config()  # type: ignore[assignment]
+    worker._engine_cache = engine_cache
     worker.run()
 
     return list(post_processing_queue.queue), update_run, queued_at_update
@@ -140,13 +141,16 @@ def _run_worker(
 
 def test_run_error_emits_hardware_instructions_before_failing_job(
     monkeypatch: pytest.MonkeyPatch,
+    engine_cache: CachedEngine,
 ) -> None:
     error = RPCResponseError(1, [0, "Sequence too long"])
     controllers = {
         "main": _FakeController(1.0, receive_error=error),
         "sub": _FakeController(2.0),
     }
-    tasks, update_run, queued_at_update = _run_worker(monkeypatch, controllers)
+    tasks, update_run, queued_at_update = _run_worker(
+        monkeypatch, controllers, engine_cache=engine_cache
+    )
 
     assert len(tasks) == 1
     data_point = tasks[0].data_point
@@ -161,6 +165,7 @@ def test_run_error_emits_hardware_instructions_before_failing_job(
     ]
 
     update_run.assert_called_once_with(
+        engine=ANY,
         run_id=RUN_ID,
         status=JobRunStatus.FAILED,
         log="DeviceError ('main') Sequence too long",
@@ -181,13 +186,18 @@ def test_run_error_emits_hardware_instructions_before_failing_job(
     ],
 )
 def test_send_error_emits_hardware_instructions_without_running(
-    monkeypatch: pytest.MonkeyPatch, error: Exception, message: str
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
+    message: str,
+    engine_cache: CachedEngine,
 ) -> None:
     controllers = {
         "main": _FakeController(1.0),
         "sub": _FakeController(2.0, send_error=error),
     }
-    tasks, update_run, _ = _run_worker(monkeypatch, controllers)
+    tasks, update_run, _ = _run_worker(
+        monkeypatch, controllers, engine_cache=engine_cache
+    )
 
     assert not any(controller.ran for controller in controllers.values())
     assert len(tasks) == 1
@@ -196,6 +206,7 @@ def test_send_error_emits_hardware_instructions_without_running(
         HardwareProcessingError(message=message),
     ]
     update_run.assert_called_once_with(
+        engine=ANY,
         run_id=RUN_ID,
         status=JobRunStatus.FAILED,
         log=f"DeviceError ('sub') {message}",
@@ -203,7 +214,9 @@ def test_send_error_emits_hardware_instructions_without_running(
     )
 
 
-def test_errors_of_every_device_are_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_errors_of_every_device_are_reported(
+    monkeypatch: pytest.MonkeyPatch, engine_cache: CachedEngine
+) -> None:
     # The main device fails and never triggers the subordinate one, which times out.
     controllers = {
         "main": _FakeController(
@@ -211,7 +224,9 @@ def test_errors_of_every_device_are_reported(monkeypatch: pytest.MonkeyPatch) ->
         ),
         "sub": _FakeController(2.0, receive_error=TimeoutError("No response")),
     }
-    tasks, update_run, _ = _run_worker(monkeypatch, controllers)
+    tasks, update_run, _ = _run_worker(
+        monkeypatch, controllers, engine_cache=engine_cache
+    )
 
     assert len(tasks) == 1
     assert [d.readouts for d in tasks[0].data_point.device_data] == [
@@ -219,6 +234,7 @@ def test_errors_of_every_device_are_reported(monkeypatch: pytest.MonkeyPatch) ->
         HardwareProcessingError(message="No response"),
     ]
     update_run.assert_called_once_with(
+        engine=ANY,
         run_id=RUN_ID,
         status=JobRunStatus.FAILED,
         log="DeviceError ('main') Sequence too long; DeviceError ('sub') No response",
@@ -226,7 +242,9 @@ def test_errors_of_every_device_are_reported(monkeypatch: pytest.MonkeyPatch) ->
     )
 
 
-def test_other_errors_only_fail_the_job(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_other_errors_only_fail_the_job(
+    monkeypatch: pytest.MonkeyPatch, engine_cache: CachedEngine
+) -> None:
     def fail_to_set_values(*_: Any, **__: Any) -> None:
         raise RuntimeError("Failed to set 'x' of device 'pydase_service'")
 
@@ -234,20 +252,27 @@ def test_other_errors_only_fail_the_job(monkeypatch: pytest.MonkeyPatch) -> None
         HardwareProcessingWorker, "_set_pydase_service_values", fail_to_set_values
     )
     controllers = {"main": _FakeController(1.0), "sub": _FakeController(2.0)}
-    tasks, update_run, _ = _run_worker(monkeypatch, controllers)
+    tasks, update_run, _ = _run_worker(
+        monkeypatch, controllers, engine_cache=engine_cache
+    )
 
     assert tasks == []
     assert not any(controller.sent for controller in controllers.values())
     update_run.assert_called_once_with(
+        engine=ANY,
         run_id=RUN_ID,
         status=JobRunStatus.FAILED,
         log="Failed to set 'x' of device 'pydase_service'",
     )
 
 
-def test_successful_run_emits_readouts(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_successful_run_emits_readouts(
+    monkeypatch: pytest.MonkeyPatch, engine_cache: CachedEngine
+) -> None:
     controllers = {"main": _FakeController(1.0), "sub": _FakeController(2.0)}
-    tasks, update_run, _ = _run_worker(monkeypatch, controllers)
+    tasks, update_run, _ = _run_worker(
+        monkeypatch, controllers, engine_cache=engine_cache
+    )
 
     assert len(tasks) == 1
     data_point = tasks[0].data_point

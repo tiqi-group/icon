@@ -3,6 +3,7 @@ from typing import Any
 
 import pydase
 import pytz
+from sqlalchemy.engine import Engine
 
 import icon.server.data_access.models.sqlite.scan_parameter as sqlite_scan_parameter
 from icon.config.config import Config
@@ -14,6 +15,7 @@ from icon.server.api.models.scan_parameter import (
     scan_parameter_from_dict,
 )
 from icon.server.api.parameters_controller import ParametersController
+from icon.server.data_access.db_context.sqlite.engine import CachedEngine
 from icon.server.data_access.job_list_item import JobListItemDict
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
@@ -47,6 +49,7 @@ class SchedulerController(pydase.DataService):
         config: Config,
         devices_controller: DevicesController,
         parameters_controller: ParametersController,
+        engine_cache: CachedEngine,
     ) -> None:
         """Create a new SchedulerController.
 
@@ -56,11 +59,16 @@ class SchedulerController(pydase.DataService):
                 current values of device parameters when casting scan values.
             parameters_controller: Reference to the parameters controller. Used to
                 resolve display names for scan parameters at submission time.
+            engine_cache: Cache of the SQLAlchemy engine for the SQLite database.
         """
         super().__init__()
         self._config = config
         self._devices_controller = devices_controller
         self._parameters_controller = parameters_controller
+        self._engine_cache = engine_cache
+
+    def _engine(self) -> Engine:
+        return self._engine_cache.get_cached(self._config.get().databases.sqlite.file)
 
     def _resolve_display_name(self, parameter_id: str) -> str:
         metadata = self._parameters_controller._all_parameter_metadata.get(parameter_id)
@@ -152,7 +160,8 @@ class SchedulerController(pydase.DataService):
         experiment_source = ExperimentSource(experiment_id=experiment_id)
 
         experiment_source = ExperimentSourceRepository.get_or_create_experiment(
-            experiment_source=experiment_source
+            engine=self._engine(),
+            experiment_source=experiment_source,
         )
 
         def to_sqlite_model(
@@ -176,7 +185,7 @@ class SchedulerController(pydase.DataService):
                 variable_id=param.id,
                 scan_values=param.values,
                 device_id=DeviceRepository.get_device_by_name(
-                    name=param.device_name
+                    engine=self._engine(), name=param.device_name
                 ).id,
             )
 
@@ -217,9 +226,9 @@ class SchedulerController(pydase.DataService):
             auto_calibration=auto_calibration,
             debug_mode=git_commit_hash is None,
         )
-        job = JobRepository(pytz.timezone(self._config.get().date.timezone)).submit_job(
-            job=job
-        )
+        job = JobRepository(
+            pytz.timezone(self._config.get().date.timezone), self._engine()
+        ).submit_job(job=job)
 
         return job.id
 
@@ -235,7 +244,9 @@ class SchedulerController(pydase.DataService):
             job_id: ID of the job to cancel.
         """
         job_transactions.cancel_job(
-            job_id=job_id, log="Cancelled through user interaction."
+            engine=self._engine(),
+            job_id=job_id,
+            log="Cancelled through user interaction.",
         )
 
     def pause_job(self, *, job_id: int) -> None:
@@ -251,8 +262,11 @@ class SchedulerController(pydase.DataService):
         Args:
             job_id: ID of the job to pause.
         """
-        job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
+        job_run = JobRunRepository.get_run_by_job_id(
+            engine=self._engine(), job_id=job_id
+        )
         JobRunRepository.update_run_by_id(
+            engine=self._engine(),
             run_id=job_run.id,
             status=JobRunStatus.PAUSED,
             log="Paused through user interaction.",
@@ -271,8 +285,11 @@ class SchedulerController(pydase.DataService):
         Args:
             job_id: ID of the job to resume.
         """
-        job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
+        job_run = JobRunRepository.get_run_by_job_id(
+            engine=self._engine(), job_id=job_id
+        )
         JobRunRepository.update_run_by_id(
+            engine=self._engine(),
             run_id=job_run.id,
             status=JobRunStatus.PROCESSING,
             only_if_status=(JobRunStatus.PAUSED,),
@@ -301,7 +318,7 @@ class SchedulerController(pydase.DataService):
         return {
             job.id: job
             for job in JobRepository.get_jobs_by_status_and_timeframe(
-                status=status, start=start_date, stop=stop_date
+                engine=self._engine(), status=status, start=start_date, stop=stop_date
             )
         }
 
@@ -327,7 +344,7 @@ class SchedulerController(pydase.DataService):
             shorter than `limit` means the end of the list has been reached.
         """
         return JobRepository(
-            pytz.timezone(self._config.get().date.timezone)
+            pytz.timezone(self._config.get().date.timezone), self._engine()
         ).get_job_list(statuses=[JobStatus.PROCESSED], before_id=before_id, limit=limit)
 
     def get_active_jobs(
@@ -342,7 +359,7 @@ class SchedulerController(pydase.DataService):
             List of job-list entries ordered by descending job ID.
         """
         return JobRepository(
-            pytz.timezone(self._config.get().date.timezone)
+            pytz.timezone(self._config.get().date.timezone), self._engine()
         ).get_job_list(
             statuses=[JobStatus.PROCESSING, JobStatus.SUBMITTED], limit=limit
         )
@@ -357,7 +374,10 @@ class SchedulerController(pydase.DataService):
             The job record.
         """
         return JobRepository.get_job_by_id(
-            job_id=job_id, load_experiment_source=True, load_scan_parameters=True
+            engine=self._engine(),
+            job_id=job_id,
+            load_experiment_source=True,
+            load_scan_parameters=True,
         )
 
     def get_job_run_by_id(self, *, job_id: int) -> JobRun:
@@ -369,7 +389,7 @@ class SchedulerController(pydase.DataService):
         Returns:
             The associated run record.
         """
-        return JobRunRepository.get_run_by_job_id(job_id=job_id)
+        return JobRunRepository.get_run_by_job_id(engine=self._engine(), job_id=job_id)
 
     async def _cast_scan_values_to_param_type(
         self,

@@ -1,8 +1,8 @@
 import logging
 
 import sqlalchemy.orm
+from sqlalchemy.engine import Engine
 
-from icon.server.data_access.db_context.sqlite.engine import get_engine
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
 
 logger = logging.getLogger(__name__)
@@ -18,18 +18,20 @@ class ExperimentSourceRepository:
     @staticmethod
     def get_or_create_experiment(
         *,
+        engine: Engine,
         experiment_source: ExperimentSource,
     ) -> ExperimentSource:
         """Return an existing experiment source or create it if not found.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             experiment_source: The experiment source to look up by `experiment_id`. If
                 no matching row exists, this instance is inserted into the database.
 
         Returns:
             The existing or newly created experiment source.
         """
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(engine) as session:
             experiment = (
                 session.query(ExperimentSource)
                 .filter_by(experiment_id=experiment_source.experiment_id)

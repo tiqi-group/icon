@@ -52,7 +52,7 @@ def start_server(config: Config) -> None:
     import icon.server.shared_resource_manager
     import icon.server.web_server.icon_server
     from icon.server.api.api_service import APIService
-    from icon.server.data_access.db_context.sqlite.engine import initialize_engine
+    from icon.server.data_access.db_context.sqlite.engine import CachedEngine
     from icon.server.data_access.db_context.sqlite.migrations import run_migrations
     from icon.server.hardware_processing.worker import (
         HardwareProcessingWorker,
@@ -66,12 +66,16 @@ def start_server(config: Config) -> None:
     patch_sio_setup()
     patch_web_server()
     patch_serialization_methods(pytz.timezone(config.get().date.timezone))
-    initialize_engine(config)
-    run_migrations()
+    engine_cache = CachedEngine(config.get().databases.sqlite.file)
+    run_migrations(engine=engine_cache.get_cached(config.get().databases.sqlite.file))
 
     SRM.start_srm()
 
-    scheduler = Scheduler(config, pre_processing_queue=SRM.pre_processing_queue)
+    scheduler = Scheduler(
+        config,
+        pre_processing_queue=SRM.pre_processing_queue,
+        engine_cache=engine_cache,
+    )
     scheduler.start()
 
     number_of_pre_processing_workers = config.get().server.pre_processing.workers
@@ -90,6 +94,7 @@ def start_server(config: Config) -> None:
             pre_processing_queue=SRM.pre_processing_queue,
             update_queue=queue,
             manager=SRM,
+            engine_cache=engine_cache,
         ).start()
 
     post_processing_queue: multiprocessing.Queue[PostProcessingTask] = (
@@ -102,11 +107,14 @@ def start_server(config: Config) -> None:
         post_processing_queue=post_processing_queue,
         manager=SRM,
         devices=devices,
+        engine_cache=engine_cache,
     )
     hardware_processing_worker.start()
 
     post_processing_worker = PostProcessingWorker(
-        config=config, post_processing_queue=post_processing_queue
+        config=config,
+        post_processing_queue=post_processing_queue,
+        engine_cache=engine_cache,
     )
     post_processing_worker.start()
 
@@ -116,6 +124,7 @@ def start_server(config: Config) -> None:
             experiment_library_client=exp_lib_client,
             pre_processing_event_queues=pre_processing_update_queues,
             devices=devices,
+            engine_cache=engine_cache,
         ),
         host=config.get().server.host,
         web_port=config.get().server.port,

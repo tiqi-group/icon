@@ -30,10 +30,7 @@ import sqlalchemy
 import sqlalchemy.orm
 
 from icon.config.config import Config
-from icon.server.data_access.db_context.sqlite.engine import (
-    get_engine,
-    initialize_engine,
-)
+from icon.server.data_access.db_context.sqlite.engine import CachedEngine
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
 from icon.server.data_access.models.sqlite.job import Job
@@ -43,7 +40,8 @@ from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
 logger = logging.getLogger(__name__)
 
 config = Config()
-initialize_engine(config)
+engine_cache = CachedEngine(config.get().databases.sqlite.file)
+engine = engine_cache.get_cached(engine_cache.path)
 
 # ---------------------------------------------------------------------------
 # Shared experiment source — reused across all generated jobs
@@ -178,7 +176,7 @@ def _create_job(
     label: str,
 ) -> int:
     """Create SQLite records + HDF5 file; return the job ID."""
-    with sqlalchemy.orm.Session(get_engine()) as session:
+    with sqlalchemy.orm.Session(engine) as session:
         source = _get_or_create_experiment_source(session)
         job, _run = _insert_job_and_run(
             session,
@@ -449,7 +447,7 @@ def generate_2d_gaussian() -> int:
     )
     z += np.random.default_rng(42).normal(0, 0.1, len(z))
 
-    with sqlalchemy.orm.Session(get_engine()) as session:
+    with sqlalchemy.orm.Session(engine) as session:
         source = _get_or_create_experiment_source(session)
         job, _run = _insert_job_and_run_2d(
             session,

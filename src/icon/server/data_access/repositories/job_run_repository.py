@@ -4,9 +4,9 @@ from datetime import UTC, datetime
 
 import sqlalchemy.orm
 from sqlalchemy import select, update
+from sqlalchemy.engine import Engine
 from sqlalchemy.exc import NoResultFound
 
-from icon.server.data_access.db_context.sqlite.engine import get_engine
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.data_access.models.sqlite.job_run import JobRun
 from icon.server.web_server.socketio_emit_queue import emit_queue
@@ -33,16 +33,19 @@ def run_cancelled_or_failed(job_run: JobRun) -> bool:
     return False
 
 
-def job_run_cancelled_or_failed(job_id: int) -> bool:
+def job_run_cancelled_or_failed(*, engine: Engine, job_id: int) -> bool:
     """Check if a job's run was cancelled or failed.
 
     Args:
+        engine: SQLAlchemy engine to query the database with.
         job_id: ID of the job whose run should be checked.
 
     Returns:
         True if the run status is CANCELLED or FAILED, False otherwise.
     """
-    return run_cancelled_or_failed(JobRunRepository.get_run_by_job_id(job_id=job_id))
+    return run_cancelled_or_failed(
+        JobRunRepository.get_run_by_job_id(engine=engine, job_id=job_id)
+    )
 
 
 class JobRunRepository:
@@ -56,6 +59,7 @@ class JobRunRepository:
     @staticmethod
     def update_run_by_id(
         *,
+        engine: Engine,
         run_id: int,
         status: JobRunStatus,
         log: str | None = None,
@@ -64,6 +68,7 @@ class JobRunRepository:
         """Update a job run by ID and emit an update event.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             run_id: The ID of the job run to update.
             status: New status of the run.
             log: Optional log message (e.g. failure reason).
@@ -73,7 +78,7 @@ class JobRunRepository:
             The updated job run, or None when the current status is non of the
             `only_if_status` statuses.
         """
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(engine) as session:
             stmt = update(JobRun).where(JobRun.id == run_id)
             if only_if_status is not None:
                 stmt = stmt.where(JobRun.status.in_(only_if_status))
@@ -109,12 +114,14 @@ class JobRunRepository:
     @staticmethod
     def get_runs_by_status(
         *,
+        engine: Engine,
         status: JobRunStatus | list[JobRunStatus],
         load_job: bool = False,
     ) -> Sequence[JobRun]:
         """Return job runs filtered by status.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             status: Single or list of run statuses to filter on.
             load_job: If True, eagerly load the related `Job`.
 
@@ -124,7 +131,7 @@ class JobRunRepository:
         if not isinstance(status, list):
             status = [status]
 
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(engine) as session:
             stmt = (
                 select(JobRun)
                 .where(JobRun.status.in_(status))
@@ -137,17 +144,20 @@ class JobRunRepository:
             return session.execute(stmt).scalars().all()
 
     @staticmethod
-    def get_run_by_job_id(*, job_id: int, load_job: bool = False) -> JobRun:
+    def get_run_by_job_id(
+        *, engine: Engine, job_id: int, load_job: bool = False
+    ) -> JobRun:
         """Return the run associated with a given job ID.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             job_id: ID of the job.
             load_job: If True, eagerly load the related `Job`.
 
         Returns:
             The run linked to the given job.
         """
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(engine) as session:
             stmt = (
                 select(JobRun)
                 .where(JobRun.job_id == job_id)
@@ -163,16 +173,17 @@ class JobRunRepository:
         return run
 
     @staticmethod
-    def get_scheduled_time_by_job_id(*, job_id: int) -> datetime:
+    def get_scheduled_time_by_job_id(*, engine: Engine, job_id: int) -> datetime:
         """Return the scheduled time of a run by job ID.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             job_id: ID of the job.
 
         Returns:
             The scheduled start time of the run.
         """
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(engine) as session:
             stmt = (
                 select(JobRun.scheduled_time)
                 .where(JobRun.job_id == job_id)
@@ -185,16 +196,17 @@ class JobRunRepository:
         return scheduled_time
 
     @staticmethod
-    def get_recent_scheduled_times(*, limit: int) -> Sequence[datetime]:
+    def get_recent_scheduled_times(*, engine: Engine, limit: int) -> Sequence[datetime]:
         """Return the scheduled times of the most recent runs, newest first.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             limit: Maximum number of scheduled times to return.
 
         Returns:
             Scheduled times ordered from newest to oldest.
         """
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(engine) as session:
             stmt = (
                 select(JobRun.scheduled_time)
                 .where(JobRun.status != JobRunStatus.PENDING)
@@ -207,14 +219,17 @@ class JobRunRepository:
         return scheduled_times
 
     @staticmethod
-    def set_parameter_update_timestamp(*, run_id: int, timestamp: datetime) -> None:
+    def set_parameter_update_timestamp(
+        *, engine: Engine, run_id: int, timestamp: datetime
+    ) -> None:
         """Set the paramter update timestamp.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             run_id: ID of the job.
             timestamp: New parameter update timestamp.
         """
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(engine) as session:
             stmt = (
                 update(JobRun)
                 .where(JobRun.id == run_id)
@@ -228,17 +243,20 @@ class JobRunRepository:
             logger.debug("Updated parameter update timestam for run %s", run)
 
     @staticmethod
-    def get_parameter_update_timestamp(*, run_id: int) -> datetime | None:
+    def get_parameter_update_timestamp(
+        *, engine: Engine, run_id: int
+    ) -> datetime | None:
         """Get the paramter update timestamp.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             run_id: ID of the job.
 
         Returns:
             The parameter update timestamp, or None if no parameter update has
             been recorded for this run yet.
         """
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(engine) as session:
             stmt = select(JobRun.parameter_update_timestamp).where(JobRun.id == run_id)
 
             timestamp = session.execute(stmt).scalar_one()
@@ -251,6 +269,7 @@ class JobRunRepository:
 
 def try_update_run_by_id(
     *,
+    engine: Engine,
     run_id: int,
     status: JobRunStatus,
     log: str | None = None,
@@ -259,7 +278,8 @@ def try_update_run_by_id(
     """Update a job run, logging any failure instead of raising.
 
     Args:
-        run_id: ID of the job run to update.
+        engine: SQLAlchemy engine to query the database with.
+        run_id: The ID of the job run to update.
         status: New status of the run.
         log: Optional log message (e.g. failure reason).
         only_if_status: Apply the update only while the stored status is one of
@@ -270,7 +290,11 @@ def try_update_run_by_id(
     """
     try:
         return JobRunRepository.update_run_by_id(
-            run_id=run_id, status=status, log=log, only_if_status=only_if_status
+            engine=engine,
+            run_id=run_id,
+            status=status,
+            log=log,
+            only_if_status=only_if_status,
         )
     except Exception:
         logger.exception(

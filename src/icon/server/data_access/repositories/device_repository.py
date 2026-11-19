@@ -7,8 +7,8 @@ import pytz
 import sqlalchemy.exc
 import sqlalchemy.orm.session
 from sqlalchemy import select, update
+from sqlalchemy.engine import Engine
 
-from icon.server.data_access.db_context.sqlite.engine import get_engine
 from icon.server.data_access.models.enums import DeviceStatus
 from icon.server.data_access.models.sqlite.device import Device
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
@@ -29,17 +29,20 @@ class DeviceRepository:
     """
 
     @staticmethod
-    def add_device(*, device: Device, timezone: pytz.BaseTzInfo) -> Device:
+    def add_device(
+        *, engine: Engine, device: Device, timezone: pytz.BaseTzInfo
+    ) -> Device:
         """Insert a new device into the database.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             device: Device instance to persist.
             timezone: Timezone used for timestamps in the database.
 
         Returns:
             The persisted device with database-generated fields (e.g., `id`) populated.
         """
-        with sqlalchemy.orm.session.Session(get_engine()) as session:
+        with sqlalchemy.orm.session.Session(engine) as session:
             device.created = datetime.datetime.now(timezone)
             session.add(device)
             session.commit()
@@ -60,6 +63,7 @@ class DeviceRepository:
     @staticmethod
     def update_device(
         *,
+        engine: Engine,
         name: str,
         url: str | None = None,
         status: DeviceStatus | None = None,
@@ -69,6 +73,7 @@ class DeviceRepository:
         """Update an existing device by name.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             name: Unique device name.
             url: New device URL (cannot change if the device is enabled).
             status: New device status (enabled/disabled).
@@ -94,11 +99,11 @@ class DeviceRepository:
         }
 
         if "url" in updated_properties:
-            device = DeviceRepository.get_device_by_name(name=name)
+            device = DeviceRepository.get_device_by_name(engine=engine, name=name)
             if device.status == DeviceStatus.ENABLED:
                 raise RuntimeError("Cannot change url of an enabled device")
 
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(engine) as session:
             session.execute(
                 update(Device).where(Device.name == name).values(updated_properties)
             )
@@ -134,17 +139,19 @@ class DeviceRepository:
     @staticmethod
     def get_devices_by_status(
         *,
+        engine: Engine,
         status: DeviceStatus | None = None,
     ) -> Sequence[Device]:
         """Return devices filtered by status.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             status: Optional device status to filter on.
 
         Returns:
             All devices matching the filter (or all devices if no filter is given).
         """
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(engine) as session:
             stmt = sqlalchemy.select(Device)
 
             if status is not None:
@@ -153,10 +160,11 @@ class DeviceRepository:
             return session.execute(stmt).scalars().all()
 
     @staticmethod
-    def get_device_by_id(*, id: int) -> Device:
+    def get_device_by_id(*, engine: Engine, id: int) -> Device:
         """Return a device by database ID.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             id: Primary key identifier of the device.
 
         Returns:
@@ -165,25 +173,26 @@ class DeviceRepository:
         Raises:
             NoResultFound: If no device exists with the given ID.
         """
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(engine) as session:
             stmt = sqlalchemy.select(Device).where(Device.id == id)
             return session.execute(stmt).scalar_one()
 
     @staticmethod
-    def get_device_by_name(*, name: str) -> Device:
+    def get_device_by_name(*, engine: Engine, name: str) -> Device:
         """Return a device by unique name.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             name: Device name.
 
         Returns:
             The matching device.
 
         Raises:
-            NoDeviceFoundError: If no device exists with the given name.
+            NoDeviceFoundError: If no device with the given name exists.
         """
         try:
-            with sqlalchemy.orm.Session(get_engine()) as session:
+            with sqlalchemy.orm.Session(engine) as session:
                 stmt = sqlalchemy.select(Device).where(Device.name == name)
                 return session.execute(stmt).scalar_one()
         except sqlalchemy.exc.NoResultFound:
@@ -192,12 +201,15 @@ class DeviceRepository:
             ) from None
 
     @staticmethod
-    def get_all_device_names() -> Sequence[str]:
+    def get_all_device_names(*, engine: Engine) -> Sequence[str]:
         """Return the names of all devices.
+
+        Args:
+            engine: SQLAlchemy engine to query the database with.
 
         Returns:
             List of device names.
         """
-        with sqlalchemy.orm.Session(get_engine()) as session:
+        with sqlalchemy.orm.Session(engine) as session:
             stmt = sqlalchemy.select(Device.name)
             return session.execute(stmt).scalars().all()

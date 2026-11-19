@@ -8,10 +8,12 @@ import pytz
 import socketio.exceptions
 from pydase.task.decorator import task
 from socketio.exceptions import BadNamespaceError  # type: ignore
+from sqlalchemy.engine import Engine
 
 from icon.config.config import Config
 from icon.serialization.serializer import dump
 from icon.server.api.models.device_dict import DeviceDict
+from icon.server.data_access.db_context.sqlite.engine import CachedEngine
 from icon.server.data_access.models.enums import DeviceStatus
 from icon.server.data_access.models.sqlite.device import Device
 from icon.server.data_access.repositories.device_repository import DeviceRepository
@@ -41,12 +43,16 @@ class DevicesController(pydase.DataService):
     for integration with ICON scans.
     """
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, engine_cache: CachedEngine) -> None:
         super().__init__()
         self._config = config
+        self._engine_cache = engine_cache
         self._devices: dict[str, pydase.Client] = {}
         self.device_proxies: dict[str, ProxyClass] = {}
         """Live pydase proxies keyed by device name."""
+
+    def _engine(self) -> Engine:
+        return self._engine_cache.get_cached(self._config.get().databases.sqlite.file)
 
     def add_device(
         self,
@@ -75,6 +81,7 @@ class DevicesController(pydase.DataService):
             The `Device` SQLAlchemy model.
         """
         device = DeviceRepository.add_device(
+            engine=self._engine(),
             device=Device(
                 name=name,
                 url=url,
@@ -122,6 +129,7 @@ class DevicesController(pydase.DataService):
             The updated `Device` model.
         """
         device = DeviceRepository.update_device(
+            engine=self._engine(),
             name=name,
             url=url,
             status=DeviceStatus(status) if status is not None else None,
@@ -265,7 +273,9 @@ class DevicesController(pydase.DataService):
             device.name: SQLAlchemyDictEncoder(
                 pytz.timezone(self._config.get().date.timezone)
             ).encode(device)
-            for device in DeviceRepository.get_devices_by_status(status=status)
+            for device in DeviceRepository.get_devices_by_status(
+                engine=self._engine(), status=status
+            )
         }
 
         for name, value in device_dict.items():
@@ -289,7 +299,9 @@ class DevicesController(pydase.DataService):
         Fetches ENABLED devices from SQLite and creates non-blocking pydase clients and
         proxies for each of them.
         """
-        devices = DeviceRepository.get_devices_by_status(status=DeviceStatus.ENABLED)
+        devices = DeviceRepository.get_devices_by_status(
+            engine=self._engine(), status=DeviceStatus.ENABLED
+        )
 
         for device in devices:
             client = pydase.Client(

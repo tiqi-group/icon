@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     import multiprocessing
 
     from icon.config.config import Config
+    from icon.server.data_access.db_context.sqlite.engine import CachedEngine
     from icon.server.data_access.reconfigurable_experiment_library_client import (
         ReconfigurableExperimentLibraryClient,
     )
@@ -55,6 +56,7 @@ class APIService(pydase.DataService):
         pre_processing_event_queues: list[multiprocessing.Queue[UpdateQueue]],
         experiment_library_client: ReconfigurableExperimentLibraryClient,
         devices: Devices,
+        engine_cache: CachedEngine,
     ) -> None:
         """Create a new APIService.
 
@@ -64,12 +66,14 @@ class APIService(pydase.DataService):
             pre-processing workers.
         experiment_library_client: Client for an experiment library
         devices: Controllers for the hardware devices
+        engine_cache: Cache of the SQLAlchemy engine for the SQLite database.
         """
         super().__init__()
+        self._engine_cache = engine_cache
 
         status = StatusController(config, devices, experiment_library_client)
 
-        self.devices = DevicesController(config)
+        self.devices = DevicesController(config, engine_cache)
         """Controller for managing external pydase-based devices."""
         self.parameters = ParametersController(config)
         """Controller for parameter metadata and shared parameter values."""
@@ -77,13 +81,14 @@ class APIService(pydase.DataService):
             config,
             devices_controller=self.devices,
             parameters_controller=self.parameters,
+            engine_cache=engine_cache,
         )
         """Controller to submit, inspect, and cancel scheduled jobs."""
         self.experiments = ExperimentsController()
         """Controller for experiment metadata."""
         self.config = ConfigurationController(config, on_update=status.request_refresh)
         """Controller for managing and updating the application's configuration."""
-        self.data = ExperimentDataController(config)
+        self.data = ExperimentDataController(config, engine_cache)
         """Controller for accessing stored experiment data."""
         self.scans = ScansController(
             pre_processing_update_queues=pre_processing_event_queues
