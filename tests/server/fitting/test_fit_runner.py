@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import pytest
 
@@ -112,3 +114,52 @@ class TestRunCurveFit:
         assert "chi2_red" in result.goodness
         assert "aic" in result.goodness
         assert "bic" in result.goodness
+
+
+class TestFitErrors:
+    def test_errors_for_all_parameters(self) -> None:
+        x = np.linspace(-5, 5, 50)
+        rng = np.random.default_rng(0)
+        y = 2.0 * x**2 - 3.0 * x + 1.0 + rng.normal(0, 0.5, x.size)
+        result = run_curve_fit(x, y, "ch1", "poly2")
+        assert set(result.errors) == set(result.result)
+        assert all(np.isfinite(e) and e > 0 for e in result.errors.values())
+
+    def test_errors_match_scatter_of_repeated_fits(self) -> None:
+        # Rabi flop sampled over ~2.6 periods; first max at 1 / (2 f)
+        f_true, noise = 0.13, 0.05
+        x = np.linspace(0, 20, 41)
+        init = {"y0": 0.5, "a": -0.45, "omega": 2 * np.pi * f_true, "phi": 0.0}
+        rng = np.random.default_rng(1)
+        fits = []
+        for _ in range(200):
+            y = 0.5 - 0.45 * np.cos(2 * np.pi * f_true * x)
+            y = y + rng.normal(0, noise, x.size)
+            fits.append(run_curve_fit(x, y, "ch1", "harmonic", init=init))
+        for name in ("f", "x_first_max"):
+            values = np.array([fit.result[name] for fit in fits])
+            predicted = np.mean([fit.errors[name] for fit in fits])
+            assert np.std(values) == pytest.approx(predicted, rel=0.2)
+        first_max = np.mean([fit.result["x_first_max"] for fit in fits])
+        assert first_max == pytest.approx(1 / (2 * f_true), abs=0.02)
+
+    def test_errors_left_out_when_covariance_cannot_be_estimated(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def singular_fit(*_: object, **__: object) -> tuple[np.ndarray, np.ndarray]:
+            return np.array([2.0, -3.0, 1.0]), np.full((3, 3), np.inf)
+
+        monkeypatch.setattr("icon.server.fitting.fit_runner.curve_fit", singular_fit)
+        x = np.linspace(-5, 5, 10)
+        result = run_curve_fit(x, x**2, "ch1", "poly2")
+        assert result.success
+        assert result.errors == {}
+
+    def test_fit_stored_before_errors_existed_loads(self) -> None:
+        # As written to the HDF5 file before FitResult had errors
+        stored = (
+            '{"result_channel": "ch1", "func_type": "poly2", "x_range": null,'
+            ' "init": {}, "result": {"a": 1.0}, "goodness": {}, "success": true,'
+            ' "message": "Fit converged", "fit_curve": null}'
+        )
+        assert FitResult(**json.loads(stored)).errors == {}

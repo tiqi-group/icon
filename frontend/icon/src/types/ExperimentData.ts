@@ -44,6 +44,8 @@ export interface FitResult {
   success: boolean;
   message: string;
   fit_curve?: { x: number[]; y: number[] };
+  /** 1-sigma errors of the entries of result, missing where they can't be estimated */
+  errors?: Record<string, number>;
 }
 
 export interface ReadoutSequences<TShots = number[]> {
