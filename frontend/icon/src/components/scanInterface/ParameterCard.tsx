@@ -1,6 +1,7 @@
 import DeleteIcon from "@mui/icons-material/Delete";
 import {
   FormControl,
+  FormHelperText,
   IconButton,
   InputLabel,
   MenuItem,
@@ -31,6 +32,7 @@ import {
   getScanParameterSearchOptions,
 } from "../../utils/scanUtils";
 import { ParameterSearch } from "./ParameterSearch";
+import { scanSpacingHint } from "../../utils/scanSpacingHint";
 
 const renderPatternLabel = (pattern: ScanPattern): string => {
   switch (pattern) {
@@ -164,6 +166,13 @@ export const ParameterCard = ({
   };
 
   const [liveValue] = useParameter(param.id);
+  const selectedMetadata = parameterOptions[param.id];
+  const spacingHint = scanSpacingHint(
+    param,
+    { min: selectedMetadata?.min ?? null, max: selectedMetadata?.max ?? null },
+    selectedMetadata?.unit,
+    liveValue,
+  );
   const midpoint = (param.generation.start + param.generation.stop) / 2;
   const spanCentreText =
     typeof liveValue === "number"
@@ -496,10 +505,12 @@ export const ParameterCard = ({
             />
           </div>
           <FormControl fullWidth size="small">
-            <InputLabel>Scan pattern</InputLabel>
+            <InputLabel id={`scan-pattern-label-${index}`}>Scan pattern</InputLabel>
             <Select
               disabled={!param.id}
               label="Scan pattern"
+              labelId={`scan-pattern-label-${index}`}
+              aria-describedby={spacingHint ? `scan-spacing-${index}` : undefined}
               value={param.generation.pattern}
               onChange={(e) => {
                 dispatchScanInfoStateUpdate({
@@ -521,6 +532,11 @@ export const ParameterCard = ({
                 </MenuItem>
               ))}
             </Select>
+            {spacingHint && (
+              <FormHelperText id={`scan-spacing-${index}`}>
+                {spacingHint}
+              </FormHelperText>
+            )}
           </FormControl>
         </>
       ) : (

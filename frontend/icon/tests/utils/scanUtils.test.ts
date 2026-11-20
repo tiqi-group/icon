@@ -211,7 +211,12 @@ describe("scanUtils: getScanParameterOptions", () => {
 
   it("lists a display group's scannable, writable parameters with their bounds", () => {
     expect(getScanParameterOptions(GLOBALS, "Cooling", groups, devices)).toEqual({
-      [paramId("FREQUENCY", "f")]: { displayName: "frequency 397", min: 1, max: 2 },
+      [paramId("FREQUENCY", "f")]: {
+        displayName: "frequency 397",
+        unit: "",
+        min: 1,
+        max: 2,
+      },
     });
   });
 

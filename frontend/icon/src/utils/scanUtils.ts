@@ -176,6 +176,7 @@ export function isScannableParameterType(paramId: string): boolean {
 
 export interface ScanParameterOption {
   displayName: string;
+  unit?: string;
   min: number | null;
   max: number | null;
 }
@@ -216,7 +217,12 @@ export const getScanParameterOptions = (
       .filter(([paramId, meta]) => isScannableParameterType(paramId) && !meta.read_only)
       .map(([paramId, meta]) => [
         paramId,
-        { displayName: meta.display_name, min: meta.min_value, max: meta.max_value },
+        {
+          displayName: meta.display_name,
+          unit: meta.unit,
+          min: meta.min_value,
+          max: meta.max_value,
+        },
       ]),
   );
 };
