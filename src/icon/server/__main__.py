@@ -79,12 +79,15 @@ def start_server(config: Config) -> None:
         influx_config=config.get().databases.influxdbv1,
     )
 
+    children: list[multiprocessing.Process] = []
+
     scheduler = Scheduler(
         config,
         pre_processing_queue=SRM.pre_processing_queue,
         engine_cache=engine_cache,
     )
     scheduler.start()
+    children.append(scheduler)
 
     number_of_pre_processing_workers = config.get().server.pre_processing.workers
     pre_processing_update_queues: list[multiprocessing.Queue[UpdateQueue]] = [
@@ -94,7 +97,7 @@ def start_server(config: Config) -> None:
     devices = Devices(config)
 
     for i, queue in enumerate(pre_processing_update_queues):
-        PreProcessingWorker(
+        pre_processing_worker = PreProcessingWorker(
             config=config,
             experiment_library_client=exp_lib_client,
             worker_number=i,
@@ -104,7 +107,9 @@ def start_server(config: Config) -> None:
             manager=SRM,
             engine_cache=engine_cache,
             parameters_repository=parameters_repository,
-        ).start()
+        )
+        pre_processing_worker.start()
+        children.append(pre_processing_worker)
 
     post_processing_queue: multiprocessing.Queue[PostProcessingTask] = (
         multiprocessing.Queue()
@@ -119,6 +124,7 @@ def start_server(config: Config) -> None:
         engine_cache=engine_cache,
     )
     hardware_processing_worker.start()
+    children.append(hardware_processing_worker)
 
     post_processing_worker = PostProcessingWorker(
         config=config,
@@ -126,20 +132,31 @@ def start_server(config: Config) -> None:
         engine_cache=engine_cache,
     )
     post_processing_worker.start()
+    children.append(post_processing_worker)
 
-    icon.server.web_server.icon_server.IconServer(
-        APIService(
-            config=config,
-            experiment_library_client=exp_lib_client,
-            pre_processing_event_queues=pre_processing_update_queues,
-            devices=devices,
-            parameters_repository=parameters_repository,
-            engine_cache=engine_cache,
-        ),
-        host=config.get().server.host,
-        web_port=config.get().server.port,
-        frontend_src=Path(__file__).parent / "frontend",
-    ).run()
+    try:
+        icon.server.web_server.icon_server.IconServer(
+            APIService(
+                config=config,
+                experiment_library_client=exp_lib_client,
+                pre_processing_event_queues=pre_processing_update_queues,
+                devices=devices,
+                parameters_repository=parameters_repository,
+                engine_cache=engine_cache,
+            ),
+            host=config.get().server.host,
+            web_port=config.get().server.port,
+            frontend_src=Path(__file__).parent / "frontend",
+        ).run()
+    finally:
+        # Terminate the worker processes before shutting down the manager they
+        # communicate with, so a stopping server never leaves stale workers
+        # (notably the scheduler) polling the shared database.
+        for child in children:
+            child.terminate()
+        for child in children:
+            child.join(timeout=10)
+        SRM.shutdown()
 
 
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
