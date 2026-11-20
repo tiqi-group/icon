@@ -11,7 +11,7 @@ from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 from typing_extensions import Self
 
-from icon.config.config import get_config, set_config_path
+from icon.config.config import Config
 from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
     InfluxDBv1Session,
     escape_quotes,
@@ -33,6 +33,10 @@ if TYPE_CHECKING:
     import contextlib
     from types import TracebackType
 
+    from icon.config.latest import InfluxDBv1Config
+    from icon.server.data_access.db_context.influxdb.influxdb_v1 import (
+        InfluxDBSessionProvider,
+    )
     from icon.server.data_access.experiment_data import DatabaseValueType
 
 logger = logging.getLogger(__name__)
@@ -93,8 +97,8 @@ _IDENTIFIER_MARKER = "namespace='"
 class InfluxDBv1CachedSession(InfluxDBv1Session):
     """A cached InfluxDBv1Session that reuses a connection across calls."""
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, influx_config: InfluxDBv1Config) -> None:
+        super().__init__(influx_config)
         self.connect()
 
     def __enter__(self) -> Self:
@@ -112,8 +116,8 @@ class InfluxDBv1CachedSession(InfluxDBv1Session):
 class InfluxDBv1CachedSessionProvider:
     """Provides cached InfluxDBv1Session instance."""
 
-    def __init__(self) -> None:
-        self.session = InfluxDBv1CachedSession()
+    def __init__(self, influx_config: InfluxDBv1Config) -> None:
+        self.session = InfluxDBv1CachedSession(influx_config)
 
     def __call__(self) -> contextlib.AbstractContextManager[InfluxDBv1Session]:
         return self.session
@@ -138,6 +142,13 @@ TIME_EPOCH = "ns"
 
 
 class ParameterMigrationBackendR1(ParameterBackendR1):
+    def __init__(
+        self,
+        influx_config: InfluxDBv1Config,
+        session_provider: InfluxDBSessionProvider | None = None,
+    ) -> None:
+        super().__init__(influx_config, session_provider)
+
     def get_influxdb_last_parameter_by_id(
         self, field_key: str
     ) -> ParameterValue | None:
@@ -163,6 +174,13 @@ class ParameterMigrationBackendR1(ParameterBackendR1):
 
 
 class ParameterMigrationBackendR2(ParameterBackendR2):
+    def __init__(
+        self,
+        influx_config: InfluxDBv1Config,
+        session_provider: InfluxDBSessionProvider | None = None,
+    ) -> None:
+        super().__init__(influx_config, session_provider)
+
     def get_influxdb_parameters_with_tags(self) -> ParameterMapping:
         stmt = (
             f"SELECT {','.join(FIELD_KEY_NAMES)} "
@@ -213,13 +231,13 @@ class ParameterMigrationBackendR2(ParameterBackendR2):
 
 
 class InfluxDBSchemaMigrationManager:
-    def __init__(self) -> None:
-        cached_session_provider = InfluxDBv1CachedSessionProvider()
+    def __init__(self, influx_config: InfluxDBv1Config) -> None:
+        cached_session_provider = InfluxDBv1CachedSessionProvider(influx_config)
         self.source_backend = ParameterMigrationBackendR1(
-            session_provider=cached_session_provider
+            influx_config, session_provider=cached_session_provider
         )
         self.target_backend = ParameterMigrationBackendR2(
-            session_provider=cached_session_provider
+            influx_config, session_provider=cached_session_provider
         )
 
     def collect_r1_values(self) -> tuple[ParameterMapping, ParameterErrors]:
@@ -358,18 +376,21 @@ def _compare_parameter(
 
 
 def run_profile(  # noqa: C901
-    assumed_revision: ParameterDBSchema | None = None, *, do_r1_bulk_read: bool = False
+    influx_config: InfluxDBv1Config,
+    assumed_revision: ParameterDBSchema | None = None,
+    *,
+    do_r1_bulk_read: bool = False,
 ) -> int:
     if assumed_revision is None:
         try:
-            detected_revision = assert_parameter_db()
+            detected_revision = assert_parameter_db(influx_config)
         except AssertionError:
             logger.exception("Unable to detect Paramater DB Schema")
             return 1
     schema_revision = assumed_revision or detected_revision
 
-    session_provider = InfluxDBv1CachedSessionProvider()
-    backend = create_parameter_backend(schema_revision, session_provider)
+    session_provider = InfluxDBv1CachedSessionProvider(influx_config)
+    backend = create_parameter_backend(schema_revision, influx_config, session_provider)
     logger.info(
         'Parameter DB schema revision: %s (Measurement: "%s")',
         backend.schema.value,
@@ -385,7 +406,7 @@ def run_profile(  # noqa: C901
     logger.info("Series cardinality: %d ", len(series))
 
     measurements_by_icon = filter(
-        lambda m: get_config().databases.influxdbv1.measurement in m or "icon|" in m,
+        lambda m: influx_config.measurement in m or "icon|" in m,
         measurements,
     )
 
@@ -412,7 +433,7 @@ def run_profile(  # noqa: C901
         )
 
     if schema_revision == ParameterDBSchema.R1:
-        backend = ParameterMigrationBackendR1(session_provider)
+        backend = ParameterMigrationBackendR1(influx_config, session_provider)
         pksample = field_keys[:10]
         t0 = time.perf_counter()
         with logging_redirect_tqdm():
@@ -438,15 +459,19 @@ def run_profile(  # noqa: C901
     return 0
 
 
-def run_migration(dry_run: bool, confirm_inconsistencies: bool, yes: bool) -> int:
-    mm = InfluxDBSchemaMigrationManager()
-    config_influx = get_config().databases.influxdbv1
+def run_migration(
+    influx_config: InfluxDBv1Config,
+    dry_run: bool,
+    confirm_inconsistencies: bool,
+    yes: bool,
+) -> int:
+    mm = InfluxDBSchemaMigrationManager(influx_config)
 
     logger.info(
         'Migrating InfluxDB "%s:%s" database "%s": From measurement "%s" -> "%s" %s',
-        config_influx.host,
-        config_influx.port,
-        config_influx.database,
+        influx_config.host,
+        influx_config.port,
+        influx_config.database,
         mm.source_backend.measurement,
         mm.target_backend.measurement,
         " (DRY RUN)" if dry_run else "",
@@ -511,8 +536,8 @@ def run_migration(dry_run: bool, confirm_inconsistencies: bool, yes: bool) -> in
     return 0
 
 
-def run_verify() -> int:
-    mm = InfluxDBSchemaMigrationManager()
+def run_verify(influx_config: InfluxDBv1Config) -> int:
+    mm = InfluxDBSchemaMigrationManager(influx_config)
     parameter_mapping, ignored_params = mm.collect_r1_values()
 
     if not mm.verify_target_values(parameter_mapping):
@@ -528,7 +553,7 @@ def run_verify() -> int:
     return 0
 
 
-def run_rollback(dry_run: bool, force: bool) -> int:
+def run_rollback(influx_config: InfluxDBv1Config, dry_run: bool, force: bool) -> int:
     """Run the ``rollback`` command.
 
     Undoes a migration by dropping the r2 measurement.
@@ -536,11 +561,10 @@ def run_rollback(dry_run: bool, force: bool) -> int:
 
     With ``force`` the r1 existence check is skipped and the r2 measurement is dropped.
     """
-    influx = get_config().databases.influxdbv1
-    base_measurement = influx.measurement
+    base_measurement = influx_config.measurement
     r2_name = r2_measurement_name(base_measurement)
 
-    with InfluxDBv1Session() as session:
+    with InfluxDBv1Session(influx_config) as session:
         try:
             databases = session.get_databases()
         except (
@@ -548,15 +572,16 @@ def run_rollback(dry_run: bool, force: bool) -> int:
         ) as exc:  # connection failures surface as requests/urllib3 errors
             logger.error(  # noqa: TRY400
                 "Could not connect to InfluxDB at %s:%s: %s",
-                influx.host,
-                influx.port,
+                influx_config.host,
+                influx_config.port,
                 exc,
             )
             return 1
 
-        if influx.database not in databases:
+        if influx_config.database not in databases:
             logger.error(
-                "Configured InfluxDB database %r does not exist.", influx.database
+                "Configured InfluxDB database %r does not exist.",
+                influx_config.database,
             )
             return 1
 
@@ -609,7 +634,7 @@ def run_rollback(dry_run: bool, force: bool) -> int:
     "config_path",
     type=click.Path(dir_okay=False, path_type=Path),
     default=None,
-    help="Path to the ICON config file to use (defaults to $ICON_CONFIG, else "
+    help="Path to the ICON config file to use (defaults to "
     "~/.config/icon/config.yaml).",
 )
 @click.option("-v", "--verbose", is_flag=True, help="Enable verbose logging.")
@@ -620,8 +645,7 @@ def cli(ctx: click.Context, config_path: Path | None, verbose: bool) -> None:
         format="%(asctime)s.%(msecs)03d | %(levelname)s | %(name)s:%(funcName)s:%(lineno)d - %(message)s",
     )
 
-    if config_path is not None:
-        set_config_path(config_path)
+    ctx.obj = Config(config_path).get().databases.influxdbv1
 
     if ctx.invoked_subcommand is None:
         ctx.invoke(migrate)
@@ -645,9 +669,17 @@ def cli(ctx: click.Context, config_path: Path | None, verbose: bool) -> None:
     is_flag=True,
     help="Skip the interactive confirmation prompt.",
 )
-def migrate(dry_run: bool, confirm_inconsistencies: bool, yes: bool) -> None:
+@click.pass_obj
+def migrate(
+    influx_config: InfluxDBv1Config,
+    dry_run: bool,
+    confirm_inconsistencies: bool,
+    yes: bool,
+) -> None:
     """Perform migration: read each parameter and rewrite it to the r2 schema."""
-    raise SystemExit(run_migration(dry_run, confirm_inconsistencies, yes))
+    raise SystemExit(
+        run_migration(influx_config, dry_run, confirm_inconsistencies, yes)
+    )
 
 
 @cli.command()
@@ -661,9 +693,10 @@ def migrate(dry_run: bool, confirm_inconsistencies: bool, yes: bool) -> None:
     is_flag=True,
     help="Skip the v1/v2 existence check and drop the r2 measurement unconditionally.",
 )
-def rollback(dry_run: bool, force: bool) -> None:
+@click.pass_obj
+def rollback(influx_config: InfluxDBv1Config, dry_run: bool, force: bool) -> None:
     """Undo a migration: drop the v2 measurement (only if both schemas exist, unless --force)."""
-    raise SystemExit(run_rollback(dry_run, force))
+    raise SystemExit(run_rollback(influx_config, dry_run, force))
 
 
 @cli.command()
@@ -678,7 +711,9 @@ def rollback(dry_run: bool, force: bool) -> None:
     is_flag=True,
     help="Perform bulk read in case of r1 schema. Implies --assume-schema-revision=r1. WARNING: This may put significant load on the server. Use with caution. ",
 )
+@click.pass_obj
 def profile(
+    influx_config: InfluxDBv1Config,
     assume_schema_revision: ParameterDBSchema | None = None,
     *,
     do_r1_bulk_read: bool = False,
@@ -692,14 +727,17 @@ def profile(
         assume_schema_revision = ParameterDBSchema.R1
 
     raise SystemExit(
-        run_profile(assume_schema_revision, do_r1_bulk_read=do_r1_bulk_read)
+        run_profile(
+            influx_config, assume_schema_revision, do_r1_bulk_read=do_r1_bulk_read
+        )
     )
 
 
 @cli.command()
-def verify() -> None:
+@click.pass_obj
+def verify(influx_config: InfluxDBv1Config) -> None:
     """Verify r2 state against r1 state."""
-    raise SystemExit(run_verify())
+    raise SystemExit(run_verify(influx_config))
 
 
 if __name__ == "__main__":

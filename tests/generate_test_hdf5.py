@@ -29,8 +29,8 @@ import numpy as np
 import sqlalchemy
 import sqlalchemy.orm
 
-from icon.config.config import get_config
-from icon.server.data_access.db_context.sqlite import engine
+from icon.config.config import Config
+from icon.server.data_access.db_context.sqlite.engine import CachedEngine
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
 from icon.server.data_access.models.sqlite.job import Job
@@ -38,6 +38,10 @@ from icon.server.data_access.models.sqlite.job_run import JobRun
 from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
 
 logger = logging.getLogger(__name__)
+
+config = Config()
+engine_cache = CachedEngine(config.get().databases.sqlite.file)
+engine = engine_cache.get_cached(engine_cache.path)
 
 # ---------------------------------------------------------------------------
 # Shared experiment source — reused across all generated jobs
@@ -75,6 +79,7 @@ def _insert_job_and_run(
         status=JobStatus.PROCESSED,
         repetitions=1,
         number_of_shots=1,
+        created=datetime.now(timezone.utc),
     )
     session.add(job)
     session.flush()  # populate job.id
@@ -104,7 +109,7 @@ def _hdf5_path(scheduled_time: datetime) -> str:
     Must match exactly how ``get_filename_by_job_id`` builds the name:
     ``f"{scheduled_time}.h5"``
     """
-    results_dir = get_config().data.results_dir
+    results_dir = config.get().data.results_dir
     return f"{results_dir}/{scheduled_time}.h5"
 
 
@@ -322,6 +327,7 @@ def _insert_job_and_run_2d(
         status=JobStatus.PROCESSED,
         repetitions=1,
         number_of_shots=1,
+        created=datetime.now(timezone.utc),
     )
     session.add(job)
     session.flush()
@@ -473,8 +479,8 @@ def generate_2d_gaussian() -> int:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, stream=sys.stdout, format="%(message)s")
 
-    logger.info("Results dir : %s", get_config().data.results_dir)
-    logger.info("Database    : %s", get_config().databases.sqlite.file)
+    logger.info("Results dir : %s", config.get().data.results_dir)
+    logger.info("Database    : %s", config.get().databases.sqlite.file)
     logger.info("")
 
     generate_clean_lorentzian()

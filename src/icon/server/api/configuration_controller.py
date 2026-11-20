@@ -3,9 +3,8 @@ from collections.abc import Callable
 from typing import Any
 
 import pydase
-from confz import DataSource
 
-from icon.config.config import get_config, save_config
+from icon.config.config import Config
 from icon.config.latest import ServiceConfig
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
@@ -19,18 +18,22 @@ class ConfigurationController(pydase.DataService):
     save the updated configuration back to the source file.
     """
 
-    def __init__(self, on_update: Callable[[], None] | None = None) -> None:
+    def __init__(
+        self, config: Config, on_update: Callable[[], None] | None = None
+    ) -> None:
         """Create a new ConfigurationController.
 
         Args:
+            config: Configuration object.
             on_update: Called after the configuration has been updated and saved.
         """
         super().__init__()
         self._on_update = on_update
+        self._config = config
 
     def get_config(self) -> dict[str, Any]:
         """Get current configuration dictionary."""
-        return get_config().model_dump()
+        return self._config.get().model_dump()
 
     def update_config_option(self, key: str, value: Any) -> bool:
         """Update a specific configuration option.
@@ -49,17 +52,15 @@ class ConfigurationController(pydase.DataService):
             True if the update is successful, False otherwise.
         """
         try:
-            current_config = get_config().model_dump()
+            current_config = self._config.get().model_dump()
             set_nested(current_config, key, value)
 
             # Validate the updated configuration
-            updated_config = ServiceConfig(config_sources=DataSource(current_config))
-
+            new_config = ServiceConfig.model_validate(current_config)
             # Save the updated configuration back to the file
-            save_config(updated_config)
-            emit_queue.put(
-                {"event": "config.update", "data": updated_config.model_dump()}
-            )
+            self._config.set(new_config)
+
+            emit_queue.put({"event": "config.update", "data": new_config.model_dump()})
         except KeyError:
             logger.exception("Failed to update configuration")
             return False

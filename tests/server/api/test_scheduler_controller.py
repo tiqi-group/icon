@@ -11,19 +11,24 @@ from icon.server.api.models.scan_parameter import (
     RealtimeParameter,
 )
 from icon.server.api.scheduler_controller import SchedulerController
+from icon.server.data_access.db_context.sqlite.engine import CachedEngine
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite import (
     Job,
     JobRun,
 )
+from tests.mock_config import mock_config
 from tests.server.conftest import SeedJob
 
 
 @pytest.fixture
-def controller() -> SchedulerController:
+def controller(engine_cache: CachedEngine) -> SchedulerController:
     return SchedulerController(
+        mock_config(),
         devices_controller=MagicMock(),
         parameters_controller=MagicMock(),
+        parameters_repository=MagicMock(),
+        engine_cache=engine_cache,
     )
 
 

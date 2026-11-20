@@ -4,11 +4,11 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Generic, Self, TypeVar
 
-from icon.config.config import get_config
 from icon.config.reloader import ReloadError
 from icon.server.hardware_processing.hardware_controller import HardwareController
 
 if TYPE_CHECKING:
+    from icon.config.config import Config
     from icon.config.latest import DeviceConfig, ServiceConfig
 
 logger = logging.getLogger(__name__)
@@ -71,9 +71,10 @@ class FrozenHardwareConfig:
 
 
 class Devices:
-    def __init__(self) -> None:
+    def __init__(self, config: "Config") -> None:
         self.__enabled_devices: dict[str, Hardware] = {}
         self.__reloader = ListReloader(
+            config=config,
             obj_factory=FrozenHardwareConfig.load,
             subconfig=lambda config: [
                 FrozenHardwareConfig.from_config(cfg) for cfg in config.hardware.devices
@@ -123,10 +124,12 @@ class ListReloader(Generic[C, T]):
 
     def __init__(
         self,
+        config: "Config",
         obj_factory: Callable[[C], T],
         subconfig: "Callable[[ServiceConfig], list[C]]",
     ) -> None:
         # Mapping from frozen config to item index in `initial_objs`:
+        self._config = config
         self.obj_factory = staticmethod(obj_factory)
         self.config: list[C] = []
         self.objs: list[T | ReloadError] = []
@@ -134,7 +137,7 @@ class ListReloader(Generic[C, T]):
 
     def reload_changed(self) -> Iterable[T]:
         current_objs = dict(zip(self.config, self.objs, strict=True))
-        self.config = self.subconfig(get_config())
+        self.config = self.subconfig(self._config.get())
         self.objs.clear()
         for cfg in self.config:
             current = current_objs.get(cfg)

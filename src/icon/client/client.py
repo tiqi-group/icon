@@ -3,10 +3,12 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 import pydase
+import pytz
 import socketio  # type: ignore[import-untyped]
 
 from icon.client.api.experiments_controller import ExperimentsController
 from icon.client.api.parameters_controller import ParametersController
+from icon.config.config import Config
 from icon.serialization.deserializer import loads
 from icon.serialization.serializer import dump
 
@@ -22,14 +24,15 @@ def trigger_method(
     access_path: str,
     args: list[Any],
     kwargs: dict[str, Any],
+    timezone: pytz.BaseTzInfo,
 ) -> Any:
     async def async_trigger_method() -> Any:
         return await sio_client.call(
             "trigger_method",
             {
                 "access_path": access_path,
-                "args": dump(args),
-                "kwargs": dump(kwargs),
+                "args": dump(args, timezone=timezone),
+                "kwargs": dump(kwargs, timezone=timezone),
             },
         )
 
@@ -49,13 +52,14 @@ def update_value(
     loop: asyncio.AbstractEventLoop,
     access_path: str,
     value: Any,
+    timezone: pytz.BaseTzInfo,
 ) -> Any:
     async def set_result() -> Any:
         return await sio_client.call(
             "update_value",
             {
                 "access_path": access_path,
-                "value": dump(value),
+                "value": dump(value, timezone=timezone),
             },
         )
 
@@ -108,6 +112,9 @@ class Client(pydase.Client):
         )
         del self.proxy
 
+        # The client only needs the timezone (for datetime serialization), so resolve
+        # it once from the local config instead of keeping a live-reloading Config.
+        self._timezone: pytz.BaseTzInfo = pytz.timezone(Config().get().date.timezone)
         self.experiments = ExperimentsController(self)
         self.parameters = ParametersController(self)
 
@@ -145,6 +152,7 @@ class Client(pydase.Client):
             loop=self.event_loop,
             access_path=full_access_path,
             value=new_value,
+            timezone=self._timezone,
         )
 
     def trigger_method(
@@ -160,4 +168,5 @@ class Client(pydase.Client):
             access_path=full_access_path,
             args=args or [],
             kwargs=kwargs or {},
+            timezone=self._timezone,
         )

@@ -1,11 +1,15 @@
 import asyncio
 import json
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pydase
+from sqlalchemy.engine import Engine
 
+from icon.config.config import Config
+from icon.server.data_access.db_context.sqlite.engine import CachedEngine
 from icon.server.data_access.repositories.experiment_data_repository import (
     DEFAULT_MAX_TRANSFER_BYTES,
     ExperimentDataRepository,
@@ -23,6 +27,17 @@ class ExperimentDataController(pydase.DataService):
 
     Provides API methods to fetch experiment data associated with jobs.
     """
+
+    def __init__(self, config: Config, engine_cache: CachedEngine) -> None:
+        super().__init__()
+        self._config = config
+        self._engine_cache = engine_cache
+
+    def _engine(self) -> Engine:
+        return self._engine_cache.get_cached(self._config.get().databases.sqlite.file)
+
+    def experiment_data_repo(self) -> ExperimentDataRepository:
+        return ExperimentDataRepository.from_config(self._config, self._engine())
 
     async def get_experiment_data_by_job_id(
         self,
@@ -58,7 +73,7 @@ class ExperimentDataController(pydase.DataService):
             instance.
         """
         result = await asyncio.to_thread(
-            ExperimentDataRepository.get_experiment_data_by_job_id,
+            self.experiment_data_repo().get_experiment_data_by_job_id,
             job_id=job_id,
             max_transfer_bytes=max_transfer_bytes,
             include_hardware_instructions=include_hardware_instructions,
@@ -91,7 +106,7 @@ class ExperimentDataController(pydase.DataService):
             stored for the requested scope.
         """
         return await asyncio.to_thread(
-            ExperimentDataRepository.get_hardware_instructions,
+            self.experiment_data_repo().get_hardware_instructions,
             job_id=job_id,
             index=index,
             device_id=device_id,
@@ -120,7 +135,7 @@ class ExperimentDataController(pydase.DataService):
             Serialised FitResult dict.
         """
         data = await asyncio.to_thread(
-            ExperimentDataRepository.get_experiment_data_by_job_id,
+            self.experiment_data_repo().get_experiment_data_by_job_id,
             job_id=job_id,
         )
 
@@ -163,8 +178,11 @@ class ExperimentDataController(pydase.DataService):
         if fit_result.success:
             await asyncio.to_thread(
                 write_fit_result_by_job_id,
+                engine=self._engine(),
                 job_id=job_id,
                 fit_results=[(device_id, fit_result)],
+                h5_dir=Path(self._config.get().data.results_dir),
+                timeout=self._config.get().data.h5_open_timeout_seconds,
             )
 
         result_dict = asdict(fit_result)
@@ -191,9 +209,12 @@ class ExperimentDataController(pydase.DataService):
         """
         await asyncio.to_thread(
             delete_fit_result_by_job_id,
+            engine=self._engine(),
             job_id=job_id,
             device_id=device_id,
             result_channel=result_channel,
+            h5_dir=Path(self._config.get().data.results_dir),
+            timeout=self._config.get().data.h5_open_timeout_seconds,
         )
         emit_queue.put(
             {
