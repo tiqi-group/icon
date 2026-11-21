@@ -50,7 +50,7 @@ def _compute_goodness(
 def _make_error(
     result_channel: str,
     func_type: str,
-    x_range: list[float] | None,
+    x_range: list[float | None] | None,
     init: dict[str, float],
     message: str,
 ) -> FitResult:
@@ -69,10 +69,15 @@ def _make_error(
 def _apply_range(
     x: npt.NDArray[np.float64],
     y: npt.NDArray[np.float64],
-    x_range: list[float] | None,
+    x_range: list[float | None] | None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     if x_range is not None and len(x_range) == _EXPECTED_RANGE_LEN:
-        mask = (x >= x_range[0]) & (x <= x_range[1])
+        x_min, x_max = x_range
+        mask = np.ones(len(x), dtype=bool)
+        if x_min is not None:
+            mask &= x >= x_min
+        if x_max is not None:
+            mask &= x <= x_max
         return x[mask], y[mask]
     return x, y
 
@@ -82,10 +87,20 @@ def run_curve_fit(  # noqa: C901
     y: npt.NDArray[np.float64],
     result_channel: str,
     func_type: FitFunctionType,
-    x_range: list[float] | None = None,
+    x_range: list[float | None] | None = None,
     init: dict[str, float] | None = None,
 ) -> FitResult:
-    """Run a curve fit on the given data."""
+    """Run a curve fit on the given data.
+
+    Args:
+        x: Scan parameter values.
+        y: Result channel values.
+        result_channel: Name of the result channel, stored in the result.
+        func_type: Fit model name.
+        x_range: Optional [min, max] to restrict the fit to. Either can be None for
+            no bound on that side.
+        init: Optional initial parameter overrides.
+    """
     if func_type not in FIT_MODELS:
         return _make_error(
             result_channel,
