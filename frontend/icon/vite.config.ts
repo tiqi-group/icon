@@ -10,6 +10,9 @@ export default defineConfig({
       // The sequence visualiser is served by the ICON backend (see
       // src/icon/server/web_server/visualiser.py).
       "/visualizer": "http://localhost:8004",
+      // User styles are served by the ICON backend as well (see
+      // src/icon/server/web_server/user_styles.py).
+      "/styles": "http://localhost:8004",
     },
   },
   build: {

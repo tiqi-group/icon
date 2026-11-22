@@ -26,6 +26,7 @@ import { updateConfiguration } from "../utils/updateConfiguration";
 import { useBrowserSetting } from "../hooks/useBrowserSetting";
 import { Input } from "../components/parameterComponents/Input";
 import { useEffect, useState } from "react";
+import { UserStyleSelect } from "../components/settings/UserStyleSelect";
 
 export const DEFAULT_WINDOW_SIZE = 1000;
 
@@ -461,6 +462,7 @@ export const SettingsPage = () => {
             onChange={setDefaultWindowSizeInput}
             onBlur={updateDefaultWindowSize}
           />
+          <UserStyleSelect />
         </TabPanel>
       </Box>
     </>

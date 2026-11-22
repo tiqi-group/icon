@@ -12,6 +12,8 @@ import DevicesPage from "./pages/devices";
 import { SettingsPage } from "./pages/settings";
 import JobViewerLayout from "./layouts/job-viewer";
 import { JobViewerPage } from "./pages/job-viewer";
+import { UserStyle } from "./components/UserStyle";
+import { applyUserStyle, getStoredUserStyle } from "./utils/userStyle";
 
 const router = createBrowserRouter([
   {
@@ -65,8 +67,13 @@ const router = createBrowserRouter([
   },
 ]);
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <RouterProvider router={router} />
-  </React.StrictMode>,
+// Load the user style before the first render so the page does not change its look
+// right after it appears.
+void applyUserStyle(getStoredUserStyle()).then(() =>
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <UserStyle />
+      <RouterProvider router={router} />
+    </React.StrictMode>,
+  ),
 );
