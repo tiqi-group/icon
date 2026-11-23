@@ -262,6 +262,7 @@ const ResultChannelPlot = ({
           data,
           emphasis: { itemStyle: { borderColor: "#333", borderWidth: 1 } },
           animation: false,
+          progressive: 0,
         });
       }
 
