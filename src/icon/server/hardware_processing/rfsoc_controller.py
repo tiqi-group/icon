@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import socket
 import threading
 import weakref
@@ -13,7 +12,6 @@ from typing import TYPE_CHECKING, Any, Final, Self, TypeVar
 
 from qendra.device_client import (
     ApiVersionError,
-    DeviceClient,
     DeviceError,
     PulseClient,
     RPCError,
@@ -22,6 +20,7 @@ from qendra.device_client import (
     UpdateState,
 )
 from qendra.device_client.config import DEFAULT_CALL_TIMEOUT
+from qendra.device_client.sync import SyncWrapper
 
 from icon.server.data_access.experiment_data import Readouts
 from icon.server.hardware_processing.hardware_controller import (
@@ -30,7 +29,6 @@ from icon.server.hardware_processing.hardware_controller import (
 )
 
 if TYPE_CHECKING:
-    import concurrent.futures
     from collections.abc import Coroutine
 
     from qendra.device_client import TaskResult
@@ -48,58 +46,36 @@ SEQUENCE_TIME_FACTOR: Final = 1.5
 
 # *** Event loop
 #
-# The device clients are asyncio, while the Hardware Controllers are called from the
-# threads of the hardware worker and the status checks. The clients of a process therefore
-# all run on one event loop on a daemon thread, which the controllers hand their calls to.
-
-_loop: asyncio.AbstractEventLoop | None = None
-_loop_lock = threading.Lock()
+# The device client is asyncio, while the Hardware Controllers are called from the threads
+# of the hardware worker and the status checks. Each controller therefore runs its client
+# on the event loop of a SyncWrapper, in a daemon thread of its own.
 
 
-def _event_loop() -> asyncio.AbstractEventLoop:
-    """Event loop of the device clients of this process, started on first use."""
-    global _loop  # noqa: PLW0603
-    with _loop_lock:
-        if _loop is None:
-            _loop = asyncio.new_event_loop()
-            threading.Thread(
-                target=_loop.run_forever, name="device-clients", daemon=True
-            ).start()
-        return _loop
+async def _start(coroutine: Coroutine[Any, Any, T]) -> asyncio.Task[T]:
+    """Start ``coroutine`` as a task of the running event loop, without waiting for it."""
+    return asyncio.create_task(coroutine)
 
 
-def _forget_event_loop() -> None:
-    """A forked process has no thread running the loop of its parent, so starts its own."""
-    global _loop, _loop_lock  # noqa: PLW0603
-    _loop = None
-    _loop_lock = threading.Lock()
+def _close(sync: SyncWrapper[PulseClient]) -> None:
+    """Disconnect the client of a dropped controller and shut its event loop down."""
+    try:
+        sync.run(sync.client.disconnect())
+    except (RuntimeError, OSError) as e:
+        # RuntimeError: the wrapper is shut down, e.g. in a forked process
+        logger.debug("Could not disconnect %r: %s", sync.client, e)
+    finally:
+        sync.shutdown()
 
 
-if hasattr(os, "register_at_fork"):  # POSIX only
-    os.register_at_fork(after_in_child=_forget_event_loop)
+def _close_soon(sync: SyncWrapper[PulseClient]) -> None:
+    """Close the wrapper of a dropped controller on a thread of its own.
 
-
-def _submit(coroutine: Coroutine[Any, Any, T]) -> concurrent.futures.Future[T]:
-    """Run ``coroutine`` on the event loop of the device clients."""
-    return asyncio.run_coroutine_threadsafe(coroutine, _event_loop())
-
-
-def _call(coroutine: Coroutine[Any, Any, T]) -> T:
-    """Run ``coroutine`` on the event loop of the device clients and return its result.
-
-    Bounded by the timeouts of the calls it makes.
+    The controller can be dropped on any thread, among them the one running the event
+    loop of the wrapper, which cannot wait for that loop.
     """
-    return _submit(coroutine).result()
-
-
-def _disconnect_soon(client: DeviceClient) -> None:
-    """Close the connection of a device client that is no longer used.
-
-    The receiver task of the client keeps the client and its connection alive.
-    """
-    loop = _loop
-    if loop is not None and loop.is_running():
-        asyncio.run_coroutine_threadsafe(client.disconnect(), loop)
+    threading.Thread(
+        target=_close, args=(sync,), name=f"close {sync!r}", daemon=True
+    ).start()
 
 
 class RFSoCController(HardwareController):
@@ -109,8 +85,8 @@ class RFSoCController(HardwareController):
     :meth:`receive` waits for it to finish and collects its results. The device stays
     responsive while the task runs, so it can be aborted.
 
-    The client runs on the event loop shared by the device clients of the process. The
-    connection is closed when the controller is dropped.
+    The client runs on the event loop of a :class:`~qendra.device_client.sync.SyncWrapper`
+    of its own. Dropping the controller closes the connection and stops the event loop.
     """
 
     def __init__(
@@ -132,10 +108,15 @@ class RFSoCController(HardwareController):
                 aborting it.
         """
         self._client = PulseClient(hostname=host, port=port, timeout=timeout)
-        weakref.finalize(self, _disconnect_soon, self._client)
+        self._sync = SyncWrapper(self._client)
+        """Runs the coroutines of :attr:`_client` on its event loop."""
+        self._finalizer = weakref.finalize(self, _close_soon, self._sync)
+        # The process ends the connection at exit, where no thread can be started
+        # (atexit is a property, which typeshed declares next to empty __slots__)
+        self._finalizer.atexit = False  # type: ignore[misc]
         self._task_timeout_margin = task_timeout_margin
         self._task_timeout = task_timeout_margin
-        self._task: concurrent.futures.Future[None] | None = None
+        self._task: asyncio.Task[None] | None = None
         """The wait of :meth:`run` for the task to finish, which :meth:`receive` takes."""
         self._device_id: str | None = None
         self._channel_layout = ChannelLayout()
@@ -143,7 +124,7 @@ class RFSoCController(HardwareController):
     # *** Connection
 
     def connect(self) -> None:
-        _call(self._connect())
+        self._sync.run(self._connect())
 
     async def _connect(self) -> None:
         """Connect, register the session, confirm a firmware update and query the device id.
@@ -225,7 +206,7 @@ class RFSoCController(HardwareController):
     def status(self) -> tuple[StatusFlag, str, Any]:
         # TODO: report sys.getStatus once the firmware implements it
         try:
-            health = _call(self._client.get_health())
+            health = self._sync.run(self._client.get_health())
         except (RPCError, OSError) as e:
             return (StatusFlag.UNKNOWN, str(e), None)
         return (StatusFlag.SUCCESS, "OK", health)
@@ -248,20 +229,23 @@ class RFSoCController(HardwareController):
             header, device_id=self._device_id
         )
         try:
-            _call(self._client.setup_task(data))
+            self._sync.run(self._client.setup_task(data))
         except RPCResponseError:
-            if _call(self._client.get_task_status()).status is TaskStatus.IDLE:
+            report = self._sync.run(self._client.get_task_status())
+            if report.status is TaskStatus.IDLE:
                 raise
             logger.warning("Aborting a leftover task on %s", self.display_name)
-            _call(self._client.abort_task())
-            _call(self._client.setup_task(data))
+            self._sync.run(self._client.abort_task())
+            self._sync.run(self._client.setup_task(data))
 
     def run(self) -> None:
         """Start the task set up by :meth:`send`, which runs on while :meth:`receive` waits.
 
         The task is aborted if it does not finish within the task timeout of its sequence.
         """
-        self._task = _submit(self._client.start_task(timeout=self._task_timeout))
+        self._task = self._sync.run(
+            _start(self._client.start_task(timeout=self._task_timeout))
+        )
 
     def receive(self) -> Readouts:
         """Wait for the task started by :meth:`run` to finish and collect its results.
@@ -277,7 +261,7 @@ class RFSoCController(HardwareController):
         if task is None:
             raise DeviceError(f"no task was started on {self.display_name}")
         try:
-            task.result()
+            self._sync.run(task)
         except TimeoutError as e:
             if e.args:
                 # A call timed out, which its message names
@@ -287,7 +271,7 @@ class RFSoCController(HardwareController):
                 f"Task on {self.display_name} did not finish within "
                 f"{self._task_timeout:g}s and was aborted"
             ) from e
-        results = _call(self._client.get_task_results())
+        results = self._sync.run(self._client.get_task_results())
         if results.log:
             logger.warning("%s: %s", self.display_name, results.log)
         # TODO: return the per-shot results once ICON handles them

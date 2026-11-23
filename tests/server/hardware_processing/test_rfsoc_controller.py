@@ -32,7 +32,6 @@ from icon.server.hardware_processing.rfsoc_controller import (
     CLIENT_NAME,
     ChannelLayout,
     RFSoCController,
-    _call,
     _decode_header,
     to_zedboard_readouts,
 )
@@ -309,7 +308,7 @@ def test_connect_registers_session(
 ) -> None:
     controller.connect()
     assert device.sessions == [CLIENT_NAME]
-    assert _call(controller._client.list_sessions()) == [
+    assert controller._sync.run(controller._client.list_sessions()) == [
         Session(client_name=CLIENT_NAME, client_ip="127.0.0.1", client_port=50000)
     ]
 
@@ -325,7 +324,7 @@ def test_connect_without_session_api(
 
 def test_get_device_info(controller: RFSoCController) -> None:
     controller.connect()
-    info = _call(controller._client.get_device_info())
+    info = controller._sync.run(controller._client.get_device_info())
     assert info.board_model == "ZCU216"
     assert info.submodule_versions == {"pulseway": "f2384fa", "quench_rf": "eac2404"}
 
@@ -441,10 +440,36 @@ def test_receive_without_run(controller: RFSoCController) -> None:
 
 
 def test_dropped_controller_disconnects(device: FakeDevice) -> None:
+    before = set(threading.enumerate())
     controller = make_controller(device)
+    loop_threads = set(threading.enumerate()) - before
+    assert loop_threads
     controller.connect()
     del controller
     gc.collect()
+    assert device.disconnected.wait(timeout=1)
+    # The event loop of the controller is shut down as well
+    for thread in loop_threads:
+        thread.join(timeout=1)
+        assert not thread.is_alive()
+
+
+def test_close_on_the_event_loop_thread(
+    device: FakeDevice, controller: RFSoCController
+) -> None:
+    """The last reference to a controller can go on any thread, also its event loop's."""
+    controller.connect()
+
+    async def drop() -> None:
+        controller._finalizer()
+
+    # In a thread of its own, so that a deadlock of the event loop fails the test
+    dropping = threading.Thread(
+        target=controller._sync.run, args=(drop(),), daemon=True
+    )
+    dropping.start()
+    dropping.join(timeout=1)
+    assert not dropping.is_alive()
     assert device.disconnected.wait(timeout=1)
 
 
