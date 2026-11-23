@@ -68,8 +68,13 @@ const router = createBrowserRouter([
 ]);
 
 // Load the user style before the first render so the page does not change its look
-// right after it appears.
-void applyUserStyle(getStoredUserStyle()).then(() =>
+// right after it appears. A style that is slow to load must not hold the app back.
+const STYLE_LOAD_TIMEOUT_MS = 1000;
+
+void Promise.race([
+  applyUserStyle(getStoredUserStyle()),
+  new Promise((resolve) => setTimeout(resolve, STYLE_LOAD_TIMEOUT_MS)),
+]).then(() =>
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
       <UserStyle />

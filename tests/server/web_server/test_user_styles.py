@@ -80,12 +80,38 @@ async def test_missing_file_is_not_found(client: Client) -> None:
     assert response.status == HTTPStatus.NOT_FOUND
 
 
-def test_does_not_serve_files_outside_styles_dir(config_dir: Path) -> None:
+@pytest.mark.asyncio
+async def test_serves_symlinked_style(
+    client: Client, config_dir: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    shared = tmp_path_factory.mktemp("shared") / "compact"
+    shared.mkdir()
+    (shared / "index.css").write_text("body { color: red; }")
     (config_dir / "styles").mkdir()
+    (config_dir / "styles" / "compact").symlink_to(shared)
+
+    listing = await client.get("/styles/")
+    index = await client.get("/styles/compact/index.css")
+
+    assert await listing.json() == ["compact"]
+    assert await index.text() == "body { color: red; }"
+
+
+@pytest.mark.parametrize("path", ["../config.yaml", "compact/../../config.yaml"])
+def test_does_not_serve_files_outside_styles_dir(config_dir: Path, path: str) -> None:
+    (config_dir / "styles" / "compact").mkdir(parents=True)
     (config_dir / "config.yaml").write_text("secret")
 
     # HTTP clients normalise "..", so the guard is checked on the handler itself
-    response = _style_file_response("../config.yaml")
+    response = _style_file_response(path)
+
+    assert response.status == HTTPStatus.NOT_FOUND
+
+
+def test_does_not_serve_absolute_paths(config_dir: Path) -> None:
+    (config_dir / "config.yaml").write_text("secret")
+
+    response = _style_file_response(str(config_dir / "config.yaml"))
 
     assert response.status == HTTPStatus.NOT_FOUND
 

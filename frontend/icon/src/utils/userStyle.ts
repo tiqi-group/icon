@@ -1,9 +1,14 @@
+import { forwardedPrefix } from "../socket";
+
 export const USER_STYLE_KEY = "userStyle";
 export const NO_USER_STYLE = "";
 
 const LINK_ID = "icon-user-style";
 
-const styleUrl = (name: string) => `/styles/${encodeURIComponent(name)}/index.css`;
+const STYLES_URL = `${forwardedPrefix}/styles`;
+
+const styleUrl = (name: string) =>
+  `${STYLES_URL}/${encodeURIComponent(name)}/index.css`;
 
 /** The style selected in this browser, as stored by `useBrowserSetting`. */
 export const getStoredUserStyle = (): string => {
@@ -16,7 +21,7 @@ export const getStoredUserStyle = (): string => {
 };
 
 export const fetchUserStyles = async (): Promise<string[]> => {
-  const response = await fetch("/styles/");
+  const response = await fetch(`${STYLES_URL}/`);
   if (!response.ok) throw new Error(`Failed to list styles: ${response.status}`);
   return (await response.json()) as string[];
 };

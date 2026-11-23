@@ -5,7 +5,7 @@ contains an ``index.css``. ``/styles/`` lists the style names, and
 ``/styles/<name>/<path>`` serves the files of a style.
 """
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import aiohttp.typedefs
 import aiohttp.web
@@ -30,10 +30,11 @@ def list_styles() -> list[str]:
 
 
 def _style_file_response(relative_path: str) -> aiohttp.web.StreamResponse:
-    styles_dir = get_styles_dir()
-    file = (styles_dir / relative_path).resolve()
+    path = PurePosixPath(relative_path)
+    file = get_styles_dir() / path
 
-    if not file.is_relative_to(styles_dir) or not file.is_file():
+    # Symlinks may lead out of the styles directory, the requested path may not
+    if path.is_absolute() or ".." in path.parts or not file.is_file():
         return aiohttp.web.Response(status=404, text="Style file not found.")
 
     # Styles are edited in place, so the browser must not serve stale copies.
