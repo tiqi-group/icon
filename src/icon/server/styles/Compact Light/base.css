@@ -1612,3 +1612,14 @@ html[data-toolpad-color-scheme="light"]
   grid-row: 2;
   align-self: start;
 }
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a[href="/experiments"].Mui-selected)
+  main
+  .MuiTableBody-root
+  .MuiTableRow-root
+  > .MuiTableCell-root:nth-child(2)
+  > div[style*="flex-direction: column"]
+  > div:first-child {
+  grid-column: 1 / -1;
+}
