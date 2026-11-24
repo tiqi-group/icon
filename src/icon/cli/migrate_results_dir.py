@@ -17,15 +17,17 @@ logger = logging.getLogger(__name__)
 CLI_HELP = """Tool for moving result files into day folders.
 
 Earlier versions of ICON stored every result file directly in the results
-directory, named after the run's scheduled time. ICON now reads result files
-only from one folder per day, named after the scheduled time in ISO 8601 basic
-format and the experiment name, without the `:` and spaces that break on
-Windows:
+directory, named after the run's scheduled time in the configured time zone.
+ICON now reads result files only from one folder per UTC day, named after the
+scheduled time in UTC in ISO 8601 basic format and the experiment name, without
+the `:` and spaces that break on Windows:
 
 \b
-<results_dir>/<yyyy-mm-dd>/<yyyymmdd>T<hhmmss.ffffff>_<experiment name>.h5
+<results_dir>/<yyyy-mm-dd>/<yyyymmdd>T<hhmmss.ffffff>Z_<experiment name>.h5
 
-This tool moves and renames the files of the old flat layout. The experiment of
+This tool moves and renames the files of the old flat layout, converting the
+time in their name from the time zone set in `date.timezone` to UTC; this must
+be the time zone ICON ran with when the files were written. The experiment of
 each file is looked up in the job database; files without a run there keep only
 the scheduled time in their name. Files are moved, not copied, and other files
 in the results directory are left alone. ICON refuses to start until this

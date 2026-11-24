@@ -11,7 +11,7 @@ import unicodedata
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, TypedDict, cast
@@ -40,6 +40,7 @@ from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
     ScheduledRun,
+    scheduled_time_to_utc,
 )
 from icon.server.web_server.socketio_emit_queue import emit_queue
 
@@ -164,8 +165,8 @@ def _results_dir_error(
     )
 
 
-_RESULT_TIME_FORMAT = "%Y%m%dT%H%M%S.%f%z"
-"""Scheduled time in result filenames, in ISO 8601 basic format.
+_RESULT_TIME_FORMAT = "%Y%m%dT%H%M%S.%fZ"
+"""Scheduled time in UTC in result filenames, in ISO 8601 basic format.
 
 Free of the `:` and spaces that Windows rejects. Microseconds are kept so that
 runs scheduled within the same second get different files.
@@ -191,15 +192,24 @@ def _filename_safe(name: str) -> str:
 def result_path(results_dir: Path, run: ScheduledRun) -> Path:
     """Return the path of the result file of `run`.
 
-    Result files are grouped into one folder per day and named after the
-    run's scheduled time and experiment name, e.g.
-    `<results_dir>/2026-03-24/20260324T235900.000000_Ramsey.h5`. The name
+    Result files are grouped into one folder per UTC day and named after the
+    run's scheduled time in UTC and experiment name, e.g.
+    `<results_dir>/2026-03-24/20260324T235900.000000Z_Ramsey.h5`. The name
     is left out if nothing of it is filename-safe.
+
+    Raises:
+        ValueError: The scheduled time is naive, so its UTC time is unknown.
     """
-    stem = f"{run.scheduled_time:{_RESULT_TIME_FORMAT}}"
+    if run.scheduled_time.tzinfo is None:
+        raise ValueError(
+            f"Scheduled time {run.scheduled_time} has no time zone; read it "
+            "through JobRunRepository or scheduled_time_to_utc."
+        )
+    scheduled_time = run.scheduled_time.astimezone(UTC)
+    stem = f"{scheduled_time:{_RESULT_TIME_FORMAT}}"
     if name := _filename_safe(experiment_name(run.experiment_id)):
         stem = f"{stem}_{name}"
-    return results_dir / f"{run.scheduled_time:%Y-%m-%d}" / f"{stem}.h5"
+    return results_dir / f"{scheduled_time:%Y-%m-%d}" / f"{stem}.h5"
 
 
 def _flat_result_filename(scheduled_time: datetime) -> str:
@@ -216,7 +226,9 @@ def find_flat_result_files(results_dir: Path) -> list[tuple[Path, datetime]]:
 
     Returns:
         `(path, scheduled_time)` pairs sorted by path, with the scheduled time
-        the file is named after.
+        the file is named after converted to UTC. Like the scheduled times in
+        the job database these names were taken from, a name without a UTC
+        offset is the time in the configured time zone.
     """
     flat = []
     for path in results_dir.iterdir():
@@ -225,7 +237,7 @@ def find_flat_result_files(results_dir: Path) -> list[tuple[Path, datetime]]:
         except ValueError:
             continue
         if _flat_result_filename(scheduled_time) == path.name and path.is_file():
-            flat.append((path, scheduled_time))
+            flat.append((path, scheduled_time_to_utc(scheduled_time)))
     return sorted(flat)
 
 

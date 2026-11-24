@@ -8,6 +8,7 @@ from typing import Any
 import h5py
 import numpy as np
 import pytest
+import pytz
 from sqlalchemy.exc import NoResultFound
 
 from icon.config import latest
@@ -23,11 +24,22 @@ from icon.server.data_access.experiment_data import (
     Readouts,
     ReadoutSequences,
 )
-from icon.server.data_access.repositories import experiment_data_repository
+from icon.server.data_access.repositories import (
+    experiment_data_repository,
+    job_run_repository,
+)
 from icon.server.data_access.repositories.experiment_data_repository import (
     ExperimentDataRepository as Repo,
 )
 from icon.server.data_access.repositories.job_run_repository import ScheduledRun
+
+
+@pytest.fixture(autouse=True)
+def _zurich_time_zone(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Read naive scheduled times as Europe/Zurich, whatever the local config says."""
+    config = SimpleNamespace(date=latest.DateConfig(timezone="Europe/Zurich"))
+    monkeypatch.setattr(job_run_repository, "get_config", lambda: config)
+
 
 DATA_POINTS = [
     ExperimentDataPoint(
@@ -367,9 +379,9 @@ UNKNOWN_JOB_ID = 42
 
 
 def _scheduled_time(job_id: int) -> datetime:
-    """Return the stubbed scheduled time of a job; jobs 1 and 2 straddle midnight."""
-    # Naive, like the scheduled times read back from SQLite.
-    return datetime(2026, 3, 24, 23, 58) + timedelta(minutes=job_id)  # noqa: DTZ001
+    """Return the stubbed scheduled time of a job; jobs 1 and 2 straddle midnight UTC."""
+    # In UTC, like the scheduled times JobRunRepository returns.
+    return datetime(2026, 3, 24, 23, 58, tzinfo=UTC) + timedelta(minutes=job_id)
 
 
 _EXPERIMENT_ID = "experiment_library.experiments.ramsey.Ramsey (Ramsey fine)"
@@ -385,7 +397,7 @@ def _result_file(results_dir: Path, job_id: int) -> Path:
     return (
         results_dir
         / f"{scheduled_time:%Y-%m-%d}"
-        / f"{scheduled_time:%Y%m%dT%H%M%S.%f}_Ramsey_fine.h5"
+        / f"{scheduled_time:%Y%m%dT%H%M%S.%f}Z_Ramsey_fine.h5"
     )
 
 
@@ -412,12 +424,12 @@ def _fake_job_runs(monkeypatch: pytest.MonkeyPatch, recent_job_ids: list[int]) -
 @pytest.mark.parametrize(
     ("experiment_id", "filename"),
     [
-        ("mod.Ramsey (Cool Det)", "20260324T235900.000000_Cool_Det.h5"),
-        ("mod.Ramsey (Ramsey (2))", "20260324T235900.000000_Ramsey_2.h5"),
-        ("mod.Ramsey (Ünïcödé: a/b\\c)", "20260324T235900.000000_Unicode_a_b_c.h5"),
-        ("mod.Ramsey (???)", "20260324T235900.000000.h5"),
-        ("unparsed-id", "20260324T235900.000000_unparsed-id.h5"),
-        (f"mod.Ramsey ({'x' * 100})", f"20260324T235900.000000_{'x' * 64}.h5"),
+        ("mod.Ramsey (Cool Det)", "20260324T235900.000000Z_Cool_Det.h5"),
+        ("mod.Ramsey (Ramsey (2))", "20260324T235900.000000Z_Ramsey_2.h5"),
+        ("mod.Ramsey (Ünïcödé: a/b\\c)", "20260324T235900.000000Z_Unicode_a_b_c.h5"),
+        ("mod.Ramsey (???)", "20260324T235900.000000Z.h5"),
+        ("unparsed-id", "20260324T235900.000000Z_unparsed-id.h5"),
+        (f"mod.Ramsey ({'x' * 100})", f"20260324T235900.000000Z_{'x' * 64}.h5"),
     ],
 )
 def test_result_path_names_file_after_time_and_experiment(
@@ -430,12 +442,21 @@ def test_result_path_names_file_after_time_and_experiment(
     )
 
 
-def test_result_path_keeps_time_zone() -> None:
-    run = ScheduledRun(datetime(2026, 3, 24, 23, 59, tzinfo=UTC), "mod.Ramsey (A)")
+def test_result_path_uses_utc_time_and_day() -> None:
+    # Already the next day in Zurich (UTC+1).
+    zurich = pytz.timezone("Europe/Zurich").localize(datetime(2026, 3, 25, 0, 30))  # noqa: DTZ001
+    run = ScheduledRun(zurich, "mod.Ramsey (A)")
 
     assert experiment_data_repository.result_path(Path("results"), run) == (
-        Path("results") / "2026-03-24" / "20260324T235900.000000+0000_A.h5"
+        Path("results") / "2026-03-24" / "20260324T233000.000000Z_A.h5"
     )
+
+
+def test_result_path_rejects_naive_time() -> None:
+    run = ScheduledRun(datetime(2026, 3, 24, 23, 59), "mod.Ramsey (A)")  # noqa: DTZ001
+
+    with pytest.raises(ValueError, match="has no time zone"):
+        experiment_data_repository.result_path(Path("results"), run)
 
 
 def test_get_hardware_instructions(
@@ -537,8 +558,8 @@ def test_initialize_for_job_id_creates_file_in_day_folder(
     Repo.initialize_for_job_id(job_id=1)
     Repo.initialize_for_job_id(job_id=2)
 
-    first = tmp_path / "2026-03-24" / "20260324T235900.000000_Ramsey_fine.h5"
-    second = tmp_path / "2026-03-25" / "20260325T000000.000000_Ramsey_fine.h5"
+    first = tmp_path / "2026-03-24" / "20260324T235900.000000Z_Ramsey_fine.h5"
+    second = tmp_path / "2026-03-25" / "20260325T000000.000000Z_Ramsey_fine.h5"
     assert first.is_file()
     assert second.is_file()
     assert experiment_data_repository.get_result_path_by_job_id(1) == first
@@ -558,8 +579,8 @@ def test_require_day_folder_layout_rejects_flat_result_files(
 
     experiment_data_repository.require_day_folder_layout(tmp_path)
 
-    # Written before day folders were introduced.
-    flat_file = tmp_path / f"{_scheduled_time(2)}.h5"
+    # Written before day folders were introduced, named in Zurich time (UTC+1).
+    flat_file = tmp_path / "2026-03-25 01:00:00.h5"
     flat_file.touch()
 
     assert experiment_data_repository.find_flat_result_files(tmp_path) == [
@@ -652,7 +673,7 @@ def test_prepare_results_dir_stops_startup_on_flat_result_files(
 
     experiment_data_repository.prepare_results_dir()
 
-    (tmp_path / f"{_scheduled_time(1)}.h5").touch()
+    (tmp_path / "2026-03-25 00:59:00.h5").touch()
     with pytest.raises(SystemExit) as exc_info:
         experiment_data_repository.prepare_results_dir()
     assert exc_info.value.code == 1

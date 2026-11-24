@@ -16,19 +16,20 @@
     ICON creates the result directory at startup if it does not exist, but not
     its parent directories. If it cannot be created or accessed, ICON logs a
     warning, and scans fail with an error naming the directory until this is
-    fixed. Within it, result files are grouped into one folder per day
+    fixed. Within it, result files are grouped into one folder per UTC day
     (`yyyy-mm-dd`), which ICON creates as needed. Each file is named after the
-    run's scheduled time in ISO 8601 basic format and the experiment name,
-    reduced to characters that are safe on every platform:
+    run's scheduled time in UTC, in ISO 8601 basic format, and the experiment
+    name, reduced to characters that are safe on every platform:
 
     ```
-    2026-10-29/20261029T125148.123456_Ramsey_fine.h5
+    2026-10-29/20261029T115148.123456Z_Ramsey_fine.h5
     ```
 
     Earlier versions stored result files directly in the result directory,
-    named like `2026-10-29 12:51:48.123456.h5`. ICON no longer reads them there
-    and refuses to start while any remain. With ICON stopped, move and rename
-    them with:
+    named after the scheduled time in the configured `date.timezone`, like
+    `2026-10-29 12:51:48.123456.h5`. ICON no longer reads them there and refuses
+    to start while any remain. With ICON stopped, move them and rename them to
+    UTC with:
 
     ```bash
     icon-migrate-results-dir --config /path/to/config.yaml --dry-run  # preview

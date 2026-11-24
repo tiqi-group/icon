@@ -3,10 +3,12 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import NamedTuple
 
+import pytz
 import sqlalchemy.orm
-from sqlalchemy import Select, select, update
+from sqlalchemy import Row, Select, select, update
 from sqlalchemy.exc import NoResultFound
 
+from icon.config.config import get_config
 from icon.server.data_access.db_context.sqlite import engine
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
@@ -21,7 +23,21 @@ class ScheduledRun(NamedTuple):
     """What a run's result file is named after."""
 
     scheduled_time: datetime
+    """Aware, in UTC when read from the database."""
     experiment_id: str
+
+
+def scheduled_time_to_utc(scheduled_time: datetime) -> datetime:
+    """Return `scheduled_time` as an aware time in UTC.
+
+    SQLite keeps no time zone, so a scheduled time read back from it is the
+    naive wall-clock time in the configured time zone that `now` created it in.
+    An aware time is only converted.
+    """
+    if scheduled_time.tzinfo is None:
+        timezone = pytz.timezone(get_config().date.timezone)
+        scheduled_time = timezone.localize(scheduled_time)
+    return scheduled_time.astimezone(UTC)
 
 
 def _select_scheduled_runs() -> Select[tuple[datetime, str]]:
@@ -30,6 +46,11 @@ def _select_scheduled_runs() -> Select[tuple[datetime, str]]:
         .join(JobRun.job)
         .join(Job.experiment_source)
     )
+
+
+def _scheduled_run(row: Row[tuple[datetime, str]]) -> ScheduledRun:
+    scheduled_time, experiment_id = row
+    return ScheduledRun(scheduled_time_to_utc(scheduled_time), experiment_id)
 
 
 def run_cancelled_or_failed(job_run: JobRun) -> bool:
@@ -188,7 +209,7 @@ class JobRunRepository:
             job_id: ID of the job.
 
         Returns:
-            The scheduled start time and experiment ID of the run.
+            The scheduled start time (in UTC) and experiment ID of the run.
         """
         with sqlalchemy.orm.Session(engine) as session:
             stmt = (
@@ -198,13 +219,13 @@ class JobRunRepository:
                 .limit(1)
             )
 
-            run = ScheduledRun(*session.execute(stmt).one())
+            run = _scheduled_run(session.execute(stmt).one())
             logger.debug("Got scheduled run for job_id %s", job_id)
         return run
 
     @staticmethod
     def get_recent_scheduled_runs(*, limit: int) -> list[ScheduledRun]:
-        """Return the scheduled time and experiment of the most recent runs.
+        """Return the scheduled time (in UTC) and experiment of the most recent runs.
 
         Args:
             limit: Maximum number of runs to return.
@@ -220,16 +241,16 @@ class JobRunRepository:
                 .limit(limit)
             )
 
-            runs = [ScheduledRun(*row) for row in session.execute(stmt)]
+            runs = [_scheduled_run(row) for row in session.execute(stmt)]
             logger.debug("Got the %s most recent scheduled runs", limit)
         return runs
 
     @staticmethod
     def get_scheduled_runs() -> list[ScheduledRun]:
-        """Return the scheduled time and experiment of every run."""
+        """Return the scheduled time (in UTC) and experiment of every run."""
         with sqlalchemy.orm.Session(engine) as session:
             return [
-                ScheduledRun(*row) for row in session.execute(_select_scheduled_runs())
+                _scheduled_run(row) for row in session.execute(_select_scheduled_runs())
             ]
 
     @staticmethod

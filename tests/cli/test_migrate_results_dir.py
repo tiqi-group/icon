@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -9,21 +9,37 @@ from sqlalchemy.exc import OperationalError
 from icon.cli import migrate_results_dir
 from icon.cli.migrate_results_dir import cli
 from icon.config import latest
-from icon.server.data_access.repositories import experiment_data_repository
+from icon.server.data_access.repositories import (
+    experiment_data_repository,
+    job_run_repository,
+)
 from icon.server.data_access.repositories.job_run_repository import (
     JobRunRepository,
     ScheduledRun,
 )
 
 RUNS = [
-    # Naive, like the scheduled times read back from SQLite.
-    ScheduledRun(datetime(2026, 3, 24, 23, 59), "mod.Ramsey (Ramsey fine)"),  # noqa: DTZ001
-    ScheduledRun(datetime(2026, 3, 25, 0, 0, 0, 123456), "mod.Rabi (Rabi: 729)"),  # noqa: DTZ001
+    # In UTC, like the scheduled times JobRunRepository returns.
+    ScheduledRun(datetime(2026, 3, 24, 22, 59, tzinfo=UTC), "mod.Ramsey (Ramsey fine)"),
+    ScheduledRun(
+        datetime(2026, 3, 24, 23, 0, 0, 123456, tzinfo=UTC), "mod.Rabi (Rabi: 729)"
+    ),
+    ScheduledRun(datetime(2026, 7, 1, 10, 0, tzinfo=UTC), "mod.Rabi (Rabi)"),
 ]
 FLAT_FILES = {
-    "2026-03-24 23:59:00.h5": "2026-03-24/20260324T235900.000000_Ramsey_fine.h5",
-    "2026-03-25 00:00:00.123456.h5": "2026-03-25/20260325T000000.123456_Rabi_729.h5",
+    # Named in Zurich time; UTC+1 in winter, so both runs fall on one UTC day.
+    "2026-03-24 23:59:00.h5": "2026-03-24/20260324T225900.000000Z_Ramsey_fine.h5",
+    "2026-03-25 00:00:00.123456.h5": "2026-03-24/20260324T230000.123456Z_Rabi_729.h5",
+    # UTC+2 in summer.
+    "2026-07-01 12:00:00.h5": "2026-07-01/20260701T100000.000000Z_Rabi.h5",
 }
+
+
+@pytest.fixture(autouse=True)
+def _zurich_time_zone(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Read naive scheduled times as Europe/Zurich, whatever the local config says."""
+    config = SimpleNamespace(date=latest.DateConfig(timezone="Europe/Zurich"))
+    monkeypatch.setattr(job_run_repository, "get_config", lambda: config)
 
 
 @pytest.fixture
@@ -41,7 +57,7 @@ def results_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (tmp_path / "analysis.h5").touch()
     # A day folder that already holds a file written after the upgrade.
     (tmp_path / "2026-03-24").mkdir()
-    (tmp_path / "2026-03-24" / "20260324T080000.000000_Rabi.h5").touch()
+    (tmp_path / "2026-03-24" / "20260324T080000.000000Z_Rabi.h5").touch()
     return tmp_path
 
 
@@ -52,7 +68,7 @@ def test_moves_and_renames_flat_result_files(results_dir: Path) -> None:
     for name, destination in FLAT_FILES.items():
         assert not (results_dir / name).exists()
         assert (results_dir / destination).read_text() == name
-    assert (results_dir / "2026-03-24" / "20260324T080000.000000_Rabi.h5").is_file()
+    assert (results_dir / "2026-03-24" / "20260324T080000.000000Z_Rabi.h5").is_file()
     assert (results_dir / "analysis.h5").is_file()
     experiment_data_repository.require_day_folder_layout(results_dir)
 
@@ -65,7 +81,7 @@ def test_file_without_run_keeps_only_the_time(
     result = CliRunner().invoke(cli, ["--yes"])
 
     assert result.exit_code == 0
-    assert (results_dir / "2026-03-25" / "20260325T000000.123456.h5").is_file()
+    assert (results_dir / "2026-03-24" / "20260324T230000.123456Z.h5").is_file()
 
 
 def test_no_file_with_a_run_aborts(
@@ -102,7 +118,7 @@ def test_dry_run_moves_nothing(results_dir: Path) -> None:
     assert result.exit_code == 0
     for name in FLAT_FILES:
         assert (results_dir / name).is_file()
-    assert not (results_dir / "2026-03-25").exists()
+    assert not (results_dir / "2026-07-01").exists()
 
 
 def test_declined_confirmation_moves_nothing(results_dir: Path) -> None:
