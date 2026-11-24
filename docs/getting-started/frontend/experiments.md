@@ -2,3 +2,10 @@ The experiments page shows a list of experiments on the left. This list is parse
 When you click on an experiment, you will be greeted with the scan interface on the top. This allows you to define parameters you want to scan, the priority of the scan (number between 1 and 20), the number of shots for each data point, and the number of scan repetitions.
 
 On the bottom, you will get the display groups defined for the experiment (instance). These are either local parameters (i.e. parameters scoped to the experiment instance), global parmaeters (i.e. parameters that) or device parameters
+
+Each selected scan parameter shows a spacing preview below the scan pattern.
+Linear scans show the signed step size; other patterns show the spacing of the
+underlying grid, since consecutive measurements may visit points in a different
+order. The preview uses the same bounds and current Span-mode center as job
+submission, and includes the parameter's unit when available. A one-point scan
+shows `Single point — no step`; incomplete or invalid ranges have no preview.
