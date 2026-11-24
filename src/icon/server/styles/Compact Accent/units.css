@@ -1,0 +1,56 @@
+/* Use the Compact Light badge geometry and make the unit text clearer. */
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a:is([href="/experiments"], [href="/parameters"]).Mui-selected)
+  main
+  .EndAdornment {
+  font-size: 0.75rem;
+  letter-spacing: normal;
+}
+
+/* Parameter types come from the stock ICON help label. Untyped units use the
+ * existing neutral badge. Scan, stale and invalid fields keep their own cue. */
+html[data-toolpad-color-scheme="light"]
+  body:has(a:is([href="/experiments"], [href="/parameters"]).Mui-selected)
+  main
+  div:has(> .Field):has(button[aria-label*="ParameterTypes.AMPLITUDE"])
+  .Input:not([title], [aria-invalid="true"], [data-invalid])
+  + .EndAdornment {
+  border-color: #a36b1c;
+  background: #ffda8a;
+  color: #583300;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a:is([href="/experiments"], [href="/parameters"]).Mui-selected)
+  main
+  div:has(> .Field):has(button[aria-label*="ParameterTypes.FREQUENCY"])
+  .Input:not([title], [aria-invalid="true"], [data-invalid])
+  + .EndAdornment {
+  border-color: #267c94;
+  background: #bdeeff;
+  color: #12465c;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a:is([href="/experiments"], [href="/parameters"]).Mui-selected)
+  main
+  div:has(> .Field):has(button[aria-label*="ParameterTypes.TIME"])
+  .Input:not([title], [aria-invalid="true"], [data-invalid])
+  + .EndAdornment {
+  border-color: #75429a;
+  background: #75429a;
+  color: #fff;
+}
+
+/* Keep the unit neutral when the input itself carries a state cue. */
+html[data-toolpad-color-scheme="light"]
+  body:has(a:is([href="/experiments"], [href="/parameters"]).Mui-selected)
+  main
+  div:has(> .Field)
+  .Input:is([title^="Scan parameter "], [title^="Value:"], [aria-invalid="true"], [data-invalid])
+  + .EndAdornment {
+  border-color: #9aa9b8;
+  background: #e7edf2;
+  color: #273746;
+}
