@@ -14,6 +14,7 @@ import {
   chartToolbox,
 } from "../utils/chartLayout";
 import { buildResultChannelChartSeries } from "../utils/buildResultChannelChartSeries";
+import { build2DHeatmapData, HeatmapPoint } from "../utils/build2DHeatmapData";
 import { formatDateTime, formatTime, hasDayBreak } from "../utils/timeUtils";
 import { useStoredFlags } from "../hooks/useStoredFlags";
 
@@ -205,56 +206,28 @@ const ResultChannelPlot = ({
       }
     } else if (scanParameters.length === 2) {
       const [xScan, yScan] = scanParameters;
-      const xScanValues =
-        xScan.realtime && timestampEntry
-          ? timestampEntry.scanValues
-          : xScan.scan_values;
-      const yScanValues =
-        yScan.realtime && timestampEntry
-          ? timestampEntry.scanValues
-          : yScan.scan_values;
+      const timestamps = (timestampEntry?.scanValues ?? []) as string[];
       const series = [];
 
       const xCategories = xScan.realtime
         ? undefined
-        : [...new Set(xScanValues as number[])]
-            .sort((a, b) => a - b)
-            .map((v) => String(v));
+        : [...new Set(xScan.scan_values)].sort((a, b) => a - b).map((v) => String(v));
       const yCategories = yScan.realtime
         ? undefined
-        : [...new Set(yScanValues as number[])]
-            .sort((a, b) => a - b)
-            .map((v) => String(v));
+        : [...new Set(yScan.scan_values)].sort((a, b) => a - b).map((v) => String(v));
 
+      // Category of each sweep along the realtime axis (timestamp of its first point)
+      let sweepLabels: string[] = [];
       for (const resultChannel of resultChannels) {
-        const data: [number | string, number | string, number][] = [];
-        if (xScan.realtime) {
-          for (let i = 0; i < xScanValues.length; i++) {
-            data.push([
-              xScanValues[Math.floor(i / yScanValues.length)],
-              String(yScanValues[i % yScanValues.length]),
-              resultChannel.data[i],
-            ]);
-          }
-        } else if (yScan.realtime) {
-          for (let i = 0; i < yScanValues.length; i++) {
-            data.push([
-              String(xScanValues[i % xScanValues.length]),
-              yScanValues[Math.floor(i / xScanValues.length)],
-              resultChannel.data[i],
-            ]);
-          }
-        } else {
-          for (let i = 0; i < xScanValues.length; i++) {
-            for (let j = 0; j < yScanValues.length; j++) {
-              data.push([
-                String(xScanValues[i]),
-                String(yScanValues[j]),
-                resultChannel.data[i * yScanValues.length + j],
-              ]);
-            }
-          }
-        }
+        const heatmap = build2DHeatmapData(
+          { realtime: xScan.realtime, scanValues: xScan.scan_values },
+          { realtime: yScan.realtime, scanValues: yScan.scan_values },
+          resultChannel.data,
+          timestamps,
+        );
+        const data = heatmap.data;
+        if (heatmap.sweepLabels.length > sweepLabels.length)
+          sweepLabels = heatmap.sweepLabels;
 
         series.push({
           name: resultChannel.name,
@@ -303,17 +276,13 @@ const ResultChannelPlot = ({
         grid: { ...CHART_GRID, right: 88 },
         tooltip: {
           trigger: "item",
-          formatter: (params: {
-            seriesName?: string;
-            value: [number | string, number | string, number];
-          }) => {
-            const [x, y, value] = params.value;
+          formatter: (params: { seriesName?: string; data: HeatmapPoint }) => {
+            const [x, y, value] = params.data.value;
+            const timestamp = params.data.timestamp;
             return [
-              xScan.realtime
-                ? formatDateTime(String(x))
-                : yScan.realtime
-                  ? formatDateTime(String(y))
-                  : undefined,
+              (xScan.realtime || yScan.realtime) && timestamp
+                ? formatDateTime(timestamp)
+                : undefined,
               xScan.realtime
                 ? undefined
                 : `${xScan.name}: ${formatAxisLabel(String(x))}`,
@@ -331,18 +300,14 @@ const ResultChannelPlot = ({
           type: "category",
           ...CHART_AXIS_NAME,
           ...(xCategories ? { data: xCategories } : {}),
-          ...(xScan.realtime
-            ? timeAxisProps(xScanValues as string[])
-            : categoryAxisProps),
+          ...(xScan.realtime ? timeAxisProps(sweepLabels) : categoryAxisProps),
         },
         yAxis: {
           name: yScan.name,
           type: "category",
           ...CHART_AXIS_NAME,
           ...(yCategories ? { data: yCategories } : {}),
-          ...(yScan.realtime
-            ? timeAxisProps(yScanValues as string[])
-            : categoryAxisProps),
+          ...(yScan.realtime ? timeAxisProps(sweepLabels) : categoryAxisProps),
         },
         series,
         visualMap: [
