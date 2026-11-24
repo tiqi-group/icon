@@ -5,8 +5,10 @@ from pathlib import Path
 import aiohttp.web
 import pytest
 import pytest_asyncio
+import yaml
 from aiohttp.test_utils import TestClient, TestServer
 
+from icon.server.web_server import user_styles
 from icon.server.web_server.user_styles import (
     _style_file_response,
     user_styles_middleware,
@@ -20,8 +22,26 @@ async def _catch_all(_request: aiohttp.web.Request) -> aiohttp.web.Response:
     return aiohttp.web.Response(text="icon index")
 
 
+def _add_style(styles_dir: Path, name: str, css: str = "") -> None:
+    (styles_dir / name).mkdir(parents=True)
+    (styles_dir / name / "index.css").write_text(css)
+
+
 @pytest.fixture
-def config_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def included_dir(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    included = tmp_path_factory.mktemp("included")
+    monkeypatch.setattr(user_styles, "INCLUDED_STYLES_DIR", included)
+    return included
+
+
+@pytest.fixture
+def config_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    included_dir: Path,  # noqa: ARG001
+) -> Path:
     monkeypatch.setenv("ICON_CONFIG", str(tmp_path / "config.yaml"))
     return tmp_path
 
@@ -55,6 +75,66 @@ async def test_lists_directories_with_entry_point(
     response = await client.get("/styles/")
 
     assert await response.json() == ["an operator style", "compact"]
+
+
+@pytest.mark.asyncio
+async def test_lists_included_and_user_styles(
+    client: Client, config_dir: Path, included_dir: Path
+) -> None:
+    _add_style(included_dir, "Compact Light")
+    _add_style(config_dir / "styles", "mine")
+
+    response = await client.get("/styles/")
+
+    assert await response.json() == ["Compact Light", "mine"]
+
+
+@pytest.mark.asyncio
+async def test_user_style_replaces_included_style(
+    client: Client, config_dir: Path, included_dir: Path
+) -> None:
+    _add_style(included_dir, "Compact Light", "included")
+    (included_dir / "Compact Light" / "base.css").write_text("included base")
+    _add_style(config_dir / "styles", "Compact Light", "user")
+
+    listing = await client.get("/styles/")
+    index = await client.get("/styles/Compact%20Light/index.css")
+    base = await client.get("/styles/Compact%20Light/base.css")
+
+    assert await listing.json() == ["Compact Light"]
+    assert await index.text() == "user"
+    assert base.status == HTTPStatus.NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_serves_included_style(client: Client, included_dir: Path) -> None:
+    _add_style(included_dir, "Compact Light", "included")
+
+    response = await client.get("/styles/Compact%20Light/index.css")
+
+    assert await response.text() == "included"
+
+
+@pytest.mark.asyncio
+async def test_uses_configured_styles_dir(
+    client: Client, config_dir: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    configured = tmp_path_factory.mktemp("configured")
+    _add_style(configured, "mine", "configured")
+    _add_style(config_dir / "styles", "ignored")
+    (config_dir / "config.yaml").write_text(
+        yaml.dump({"version": 3, "server": {"styles_dir": str(configured)}})
+    )
+
+    listing = await client.get("/styles/")
+    index = await client.get("/styles/mine/index.css")
+
+    assert await listing.json() == ["mine"]
+    assert await index.text() == "configured"
+
+
+def test_compact_light_is_included() -> None:
+    assert (user_styles.INCLUDED_STYLES_DIR / "Compact Light" / "index.css").is_file()
 
 
 @pytest.mark.asyncio

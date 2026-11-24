@@ -63,6 +63,9 @@ class ServerConfig(BaseModel):
     port: int = 8004
     host: str = "0.0.0.0"
     pre_processing: PreProcessingConfig = PreProcessingConfig()
+    styles_dir: str | None = None
+    """Directory with user styles for the web interface. Defaults to `styles` next
+    to the configuration file."""
 
 
 class DeviceConfig(BaseModel):

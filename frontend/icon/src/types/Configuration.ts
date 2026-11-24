@@ -41,6 +41,7 @@ export interface Configuration {
     pre_processing: {
       workers: number;
     };
+    styles_dir: string | null;
   };
   data: {
     results_dir: string;
