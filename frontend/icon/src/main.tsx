@@ -17,6 +17,14 @@ import { applyUserStyle, getStoredUserStyle } from "./utils/userStyle";
 
 const router = createBrowserRouter([
   {
+    path: "/data/:jobId/plot/:kind/:plotIndex",
+    HydrateFallback: () => <p role="status">Loading plot...</p>,
+    lazy: async () => {
+      const { PlotViewerPage } = await import("./features/plot-viewer/PlotViewerPage");
+      return { Component: PlotViewerPage };
+    },
+  },
+  {
     Component: App,
     children: [
       {

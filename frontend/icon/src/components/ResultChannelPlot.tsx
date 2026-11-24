@@ -30,6 +30,9 @@ interface ResultChannelPlotProps {
   yRange?: { min: number | null; max: number | null };
   fits?: Record<string, FitResult>;
   onChartClick?: (xValue: number) => void;
+  /** Optional presentation for a standalone viewer; existing plots keep their renderer. */
+  ChartComponent?: React.ComponentType<ReactEChartsProps>;
+  chartStyle?: React.CSSProperties;
   hiddenTracesKey: string;
 }
 
@@ -64,6 +67,8 @@ const ResultChannelPlot = ({
   yRange,
   fits = NO_FITS,
   onChartClick,
+  ChartComponent = ReactECharts,
+  chartStyle,
   hiddenTracesKey,
 }: ResultChannelPlotProps) => {
   const [chart, setChart] = useState<ECharts | null>(null);
@@ -508,7 +513,12 @@ const ResultChannelPlot = ({
           </div>
         )
       ) : (
-        <ReactECharts option={option} loading={loading} onChartReady={updateChart} />
+        <ChartComponent
+          option={option}
+          loading={loading}
+          onChartReady={updateChart}
+          style={chartStyle}
+        />
       )}
     </>
   );
