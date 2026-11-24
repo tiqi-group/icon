@@ -22,6 +22,7 @@ a = Analysis(
     datas=[
         ("src/icon/server/frontend", "frontend"),
         ("src/icon/server/frontend_visualizer", "icon/server/frontend_visualizer"),
+        ("src/icon/server/styles", "icon/server/styles"),
         ("src/icon/server/data_access/db_context/sqlite/alembic", "icon/server/data_access/db_context/sqlite/alembic"),
         (pydase_path, "pydase"),
         *icon_sources,

@@ -12,6 +12,8 @@ import DevicesPage from "./pages/devices";
 import { SettingsPage } from "./pages/settings";
 import JobViewerLayout from "./layouts/job-viewer";
 import { JobViewerPage } from "./pages/job-viewer";
+import { UserStyle } from "./components/UserStyle";
+import { applyUserStyle, getStoredUserStyle } from "./utils/userStyle";
 
 const router = createBrowserRouter([
   {
@@ -65,8 +67,18 @@ const router = createBrowserRouter([
   },
 ]);
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <RouterProvider router={router} />
-  </React.StrictMode>,
+// Load the user style before the first render so the page does not change its look
+// right after it appears. A style that is slow to load must not hold the app back.
+const STYLE_LOAD_TIMEOUT_MS = 1000;
+
+void Promise.race([
+  applyUserStyle(getStoredUserStyle()),
+  new Promise((resolve) => setTimeout(resolve, STYLE_LOAD_TIMEOUT_MS)),
+]).then(() =>
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <UserStyle />
+      <RouterProvider router={router} />
+    </React.StrictMode>,
+  ),
 );

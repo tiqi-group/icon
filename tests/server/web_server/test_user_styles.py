@@ -1,0 +1,203 @@
+from collections.abc import AsyncGenerator
+from http import HTTPStatus
+from pathlib import Path
+
+import aiohttp.web
+import pytest
+import pytest_asyncio
+import yaml
+from aiohttp.test_utils import TestClient, TestServer
+
+from icon.server.web_server import user_styles
+from icon.server.web_server.user_styles import (
+    _style_file_response,
+    user_styles_middleware,
+)
+
+Client = TestClient[aiohttp.web.Request, aiohttp.web.Application]
+
+
+async def _catch_all(_request: aiohttp.web.Request) -> aiohttp.web.Response:
+    """Mimics pydase's catch-all index route, which matches every path."""
+    return aiohttp.web.Response(text="icon index")
+
+
+def _add_style(styles_dir: Path, name: str, css: str = "") -> None:
+    (styles_dir / name).mkdir(parents=True)
+    (styles_dir / name / "index.css").write_text(css)
+
+
+@pytest.fixture
+def included_dir(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    included = tmp_path_factory.mktemp("included")
+    monkeypatch.setattr(user_styles, "INCLUDED_STYLES_DIR", included)
+    return included
+
+
+@pytest.fixture
+def config_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    included_dir: Path,  # noqa: ARG001
+) -> Path:
+    monkeypatch.setenv("ICON_CONFIG", str(tmp_path / "config.yaml"))
+    return tmp_path
+
+
+@pytest_asyncio.fixture(loop_scope="function")
+async def client(config_dir: Path) -> AsyncGenerator[Client, None]:  # noqa: ARG001
+    app = aiohttp.web.Application(middlewares=[user_styles_middleware])
+    app.router.add_get(r"/{tail:.*}", _catch_all)
+    async with TestClient(TestServer(app)) as test_client:
+        yield test_client
+
+
+@pytest.mark.asyncio
+async def test_lists_no_styles_without_styles_dir(client: Client) -> None:
+    response = await client.get("/styles/")
+
+    assert response.status == HTTPStatus.OK
+    assert await response.json() == []
+
+
+@pytest.mark.asyncio
+async def test_lists_directories_with_entry_point(
+    client: Client, config_dir: Path
+) -> None:
+    for name in ("compact", "an operator style"):
+        (config_dir / "styles" / name).mkdir(parents=True)
+        (config_dir / "styles" / name / "index.css").touch()
+    (config_dir / "styles" / "no-entry-point").mkdir()
+    (config_dir / "styles" / "loose.css").touch()
+
+    response = await client.get("/styles/")
+
+    assert await response.json() == ["an operator style", "compact"]
+
+
+@pytest.mark.asyncio
+async def test_lists_included_and_user_styles(
+    client: Client, config_dir: Path, included_dir: Path
+) -> None:
+    _add_style(included_dir, "Compact Light")
+    _add_style(config_dir / "styles", "mine")
+
+    response = await client.get("/styles/")
+
+    assert await response.json() == ["Compact Light", "mine"]
+
+
+@pytest.mark.asyncio
+async def test_user_style_replaces_included_style(
+    client: Client, config_dir: Path, included_dir: Path
+) -> None:
+    _add_style(included_dir, "Compact Light", "included")
+    (included_dir / "Compact Light" / "base.css").write_text("included base")
+    _add_style(config_dir / "styles", "Compact Light", "user")
+
+    listing = await client.get("/styles/")
+    index = await client.get("/styles/Compact%20Light/index.css")
+    base = await client.get("/styles/Compact%20Light/base.css")
+
+    assert await listing.json() == ["Compact Light"]
+    assert await index.text() == "user"
+    assert base.status == HTTPStatus.NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_serves_included_style(client: Client, included_dir: Path) -> None:
+    _add_style(included_dir, "Compact Light", "included")
+
+    response = await client.get("/styles/Compact%20Light/index.css")
+
+    assert await response.text() == "included"
+
+
+@pytest.mark.asyncio
+async def test_uses_configured_styles_dir(
+    client: Client, config_dir: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    configured = tmp_path_factory.mktemp("configured")
+    _add_style(configured, "mine", "configured")
+    _add_style(config_dir / "styles", "ignored")
+    (config_dir / "config.yaml").write_text(
+        yaml.dump({"version": 3, "server": {"styles_dir": str(configured)}})
+    )
+
+    listing = await client.get("/styles/")
+    index = await client.get("/styles/mine/index.css")
+
+    assert await listing.json() == ["mine"]
+    assert await index.text() == "configured"
+
+
+def test_compact_light_is_included() -> None:
+    assert (user_styles.INCLUDED_STYLES_DIR / "Compact Light" / "index.css").is_file()
+
+
+@pytest.mark.asyncio
+async def test_serves_style_files(client: Client, config_dir: Path) -> None:
+    style = config_dir / "styles" / "an operator style"
+    (style / "parts").mkdir(parents=True)
+    (style / "index.css").write_text('@import "./parts/base.css";')
+    (style / "parts" / "base.css").write_text("body { color: red; }")
+
+    index = await client.get("/styles/an%20operator%20style/index.css")
+    imported = await client.get("/styles/an%20operator%20style/parts/base.css")
+
+    assert index.status == HTTPStatus.OK
+    assert index.content_type == "text/css"
+    assert index.headers["Cache-Control"] == "no-cache"
+    assert await imported.text() == "body { color: red; }"
+
+
+@pytest.mark.asyncio
+async def test_missing_file_is_not_found(client: Client) -> None:
+    response = await client.get("/styles/compact/index.css")
+
+    assert response.status == HTTPStatus.NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_serves_symlinked_style(
+    client: Client, config_dir: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    shared = tmp_path_factory.mktemp("shared") / "compact"
+    shared.mkdir()
+    (shared / "index.css").write_text("body { color: red; }")
+    (config_dir / "styles").mkdir()
+    (config_dir / "styles" / "compact").symlink_to(shared)
+
+    listing = await client.get("/styles/")
+    index = await client.get("/styles/compact/index.css")
+
+    assert await listing.json() == ["compact"]
+    assert await index.text() == "body { color: red; }"
+
+
+@pytest.mark.parametrize("path", ["../config.yaml", "compact/../../config.yaml"])
+def test_does_not_serve_files_outside_styles_dir(config_dir: Path, path: str) -> None:
+    (config_dir / "styles" / "compact").mkdir(parents=True)
+    (config_dir / "config.yaml").write_text("secret")
+
+    # HTTP clients normalise "..", so the guard is checked on the handler itself
+    response = _style_file_response(path)
+
+    assert response.status == HTTPStatus.NOT_FOUND
+
+
+def test_does_not_serve_absolute_paths(config_dir: Path) -> None:
+    (config_dir / "config.yaml").write_text("secret")
+
+    response = _style_file_response(str(config_dir / "config.yaml"))
+
+    assert response.status == HTTPStatus.NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_other_paths_reach_the_application(client: Client) -> None:
+    response = await client.get("/stylesheet")
+
+    assert await response.text() == "icon index"
