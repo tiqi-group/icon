@@ -24,7 +24,7 @@ export const UserStyleSelect = () => {
     <div style={{ display: "flex", alignItems: "center", padding: "4px 0" }}>
       <div style={{ display: "flex", alignItems: "center" }}>
         <Typography noWrap>Style</Typography>
-        <HelpButton docString="Custom stylesheet applied in this browser. Each subdirectory with an index.css in the styles directory next to the ICON configuration file is a style." />
+        <HelpButton docString="Stylesheet applied in this browser. Further styles can be added as subdirectories with an index.css to the styles directory, by default next to the ICON configuration file." />
       </div>
       <Select
         size="small"
@@ -32,7 +32,7 @@ export const UserStyleSelect = () => {
         value={userStyle}
         onChange={(e) => setUserStyle(e.target.value)}
       >
-        <MenuItem value={NO_USER_STYLE}>None</MenuItem>
+        <MenuItem value={NO_USER_STYLE}>Default</MenuItem>
         {styles.map((name) => (
           <MenuItem key={name} value={name}>
             {name}
