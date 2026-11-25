@@ -302,13 +302,25 @@ export default function FitPanel({
                     <TableRow>
                       <TableCell>Parameter</TableCell>
                       <TableCell>Value</TableCell>
+                      <TableCell>± 1σ</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {Object.entries(fit.result).map(([key, val]) => (
-                      <TableRow key={key}>
+                      <TableRow
+                        key={key}
+                        hover
+                        title="Click to use as the update value"
+                        sx={{ cursor: "pointer" }}
+                        onClick={() => setUpdateValue(String(val))}
+                      >
                         <TableCell>{key}</TableCell>
                         <TableCell>{val.toFixed(6)}</TableCell>
+                        <TableCell>
+                          {fit.errors?.[key] !== undefined
+                            ? fit.errors[key].toPrecision(2)
+                            : "–"}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

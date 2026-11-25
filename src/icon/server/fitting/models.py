@@ -9,6 +9,12 @@ import numpy.typing as npt
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    DerivedParamsFunc = Callable[
+        [npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]],
+        tuple[dict[str, float], dict[str, float]],
+    ]
+
+
 FitFunctionType = Literal[
     "gaussian",
     "lorentzian",
@@ -28,7 +34,12 @@ class FitModel:
     param_names: list[str]
     default_update_param: str
     guess: Callable[[npt.NDArray[np.float64], npt.NDArray[np.float64]], list[float]]
-    derived_params: Callable[[dict[str, float]], dict[str, float]] | None = None
+    derived_params: DerivedParamsFunc | None = None
+    """Quantities computed from the fit, e.g. the vertex of a parabola.
+
+    Called with the fitted parameters, their covariance matrix and the fitted x values.
+    Returns the derived values and their 1-sigma errors, by name.
+    """
 
 
 def _lorentzian(
@@ -170,25 +181,102 @@ def _damped_harmonic_guess(
     return [hg[0], hg[1], 0.0, hg[2], hg[3]]
 
 
-def _poly2_derived(result: dict[str, float]) -> dict[str, float]:
-    a = result.get("a", 0)
-    if a != 0:
-        return {"vertex": -result["b"] / (2.0 * a)}
-    return {}
+def _propagate(
+    jac: npt.NDArray[np.float64],
+    pcov: npt.NDArray[np.float64],
+) -> float:
+    """1-sigma error of a function of the fit parameters, from its gradient `jac`."""
+    return float(np.sqrt(jac @ pcov @ jac))
 
 
-def _harmonic_derived(result: dict[str, float]) -> dict[str, float]:
-    if "omega" in result:
-        return {"f": result["omega"] / (2.0 * np.pi)}
-    return {}
+def _poly2_derived(
+    popt: npt.NDArray[np.float64],
+    pcov: npt.NDArray[np.float64],
+    x: npt.NDArray[np.float64],  # noqa: ARG001
+) -> tuple[dict[str, float], dict[str, float]]:
+    a, b, _ = popt
+    if a == 0:
+        return {}, {}
+    jac = np.array([b / (2.0 * a**2), -1.0 / (2.0 * a), 0.0])
+    return {"vertex": float(-b / (2.0 * a))}, {"vertex": _propagate(jac, pcov)}
+
+
+# An extremum this many standard errors before the start of the data still counts as
+# the first one, so that noise doesn't push one sitting at the edge a period away.
+_EXTREMUM_EDGE_SIGMAS = 3.0
+
+
+def _oscillation_derived(
+    *,
+    omega_index: int,
+    phi_index: int,
+    k_index: int | None = None,
+) -> DerivedParamsFunc:
+    """Frequency and first maximum / minimum of y0 + exp(k x) a cos(omega x + phi).
+
+    `x_first_max` and `x_first_min` are the first extrema at or after the start of
+    the fitted data. They are the stationary points theta = atan2(k, omega) (mod pi)
+    of the phase theta = omega x + phi, and maxima where a cos(theta) > 0.
+    """
+
+    def derived(
+        popt: npt.NDArray[np.float64],
+        pcov: npt.NDArray[np.float64],
+        x: npt.NDArray[np.float64],
+    ) -> tuple[dict[str, float], dict[str, float]]:
+        a, omega, phi = popt[1], popt[omega_index], popt[phi_index]
+        k = popt[k_index] if k_index is not None else 0.0
+
+        jac = np.zeros(len(popt))
+        jac[omega_index] = 1.0 / (2.0 * np.pi)
+        values = {"f": float(omega / (2.0 * np.pi))}
+        errors = {"f": _propagate(jac, pcov)}
+        if omega == 0 or a == 0 or len(x) == 0:
+            return values, errors
+
+        r2 = omega**2 + k**2
+        theta_stationary = float(np.arctan2(k, omega))
+        theta_max = theta_stationary + (
+            0.0 if a * np.cos(theta_stationary) > 0 else np.pi
+        )
+        period = 2.0 * np.pi / abs(omega)
+        x_start = float(np.min(x))
+
+        def error(x_ext: float) -> float:
+            jac = np.zeros(len(popt))
+            jac[phi_index] = -1.0 / omega
+            jac[omega_index] = -(k / r2 + x_ext) / omega
+            if k_index is not None:
+                jac[k_index] = 1.0 / r2
+            return _propagate(jac, pcov)
+
+        for name, theta in (
+            ("x_first_max", theta_max),
+            ("x_first_min", theta_max + np.pi),
+        ):
+            any_ext = (theta - phi) / omega
+            x_ext = any_ext + period * np.ceil((x_start - any_ext) / period)
+            previous = x_ext - period
+            previous_error = error(previous)
+            if (
+                np.isfinite(previous_error)
+                and previous + _EXTREMUM_EDGE_SIGMAS * previous_error >= x_start
+            ):
+                x_ext = previous
+            values[name] = float(x_ext)
+            errors[name] = error(x_ext)
+        return values, errors
+
+    return derived
 
 
 # Adding a new fit model
 # ----------------------
 # 1. Define _my_model(x, p1, p2, ...) -> NDArray  (the model function).
 # 2. Define _my_model_guess(x, y) -> list[float]  (initial parameter estimator).
-# 3. (Optional) Define _my_model_derived(result) -> dict  if the model has
-#    useful derived quantities (e.g. vertex from quadratic coefficients).
+# 3. (Optional) Define _my_model_derived(popt, pcov, x) -> (values, errors)  if the
+#    model has useful derived quantities (e.g. vertex from quadratic coefficients),
+#    see FitModel.derived_params. _propagate gives the error from the gradient.
 # 4. Add an entry to FIT_MODELS below. The param_names order must match the
 #    function signature. default_update_param is the fitted value pre-filled
 #    in the "Update Parameter" UI (can be a derived param name).
@@ -221,13 +309,13 @@ FIT_MODELS: dict[str, FitModel] = {
         param_names=["y0", "a", "omega", "phi"],
         default_update_param="f",
         guess=_harmonic_guess,
-        derived_params=_harmonic_derived,
+        derived_params=_oscillation_derived(omega_index=2, phi_index=3),
     ),
     "damped_harmonic": FitModel(
         func=_damped_harmonic,
         param_names=["y0", "a", "k", "omega", "phi"],
         default_update_param="f",
         guess=_damped_harmonic_guess,
-        derived_params=_harmonic_derived,
+        derived_params=_oscillation_derived(omega_index=3, phi_index=4, k_index=2),
     ),
 }
