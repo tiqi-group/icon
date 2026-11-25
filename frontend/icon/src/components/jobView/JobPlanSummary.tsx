@@ -1,10 +1,8 @@
 import { Typography } from "@mui/material";
 import { Job } from "../../types/Job";
 
-const count = (value: number | undefined): string =>
-  value !== undefined && Number.isSafeInteger(value) && value >= 0
-    ? value.toLocaleString()
-    : "—";
+const count = (value: number): string =>
+  Number.isSafeInteger(value) && value >= 0 ? value.toLocaleString() : "—";
 
 /** Persisted submission settings, not acquisition progress. */
 export function JobPlanSummary({ job }: { job: Job }) {
