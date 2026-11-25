@@ -1,11 +1,6 @@
-/*
- * Compact Light stylesheet entrypoint.
- *
- * Keep exactly one unit variant enabled. The muted variant is recommended for
- * normal PhD/postdoc operation; switch to high contrast when faster category
- * recognition is more valuable than visual quietness.
- */
+/* Compact Light stylesheet entry point. */
 @import "./base.css";
 @import "./units-muted.css";
 @import "./chooser-states.css";
-/* Alternative: replace the line above with @import "./units-high-contrast.css"; */
+@import "./unit-accents.css";
+@import "./navigation.css";

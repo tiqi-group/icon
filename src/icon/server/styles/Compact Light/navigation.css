@@ -1,0 +1,15 @@
+/* Distinguish the selected experiment or job without changing list geometry.
+ * Leave keyboard-focus and hover feedback to the underlying component. */
+html[data-toolpad-color-scheme="light"]
+  body:has(a:is([href="/experiments"], [href="/data"]).Mui-selected)
+  main
+  .MuiListItemButton-root.Mui-selected:not(:hover, .Mui-focusVisible) {
+  box-shadow: inset 3px 0 #205785;
+}
+
+html[data-toolpad-color-scheme="light"]
+  body:has(a:is([href="/experiments"], [href="/parameters"]).Mui-selected)
+  main
+  .MuiAccordionSummary-root {
+  border-bottom: 1px solid #9ba4ad;
+}
