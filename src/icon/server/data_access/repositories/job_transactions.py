@@ -10,7 +10,7 @@ from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.models.sqlite.job_run import JobRun
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
-from icon.server.web_server.socketio_emit_queue import emit_queue
+from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,7 @@ def _latest_run_id(job_id: int) -> sqlalchemy.ScalarSelect[int]:
 def cancel_job(
     *,
     engine: Engine,
+    emit_queue: EmitQueue,
     job_id: int,
     log: str | None = None,
     run_status: JobRunStatus = JobRunStatus.CANCELLED,
@@ -51,6 +52,7 @@ def cancel_job(
 
     Args:
         engine: SQLAlchemy engine to query the database with.
+        emit_queue: Queue for socket.io events.
         job_id: ID of the job to retire.
         run_status: Terminal status to give the run.
         log: Reason recorded on the run, if there is one.
@@ -107,24 +109,38 @@ def cancel_job(
         )
 
 
-def fail_job(*, engine: Engine, job_id: int, log: str | None = None) -> None:
+def fail_job(
+    *, engine: Engine, emit_queue: EmitQueue, job_id: int, log: str | None = None
+) -> None:
     """Cancel job and fail the run it may own.
 
     Args:
         engine: SQLAlchemy engine to query the database with.
+        emit_queue: Queue for socket.io events.
         job_id: ID of the job to fail.
         log: Optional reason recorded on the run.
     """
-    cancel_job(engine=engine, job_id=job_id, run_status=JobRunStatus.FAILED, log=log)
+    cancel_job(
+        engine=engine,
+        emit_queue=emit_queue,
+        job_id=job_id,
+        run_status=JobRunStatus.FAILED,
+        log=log,
+    )
 
 
 def dispatch_job(
-    *, engine: Engine, job_id: int, timezone: pytz.BaseTzInfo
+    *,
+    engine: Engine,
+    emit_queue: EmitQueue,
+    job_id: int,
+    timezone: pytz.BaseTzInfo,
 ) -> tuple[Job, JobRun] | None:
     """Insert a run for a SUBMITTED job and progress it to PROCESSING.
 
     Args:
         engine: SQLAlchemy engine to query the database with.
+        emit_queue: Queue for socket.io events.
         job_id: ID of the job to dispatch.
         timezone: Timezone for timestamps in the database.
 

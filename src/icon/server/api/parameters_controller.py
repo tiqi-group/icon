@@ -11,7 +11,7 @@ from icon.server.data_access.experiment_library_client import (
 from icon.server.data_access.repositories.parameters_repository import (
     ParametersRepository,
 )
-from icon.server.web_server.socketio_emit_queue import emit_queue
+from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 if TYPE_CHECKING:
     from icon.config.config import Config
@@ -59,10 +59,12 @@ class ParametersController(pydase.DataService):
         self,
         config: "Config",
         parameters_repository: ParametersRepository,
+        emit_queue: EmitQueue,
     ) -> None:
         super().__init__()
         self._config = config
         self._parameters_repository = parameters_repository
+        self._emit_queue = emit_queue
         self._all_parameter_metadata: dict[str, ParameterMetadata] = {}
         self._display_group_metadata: dict[str, dict[str, ParameterMetadata]] = {}
 
@@ -129,7 +131,7 @@ class ParametersController(pydase.DataService):
 
         # NOTE: Currently, changes in display groups alone do not trigger events.
         if added_params or removed_params or updated_params:
-            emit_queue.put({"event": "parameters.update", "data": None})
+            self._emit_queue.put({"event": "parameters.update", "data": None})
 
     def _create_missing_influxdb_entries(self) -> None:
         """Ensure all known parameters exist in InfluxDBv1.

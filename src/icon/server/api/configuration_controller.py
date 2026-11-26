@@ -6,7 +6,7 @@ import pydase
 
 from icon.config.config import Config
 from icon.config.latest import ServiceConfig
-from icon.server.web_server.socketio_emit_queue import emit_queue
+from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 logger = logging.getLogger(__name__)
 
@@ -19,17 +19,23 @@ class ConfigurationController(pydase.DataService):
     """
 
     def __init__(
-        self, config: Config, on_update: Callable[[], None] | None = None
+        self,
+        config: Config,
+        on_update: Callable[[], None] | None = None,
+        *,
+        emit_queue: EmitQueue,
     ) -> None:
         """Create a new ConfigurationController.
 
         Args:
             config: Configuration object.
             on_update: Called after the configuration has been updated and saved.
+            emit_queue: Queue for socket.io events.
         """
         super().__init__()
         self._on_update = on_update
         self._config = config
+        self._emit_queue = emit_queue
 
     def get_config(self) -> dict[str, Any]:
         """Get current configuration dictionary."""
@@ -60,7 +66,9 @@ class ConfigurationController(pydase.DataService):
             # Save the updated configuration back to the file
             self._config.set(new_config)
 
-            emit_queue.put({"event": "config.update", "data": new_config.model_dump()})
+            self._emit_queue.put(
+                {"event": "config.update", "data": new_config.model_dump()}
+            )
         except KeyError:
             logger.exception("Failed to update configuration")
             return False

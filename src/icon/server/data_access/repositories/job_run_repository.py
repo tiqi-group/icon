@@ -9,7 +9,7 @@ from sqlalchemy.exc import NoResultFound
 
 from icon.server.data_access.models.enums import JobRunStatus
 from icon.server.data_access.models.sqlite.job_run import JobRun
-from icon.server.web_server.socketio_emit_queue import emit_queue
+from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,7 @@ class JobRunRepository:
     def update_run_by_id(
         *,
         engine: Engine,
+        emit_queue: EmitQueue,
         run_id: int,
         status: JobRunStatus,
         log: str | None = None,
@@ -69,6 +70,7 @@ class JobRunRepository:
 
         Args:
             engine: SQLAlchemy engine to query the database with.
+            emit_queue: Queue for socket.io events.
             run_id: The ID of the job run to update.
             status: New status of the run.
             log: Optional log message (e.g. failure reason).
@@ -270,6 +272,7 @@ class JobRunRepository:
 def try_update_run_by_id(
     *,
     engine: Engine,
+    emit_queue: EmitQueue,
     run_id: int,
     status: JobRunStatus,
     log: str | None = None,
@@ -279,6 +282,7 @@ def try_update_run_by_id(
 
     Args:
         engine: SQLAlchemy engine to query the database with.
+        emit_queue: Queue for socket.io events.
         run_id: The ID of the job run to update.
         status: New status of the run.
         log: Optional log message (e.g. failure reason).
@@ -291,6 +295,7 @@ def try_update_run_by_id(
     try:
         return JobRunRepository.update_run_by_id(
             engine=engine,
+            emit_queue=emit_queue,
             run_id=run_id,
             status=status,
             log=log,

@@ -8,13 +8,13 @@ from icon.server.data_access.db_context.influxdb.parameters_backend import (
     assert_parameter_db,
     create_parameter_backend,
 )
-from icon.server.web_server.socketio_emit_queue import emit_queue
 
 if TYPE_CHECKING:
     from multiprocessing.managers import DictProxy
 
     from icon.config.latest import InfluxDBv1Config
     from icon.server.data_access.experiment_data import DatabaseValueType
+    from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +36,11 @@ class ParametersRepository:
         *,
         shared_parameters: DictProxy[str, DatabaseValueType],
         influx_config: InfluxDBv1Config,
+        emit_queue: EmitQueue,
     ) -> None:
         self._shared_parameters = shared_parameters
         self._influx_config = influx_config
+        self._emit_queue = emit_queue
         self.initialised = False
         """Set once the initial InfluxDB read has completed; failed initialisation
         attempts can be retried until then."""
@@ -125,7 +127,7 @@ class ParametersRepository:
 
         self._shared_parameters[parameter_id] = new_value
 
-        emit_queue.put(
+        self._emit_queue.put(
             {
                 "event": "parameter.update",
                 "data": {"id": parameter_id, "value": new_value},

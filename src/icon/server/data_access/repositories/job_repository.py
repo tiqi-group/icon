@@ -14,7 +14,7 @@ from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.models.sqlite.job_run import JobRun
 from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
-from icon.server.web_server.socketio_emit_queue import emit_queue
+from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +48,15 @@ class JobRepository:
     All methods open their own session and return detached ORM objects.
     """
 
-    def __init__(self, timezone: pytz.BaseTzInfo, engine: Engine) -> None:
+    def __init__(
+        self,
+        timezone: pytz.BaseTzInfo,
+        engine: Engine,
+        emit_queue: EmitQueue,
+    ) -> None:
         self.timezone = timezone
         self.engine = engine
+        self.emit_queue = emit_queue
 
     def submit_job(self, *, job: Job) -> Job:
         """Insert a new job and emit a creation event.
@@ -70,7 +76,7 @@ class JobRepository:
 
             logger.debug("Submitted new job %s", job)
 
-        emit_queue.put(
+        self.emit_queue.put(
             {
                 "event": "job.new",
                 "data": {
@@ -118,7 +124,7 @@ class JobRepository:
             session.refresh(job)
             session.expunge(job)
 
-        emit_queue.put(
+        self.emit_queue.put(
             {
                 "event": "job.new",
                 "data": {
@@ -137,11 +143,14 @@ class JobRepository:
         return job
 
     @staticmethod
-    def update_job_status(*, engine: Engine, job_id: int, status: JobStatus) -> Job:
+    def update_job_status(
+        *, engine: Engine, emit_queue: EmitQueue, job_id: int, status: JobStatus
+    ) -> Job:
         """Update a job's status and emit an update event.
 
         Args:
             engine: SQLAlchemy engine to query the database with.
+            emit_queue: Queue for socket.io events.
             job_id: ID of the job to update.
             status: New job status.
 

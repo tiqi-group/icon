@@ -134,6 +134,7 @@ def _run_worker(
     worker._main_device_start_delay = 0.0
     worker._icon_config = mock_config()  # type: ignore[assignment]
     worker._engine_cache = engine_cache
+    worker._emit_queue = MagicMock()  # type: ignore[assignment]
     worker.run()
 
     return list(post_processing_queue.queue), update_run, queued_at_update
@@ -166,6 +167,7 @@ def test_run_error_emits_hardware_instructions_before_failing_job(
 
     update_run.assert_called_once_with(
         engine=ANY,
+        emit_queue=ANY,
         run_id=RUN_ID,
         status=JobRunStatus.FAILED,
         log="DeviceError ('main') Sequence too long",
@@ -207,6 +209,7 @@ def test_send_error_emits_hardware_instructions_without_running(
     ]
     update_run.assert_called_once_with(
         engine=ANY,
+        emit_queue=ANY,
         run_id=RUN_ID,
         status=JobRunStatus.FAILED,
         log=f"DeviceError ('sub') {message}",
@@ -235,6 +238,7 @@ def test_errors_of_every_device_are_reported(
     ]
     update_run.assert_called_once_with(
         engine=ANY,
+        emit_queue=ANY,
         run_id=RUN_ID,
         status=JobRunStatus.FAILED,
         log="DeviceError ('main') Sequence too long; DeviceError ('sub') No response",
@@ -260,6 +264,7 @@ def test_other_errors_only_fail_the_job(
     assert not any(controller.sent for controller in controllers.values())
     update_run.assert_called_once_with(
         engine=ANY,
+        emit_queue=ANY,
         run_id=RUN_ID,
         status=JobRunStatus.FAILED,
         log="Failed to set 'x' of device 'pydase_service'",

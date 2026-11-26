@@ -46,6 +46,7 @@ if TYPE_CHECKING:
     from icon.server.hardware_processing.devices import Devices, Hardware
     from icon.server.hardware_processing.task import HardwareProcessingTask
     from icon.server.shared_resource_manager import SharedResourceManager
+    from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +156,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
         devices: Devices,
         config: Config,
         engine_cache: CachedEngine,
+        emit_queue: EmitQueue,
     ) -> None:
         super().__init__()
         self._queue = hardware_processing_queue
@@ -166,6 +168,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
         self._main_device_start_delay = config.get().hardware.main_device_start_delay
         self._icon_config = config
         self._engine_cache = engine_cache
+        self._emit_queue = emit_queue
 
         self._devices = devices
 
@@ -429,6 +432,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                     # Keep the status of runs cancelled in the meantime.
                     try_update_run_by_id(
                         engine=self._engine(),
+                        emit_queue=self._emit_queue,
                         run_id=task.pre_processing_task.job_run.id,
                         status=JobRunStatus.FAILED,
                         log=err_msgs,
@@ -441,6 +445,7 @@ class HardwareProcessingWorker(multiprocessing.Process):
                 )
                 try_update_run_by_id(
                     engine=self._engine(),
+                    emit_queue=self._emit_queue,
                     run_id=task.pre_processing_task.job_run.id,
                     status=JobRunStatus.FAILED,
                     log=str(e),

@@ -20,6 +20,7 @@ from icon.server.data_access.repositories.device_repository import DeviceReposit
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
 from icon.server.utils.pydase_client import client_call_with_timeout
 from icon.server.utils.scannable_device_parameters import get_scannable_params_list
+from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 if TYPE_CHECKING:
     from pydase.client.proxy_class import ProxyClass
@@ -43,10 +44,13 @@ class DevicesController(pydase.DataService):
     for integration with ICON scans.
     """
 
-    def __init__(self, config: Config, engine_cache: CachedEngine) -> None:
+    def __init__(
+        self, config: Config, engine_cache: CachedEngine, emit_queue: EmitQueue
+    ) -> None:
         super().__init__()
         self._config = config
         self._engine_cache = engine_cache
+        self._emit_queue = emit_queue
         self._devices: dict[str, pydase.Client] = {}
         self.device_proxies: dict[str, ProxyClass] = {}
         """Live pydase proxies keyed by device name."""
@@ -82,6 +86,7 @@ class DevicesController(pydase.DataService):
         """
         device = DeviceRepository.add_device(
             engine=self._engine(),
+            emit_queue=self._emit_queue,
             device=Device(
                 name=name,
                 url=url,
@@ -130,6 +135,7 @@ class DevicesController(pydase.DataService):
         """
         device = DeviceRepository.update_device(
             engine=self._engine(),
+            emit_queue=self._emit_queue,
             name=name,
             url=url,
             status=DeviceStatus(status) if status is not None else None,

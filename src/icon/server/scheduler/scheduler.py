@@ -18,11 +18,12 @@ from icon.server.data_access.repositories.job_run_repository import (
 )
 from icon.server.pre_processing.task import PreProcessingTask
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
+from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 logger = logging.getLogger(__name__)
 
 
-def initialise_job_tables(engine: Engine) -> None:
+def initialise_job_tables(engine: Engine, emit_queue: EmitQueue) -> None:
     # update job_runs table
     job_runs = JobRunRepository.get_runs_by_status(
         engine=engine,
@@ -35,6 +36,7 @@ def initialise_job_tables(engine: Engine) -> None:
     for job_run in job_runs:
         JobRunRepository.update_run_by_id(
             engine=engine,
+            emit_queue=emit_queue,
             run_id=job_run.id,
             status=JobRunStatus.CANCELLED,
             log="Cancelled during scheduler initialization.",
@@ -51,7 +53,10 @@ def initialise_job_tables(engine: Engine) -> None:
             job.id,
         )
         JobRepository.update_job_status(
-            engine=engine, job_id=job.id, status=JobStatus.PROCESSED
+            engine=engine,
+            emit_queue=emit_queue,
+            job_id=job.id,
+            status=JobStatus.PROCESSED,
         )
 
 
@@ -65,6 +70,7 @@ class Scheduler(multiprocessing.Process):
         config: Config,
         pre_processing_queue: queue.PriorityQueue[PreProcessingTask],
         engine_cache: CachedEngine,
+        emit_queue: EmitQueue,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -72,6 +78,7 @@ class Scheduler(multiprocessing.Process):
         self._icon_config = config
         self._pre_processing_queue = pre_processing_queue
         self._engine_cache = engine_cache
+        self._emit_queue = emit_queue
 
     def _engine(self) -> Engine:
         return self._engine_cache.get_cached(
@@ -81,6 +88,7 @@ class Scheduler(multiprocessing.Process):
     def _dispatch(self, job_: Job) -> None:
         dispatched = job_transactions.dispatch_job(
             engine=self._engine(),
+            emit_queue=self._emit_queue,
             job_id=job_.id,
             timezone=pytz.timezone(self._icon_config.get().date.timezone),
         )
@@ -111,13 +119,14 @@ class Scheduler(multiprocessing.Process):
             logger.exception("Failed to queue job %s, failing it", job_.id)
             job_transactions.fail_job(
                 engine=self._engine(),
+                emit_queue=self._emit_queue,
                 job_id=job_.id,
                 log="Failed to queue the pre-processing task.",
             )
 
     @handle_keyboard_interrupt(logger)
     def run(self) -> None:
-        initialise_job_tables(self._engine())
+        initialise_job_tables(self._engine(), self._emit_queue)
         while not should_exit():
             try:
                 jobs = JobRepository.get_jobs_by_status_and_timeframe(

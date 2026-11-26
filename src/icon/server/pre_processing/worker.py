@@ -60,6 +60,7 @@ if TYPE_CHECKING:
         SharedResourceManager,
     )
     from icon.server.utils.types import UpdateQueue
+    from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 logger = logging.getLogger(__name__)
 
@@ -203,6 +204,7 @@ class PreProcessingWorker(multiprocessing.Process):
         experiment_library_client: ExperimentLibraryClient,
         engine_cache: CachedEngine,
         parameters_repository: ParametersRepository,
+        emit_queue: EmitQueue,
     ) -> None:
         super().__init__()
         self._engine_cache = engine_cache
@@ -223,6 +225,7 @@ class PreProcessingWorker(multiprocessing.Process):
         )
         self._experiment_library_client = experiment_library_client
         self._icon_config = config
+        self._emit_queue = emit_queue
 
     def _engine(self) -> Engine:
         return self._engine_cache.get_cached(
@@ -231,7 +234,7 @@ class PreProcessingWorker(multiprocessing.Process):
 
     def experiment_data_repo(self) -> ExperimentDataRepository:
         return ExperimentDataRepository.from_config(
-            self._icon_config, engine=self._engine()
+            self._icon_config, engine=self._engine(), emit_queue=self._emit_queue
         )
 
     @handle_keyboard_interrupt(logger)
@@ -259,6 +262,7 @@ class PreProcessingWorker(multiprocessing.Process):
 
                     JobRunRepository.update_run_by_id(
                         engine=self._engine(),
+                        emit_queue=self._emit_queue,
                         run_id=pre_processing_task.job_run.id,
                         status=JobRunStatus.DONE,
                         only_if_status=(
@@ -272,6 +276,7 @@ class PreProcessingWorker(multiprocessing.Process):
                         job_id=pre_processing_task.job.id,
                         experiment_source_id=pre_processing_task.job.experiment_source_id,
                         timeout=self._icon_config.get().data.h5_open_timeout_seconds,
+                        emit_queue=self._emit_queue,
                     )
                 except Exception as e:
                     logger.exception(
@@ -280,6 +285,7 @@ class PreProcessingWorker(multiprocessing.Process):
 
                     try_update_run_by_id(
                         engine=self._engine(),
+                        emit_queue=self._emit_queue,
                         run_id=pre_processing_task.job_run.id,
                         status=JobRunStatus.FAILED,
                         log=str(e),
@@ -291,6 +297,7 @@ class PreProcessingWorker(multiprocessing.Process):
                 finally:
                     JobRepository.update_job_status(
                         engine=self._engine(),
+                        emit_queue=self._emit_queue,
                         job_id=pre_processing_task.job.id,
                         status=JobStatus.PROCESSED,
                     )
@@ -304,6 +311,7 @@ class PreProcessingWorker(multiprocessing.Process):
 
         claimed = JobRunRepository.update_run_by_id(
             engine=self._engine(),
+            emit_queue=self._emit_queue,
             run_id=pre_processing_task.job_run.id,
             status=JobRunStatus.PROCESSING,
             only_if_status=(JobRunStatus.PENDING,),

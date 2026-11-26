@@ -12,7 +12,7 @@ from sqlalchemy.engine import Engine
 from icon.server.data_access.models.enums import DeviceStatus
 from icon.server.data_access.models.sqlite.device import Device
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
-from icon.server.web_server.socketio_emit_queue import emit_queue
+from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +30,17 @@ class DeviceRepository:
 
     @staticmethod
     def add_device(
-        *, engine: Engine, device: Device, timezone: pytz.BaseTzInfo
+        *,
+        engine: Engine,
+        emit_queue: EmitQueue,
+        device: Device,
+        timezone: pytz.BaseTzInfo,
     ) -> Device:
         """Insert a new device into the database.
 
         Args:
             engine: SQLAlchemy engine to query the database with.
+            emit_queue: Queue for socket.io events.
             device: Device instance to persist.
             timezone: Timezone used for timestamps in the database.
 
@@ -64,6 +69,7 @@ class DeviceRepository:
     def update_device(
         *,
         engine: Engine,
+        emit_queue: EmitQueue,
         name: str,
         url: str | None = None,
         status: DeviceStatus | None = None,
@@ -74,6 +80,7 @@ class DeviceRepository:
 
         Args:
             engine: SQLAlchemy engine to query the database with.
+            emit_queue: Queue for socket.io events.
             name: Unique device name.
             url: New device URL (cannot change if the device is enabled).
             status: New device status (enabled/disabled).

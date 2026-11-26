@@ -17,7 +17,7 @@ from icon.server.data_access.repositories.experiment_data_repository import (
     write_fit_result_by_job_id,
 )
 from icon.server.fitting import run_curve_fit
-from icon.server.web_server.socketio_emit_queue import emit_queue
+from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 __all__ = ["ExperimentDataController"]
 
@@ -28,16 +28,21 @@ class ExperimentDataController(pydase.DataService):
     Provides API methods to fetch experiment data associated with jobs.
     """
 
-    def __init__(self, config: Config, engine_cache: CachedEngine) -> None:
+    def __init__(
+        self, config: Config, engine_cache: CachedEngine, emit_queue: EmitQueue
+    ) -> None:
         super().__init__()
         self._config = config
         self._engine_cache = engine_cache
+        self._emit_queue = emit_queue
 
     def _engine(self) -> Engine:
         return self._engine_cache.get_cached(self._config.get().databases.sqlite.file)
 
     def experiment_data_repo(self) -> ExperimentDataRepository:
-        return ExperimentDataRepository.from_config(self._config, self._engine())
+        return ExperimentDataRepository.from_config(
+            self._config, self._engine(), self._emit_queue
+        )
 
     async def get_experiment_data_by_job_id(
         self,
@@ -186,7 +191,7 @@ class ExperimentDataController(pydase.DataService):
             )
 
         result_dict = asdict(fit_result)
-        emit_queue.put(
+        self._emit_queue.put(
             {
                 "event": f"experiment_fit_{job_id}",
                 "data": {"device_id": device_id, "fit_data": result_dict},
@@ -216,7 +221,7 @@ class ExperimentDataController(pydase.DataService):
             h5_dir=Path(self._config.get().data.results_dir),
             timeout=self._config.get().data.h5_open_timeout_seconds,
         )
-        emit_queue.put(
+        self._emit_queue.put(
             {
                 "event": f"experiment_fit_{job_id}",
                 "data": {

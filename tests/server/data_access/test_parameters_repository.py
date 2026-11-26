@@ -24,11 +24,12 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def repository() -> ParametersRepository:
+def repository(emit_queue: MagicMock) -> ParametersRepository:
     """A fresh repository bound to a plain in-test shared dict."""
     return ParametersRepository(
         shared_parameters=cast("DictProxy[str, DatabaseValueType]", {}),
         influx_config=InfluxDBv1Config(),
+        emit_queue=emit_queue,
     )
 
 

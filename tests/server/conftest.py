@@ -18,24 +18,15 @@ from icon.server.data_access.models.sqlite import (
     Job,
     JobRun,
 )
-from icon.server.data_access.repositories import (
-    device_repository,
-    experiment_source_repository,
-    job_repository,
-    job_run_repository,
-    job_transactions,
-)
 
 if TYPE_CHECKING:
     from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 
-_REPOSITORY_MODULES = (
-    device_repository,
-    experiment_source_repository,
-    job_repository,
-    job_run_repository,
-    job_transactions,
-)
+
+@pytest.fixture
+def emit_queue() -> MagicMock:
+    """A stand-in for the socket.io emit queue the repositories write to."""
+    return MagicMock()
 
 
 class InMemoryCachedEngine(CachedEngine):
@@ -66,19 +57,14 @@ def engine_cache() -> CachedEngine:
 
 
 @pytest.fixture
-def database(
-    monkeypatch: pytest.MonkeyPatch, engine_cache: CachedEngine
-) -> sqlalchemy.engine.Engine:
-    """A throwaway SQLite database wired into the repository modules.
+def database(engine_cache: CachedEngine) -> sqlalchemy.engine.Engine:
+    """A throwaway in-memory SQLite database.
 
     Returns:
         The engine, for seeding rows and asserting on stored state.
     """
     engine = engine_cache.get_cached(engine_cache.path)
     Base.metadata.create_all(engine)
-    for module in _REPOSITORY_MODULES:
-        # Not every repository emits events.
-        monkeypatch.setattr(module, "emit_queue", MagicMock(), raising=False)
     return engine
 
 

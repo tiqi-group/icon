@@ -71,6 +71,7 @@ def _run_worker(
     worker._post_processing_queue = _SingleTaskQueue(task)  # type: ignore[assignment]
     worker._icon_config = mock_config()  # type: ignore[assignment]
     worker._engine_cache = engine_cache
+    worker._emit_queue = MagicMock()  # type: ignore[assignment]
     worker.run()
 
 
@@ -106,7 +107,11 @@ def test_write_error_keeps_log_of_failed_job(
         job_status=JobStatus.PROCESSED, run_status=JobRunStatus.PROCESSING
     )
     JobRunRepository.update_run_by_id(
-        engine=database, run_id=run_id, status=JobRunStatus.FAILED, log=HARDWARE_ERROR
+        engine=database,
+        emit_queue=MagicMock(),
+        run_id=run_id,
+        status=JobRunStatus.FAILED,
+        log=HARDWARE_ERROR,
     )
 
     _run_worker(

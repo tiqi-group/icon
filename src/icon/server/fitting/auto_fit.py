@@ -16,7 +16,6 @@ from icon.server.data_access.repositories.experiment_data_repository import (
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.fitting.fit_runner import run_curve_fit
-from icon.server.web_server.socketio_emit_queue import emit_queue
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -24,6 +23,7 @@ if TYPE_CHECKING:
     from sqlalchemy.engine import Engine
 
     from icon.server.data_access.experiment_data import ExperimentData, FitResult
+    from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,8 @@ def try_auto_fit(
     job_id: int,
     experiment_source_id: int,
     timeout: float,
+    *,
+    emit_queue: EmitQueue,
 ) -> None:
     """Auto-fit the new job using the fit config from the previous job.
 
@@ -47,9 +49,10 @@ def try_auto_fit(
         job_id: The newly completed job.
         experiment_source_id: The experiment source to find previous jobs.
         timeout: Seconds to wait for a lock on hdf5 files.
+        emit_queue: Queue for socket.io events.
     """
     try:
-        _auto_fit(engine, h5_dir, job_id, experiment_source_id, timeout)
+        _auto_fit(engine, h5_dir, job_id, experiment_source_id, timeout, emit_queue)
     except Exception:
         logger.exception("Auto-fit failed for job %d", job_id)
 
@@ -60,6 +63,7 @@ def _auto_fit(
     job_id: int,
     experiment_source_id: int,
     timeout: float,
+    emit_queue: EmitQueue,
 ) -> None:
     previous_job_id = _find_previous_job_with_fit(
         engine,
@@ -78,7 +82,7 @@ def _auto_fit(
         return
 
     data = ExperimentDataRepository(
-        h5_dir, timeout, engine
+        h5_dir, timeout, engine, emit_queue
     ).get_experiment_data_by_job_id(
         job_id=job_id,
         max_transfer_bytes=2**62,
@@ -101,6 +105,7 @@ def _auto_fit(
                     scan_param_name,
                     channel_name,
                     fit_data,
+                    emit_queue,
                 )
 
 
@@ -114,6 +119,7 @@ def _fit_channel(
     scan_param_name: str,
     channel_name: str,
     fit_data: FitResult,
+    emit_queue: EmitQueue,
 ) -> None:
     """Run a single auto-fit for one channel and persist the result."""
     try:

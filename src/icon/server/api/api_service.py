@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     )
     from icon.server.hardware_processing.devices import Devices
     from icon.server.utils.types import UpdateQueue
+    from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ class APIService(pydase.DataService):
         devices: Devices,
         parameters_repository: ParametersRepository,
         engine_cache: CachedEngine,
+        emit_queue: EmitQueue,
     ) -> None:
         """Create a new APIService.
 
@@ -69,16 +71,21 @@ class APIService(pydase.DataService):
         devices: Controllers for the hardware devices
         parameters_repository: Repository for shared parameter values.
         engine_cache: Cache of the SQLAlchemy engine for the SQLite database.
+        emit_queue: Queue for socket.io events.
         """
         super().__init__()
         self._engine_cache = engine_cache
         self._parameters_repository = parameters_repository
 
-        status = StatusController(config, devices, experiment_library_client)
+        status = StatusController(
+            config, devices, experiment_library_client, emit_queue
+        )
 
-        self.devices = DevicesController(config, engine_cache)
+        self.devices = DevicesController(config, engine_cache, emit_queue)
         """Controller for managing external pydase-based devices."""
-        self.parameters = ParametersController(config, parameters_repository)
+        self.parameters = ParametersController(
+            config, parameters_repository, emit_queue
+        )
         """Controller for parameter metadata and shared parameter values."""
         self.scheduler = SchedulerController(
             config,
@@ -86,13 +93,16 @@ class APIService(pydase.DataService):
             parameters_controller=self.parameters,
             parameters_repository=parameters_repository,
             engine_cache=engine_cache,
+            emit_queue=emit_queue,
         )
         """Controller to submit, inspect, and cancel scheduled jobs."""
-        self.experiments = ExperimentsController()
+        self.experiments = ExperimentsController(emit_queue)
         """Controller for experiment metadata."""
-        self.config = ConfigurationController(config, on_update=status.request_refresh)
+        self.config = ConfigurationController(
+            config, on_update=status.request_refresh, emit_queue=emit_queue
+        )
         """Controller for managing and updating the application's configuration."""
-        self.data = ExperimentDataController(config, engine_cache)
+        self.data = ExperimentDataController(config, engine_cache, emit_queue)
         """Controller for accessing stored experiment data."""
         self.scans = ScansController(
             pre_processing_update_queues=pre_processing_event_queues

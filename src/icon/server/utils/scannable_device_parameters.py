@@ -12,7 +12,7 @@ from pydase.utils.serialization.serializer import (
 from pydase.utils.serialization.types import SerializedObject
 
 from icon.server.data_access.experiment_data import DatabaseValueType
-from icon.server.web_server.socketio_emit_queue import emit_queue
+from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,9 @@ _pending_recompute_timers: dict[str, threading.Timer] = {}
 _timer_lock = threading.Lock()
 
 
-def _recompute_and_emit(observer: DataServiceObserver, device_name: str) -> None:
+def _recompute_and_emit(
+    observer: DataServiceObserver, device_name: str, emit_queue: EmitQueue
+) -> None:
     with _timer_lock:
         _pending_recompute_timers.pop(device_name, None)
 
@@ -137,6 +139,7 @@ def emit_scannable_device_params_change(
     full_access_path: str,
     value: Any,
     cached_value_dict: SerializedObject,
+    emit_queue: EmitQueue,
 ) -> None:
     device_name = get_device_name(full_access_path)
 
@@ -149,7 +152,9 @@ def emit_scannable_device_params_change(
             # fires, so later changes in this burst are picked up automatically.
             return
         timer = threading.Timer(
-            _DEBOUNCE_SECONDS, _recompute_and_emit, args=(observer, device_name)
+            _DEBOUNCE_SECONDS,
+            _recompute_and_emit,
+            args=(observer, device_name, emit_queue),
         )
         timer.daemon = True
         _pending_recompute_timers[device_name] = timer

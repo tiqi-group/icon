@@ -22,13 +22,16 @@ from tests.server.conftest import SeedJob
 
 
 @pytest.fixture
-def controller(engine_cache: CachedEngine) -> SchedulerController:
+def controller(
+    engine_cache: CachedEngine, emit_queue: MagicMock
+) -> SchedulerController:
     return SchedulerController(
         mock_config(),
         devices_controller=MagicMock(),
         parameters_controller=MagicMock(),
         parameters_repository=MagicMock(),
         engine_cache=engine_cache,
+        emit_queue=emit_queue,
     )
 
 

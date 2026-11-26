@@ -8,7 +8,7 @@ from icon.server.api.models.experiment_dict import (
     ExperimentDict,
 )
 from icon.server.api.parameters_controller import get_added_removed_and_updated_keys
-from icon.server.web_server.socketio_emit_queue import emit_queue
+from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +21,9 @@ class ExperimentsController(pydase.DataService):
     are detected, an update event is pushed to the Socket.IO emit queue.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, emit_queue: EmitQueue) -> None:
         super().__init__()
+        self._emit_queue = emit_queue
         self._experiments: ExperimentDict = {}
         self.hardware_description: str = ""
 
@@ -56,7 +57,7 @@ class ExperimentsController(pydase.DataService):
         self._experiments = new_experiments
 
         if added_exps or removes_exps or updated_exps:
-            emit_queue.put(
+            self._emit_queue.put(
                 {
                     "event": "experiments.update",
                     "data": {

@@ -36,7 +36,7 @@ from icon.server.data_access.models.sqlite.scan_parameter import (
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
-from icon.server.web_server.socketio_emit_queue import emit_queue
+from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 if TYPE_CHECKING:
     from icon.config.config import Config
@@ -378,18 +378,24 @@ class ExperimentDataRepository:
     Initialization is required before any read/write operation is triggered.
     """
 
-    def __init__(self, h5_dir: Path, timeout: float, engine: Engine) -> None:
+    def __init__(
+        self, h5_dir: Path, timeout: float, engine: Engine, emit_queue: EmitQueue
+    ) -> None:
         self.h5_dir = h5_dir
         self.timeout = timeout
         self.engine = engine
+        self.emit_queue = emit_queue
 
     @classmethod
-    def from_config(cls, config: "Config", engine: Engine) -> Self:
+    def from_config(
+        cls, config: "Config", engine: Engine, emit_queue: EmitQueue
+    ) -> Self:
         cfg = config.get()
         return cls(
             h5_dir=Path(cfg.data.results_dir),
             timeout=cfg.data.h5_open_timeout_seconds,
             engine=engine,
+            emit_queue=emit_queue,
         )
 
     def initialize_for_job_id(self, *, job_id: int) -> None:
@@ -459,7 +465,7 @@ class ExperimentDataRepository:
             "shot_channel_windows": "shot_channels",
             "vector_channel_windows": "vector_channels",
         }
-        emit_queue.put(
+        self.emit_queue.put(
             {
                 "event": f"experiment_{job_id}_metadata",
                 "data": [
@@ -504,7 +510,7 @@ class ExperimentDataRepository:
         if data_point.failed:
             return
 
-        emit_queue.put(
+        self.emit_queue.put(
             {
                 "event": f"experiment_{job_id}",
                 "data": asdict(data_point),
@@ -568,7 +574,7 @@ class ExperimentDataRepository:
                 job_id,
                 timestamp,
             )
-        emit_queue.put(
+        self.emit_queue.put(
             {
                 "event": f"experiment_params_{job_id}",
                 "data": {

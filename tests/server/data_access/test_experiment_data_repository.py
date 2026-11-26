@@ -423,14 +423,13 @@ def test_failed_data_point_only_stores_hardware_instructions_and_error() -> None
 def test_failed_data_point_emits_no_event(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    repo = Repo(h5_dir=tmp_path, timeout=10, engine=MagicMock())
+    emit_queue = MagicMock()
+    repo = Repo(h5_dir=tmp_path, timeout=10, engine=MagicMock(), emit_queue=emit_queue)
     monkeypatch.setattr(
         experiment_data_repository,
         "get_filename_by_job_id",
         lambda **_: "job-1.h5",
     )
-    emit_queue = MagicMock()
-    monkeypatch.setattr(experiment_data_repository, "emit_queue", emit_queue)
     with h5py.File(tmp_path / "job-1.h5", "w") as h5file:
         _prepare_metadata(h5file)
 
@@ -467,7 +466,7 @@ def _fake_recent_runs(
 def test_get_hardware_instructions(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    repo = Repo(h5_dir=tmp_path, timeout=10, engine=MagicMock())
+    repo = Repo(h5_dir=tmp_path, timeout=10, engine=MagicMock(), emit_queue=MagicMock())
     unknown_job_id = 42
 
     def filename(*, engine: Any, job_id: int) -> str:  # noqa: ARG001
@@ -516,14 +515,16 @@ def test_get_hardware_instructions(
         repo.get_hardware_instructions(device_id="RFSoC", job_id=unknown_job_id) is None
     )
     assert repo.get_hardware_instructions(device_id="RFSoC", job_id=39) is None
-    repo = Repo(h5_dir=tmp_path / "x", timeout=10, engine=MagicMock())
+    repo = Repo(
+        h5_dir=tmp_path / "x", timeout=10, engine=MagicMock(), emit_queue=MagicMock()
+    )
     assert repo.get_hardware_instructions(device_id="RFSoC") is None
 
 
 def test_get_hardware_instructions_only_searches_recent_runs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    repo = Repo(h5_dir=tmp_path, timeout=10, engine=MagicMock())
+    repo = Repo(h5_dir=tmp_path, timeout=10, engine=MagicMock(), emit_queue=MagicMock())
 
     limit = experiment_data_repository.MOST_RECENT_JOB_RUNS
     # Only the oldest run has instructions, and it is pushed out of the window
@@ -545,7 +546,7 @@ def test_get_hardware_instructions_only_searches_recent_runs(
 def test_get_hardware_instructions_skips_runs_without_a_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    repo = Repo(h5_dir=tmp_path, timeout=10, engine=MagicMock())
+    repo = Repo(h5_dir=tmp_path, timeout=10, engine=MagicMock(), emit_queue=MagicMock())
 
     # The newest run's file was archived or never written; the search continues.
     _write_instruction_file(tmp_path / "job-1.h5", [(0, "seq-1a")])
