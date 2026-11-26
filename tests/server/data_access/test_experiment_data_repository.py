@@ -1,6 +1,5 @@
 import json
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -9,7 +8,6 @@ import numpy as np
 import pytest
 from sqlalchemy.exc import NoResultFound
 
-from icon.config import latest
 from icon.server.data_access.experiment_data import (
     ExperimentData,
     ExperimentDataPoint,
@@ -425,20 +423,20 @@ def test_failed_data_point_only_stores_hardware_instructions_and_error() -> None
 def test_failed_data_point_emits_no_event(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    config = SimpleNamespace(data=latest.DataConfiguration(results_dir=str(tmp_path)))
-    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
-    monkeypatch.setattr(
-        experiment_data_repository, "get_filename_by_job_id", lambda _: "job-1.h5"
-    )
     emit_queue = MagicMock()
-    monkeypatch.setattr(experiment_data_repository, "emit_queue", emit_queue)
+    repo = Repo(h5_dir=tmp_path, timeout=10, engine=MagicMock(), emit_queue=emit_queue)
+    monkeypatch.setattr(
+        experiment_data_repository,
+        "get_filename_by_job_id",
+        lambda **_: "job-1.h5",
+    )
     with h5py.File(tmp_path / "job-1.h5", "w") as h5file:
         _prepare_metadata(h5file)
 
-    Repo.write_experiment_data_by_job_id(job_id=1, data_point=FAILED_DATA_POINT)
+    repo.write_experiment_data_by_job_id(job_id=1, data_point=FAILED_DATA_POINT)
     emit_queue.put.assert_not_called()
 
-    Repo.write_experiment_data_by_job_id(job_id=1, data_point=DATA_POINTS[0])
+    repo.write_experiment_data_by_job_id(job_id=1, data_point=DATA_POINTS[0])
     emit_queue.put.assert_called_once()
 
 
@@ -461,18 +459,17 @@ def _fake_recent_runs(
     monkeypatch.setattr(
         experiment_data_repository.JobRunRepository,
         "get_recent_scheduled_times",
-        lambda *, limit: scheduled_times[:limit],
+        lambda *, engine, limit: scheduled_times[:limit],  # noqa: ARG005
     )
 
 
 def test_get_hardware_instructions(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    config = SimpleNamespace(data=latest.DataConfiguration(results_dir=str(tmp_path)))
-    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+    repo = Repo(h5_dir=tmp_path, timeout=10, engine=MagicMock(), emit_queue=MagicMock())
     unknown_job_id = 42
 
-    def filename(job_id: int) -> str:
+    def filename(*, engine: Any, job_id: int) -> str:  # noqa: ARG001
         if job_id == unknown_job_id:
             raise NoResultFound
         return f"job-{job_id}.h5"
@@ -491,48 +488,43 @@ def test_get_hardware_instructions(
     _fake_recent_runs(monkeypatch, ["job-3", "job-2", "job-1", "job-0"])
 
     # latest: newest file that has instructions
-    assert Repo.get_hardware_instructions(device_id="RFSoC") == "seq-2a"
+    assert repo.get_hardware_instructions(device_id="RFSoC") == "seq-2a"
     # job scope: last entry of that job
-    assert Repo.get_hardware_instructions(device_id="RFSoC", job_id=1) == "seq-1b"
+    assert repo.get_hardware_instructions(device_id="RFSoC", job_id=1) == "seq-1b"
     # data point scope: entry active at the given index
     assert (
-        Repo.get_hardware_instructions(device_id="RFSoC", job_id=1, index=0) == "seq-1a"
+        repo.get_hardware_instructions(device_id="RFSoC", job_id=1, index=0) == "seq-1a"
     )
     assert (
-        Repo.get_hardware_instructions(device_id="RFSoC", job_id=1, index=4) == "seq-1a"
+        repo.get_hardware_instructions(device_id="RFSoC", job_id=1, index=4) == "seq-1a"
     )
     assert (
-        Repo.get_hardware_instructions(device_id="RFSoC", job_id=1, index=5) == "seq-1b"
+        repo.get_hardware_instructions(device_id="RFSoC", job_id=1, index=5) == "seq-1b"
     )
     assert (
-        Repo.get_hardware_instructions(device_id="RFSoC", job_id=1, index=99)
+        repo.get_hardware_instructions(device_id="RFSoC", job_id=1, index=99)
         == "seq-1b"
     )
     # data points before the first stored entry have no instructions
-    assert Repo.get_hardware_instructions(device_id="RFSoC", job_id=0, index=1) is None
+    assert repo.get_hardware_instructions(device_id="RFSoC", job_id=0, index=1) is None
     assert (
-        Repo.get_hardware_instructions(device_id="RFSoC", job_id=0, index=2) == "seq-0a"
+        repo.get_hardware_instructions(device_id="RFSoC", job_id=0, index=2) == "seq-0a"
     )
     # unknown job, missing file, and empty directory behave gracefully
     assert (
-        Repo.get_hardware_instructions(device_id="RFSoC", job_id=unknown_job_id) is None
+        repo.get_hardware_instructions(device_id="RFSoC", job_id=unknown_job_id) is None
     )
-    assert Repo.get_hardware_instructions(device_id="RFSoC", job_id=39) is None
-    monkeypatch.setattr(
-        experiment_data_repository,
-        "get_config",
-        lambda: SimpleNamespace(
-            data=latest.DataConfiguration(results_dir=str(tmp_path / "x"))
-        ),
+    assert repo.get_hardware_instructions(device_id="RFSoC", job_id=39) is None
+    repo = Repo(
+        h5_dir=tmp_path / "x", timeout=10, engine=MagicMock(), emit_queue=MagicMock()
     )
-    assert Repo.get_hardware_instructions(device_id="RFSoC") is None
+    assert repo.get_hardware_instructions(device_id="RFSoC") is None
 
 
 def test_get_hardware_instructions_only_searches_recent_runs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    config = SimpleNamespace(data=latest.DataConfiguration(results_dir=str(tmp_path)))
-    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+    repo = Repo(h5_dir=tmp_path, timeout=10, engine=MagicMock(), emit_queue=MagicMock())
 
     limit = experiment_data_repository.MOST_RECENT_JOB_RUNS
     # Only the oldest run has instructions, and it is pushed out of the window
@@ -544,24 +536,23 @@ def test_get_hardware_instructions_only_searches_recent_runs(
     newest_first = [f"job-{i:02d}" for i in range(limit, -1, -1)]
     _fake_recent_runs(monkeypatch, newest_first)
 
-    assert Repo.get_hardware_instructions(device_id="RFSoC") is None
+    assert repo.get_hardware_instructions(device_id="RFSoC") is None
 
     # Within the window it is found again.
     _fake_recent_runs(monkeypatch, newest_first[1:])
-    assert Repo.get_hardware_instructions(device_id="RFSoC") == "seq-old"
+    assert repo.get_hardware_instructions(device_id="RFSoC") == "seq-old"
 
 
 def test_get_hardware_instructions_skips_runs_without_a_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    config = SimpleNamespace(data=latest.DataConfiguration(results_dir=str(tmp_path)))
-    monkeypatch.setattr(experiment_data_repository, "get_config", lambda: config)
+    repo = Repo(h5_dir=tmp_path, timeout=10, engine=MagicMock(), emit_queue=MagicMock())
 
     # The newest run's file was archived or never written; the search continues.
     _write_instruction_file(tmp_path / "job-1.h5", [(0, "seq-1a")])
     _fake_recent_runs(monkeypatch, ["job-2", "job-1"])
 
-    assert Repo.get_hardware_instructions(device_id="RFSoC") == "seq-1a"
+    assert repo.get_hardware_instructions(device_id="RFSoC") == "seq-1a"
 
 
 def mock_scan_parameter(variable_id: str, *, realtime: bool = False) -> Any:

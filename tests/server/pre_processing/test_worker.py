@@ -15,8 +15,10 @@ from icon.server.pre_processing.worker import (
     create_hardware_instructions,
 )
 from icon.server.shared_resource_manager import ScanProgress
+from tests.mock_config import mock_config
 
 if TYPE_CHECKING:
+    from icon.server.data_access.db_context.sqlite.engine import CachedEngine
     from icon.server.hardware_processing.task import HardwareProcessingTask
 
 # Fixed reference point: the parameter-update timestamp the consumer compares against.
@@ -83,9 +85,12 @@ def _fake_task(
     )
 
 
-def _make_worker() -> tuple[PreProcessingWorker, queue.PriorityQueue[Any]]:
+def _make_worker(
+    engine_cache: CachedEngine,
+) -> tuple[PreProcessingWorker, queue.PriorityQueue[Any]]:
     hw_queue: queue.PriorityQueue[Any] = queue.PriorityQueue()
     worker = PreProcessingWorker(
+        config=mock_config(),
         worker_number=0,
         pre_processing_queue=queue.PriorityQueue(),
         update_queue=multiprocessing.Queue(),
@@ -96,6 +101,9 @@ def _make_worker() -> tuple[PreProcessingWorker, queue.PriorityQueue[Any]]:
             ScanProgress=ScanProgress,
         ),
         experiment_library_client=MagicMock(),
+        engine_cache=engine_cache,
+        parameters_repository=MagicMock(),
+        emit_queue=MagicMock(),
     )
     worker._scan_progress.start(RUN_ID)
     return worker, hw_queue
@@ -126,9 +134,9 @@ def _run_regenerate(worker: PreProcessingWorker, status: JobRunStatus) -> MagicM
     return generate
 
 
-def test_regenerate_only_regenerates_stale_tasks() -> None:
+def test_regenerate_only_regenerates_stale_tasks(engine_cache: CachedEngine) -> None:
     """Pause-diverted (fresh) tasks must not be needlessly regenerated."""
-    worker, submitted = _make_worker()
+    worker, submitted = _make_worker(engine_cache)
     stale = _fake_task(created=PARAM_UPDATE_TS - timedelta(seconds=10))
     fresh = _fake_task(created=PARAM_UPDATE_TS + timedelta(seconds=10))
     worker._outdated_tasks.put(stale)
@@ -142,9 +150,9 @@ def test_regenerate_only_regenerates_stale_tasks() -> None:
     assert fresh.hardware_instructions == b"ORIGINAL"
 
 
-def test_regenerate_stops_when_paused() -> None:
+def test_regenerate_stops_when_paused(engine_cache: CachedEngine) -> None:
     """Draining must stop without feeding a paused hardware worker."""
-    worker, submitted = _make_worker()
+    worker, submitted = _make_worker(engine_cache)
     worker._outdated_tasks.put(_fake_task(created=PARAM_UPDATE_TS))
     worker._outdated_tasks.put(_fake_task(created=PARAM_UPDATE_TS))
 
@@ -155,9 +163,11 @@ def test_regenerate_stops_when_paused() -> None:
     assert worker._outdated_tasks.qsize() == NUM_TASKS
 
 
-def test_regenerate_does_not_regenerate_realtime_tasks() -> None:
+def test_regenerate_does_not_regenerate_realtime_tasks(
+    engine_cache: CachedEngine,
+) -> None:
     """Realtime tasks keep their last-generated hardware instructions, never the generic regen."""
-    worker, submitted = _make_worker()
+    worker, submitted = _make_worker(engine_cache)
     stale = _fake_task(created=PARAM_UPDATE_TS - timedelta(seconds=10), realtime=True)
     worker._outdated_tasks.put(stale)
 
@@ -168,9 +178,9 @@ def test_regenerate_does_not_regenerate_realtime_tasks() -> None:
     assert stale.hardware_instructions == b"ORIGINAL"
 
 
-def test_regenerate_drops_cancelled_tasks() -> None:
+def test_regenerate_drops_cancelled_tasks(engine_cache: CachedEngine) -> None:
     """Cancelled jobs' tasks are accounted for directly, not bounced through HW."""
-    worker, submitted = _make_worker()
+    worker, submitted = _make_worker(engine_cache)
     worker._outdated_tasks.put(_fake_task(created=PARAM_UPDATE_TS))
     worker._outdated_tasks.put(_fake_task(created=PARAM_UPDATE_TS))
 
@@ -182,9 +192,11 @@ def test_regenerate_drops_cancelled_tasks() -> None:
     assert worker._outdated_tasks.qsize() == 0
 
 
-def test_regenerate_uses_updated_parameters_after_pause() -> None:
+def test_regenerate_uses_updated_parameters_after_pause(
+    engine_cache: CachedEngine,
+) -> None:
     """A parameter changed during a pause is applied when a stale task is regenerated."""
-    worker, submitted = _make_worker()
+    worker, submitted = _make_worker(engine_cache)
     worker._parameter_dict = {"freq": UPDATED_FREQ}
     worker._device_order = DEVICE_ORDER
     stale = _fake_task(created=PARAM_UPDATE_TS - timedelta(seconds=10))
@@ -198,16 +210,16 @@ def test_regenerate_uses_updated_parameters_after_pause() -> None:
     assert generate.call_args.kwargs["device_order"] == DEVICE_ORDER
 
 
-def test_no_tight_loop_on_realtime_resume() -> None:
+def test_no_tight_loop_on_realtime_resume(engine_cache: CachedEngine) -> None:
     """The consumer<->hardware-worker round-trip must terminate for a realtime scan.
 
     Reproduces the resume-after-parameter-update tight loop: a realtime task made
     stale by a parameter update during a pause bounces between the consumer (which
     resubmits it) and the hardware worker (which re-diverts it as outdated). Any fix
     -- refreshing the task, dropping it, or exempting realtime from the staleness
-    divert -- must make the round-trip terminate.
+    must make the round-trip terminate.
     """
-    worker, submitted = _make_worker()
+    worker, submitted = _make_worker(engine_cache)
     worker._outdated_tasks.put(
         _fake_task(created=PARAM_UPDATE_TS - timedelta(seconds=10), realtime=True)
     )

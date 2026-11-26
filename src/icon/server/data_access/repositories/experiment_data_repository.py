@@ -10,14 +10,14 @@ from dataclasses import asdict
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Self, TypedDict, cast
 
 import h5py  # type: ignore
 import numpy as np
 import numpy.typing as npt
+from sqlalchemy.engine import Engine
 from sqlalchemy.exc import NoResultFound
 
-from icon.config.config import get_config
 from icon.server.data_access.experiment_data import (
     DatabaseValueType,
     ExperimentData,
@@ -36,7 +36,11 @@ from icon.server.data_access.models.sqlite.scan_parameter import (
 )
 from icon.server.data_access.repositories.job_repository import JobRepository
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
-from icon.server.web_server.socketio_emit_queue import emit_queue
+from icon.server.web_server.socketio_emit_queue import EmitQueue
+
+if TYPE_CHECKING:
+    from icon.config.config import Config
+
 
 logger = logging.getLogger(__name__)
 
@@ -96,26 +100,27 @@ def _result_filename(scheduled_time: datetime) -> str:
     return f"{scheduled_time}.h5"
 
 
-def get_filename_by_job_id(job_id: int) -> str:
+def get_filename_by_job_id(*, engine: Engine, job_id: int) -> str:
     """Return the HDF5 filename for a job.
 
     Args:
+        engine: SQLAlchemy engine to query the database with.
         job_id: Job identifier.
 
     Returns:
-        Filename derived from the job's scheduled time (e.g., "<iso>.h5").
+        Filename derived from the job's scheduled time (e.g. "<iso>.h5").
     """
     return _result_filename(
-        JobRunRepository.get_scheduled_time_by_job_id(job_id=job_id)
+        JobRunRepository.get_scheduled_time_by_job_id(engine=engine, job_id=job_id)
     )
 
 
-def _recent_result_paths(results_dir: Path) -> list[Path]:
+def _recent_result_paths(*, engine: Engine, results_dir: Path) -> list[Path]:
     """Return the newest result files, newest first."""
     return [
         results_dir / _result_filename(scheduled_time)
         for scheduled_time in JobRunRepository.get_recent_scheduled_times(
-            limit=MOST_RECENT_JOB_RUNS
+            engine=engine, limit=MOST_RECENT_JOB_RUNS
         )
     ]
 
@@ -373,26 +378,46 @@ class ExperimentDataRepository:
     Initialization is required before any read/write operation is triggered.
     """
 
-    @staticmethod
-    def initialize_for_job_id(*, job_id: int) -> None:
+    def __init__(
+        self, h5_dir: Path, timeout: float, engine: Engine, emit_queue: EmitQueue
+    ) -> None:
+        self.h5_dir = h5_dir
+        self.timeout = timeout
+        self.engine = engine
+        self.emit_queue = emit_queue
+
+    @classmethod
+    def from_config(
+        cls, config: "Config", engine: Engine, emit_queue: EmitQueue
+    ) -> Self:
+        cfg = config.get()
+        return cls(
+            h5_dir=Path(cfg.data.results_dir),
+            timeout=cfg.data.h5_open_timeout_seconds,
+            engine=engine,
+            emit_queue=emit_queue,
+        )
+
+    def initialize_for_job_id(self, *, job_id: int) -> None:
         """Create the file.
 
         Args:
             job_id: Job identifier.
         """
-        filename = get_filename_by_job_id(job_id)
-        h5_path = Path(get_config().data.results_dir) / filename
+        filename = get_filename_by_job_id(engine=self.engine, job_id=job_id)
+        h5_path = self.h5_dir / filename
         with h5_open(
             h5_path,
             HDF5FileMode.CREATE_OR_FAIL,
             fs_strategy="page",
             fs_persist=True,
             fs_page_size=65536,
+            timeout=self.timeout,
         ):
             pass
 
-    @staticmethod
     def update_metadata_by_job_id(
+        self,
         *,
         job_id: int,
         number_of_shots: int,
@@ -415,11 +440,15 @@ class ExperimentDataRepository:
             local_parameter_timestamp: Optional timestamp for local parameters.
             parameters: Scan parameters.
         """
-        filename = get_filename_by_job_id(job_id)
-        h5_path = Path(get_config().data.results_dir) / filename
-        job = JobRepository.get_job_by_id(job_id=job_id, load_experiment_source=True)
+        filename = get_filename_by_job_id(engine=self.engine, job_id=job_id)
+        h5_path = self.h5_dir / filename
+        job = JobRepository.get_job_by_id(
+            engine=self.engine, job_id=job_id, load_experiment_source=True
+        )
 
-        with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
+        with h5_open(
+            h5_path, HDF5FileMode.READ_WRITE_OR_FAIL, timeout=self.timeout
+        ) as h5file:
             prepare_readout_metadata(
                 h5file,
                 job_id=job_id,
@@ -436,7 +465,7 @@ class ExperimentDataRepository:
             "shot_channel_windows": "shot_channels",
             "vector_channel_windows": "vector_channels",
         }
-        emit_queue.put(
+        self.emit_queue.put(
             {
                 "event": f"experiment_{job_id}_metadata",
                 "data": [
@@ -453,8 +482,8 @@ class ExperimentDataRepository:
             }
         )
 
-    @staticmethod
     def write_experiment_data_by_job_id(
+        self,
         *,
         job_id: int,
         data_point: ExperimentDataPoint,
@@ -469,25 +498,27 @@ class ExperimentDataRepository:
             job_id: Job identifier.
             data_point: Data point payload to append.
         """
-        filename = get_filename_by_job_id(job_id)
-        h5_path = Path(get_config().data.results_dir) / filename
+        filename = get_filename_by_job_id(engine=self.engine, job_id=job_id)
+        h5_path = self.h5_dir / filename
 
-        with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
+        with h5_open(
+            h5_path, HDF5FileMode.READ_WRITE_OR_FAIL, timeout=self.timeout
+        ) as h5file:
             write_experiment_data_point(h5file, data_point)
         logger.debug("Appended data to %s", h5_path)
 
         if data_point.failed:
             return
 
-        emit_queue.put(
+        self.emit_queue.put(
             {
                 "event": f"experiment_{job_id}",
                 "data": asdict(data_point),
             }
         )
 
-    @staticmethod
     def write_parameter_update_by_job_id(
+        self,
         *,
         job_id: int,
         timestamp: str,
@@ -502,10 +533,12 @@ class ExperimentDataRepository:
             timestamp: ISO timestamp string.
             parameter_values: Mapping of parameter id to value.
         """
-        filename = get_filename_by_job_id(job_id)
-        h5_path = Path(get_config().data.results_dir) / filename
+        filename = get_filename_by_job_id(engine=self.engine, job_id=job_id)
+        h5_path = self.h5_dir / filename
         parameter_updates = {}
-        with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
+        with h5_open(
+            h5_path, HDF5FileMode.READ_WRITE_OR_FAIL, timeout=self.timeout
+        ) as h5file:
             parameters_group = h5file.require_group("parameters")
 
             for param_id, value in parameter_values.items():
@@ -541,7 +574,7 @@ class ExperimentDataRepository:
                 job_id,
                 timestamp,
             )
-        emit_queue.put(
+        self.emit_queue.put(
             {
                 "event": f"experiment_params_{job_id}",
                 "data": {
@@ -550,8 +583,8 @@ class ExperimentDataRepository:
             }
         )
 
-    @staticmethod
     def get_experiment_data_by_job_id(
+        self,
         *,
         job_id: int,
         max_transfer_bytes: int = DEFAULT_MAX_TRANSFER_BYTES,
@@ -580,14 +613,14 @@ class ExperimentDataRepository:
         Returns:
             Experiment data payload suitable for the API.
         """
-        filename = get_filename_by_job_id(job_id)
-        h5_path = Path(get_config().data.results_dir) / filename
+        filename = get_filename_by_job_id(engine=self.engine, job_id=job_id)
+        h5_path = self.h5_dir / filename
 
         if not Path(h5_path).exists():
             logger.warning("The file %s does not exist.", h5_path)
             return ExperimentData()
 
-        with h5_open(h5_path, HDF5FileMode.READ_ONLY) as h5file:
+        with h5_open(h5_path, HDF5FileMode.READ_ONLY, timeout=self.timeout) as h5file:
             return load_experiment_data(
                 h5file,
                 max_transfer_bytes,
@@ -595,8 +628,8 @@ class ExperimentDataRepository:
                 include_all_shots=include_all_shots,
             )
 
-    @staticmethod
     def get_hardware_instructions(
+        self,
         *,
         device_id: str,
         job_id: int | None = None,
@@ -617,20 +650,23 @@ class ExperimentDataRepository:
             The serialized hardware instructions, or None when nothing is
             stored for the requested scope.
         """
-        results_dir = Path(get_config().data.results_dir)
+        results_dir = self.h5_dir
         if job_id is not None:
             try:
-                paths = [results_dir / get_filename_by_job_id(job_id)]
+                paths = [
+                    results_dir
+                    / get_filename_by_job_id(engine=self.engine, job_id=job_id)
+                ]
             except NoResultFound:
                 return None
         else:
-            paths = _recent_result_paths(results_dir)
+            paths = _recent_result_paths(engine=self.engine, results_dir=results_dir)
 
         for path in paths:
             if not path.is_file():
                 continue
             instructions = _read_hardware_instructions(
-                path, device_id=device_id, index=index
+                path, device_id=device_id, index=index, timeout=self.timeout
             )
             if instructions is not None:
                 return instructions
@@ -638,7 +674,7 @@ class ExperimentDataRepository:
 
 
 def _read_hardware_instructions(
-    path: Path, *, device_id: str, index: int | None
+    path: Path, *, device_id: str, index: int | None, timeout: float
 ) -> str | None:
     """Read the instructions entry active at *index* (last entry if None).
 
@@ -646,7 +682,7 @@ def _read_hardware_instructions(
     each and a scan stores one per change, so reading the whole dataset to
     return a single sequence would transfer megabytes.
     """
-    with h5_open(path, HDF5FileMode.READ_ONLY) as h5file:
+    with h5_open(path, HDF5FileMode.READ_ONLY, timeout=timeout) as h5file:
         dataset = h5file.get("hardware_instructions", {}).get(device_id)
         if not isinstance(dataset, h5py.Dataset) or dataset.shape[0] == 0:
             return None
@@ -1140,7 +1176,7 @@ def _h5_open_once(path: Path, mode: HDF5FileMode, **kwargs: Any) -> h5py.File:
 
 @contextmanager
 def h5_open(
-    path: Path, mode: HDF5FileMode, *, timeout: float | None = None, **kwargs: Any
+    path: Path, mode: HDF5FileMode, *, timeout: float, **kwargs: Any
 ) -> Generator[h5py.File]:
     """Open an HDF5 file under a process-wide per-file lock.
 
@@ -1153,8 +1189,7 @@ def h5_open(
         path: Path of the HDF5 file.
         mode: Mode passed to `h5py.File`.
         timeout: Seconds to wait in total, for the in-process lock and the file
-            lock together. Defaults to `data.h5_open_timeout_seconds` from the
-            configuration.
+            lock together.
         kwargs: Additional arguments passed to `h5py.File`.
 
     Yields:
@@ -1164,8 +1199,6 @@ def h5_open(
         TimeoutError: The file could not be opened within `timeout` due to locking.
         OSError: The file could not be opened for any other reason.
     """
-    if timeout is None:
-        timeout = get_config().data.h5_open_timeout_seconds
     deadline = time.monotonic() + timeout
 
     with (
@@ -1202,20 +1235,26 @@ def _read_fits_from_hdf5(
 
 def write_fit_result_by_job_id(
     *,
+    engine: Engine,
+    h5_dir: Path,
     job_id: int,
     fit_results: list[tuple[str, FitResult]],
+    timeout: float,
 ) -> None:
     """Write a fit result into the HDF5 file for a job.
 
     Creates or overwrites the ``fits/<result_channel>`` group.
 
     Args:
+        engine: SQLAlchemy engine to query the database with.
+        h5_dir: Directory where hdf5 files are stored.
         job_id: Job identifier.
         fit_results: The fit result to persist (device_id, FitResult tuples).
+        timeout: Seconds to wait for a lock on hdf5 files.
     """
-    filename = get_filename_by_job_id(job_id)
-    h5_path = Path(get_config().data.results_dir) / filename
-    with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
+    filename = get_filename_by_job_id(engine=engine, job_id=job_id)
+    h5_path = h5_dir / filename
+    with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL, timeout=timeout) as h5file:
         for device_id, fit_result in fit_results:
             fits_group = h5file.require_group("fits").require_group(device_id)
             channel = fit_result.result_channel
@@ -1225,37 +1264,51 @@ def write_fit_result_by_job_id(
             grp.attrs["fit_result"] = json.dumps(asdict(fit_result))
 
 
-def get_fit_results_by_job_id(*, job_id: int) -> dict[str, dict[str, FitResult]]:
+def get_fit_results_by_job_id(
+    *, engine: Engine, h5_dir: Path, job_id: int, timeout: float
+) -> dict[str, dict[str, FitResult]]:
     """Read all fit results for a job from its HDF5 file.
 
     Args:
+        engine: SQLAlchemy engine to query the database with.
+        h5_dir: Directory where hdf5 files are stored.
         job_id: Job identifier.
+        timeout: Seconds to wait for a lock on hdf5 files.
 
     Returns:
         Dict mapping result channel names to their fit result dicts.
     """
-    filename = get_filename_by_job_id(job_id)
-    h5_path = Path(get_config().data.results_dir) / filename
+    filename = get_filename_by_job_id(engine=engine, job_id=job_id)
+    h5_path = h5_dir / filename
     if not h5_path.exists():
         return {}
 
-    with h5_open(h5_path, HDF5FileMode.READ_ONLY) as h5file:
+    with h5_open(h5_path, HDF5FileMode.READ_ONLY, timeout=timeout) as h5file:
         return _read_fits_from_hdf5(h5file)
 
 
 def delete_fit_result_by_job_id(
-    *, job_id: int, result_channel: str, device_id: str
+    *,
+    engine: Engine,
+    h5_dir: Path,
+    job_id: int,
+    result_channel: str,
+    device_id: str,
+    timeout: float,
 ) -> None:
     """Delete a fit result for a specific channel from the HDF5 file.
 
     Args:
+        engine: SQLAlchemy engine to query the database with.
+        h5_dir: Directory where hdf5 files are stored.
         job_id: Job identifier.
         result_channel: Name of the result channel whose fit to delete.
         device_id: ID of the device for which to delete the fits
+        timeout: Seconds to wait for a lock on hdf5 files.
     """
-    filename = get_filename_by_job_id(job_id)
-    h5_path = Path(get_config().data.results_dir) / filename
-    with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL) as h5file:
+    filename = get_filename_by_job_id(engine=engine, job_id=job_id)
+    h5_path = h5_dir / filename
+    with h5_open(h5_path, HDF5FileMode.READ_WRITE_OR_FAIL, timeout=timeout) as h5file:
         fits = h5file.get("fits", {}).get(device_id)
         if fits is not None and result_channel in fits:
             del fits[result_channel]

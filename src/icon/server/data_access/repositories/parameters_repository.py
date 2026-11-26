@@ -1,19 +1,20 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING
 
 from icon.server.data_access.db_context.influxdb.parameters_backend import (
     InfluxDBParameterBackend,
     assert_parameter_db,
     create_parameter_backend,
 )
-from icon.server.web_server.socketio_emit_queue import emit_queue
 
 if TYPE_CHECKING:
     from multiprocessing.managers import DictProxy
 
+    from icon.config.latest import InfluxDBv1Config
     from icon.server.data_access.experiment_data import DatabaseValueType
+    from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 logger = logging.getLogger(__name__)
 
@@ -30,44 +31,54 @@ class ParametersRepository:
     Emits Socket.IO events on updates.
     """
 
-    _shared_parameters: DictProxy[str, DatabaseValueType]
-    initialised: bool = False
-    _backend: ClassVar[InfluxDBParameterBackend | None] = None
+    def __init__(
+        self,
+        *,
+        shared_parameters: DictProxy[str, DatabaseValueType],
+        influx_config: InfluxDBv1Config,
+        emit_queue: EmitQueue,
+    ) -> None:
+        self._shared_parameters = shared_parameters
+        self._influx_config = influx_config
+        self._emit_queue = emit_queue
+        self.initialised = False
+        """Set once the initial InfluxDB read has completed; failed initialisation
+        attempts can be retried until then."""
+        self._backend: InfluxDBParameterBackend | None = None
 
-    @classmethod
-    def _get_backend(cls) -> InfluxDBParameterBackend:
+    def _get_backend(self) -> InfluxDBParameterBackend:
         """Return the schema-specific influxDB parameter backend."""
-        if cls._backend is None:
-            schema_revision = assert_parameter_db(wrap_connection_errors=False)
-            cls._backend = create_parameter_backend(schema_revision)
+        if self._backend is None:
+            schema_revision = assert_parameter_db(
+                self._influx_config, wrap_connection_errors=False
+            )
+            self._backend = create_parameter_backend(
+                schema_revision, self._influx_config
+            )
             logger.info(
                 "Detected InfluxDB parameter schema %s; using %s.",
                 schema_revision.value,
-                type(cls._backend).__name__,
+                type(self._backend).__name__,
             )
-        return cls._backend
+        return self._backend
 
-    @classmethod
-    def initialize(
-        cls, *, shared_parameters: DictProxy[str, DatabaseValueType]
-    ) -> None:
-        """Initialize the repository with a shared parameters dict.
+    def initialise(self) -> None:
+        """Load existing parameters from InfluxDB into the shared parameters dict.
 
-        Args:
-            shared_parameters: Proxy dictionary used to store shared state.
+        Marks the repository as initialised. Raises while InfluxDB is
+        unreachable, so the caller can retry.
         """
-        cls._shared_parameters = shared_parameters
-        cls.initialised = True
+        self._shared_parameters.update(self.get_influxdb_parameters())
+        self.initialised = True
+        logger.info("ParametersRepository successfully initialised.")
 
-    @classmethod
-    def _check_initialised(cls) -> None:
+    def _check_initialised(self) -> None:
         """Raise if repository is not initialized."""
-        if not cls.initialised:
+        if not self.initialised:
             raise NotInitialisedError("ParametersRepository is not initialised.")
 
-    @classmethod
     def update_parameters(
-        cls,
+        self,
         *,
         parameter_mapping: dict[str, DatabaseValueType],
     ) -> None:
@@ -84,12 +95,11 @@ class ParametersRepository:
             ):
                 parameter_mapping[key] = float(value)
 
-        cls._update_shared_parameters(parameter_mapping=parameter_mapping)
-        cls._update_influxdb_parameters(parameter_mapping=parameter_mapping)
+        self._update_shared_parameters(parameter_mapping=parameter_mapping)
+        self._update_influxdb_parameters(parameter_mapping=parameter_mapping)
 
-    @classmethod
     def _update_shared_parameters(
-        cls,
+        self,
         *,
         parameter_mapping: dict[str, DatabaseValueType],
     ) -> None:
@@ -99,35 +109,33 @@ class ParametersRepository:
             parameter_mapping: Mapping of parameter IDs to values.
         """
         for key, value in parameter_mapping.items():
-            cls._update_shared_parameter_by_id(parameter_id=key, new_value=value)
+            self._update_shared_parameter_by_id(parameter_id=key, new_value=value)
 
-    @classmethod
     def _update_shared_parameter_by_id(
-        cls,
+        self,
         *,
         parameter_id: str,
         new_value: DatabaseValueType,
     ) -> None:
-        """Update a single parameter in shared state and emit an event.
+        """Update a single parameter value in shared state and emit an event.
 
         Args:
             parameter_id: ID of the parameter.
             new_value: New value to assign.
         """
-        cls._check_initialised()
+        self._check_initialised()
 
-        cls._shared_parameters[parameter_id] = new_value
+        self._shared_parameters[parameter_id] = new_value
 
-        emit_queue.put(
+        self._emit_queue.put(
             {
                 "event": "parameter.update",
                 "data": {"id": parameter_id, "value": new_value},
             }
         )
 
-    @classmethod
     def get_shared_parameter_by_id(
-        cls,
+        self,
         *,
         parameter_id: str,
     ) -> DatabaseValueType | None:
@@ -139,29 +147,26 @@ class ParametersRepository:
         Returns:
             The parameter value, or None if not set.
         """
-        cls._check_initialised()
+        self._check_initialised()
 
-        return cls._shared_parameters.get(parameter_id, None)
+        return self._shared_parameters.get(parameter_id, None)
 
-    @classmethod
-    def get_shared_parameters(cls) -> DictProxy[str, DatabaseValueType]:
+    def get_shared_parameters(self) -> DictProxy[str, DatabaseValueType]:
         """Return the full shared parameter dictionary.
 
         Returns:
             Proxy dictionary of parameters.
         """
-        cls._check_initialised()
+        self._check_initialised()
 
-        return cls._shared_parameters
+        return self._shared_parameters
 
-    @classmethod
-    def get_influxdb_parameter_keys(cls) -> list[str]:
+    def get_influxdb_parameter_keys(self) -> list[str]:
         """Return all known parameter identifiers from InfluxDB."""
-        return cls._get_backend().get_influxdb_parameter_keys()
+        return self._get_backend().get_influxdb_parameter_keys()
 
-    @classmethod
     def get_influxdb_parameters(
-        cls,
+        self,
         *,
         before: str | None = None,
         namespace: str | None = None,
@@ -178,13 +183,12 @@ class ParametersRepository:
         Returns:
             Mapping of parameter IDs to values.
         """
-        return cls._get_backend().get_influxdb_parameters(
+        return self._get_backend().get_influxdb_parameters(
             before=before, namespace=namespace, measurement=measurement
         )
 
-    @classmethod
     def get_influxdb_parameter_by_id(
-        cls, parameter_id: str
+        self, parameter_id: str
     ) -> DatabaseValueType | None:
         """Return a single parameter value from InfluxDB.
 
@@ -194,7 +198,7 @@ class ParametersRepository:
         Returns:
             The parameter value, or None if not found.
         """
-        backend = cls._get_backend()
+        backend = self._get_backend()
         value = backend.get_influxdb_parameter_by_id(parameter_id)
         if value is None:
             logger.error(
@@ -205,9 +209,8 @@ class ParametersRepository:
             return None
         return value
 
-    @classmethod
     def _update_influxdb_parameters(
-        cls,
+        self,
         parameter_mapping: dict[str, DatabaseValueType],
     ) -> None:
         """Write multiple parameter values into InfluxDB.
@@ -215,4 +218,4 @@ class ParametersRepository:
         Args:
             parameter_mapping: Mapping of parameter IDs to values.
         """
-        cls._get_backend().update_influxdb_parameters(parameter_mapping)
+        self._get_backend().update_influxdb_parameters(parameter_mapping)

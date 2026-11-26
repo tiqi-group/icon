@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 from unittest.mock import MagicMock
 
@@ -9,49 +11,60 @@ import pytest
 import sqlalchemy
 import sqlalchemy.orm
 
+from icon.server.data_access.db_context.sqlite.engine import CachedEngine
 from icon.server.data_access.models.sqlite import (
     Base,
     ExperimentSource,
     Job,
     JobRun,
 )
-from icon.server.data_access.repositories import (
-    device_repository,
-    experiment_source_repository,
-    job_repository,
-    job_run_repository,
-    job_transactions,
-)
 
 if TYPE_CHECKING:
     from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 
-_REPOSITORY_MODULES = (
-    device_repository,
-    experiment_source_repository,
-    job_repository,
-    job_run_repository,
-    job_transactions,
-)
+
+@pytest.fixture
+def emit_queue() -> MagicMock:
+    """A stand-in for the socket.io emit queue the repositories write to."""
+    return MagicMock()
+
+
+class InMemoryCachedEngine(CachedEngine):
+    """A `CachedEngine` backed by a shared in-memory SQLite database.
+
+    The path is never read from or written to; `get_cached` returns the one
+    in-memory engine for any path.
+    """
+
+    def __init__(self) -> None:
+        # Only the identity the base class keeps; never read from or written to.
+        self.path = Path("icon.sqlite")
+        self._engine = sqlalchemy.create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=sqlalchemy.pool.StaticPool,
+        )
+
+    def get_cached(self, path: str | Path) -> sqlalchemy.engine.Engine:  # noqa: ARG002
+        # The path is ignored; every caller gets the one in-memory engine.
+        return self._engine
 
 
 @pytest.fixture
-def database(monkeypatch: pytest.MonkeyPatch) -> sqlalchemy.engine.Engine:
-    """A throwaway in-memory SQLite database wired into the repository modules.
+def engine_cache() -> CachedEngine:
+    """A throwaway in-memory `CachedEngine`."""
+    return InMemoryCachedEngine()
+
+
+@pytest.fixture
+def database(engine_cache: CachedEngine) -> sqlalchemy.engine.Engine:
+    """A throwaway in-memory SQLite database.
 
     Returns:
         The engine, for seeding rows and asserting on stored state.
     """
-    engine = sqlalchemy.create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=sqlalchemy.pool.StaticPool,
-    )
+    engine = engine_cache.get_cached(engine_cache.path)
     Base.metadata.create_all(engine)
-    for module in _REPOSITORY_MODULES:
-        monkeypatch.setattr(module, "engine", engine)
-        # Not every repository emits events.
-        monkeypatch.setattr(module, "emit_queue", MagicMock(), raising=False)
     return engine
 
 
@@ -71,7 +84,11 @@ def seed_job(database: sqlalchemy.engine.Engine) -> SeedJob:
             session.add(source)
             session.flush()
 
-            job = Job(experiment_source_id=source.id, status=job_status)
+            job = Job(
+                experiment_source_id=source.id,
+                status=job_status,
+                created=datetime.now(UTC),
+            )
             session.add(job)
             session.flush()
 

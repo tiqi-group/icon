@@ -5,11 +5,11 @@ from typing import Any, TypedDict
 import pydase
 from pydase.task.decorator import task
 
-from icon.config.config import get_config
+from icon.config.config import Config
 from icon.server.data_access.db_context.influxdb import influxdb_v1
 from icon.server.data_access.experiment_library_client import ExperimentLibraryClient
 from icon.server.hardware_processing.devices import Devices, Hardware
-from icon.server.web_server.socketio_emit_queue import emit_queue
+from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 
 class Error(TypedDict):
@@ -38,7 +38,11 @@ class StatusController(pydase.DataService):
     """
 
     def __init__(
-        self, devices: Devices, experiment_library_client: ExperimentLibraryClient
+        self,
+        config: Config,
+        devices: Devices,
+        experiment_library_client: ExperimentLibraryClient,
+        emit_queue: EmitQueue,
     ) -> None:
         super().__init__()
         self.__devices = devices
@@ -46,6 +50,8 @@ class StatusController(pydase.DataService):
         self._experiment_library_client = experiment_library_client
         self._hardware_status: list[HardwareStatus] = []
         self._refresh_requested = asyncio.Event()
+        self._config = config
+        self._emit_queue = emit_queue
 
     def get_status(self) -> Status:
         """Return the current system status flags.
@@ -70,10 +76,10 @@ class StatusController(pydase.DataService):
 
         Emits a `"status.influxdb"` event to the Socket.IO queue.
         """
-        status = influxdb_v1.is_responsive()
+        status = influxdb_v1.is_responsive(self._config.get().databases.influxdbv1)
 
         self._influxdb_available = status
-        emit_queue.put({"event": "status.influxdb", "data": status})
+        self._emit_queue.put({"event": "status.influxdb", "data": status})
 
     async def check_hardware_status(self) -> None:
         """Check hardware connection and reconnect if necessary.
@@ -121,7 +127,7 @@ class StatusController(pydase.DataService):
             for name in library_devices - {s["display_name"] for s in status}
         ]
         self._hardware_status = status
-        emit_queue.put({"event": "status.hardware", "data": status})
+        self._emit_queue.put({"event": "status.hardware", "data": status})
 
     @task(autostart=True)
     async def _check_status(self) -> None:
@@ -142,5 +148,5 @@ class StatusController(pydase.DataService):
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(
                     self._refresh_requested.wait(),
-                    timeout=get_config().health_check.interval_seconds,
+                    timeout=self._config.get().health_check.interval_seconds,
                 )

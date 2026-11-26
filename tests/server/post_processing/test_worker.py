@@ -15,8 +15,12 @@ from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.repositories.job_run_repository import JobRunRepository
 from icon.server.post_processing import worker as worker_module
 from icon.server.post_processing.worker import PostProcessingWorker
+from tests.mock_config import mock_config
 
 if TYPE_CHECKING:
+    import sqlalchemy
+
+    from icon.server.data_access.db_context.sqlite.engine import CachedEngine
     from tests.server.conftest import SeedJob
 
 HARDWARE_ERROR = "Sequence too long"
@@ -36,7 +40,12 @@ class _SingleTaskQueue:
 
 
 def _run_worker(
-    monkeypatch: pytest.MonkeyPatch, *, job_id: int, run_id: int, write: MagicMock
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    job_id: int,
+    run_id: int,
+    write: MagicMock,
+    engine_cache: CachedEngine,
 ) -> None:
     monkeypatch.setattr(
         worker_module.ExperimentDataRepository, "write_experiment_data_by_job_id", write
@@ -60,30 +69,49 @@ def _run_worker(
     )
     worker = PostProcessingWorker.__new__(PostProcessingWorker)
     worker._post_processing_queue = _SingleTaskQueue(task)  # type: ignore[assignment]
+    worker._icon_config = mock_config()  # type: ignore[assignment]
+    worker._engine_cache = engine_cache
+    worker._emit_queue = MagicMock()  # type: ignore[assignment]
     worker.run()
 
 
 @pytest.mark.parametrize("run_status", [JobRunStatus.FAILED, JobRunStatus.CANCELLED])
 def test_tasks_of_stopped_jobs_are_written(
-    monkeypatch: pytest.MonkeyPatch, seed_job: SeedJob, run_status: JobRunStatus
+    monkeypatch: pytest.MonkeyPatch,
+    seed_job: SeedJob,
+    run_status: JobRunStatus,
+    engine_cache: CachedEngine,
 ) -> None:
     job_id, run_id = seed_job(job_status=JobStatus.PROCESSED, run_status=run_status)
     write = MagicMock()
 
-    _run_worker(monkeypatch, job_id=job_id, run_id=run_id, write=write)
+    _run_worker(
+        monkeypatch,
+        job_id=job_id,
+        run_id=run_id,
+        write=write,
+        engine_cache=engine_cache,
+    )
 
     write.assert_called_once()
     assert write.call_args.kwargs["job_id"] == job_id
 
 
 def test_write_error_keeps_log_of_failed_job(
-    monkeypatch: pytest.MonkeyPatch, seed_job: SeedJob
+    monkeypatch: pytest.MonkeyPatch,
+    seed_job: SeedJob,
+    database: sqlalchemy.engine.Engine,
+    engine_cache: CachedEngine,
 ) -> None:
     job_id, run_id = seed_job(
         job_status=JobStatus.PROCESSED, run_status=JobRunStatus.PROCESSING
     )
     JobRunRepository.update_run_by_id(
-        run_id=run_id, status=JobRunStatus.FAILED, log=HARDWARE_ERROR
+        engine=database,
+        emit_queue=MagicMock(),
+        run_id=run_id,
+        status=JobRunStatus.FAILED,
+        log=HARDWARE_ERROR,
     )
 
     _run_worker(
@@ -91,16 +119,21 @@ def test_write_error_keeps_log_of_failed_job(
         job_id=job_id,
         run_id=run_id,
         write=MagicMock(side_effect=RuntimeError("disk full")),
+        engine_cache=engine_cache,
     )
 
-    job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
+    job_run = JobRunRepository.get_run_by_job_id(engine=database, job_id=job_id)
     assert job_run.status == JobRunStatus.FAILED
     assert job_run.log == HARDWARE_ERROR
 
 
 @pytest.mark.parametrize("run_status", [JobRunStatus.PROCESSING, JobRunStatus.DONE])
 def test_write_error_fails_active_or_done_job(
-    monkeypatch: pytest.MonkeyPatch, seed_job: SeedJob, run_status: JobRunStatus
+    monkeypatch: pytest.MonkeyPatch,
+    seed_job: SeedJob,
+    run_status: JobRunStatus,
+    database: sqlalchemy.engine.Engine,
+    engine_cache: CachedEngine,
 ) -> None:
     job_id, run_id = seed_job(job_status=JobStatus.PROCESSED, run_status=run_status)
 
@@ -109,8 +142,9 @@ def test_write_error_fails_active_or_done_job(
         job_id=job_id,
         run_id=run_id,
         write=MagicMock(side_effect=RuntimeError("disk full")),
+        engine_cache=engine_cache,
     )
 
-    job_run = JobRunRepository.get_run_by_job_id(job_id=job_id)
+    job_run = JobRunRepository.get_run_by_job_id(engine=database, job_id=job_id)
     assert job_run.status == JobRunStatus.FAILED
     assert job_run.log == "Post-processing error: disk full"

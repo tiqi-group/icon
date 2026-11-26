@@ -6,7 +6,6 @@ import sqlalchemy.orm
 
 from icon.server.data_access.models.enums import DeviceStatus
 from icon.server.data_access.models.sqlite.base import Base
-from icon.server.data_access.models.sqlite.now import now
 
 if TYPE_CHECKING:
     from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
@@ -27,10 +26,8 @@ class Device(Base):
     )
     """Primary key identifier for the device."""
 
-    created: sqlalchemy.orm.Mapped[datetime.datetime] = sqlalchemy.orm.mapped_column(
-        default=now
-    )
-    """Timestamp when the device entry was created."""
+    created: sqlalchemy.orm.Mapped[datetime.datetime] = sqlalchemy.orm.mapped_column()
+    """Timestamp when the device entry was created. Set by `DeviceRepository` on add."""
 
     name: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(
         unique=True, index=True

@@ -14,7 +14,12 @@ from icon.server.data_access.repositories.job_run_repository import (
 from icon.server.utils.handle_keyboard_interrupt import handle_keyboard_interrupt
 
 if TYPE_CHECKING:
+    from sqlalchemy.engine import Engine
+
+    from icon.config.config import Config
+    from icon.server.data_access.db_context.sqlite.engine import CachedEngine
     from icon.server.post_processing.task import PostProcessingTask
+    from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +27,21 @@ logger = logging.getLogger(__name__)
 class PostProcessingWorker(multiprocessing.Process):
     def __init__(
         self,
+        config: Config,
         post_processing_queue: multiprocessing.Queue[PostProcessingTask],
+        engine_cache: CachedEngine,
+        emit_queue: EmitQueue,
     ) -> None:
         super().__init__()
+        self._icon_config = config
         self._post_processing_queue = post_processing_queue
+        self._engine_cache = engine_cache
+        self._emit_queue = emit_queue
+
+    def _engine(self) -> Engine:
+        return self._engine_cache.get_cached(
+            self._icon_config.get().databases.sqlite.file
+        )
 
     @handle_keyboard_interrupt(logger)
     def run(self) -> None:
@@ -38,7 +54,11 @@ class PostProcessingWorker(multiprocessing.Process):
             task = self._post_processing_queue.get()
 
             try:
-                ExperimentDataRepository.write_experiment_data_by_job_id(
+                ExperimentDataRepository.from_config(
+                    self._icon_config,
+                    engine=self._engine(),
+                    emit_queue=self._emit_queue,
+                ).write_experiment_data_by_job_id(
                     job_id=task.pre_processing_task.job.id,
                     data_point=task.data_point,
                 )
@@ -50,6 +70,8 @@ class PostProcessingWorker(multiprocessing.Process):
                 # Keep the status and log of runs that already failed or were
                 # cancelled, e.g. the hardware error message.
                 try_update_run_by_id(
+                    engine=self._engine(),
+                    emit_queue=self._emit_queue,
                     run_id=task.pre_processing_task.job_run.id,
                     status=JobRunStatus.FAILED,
                     log=f"Post-processing error: {e}",

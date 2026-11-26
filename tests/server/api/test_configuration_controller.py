@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 from icon.server.api.configuration_controller import (
     ConfigurationController,
     parse_config_key,
@@ -5,14 +7,13 @@ from icon.server.api.configuration_controller import (
 from tests.mock_config import mock_config
 
 
-def test_update_config_option() -> None:
-    with mock_config():
-        controller = ConfigurationController()
-        original_port = controller.get_config()["server"]["port"]
-        target_port = original_port + 1
-        controller.update_config_option("server.port", target_port)
-        updated_port = controller.get_config()["server"]["port"]
-        assert updated_port == target_port
+def test_update_config_option(emit_queue: MagicMock) -> None:
+    controller = ConfigurationController(mock_config(), emit_queue=emit_queue)
+    original_port = controller.get_config()["server"]["port"]
+    target_port = original_port + 1
+    controller.update_config_option("server.port", target_port)
+    updated_port = controller.get_config()["server"]["port"]
+    assert updated_port == target_port
 
 
 def test_parse_config_key() -> None:

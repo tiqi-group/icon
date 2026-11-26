@@ -1,15 +1,16 @@
+import datetime
 import logging
 
+import pytz
 import sqlalchemy.orm
 from sqlalchemy import select, update
+from sqlalchemy.engine import Engine
 
-from icon.server.data_access.db_context.sqlite import engine
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.models.sqlite.job_run import JobRun
-from icon.server.data_access.models.sqlite.now import now
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
-from icon.server.web_server.socketio_emit_queue import emit_queue
+from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,8 @@ def _latest_run_id(job_id: int) -> sqlalchemy.ScalarSelect[int]:
 
 def cancel_job(
     *,
+    engine: Engine,
+    emit_queue: EmitQueue,
     job_id: int,
     log: str | None = None,
     run_status: JobRunStatus = JobRunStatus.CANCELLED,
@@ -48,6 +51,8 @@ def cancel_job(
     """Cancel a job and move its run to `run_status`.
 
     Args:
+        engine: SQLAlchemy engine to query the database with.
+        emit_queue: Queue for socket.io events.
         job_id: ID of the job to retire.
         run_status: Terminal status to give the run.
         log: Reason recorded on the run, if there is one.
@@ -104,21 +109,40 @@ def cancel_job(
         )
 
 
-def fail_job(*, job_id: int, log: str | None = None) -> None:
+def fail_job(
+    *, engine: Engine, emit_queue: EmitQueue, job_id: int, log: str | None = None
+) -> None:
     """Cancel job and fail the run it may own.
 
     Args:
+        engine: SQLAlchemy engine to query the database with.
+        emit_queue: Queue for socket.io events.
         job_id: ID of the job to fail.
         log: Optional reason recorded on the run.
     """
-    cancel_job(job_id=job_id, run_status=JobRunStatus.FAILED, log=log)
+    cancel_job(
+        engine=engine,
+        emit_queue=emit_queue,
+        job_id=job_id,
+        run_status=JobRunStatus.FAILED,
+        log=log,
+    )
 
 
-def dispatch_job(*, job_id: int) -> tuple[Job, JobRun] | None:
+def dispatch_job(
+    *,
+    engine: Engine,
+    emit_queue: EmitQueue,
+    job_id: int,
+    timezone: pytz.BaseTzInfo,
+) -> tuple[Job, JobRun] | None:
     """Insert a run for a SUBMITTED job and progress it to PROCESSING.
 
     Args:
+        engine: SQLAlchemy engine to query the database with.
+        emit_queue: Queue for socket.io events.
         job_id: ID of the job to dispatch.
+        timezone: Timezone for timestamps in the database.
 
     Returns:
         The claimed job with its relationships loaded and its new run, or None
@@ -138,7 +162,7 @@ def dispatch_job(*, job_id: int) -> tuple[Job, JobRun] | None:
         if claimed_id is None:
             return None
 
-        run = JobRun(job_id=job_id, scheduled_time=now())
+        run = JobRun(job_id=job_id, scheduled_time=datetime.datetime.now(tz=timezone))
         session.add(run)
         session.flush()
 
@@ -169,7 +193,7 @@ def dispatch_job(*, job_id: int) -> tuple[Job, JobRun] | None:
     emit_queue.put(
         {
             "event": "job_run.new",
-            "data": {"job_run": SQLAlchemyDictEncoder.encode(obj=run)},
+            "data": {"job_run": SQLAlchemyDictEncoder(timezone).encode(obj=run)},
         }
     )
 

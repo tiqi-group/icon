@@ -2,9 +2,8 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from icon.config.config import get_config
-
 if TYPE_CHECKING:
+    from icon.config.config import Config
     from icon.config.latest import ServiceConfig
 
 logger = logging.getLogger(__name__)
@@ -17,10 +16,12 @@ class ReloadError(Exception):
 class Reloader:
     def __init__(
         self,
+        config: "Config",
         obj_factory: Callable[..., Any],
         fallback_obj: Any,
         subconfig: "Callable[[ServiceConfig], dict[str, Any]]",
     ) -> None:
+        self.config = config
         self.current_config: dict[str, Any] = {}
         self.obj_factory = staticmethod(obj_factory)
         self.obj = fallback_obj
@@ -28,7 +29,7 @@ class Reloader:
         self.subconfig = staticmethod(subconfig)
 
     def reload(self) -> Any:
-        new_config = self.subconfig(get_config())
+        new_config = self.subconfig(self.config.get())
         if new_config == self.current_config:
             return self.obj
         try:

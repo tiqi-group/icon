@@ -5,9 +5,8 @@ from collections.abc import Sequence
 import pytz
 import sqlalchemy.orm
 from sqlalchemy import func, select, update
+from sqlalchemy.engine import Engine
 
-from icon.config.config import get_config
-from icon.server.data_access.db_context.sqlite import engine
 from icon.server.data_access.job_list_item import JobListItemDict
 from icon.server.data_access.models.enums import JobRunStatus, JobStatus
 from icon.server.data_access.models.sqlite.experiment_source import ExperimentSource
@@ -15,11 +14,9 @@ from icon.server.data_access.models.sqlite.job import Job
 from icon.server.data_access.models.sqlite.job_run import JobRun
 from icon.server.data_access.models.sqlite.scan_parameter import ScanParameter
 from icon.server.data_access.sqlalchemy_dict_encoder import SQLAlchemyDictEncoder
-from icon.server.web_server.socketio_emit_queue import emit_queue
+from icon.server.web_server.socketio_emit_queue import EmitQueue
 
 logger = logging.getLogger(__name__)
-
-timezone = pytz.timezone(get_config().date.timezone)
 
 
 def _job_list_item(
@@ -30,11 +27,12 @@ def _job_list_item(
     experiment_id: str,
     num_scan_parameters: int,
     run: tuple[int, JobRunStatus] | None,
+    timezone: pytz.BaseTzInfo,
 ) -> JobListItemDict:
     """Build a job list item from raw column values."""
     return {
         "id": job_id,
-        "created": SQLAlchemyDictEncoder.encode(created),
+        "created": SQLAlchemyDictEncoder(timezone).encode(created),
         "status": status.value,
         "experiment_id": experiment_id,
         "num_scan_parameters": num_scan_parameters,
@@ -50,8 +48,17 @@ class JobRepository:
     All methods open their own session and return detached ORM objects.
     """
 
-    @staticmethod
-    def submit_job(*, job: Job) -> Job:
+    def __init__(
+        self,
+        timezone: pytz.BaseTzInfo,
+        engine: Engine,
+        emit_queue: EmitQueue,
+    ) -> None:
+        self.timezone = timezone
+        self.engine = engine
+        self.emit_queue = emit_queue
+
+    def submit_job(self, *, job: Job) -> Job:
         """Insert a new job and emit a creation event.
 
         Args:
@@ -60,7 +67,8 @@ class JobRepository:
         Returns:
             The persisted job with generated fields populated.
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(self.engine) as session:
+            job.created = datetime.datetime.now(self.timezone)
             session.add(job)
             session.commit()
             session.refresh(job)
@@ -68,12 +76,13 @@ class JobRepository:
 
             logger.debug("Submitted new job %s", job)
 
-        emit_queue.put(
+        self.emit_queue.put(
             {
                 "event": "job.new",
                 "data": {
-                    "job": SQLAlchemyDictEncoder.encode(
+                    "job": SQLAlchemyDictEncoder(self.timezone).encode(
                         JobRepository.get_job_by_id(
+                            engine=self.engine,
                             job_id=job.id,
                             load_experiment_source=True,
                             load_scan_parameters=True,
@@ -85,8 +94,7 @@ class JobRepository:
 
         return job
 
-    @staticmethod
-    def resubmit_job_by_id(*, job_id: int) -> Job:
+    def resubmit_job_by_id(self, *, job_id: int) -> Job:
         """Clone an existing job as a new submission.
 
         If the source job is not itself a resubmission, the new job's `parent_job_id` is
@@ -98,7 +106,7 @@ class JobRepository:
         Returns:
             The newly created job.
         """
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(self.engine) as session:
             job = session.execute(
                 sqlalchemy.select(Job).where(Job.id == job_id)
             ).scalar_one()
@@ -107,21 +115,22 @@ class JobRepository:
             if not job.parent_job_id:
                 job.parent_job_id = job.id
 
-            # PK and created are set by DB on insert
+            # PK is set by DB on insert; created is refreshed on resubmit
             job.id = None  # type: ignore
-            job.created = None  # type: ignore
+            job.created = datetime.datetime.now(self.timezone)
 
             session.add(job)
             session.commit()
             session.refresh(job)
             session.expunge(job)
 
-        emit_queue.put(
+        self.emit_queue.put(
             {
                 "event": "job.new",
                 "data": {
-                    "job": SQLAlchemyDictEncoder.encode(
+                    "job": SQLAlchemyDictEncoder(self.timezone).encode(
                         JobRepository.get_job_by_id(
+                            engine=self.engine,
                             job_id=job.id,
                             load_experiment_source=True,
                             load_scan_parameters=True,
@@ -134,10 +143,14 @@ class JobRepository:
         return job
 
     @staticmethod
-    def update_job_status(*, job_id: int, status: JobStatus) -> Job:
+    def update_job_status(
+        *, engine: Engine, emit_queue: EmitQueue, job_id: int, status: JobStatus
+    ) -> Job:
         """Update a job's status and emit an update event.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
+            emit_queue: Queue for socket.io events.
             job_id: ID of the job to update.
             status: New job status.
 
@@ -179,6 +192,7 @@ class JobRepository:
     @staticmethod
     def get_jobs_by_status_and_timeframe(
         *,
+        engine: Engine,
         status: JobStatus | None = None,
         start: datetime.datetime | None = None,
         stop: datetime.datetime | None = None,
@@ -186,6 +200,7 @@ class JobRepository:
         """List jobs filtered by status and optional creation time window.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             status: Optional status filter.
             start: Inclusive start timestamp.
             stop: Exclusive stop timestamp.
@@ -211,8 +226,8 @@ class JobRepository:
 
             return session.execute(stmt).unique().scalars().all()
 
-    @staticmethod
     def get_job_list(
+        self,
         *,
         statuses: Sequence[JobStatus] | None = None,
         before_id: int | None = None,
@@ -250,7 +265,7 @@ class JobRepository:
         if limit is not None:
             stmt = stmt.limit(limit)
 
-        with sqlalchemy.orm.Session(engine) as session:
+        with sqlalchemy.orm.Session(self.engine) as session:
             rows = session.execute(stmt).all()
             if not rows:
                 return []
@@ -282,6 +297,7 @@ class JobRepository:
                 experiment_id=row.experiment_id,
                 num_scan_parameters=scan_parameter_counts.get(row.id, 0),
                 run=latest_runs.get(row.id),
+                timezone=self.timezone,
             )
             for row in rows
         ]
@@ -289,6 +305,7 @@ class JobRepository:
     @staticmethod
     def get_job_by_id(
         *,
+        engine: Engine,
         job_id: int,
         load_experiment_source: bool = False,
         load_scan_parameters: bool = False,
@@ -296,6 +313,7 @@ class JobRepository:
         """Fetch a job by ID with optional eager-loading.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             job_id: Job identifier.
             load_experiment_source: If True, eager-load `experiment_source`.
             load_scan_parameters: If True, eager-load `scan_parameters`.
@@ -311,17 +329,24 @@ class JobRepository:
             if load_scan_parameters:
                 stmt = stmt.options(sqlalchemy.orm.joinedload(Job.scan_parameters))
 
-            return session.execute(stmt).unique().scalar_one()
+            job = session.execute(stmt).unique().scalar_one()
+            # Expunge explicitly: session.close() would expire the instance, so
+            # that reading or encoding it after the session ended triggers lazy
+            # loads on a detached instance (DetachedInstanceError).
+            session.expunge(job)
+            return job
 
     @staticmethod
     def get_job_by_experiment_source_and_status(
         *,
+        engine: Engine,
         experiment_source_id: int,
         status: JobStatus | None = None,
     ) -> Sequence[sqlalchemy.Row[tuple[Job]]]:
         """List jobs for an experiment source, optionally filtered by status.
 
         Args:
+            engine: SQLAlchemy engine to query the database with.
             experiment_source_id: Foreign key of the experiment source.
             status: Optional status filter.
 
