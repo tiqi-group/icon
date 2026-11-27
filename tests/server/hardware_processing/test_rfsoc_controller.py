@@ -5,11 +5,13 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import gc
+import hashlib
 import json
 import select
 import socket
 import threading
 import time
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 import msgpack
@@ -19,11 +21,11 @@ from qendra.device_client import (
     DeviceInfo,
     NotificationTopic,
     PulseClient,
+    RPCResponseError,
     Session,
-    TaskNotification,
+    TaskAbortedError,
     TaskResult,
     TaskStatus,
-    TaskStatusReport,
 )
 
 from icon.server.data_access.experiment_data import Readouts
@@ -94,25 +96,44 @@ def _pack(obj: Any) -> bytes:
     return packed
 
 
+class Slot(Enum):
+    """State of the sequence slot of the firmware."""
+
+    IDLE = "IDLE"
+    """No sequence loaded."""
+    SETUP = "SETUP"
+    """A sequence is loaded, waiting to run."""
+    RUNNING = "RUNNING"
+    """The task of the loaded sequence runs."""
+
+
 class FakeDevice:
-    """Unframed msgpack-rpc server with the task state machine of the firmware."""
+    """Unframed msgpack-rpc server with the sequence slot and task state machine of the firmware."""
 
     def __init__(self) -> None:
         assert PulseClient.API_VERSION is not None
         self.api_version = dataclasses.asdict(PulseClient.API_VERSION)
         """Interface version the firmware reports, the one the client implements."""
-        self.status = TaskStatus.IDLE
+        self.slot = Slot.IDLE
+        self.sequence_id = ""
+        """The loaded sequence, unless the slot is IDLE."""
+        self.task_id = 0
+        """The running task, if the slot is RUNNING."""
         self.update_state = "none"
         self.sessions_supported = True
         self.sessions: list[str] = []
+        self.load_error: str | None = None
+        """Error exp.loadSequence reports for the sequence itself, e.g. invalid."""
         self.task_duration: float | None = 0
         """Seconds a started task runs, ``None`` to run until aborted."""
-        self.task_end = TaskNotification.FINISHED
-        """Notification that ends a task: FINISHED, or ABORTED by another client."""
+        self.task_end = TaskStatus.FINISHED
+        """How a task ends: FINISHED, or ABORTED by the device or another client."""
+        self.task_log = ""
+        """Error log of the device in the results of a task."""
         self.hang_on: str | None = None
         """Method the device locks up on, never answering it."""
         self.methods: list[str] = []
-        self._notifications: list[str] = []
+        self._notifications: list[list[Any]] = []
         self._task_start = 0.0
         self._closed = False
         self.disconnected = threading.Event()
@@ -135,13 +156,18 @@ class FakeDevice:
             self._run(conn)
         self.disconnected.set()
 
+    def load(self, sequence_id: str, *, running: bool = False) -> None:
+        """Leave a sequence in the slot, as an earlier data point or another client would."""
+        self.sequence_id = sequence_id
+        self.slot = Slot.RUNNING if running else Slot.SETUP
+        self.task_id = 1
+        self._task_start = time.monotonic()
+
     def _run(self, conn: socket.socket) -> None:
         """Like the firmware main loop: notify, process requests and run the task."""
         unpacker = msgpack.Unpacker(raw=False)
         while not self._closed:
-            for notification in self._notifications:
-                conn.sendall(_pack([2, NotificationTopic.TASK.value, [notification]]))
-            self._notifications.clear()
+            self._notify(conn)
             readable, _, _ = select.select([conn], [], [], 0.001)
             if readable:
                 chunk = conn.recv(65536)
@@ -151,19 +177,35 @@ class FakeDevice:
                 for _, msgid, method, params in unpacker:
                     self.methods.append(method)
                     if method != self.hang_on:
-                        conn.sendall(self._respond(msgid, method, params))
+                        response = self._respond(msgid, method, params)
+                        # The notifications of a request precede its response
+                        self._notify(conn)
+                        conn.sendall(response)
             self._work()
+
+    def _notify(self, conn: socket.socket) -> None:
+        for params in self._notifications:
+            conn.sendall(_pack([2, NotificationTopic.TASK.value, params]))
+        self._notifications.clear()
 
     def _work(self) -> None:
         """End the running task once its duration has passed."""
         if (
-            self.status is TaskStatus.RUNNING
+            self.slot is Slot.RUNNING
             and self.task_duration is not None
             and time.monotonic() - self._task_start >= self.task_duration
         ):
-            aborted = self.task_end is TaskNotification.ABORTED
-            self.status = TaskStatus.IDLE if aborted else TaskStatus.FINISHED
-            self._notifications.append(self.task_end.value)
+            self._end_task(self.task_end)
+
+    def _end_task(self, status: TaskStatus) -> None:
+        """Notify the end of the running task, which unloads its sequence."""
+        executed = 2 if status is TaskStatus.FINISHED else 1
+        message = f"executed {executed} / 2 shots in 0 ms"
+        result = [DATA, {name: [] for name in DATA}, self.task_log]
+        self._notifications.append(
+            [self.task_id, status.value, {self.sequence_id: [message, result]}]
+        )
+        self.slot = Slot.IDLE
 
     def _respond(self, msgid: int, method: str, params: list[Any]) -> bytes:
         try:
@@ -171,10 +213,6 @@ class FakeDevice:
         except RuntimeError as e:
             response = [1, msgid, str(e), None]
         return _pack(response)
-
-    def _require(self, status: TaskStatus) -> None:
-        if self.status is not status:
-            raise RuntimeError(f"Current task is not {status}; Status {self.status}")
 
     def _handle(self, method: str, params: list[Any]) -> Any:  # noqa: C901, PLR0911, PLR0912
         match method:
@@ -191,31 +229,59 @@ class FakeDevice:
             case "sys.checkUpdate":
                 return self.update_state
             case "sys.confirmUpdate":
-                self.update_state = params[0]
+                if self.update_state == "trial":
+                    self.update_state = "done"
             case "exp.getDeviceID":
                 return DEVICE_ID
-            case "exp.abortTask":
-                self.status = TaskStatus.IDLE
-                self._notifications.append(TaskNotification.ABORTED.value)
-            case "exp.setupTask":
-                self._require(TaskStatus.IDLE)
-                self.status = TaskStatus.SETUP
+            case "exp.loadSequence":
+                self._load_sequence(*params)
+            case "exp.listSequences":
+                return [] if self.slot is Slot.IDLE else [self.sequence_id]
+            case "exp.deleteSequence" | "exp.deleteAllSequences":
+                self._delete_sequence(*params or [self.sequence_id])
             case "exp.startTask":
-                self._require(TaskStatus.SETUP)
-                self.status = TaskStatus.RUNNING
-                self._task_start = time.monotonic()
+                self._start_task(*params)
+            case "exp.abortTask" | "exp.abortAllTasks":
+                if self.slot is Slot.RUNNING and params in ([], [self.task_id]):
+                    self._end_task(TaskStatus.ABORTED)
             case "exp.getTaskStatus":
-                return f"Status {self.status}, executed 0 / 2 shots in 0 ms\n"
-            case "exp.getTaskResults":
-                self._require(TaskStatus.FINISHED)
-                self.status = TaskStatus.IDLE
-                return [DATA, {name: [] for name in DATA}, ""]
-            case "exp.runTask":
-                self._require(TaskStatus.IDLE)
-                return [DATA, {name: [] for name in DATA}, ""]
+                if self.slot is not Slot.RUNNING:
+                    return []
+                message = "executed 0 / 2 shots in 0 ms"
+                return [[self.task_id, "RUNNING", {self.sequence_id: [message]}]]
             case _:
                 raise RuntimeError(f"Invalid request: {method}")
         return None
+
+    def _load_sequence(self, sequence_id: str, sequence: str) -> None:
+        assert isinstance(sequence, str)
+        if self.slot is not Slot.IDLE:
+            raise RuntimeError(
+                f"exp_json_parser::loadSequence: cannot load sequence '{sequence_id}', "
+                f"the loaded sequence is '{self.sequence_id}' with status {self.slot.value}"
+            )
+        if self.load_error is not None:
+            raise RuntimeError(self.load_error)
+        self.sequence_id = sequence_id
+        self.slot = Slot.SETUP
+
+    def _delete_sequence(self, sequence_id: str) -> None:
+        if self.slot is Slot.IDLE or sequence_id != self.sequence_id:
+            return
+        if self.slot is not Slot.SETUP:
+            raise RuntimeError(
+                f"exp_json_parser::deleteSequence: sequence '{sequence_id}' is not SETUP"
+            )
+        self.slot = Slot.IDLE
+
+    def _start_task(self, task_id: int, sequence_id: str) -> None:
+        if self.slot is not Slot.SETUP or sequence_id != self.sequence_id:
+            raise RuntimeError(
+                f"exp_json_parser::startTask: sequence '{sequence_id}' is not loaded"
+            )
+        self.task_id = task_id
+        self.slot = Slot.RUNNING
+        self._task_start = time.monotonic()
 
 
 @pytest.fixture
@@ -259,14 +325,25 @@ def test_task_round_trip(
     readouts = controller.receive()
 
     assert readouts == EXPECTED
-    assert device.status is TaskStatus.IDLE
-    # Never blocks the device with exp.runTask, and waits on the notification alone
-    assert device.methods[-3:] == [
-        "exp.setupTask",
-        "exp.startTask",
-        "exp.getTaskResults",
-    ]
+    # The end of the task unloads its sequence
+    assert device.slot is Slot.IDLE
+    # Waits on the notification alone, which brings the results
+    assert device.methods[-2:] == ["exp.loadSequence", "exp.startTask"]
     assert "exp.getTaskStatus" not in device.methods
+
+
+def test_sequence_id_is_the_hash_of_the_sequence(
+    device: FakeDevice, controller: RFSoCController
+) -> None:
+    controller.connect()
+    # The same sequence on consecutive data points reuses its id
+    for sequence in [SEQUENCE, make_sequence(shots=2), SEQUENCE]:
+        controller.send(sequence)
+        assert device.sequence_id == hashlib.sha256(sequence.encode()).hexdigest()
+        controller.run()
+        assert controller.receive() == EXPECTED
+    # The end of each task freed the slot, so no load failed
+    assert "exp.listSequences" not in device.methods
 
 
 def test_connect_rejects_incompatible_firmware(
@@ -337,24 +414,54 @@ def test_parse_unexpected_device_info(info: Any) -> None:
         DeviceInfo.parse(info)
 
 
-@pytest.mark.parametrize(
-    "status", [TaskStatus.SETUP, TaskStatus.RUNNING, TaskStatus.FINISHED]
-)
-def test_send_aborts_leftover_task(
-    device: FakeDevice, controller: RFSoCController, status: TaskStatus
+@pytest.mark.parametrize("running", [False, True], ids=["sequence", "task"])
+def test_send_removes_leftover(
+    device: FakeDevice, controller: RFSoCController, *, running: bool
 ) -> None:
-    device.status = status
+    device.load("leftover", running=running)
     device.task_duration = None
     controller.connect()
     controller.send(SEQUENCE)
-    assert device.status is TaskStatus.SETUP
-    assert device.methods[-2:] == ["exp.abortTask", "exp.setupTask"]
+    assert device.slot is Slot.SETUP
+    assert device.sequence_id != "leftover"
+    assert device.methods[-5:] == [
+        "exp.loadSequence",
+        "exp.listSequences",
+        "exp.abortAllTasks",
+        "exp.deleteAllSequences",
+        "exp.loadSequence",
+    ]
+
+
+def test_send_replaces_sequence_that_was_not_run(
+    device: FakeDevice, controller: RFSoCController
+) -> None:
+    """The worker runs no device of a data point if sending to one of them failed."""
+    controller.connect()
+    controller.send(SEQUENCE)
+    controller.send(SEQUENCE)
+    assert "exp.deleteAllSequences" in device.methods
+    controller.run()
+    assert controller.receive() == EXPECTED
+
+
+def test_send_fails_on_rejected_sequence(
+    device: FakeDevice, controller: RFSoCController
+) -> None:
+    device.load_error = "Number of shots set to 0, no experiment will be executed!"
+    controller.connect()
+    with pytest.raises(RPCResponseError, match="Number of shots set to 0"):
+        controller.send(SEQUENCE)
+    # Nothing to remove
+    assert device.methods[-2:] == ["exp.loadSequence", "exp.listSequences"]
+    with pytest.raises(DeviceError, match="no sequence was loaded"):
+        controller.run()
 
 
 def test_receive_ignores_notification_of_leftover_task(
     device: FakeDevice, controller: RFSoCController
 ) -> None:
-    device.status = TaskStatus.RUNNING
+    device.load("leftover", running=True)
     device.task_duration = None
     controller.connect()
     # Aborting the leftover task notifies ABORTED
@@ -376,7 +483,7 @@ def test_receive_aborts_unfinished_task(device: FakeDevice) -> None:
     ):
         controller.receive()
     assert time.monotonic() - start >= 0.1  # noqa: PLR2004
-    assert device.status is TaskStatus.IDLE
+    assert device.slot is Slot.IDLE
     assert device.methods[-1] == "exp.abortTask"
     assert controller.connected
 
@@ -402,16 +509,34 @@ def test_task_timeout_of_the_sequence(device: FakeDevice) -> None:
         controller.receive()
 
 
-def test_receive_fails_on_task_aborted_by_other_client(
-    device: FakeDevice, controller: RFSoCController
+def test_receive_fails_on_aborted_task(
+    device: FakeDevice,
+    controller: RFSoCController,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    device.task_end = TaskNotification.ABORTED
+    device.task_end = TaskStatus.ABORTED
+    device.task_log = "Too many hardware faults, failed after 1 / 2 shots"
     controller.connect()
     controller.send(SEQUENCE)
     controller.run()
-    with pytest.raises(DeviceError, match="aborted"):
+    with pytest.raises(TaskAbortedError, match="aborted after 1 / 2 shots"):
         controller.receive()
     assert controller.connected
+    # The reason is in the error log of the device
+    assert device.task_log in caplog.text
+
+
+def test_receive_logs_errors_of_finished_task(
+    device: FakeDevice,
+    controller: RFSoCController,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    device.task_log = "Shot 1 failed and was repeated"
+    controller.connect()
+    controller.send(SEQUENCE)
+    controller.run()
+    assert controller.receive() == EXPECTED
+    assert device.task_log in caplog.text
 
 
 def test_call_timeout_names_the_call(device: FakeDevice) -> None:
@@ -419,17 +544,44 @@ def test_call_timeout_names_the_call(device: FakeDevice) -> None:
     controller = make_controller(device, timeout=0.1)
     controller.connect()
     controller.send(SEQUENCE)
-    controller.run()
     with pytest.raises(
         TimeoutError,
         match=r"^no response to exp\.startTask \(msgid \d+\) within 0\.1s$",
     ):
-        controller.receive()
+        controller.run()
     # The late answer is dropped, so the connection stays open
     assert controller.connected
-    # The device never confirmed the start, so nothing is aborted: the next send aborts
-    # the task if it is still active
-    assert device.methods[-1] == "exp.startTask"
+    # The device never answered the start, so the client aborts the task in case it starts
+    # late; the next send removes the sequence that is still loaded
+    assert device.methods[-2:] == ["exp.startTask", "exp.abortTask"]
+    device.hang_on = None
+    controller.send(SEQUENCE)
+    controller.run()
+    assert controller.receive() == EXPECTED
+
+
+def test_run_returns_once_the_task_started(device: FakeDevice) -> None:
+    device.task_duration = None
+    controller = make_controller(device)
+    controller.connect()
+    controller.send(SEQUENCE)
+    controller.run()
+    # Started, and running while receive waits
+    assert device.slot is Slot.RUNNING
+    device.task_duration = 0
+    assert controller.receive() == EXPECTED
+
+
+def test_run_fails_if_the_device_does_not_start_the_task(
+    device: FakeDevice, controller: RFSoCController
+) -> None:
+    controller.connect()
+    controller.send(SEQUENCE)
+    device.slot = Slot.IDLE  # e.g. removed by another client
+    with pytest.raises(RPCResponseError, match="is not loaded"):
+        controller.run()
+    with pytest.raises(DeviceError, match="no task was started"):
+        controller.receive()
 
 
 def test_receive_without_run(controller: RFSoCController) -> None:
@@ -498,13 +650,3 @@ def test_to_zedboard_readouts() -> None:
     layout = ChannelLayout.from_header(HEADER, device_id=DEVICE_ID)
     result = TaskResult(data=DATA, failed={}, log="")
     assert to_zedboard_readouts(result, layout) == EXPECTED
-
-
-def test_parse_task_status() -> None:
-    report = TaskStatusReport.parse("Status RUNNING, executed 3 / 10 shots in -5 ms\n")
-    assert report == TaskStatusReport(
-        status=TaskStatus.RUNNING,
-        executed_shots=3,
-        requested_shots=10,
-        duration_ms=-5,
-    )

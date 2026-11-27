@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import socket
@@ -8,15 +9,16 @@ import threading
 import weakref
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import TYPE_CHECKING, Any, Final, Self, TypeVar
+from typing import TYPE_CHECKING, Any, Final, Self
 
 from qendra.device_client import (
     ApiVersionError,
     DeviceError,
+    ExperimentTask,
     PulseClient,
     RPCError,
     RPCResponseError,
-    TaskStatus,
+    TaskAbortedError,
     UpdateState,
 )
 from qendra.device_client.config import DEFAULT_CALL_TIMEOUT
@@ -29,13 +31,9 @@ from icon.server.hardware_processing.hardware_controller import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Coroutine
-
     from qendra.device_client import TaskResult
 
 logger = logging.getLogger(__name__)
-
-T = TypeVar("T")
 
 CLIENT_NAME: Final = f"ICON@{socket.gethostname()}"
 """Client name of the sessions ICON registers on the devices."""
@@ -49,11 +47,6 @@ SEQUENCE_TIME_FACTOR: Final = 1.5
 # The device client is asyncio, while the Hardware Controllers are called from the threads
 # of the hardware worker and the status checks. Each controller therefore runs its client
 # on the event loop of a SyncWrapper, in a daemon thread of its own.
-
-
-async def _start(coroutine: Coroutine[Any, Any, T]) -> asyncio.Task[T]:
-    """Start ``coroutine`` as a task of the running event loop, without waiting for it."""
-    return asyncio.create_task(coroutine)
 
 
 def _close(sync: SyncWrapper[PulseClient]) -> None:
@@ -81,9 +74,10 @@ def _close_soon(sync: SyncWrapper[PulseClient]) -> None:
 class RFSoCController(HardwareController):
     """Qendra Pulse (ZCU216 RFSoC) Hardware Controller using the experiment API of the device.
 
-    A sequence runs as a task: :meth:`send` sets it up, :meth:`run` starts it and
-    :meth:`receive` waits for it to finish and collects its results. The device stays
-    responsive while the task runs, so it can be aborted.
+    A sequence runs as in a task: :meth:`send` loads it into the sequence slot of the device,
+    :meth:`run` starts a task with it and :meth:`receive` waits for the task to finish, which
+    the device notifies with its results. The device stays responsive while the task runs,
+    so it can be aborted.
 
     The client runs on the event loop of a :class:`~qendra.device_client.sync.SyncWrapper`
     of its own. Dropping the controller closes the connection and stops the event loop.
@@ -116,8 +110,10 @@ class RFSoCController(HardwareController):
         self._finalizer.atexit = False  # type: ignore[misc]
         self._task_timeout_margin = task_timeout_margin
         self._task_timeout = task_timeout_margin
-        self._task: asyncio.Task[None] | None = None
-        """The wait of :meth:`run` for the task to finish, which :meth:`receive` takes."""
+        self._sequence_id: str | None = None
+        """The sequence :meth:`send` loaded, which :meth:`run` takes."""
+        self._task: ExperimentTask | None = None
+        """The task :meth:`run` started, which :meth:`receive` takes."""
         self._device_id: str | None = None
         self._channel_layout = ChannelLayout()
 
@@ -214,10 +210,10 @@ class RFSoCController(HardwareController):
     # *** Task
 
     def send(self, data: str) -> None:
-        """Set up the task of the sequence ``data``.
+        """The data is loaded with the SHA-256 of ``data`` as its sequence id.
 
-        If that fails while a task left over from an earlier data point is still active,
-        the leftover task is aborted and the setup repeated.
+        If the device is already occupied with a task or a loaded sequence, any task is
+        aborted and any sequence removed before retry.
         """
         self._ensure_connected()
         header = _decode_header(data)
@@ -228,54 +224,72 @@ class RFSoCController(HardwareController):
         self._channel_layout = ChannelLayout.from_header(
             header, device_id=self._device_id
         )
+        self._sequence_id = None
+        sequence_id = hashlib.sha256(data.encode()).hexdigest()
         try:
-            self._sync.run(self._client.setup_task(data))
+            self._sync.run(self._client.load_sequence(sequence_id, data))
         except RPCResponseError:
-            report = self._sync.run(self._client.get_task_status())
-            if report.status is TaskStatus.IDLE:
-                raise
-            logger.warning("Aborting a leftover task on %s", self.display_name)
-            self._sync.run(self._client.abort_task())
-            self._sync.run(self._client.setup_task(data))
+            self._sync.run(self._replace_sequence(sequence_id, data))
+        self._sequence_id = sequence_id
 
-    def run(self) -> None:
-        """Start the task set up by :meth:`send`, which runs on while :meth:`receive` waits.
-
-        The task is aborted if it does not finish within the task timeout of its sequence.
-        """
-        self._task = self._sync.run(
-            _start(self._client.start_task(timeout=self._task_timeout))
+    async def _replace_sequence(self, sequence_id: str, data: str) -> None:
+        """In case a sequence is already loaded or is executing, abort the task and remove the sequence before retrying."""
+        await asyncio.gather(
+            self._client.abort_all_tasks(),
+            self._client.delete_all_sequences(),
+            self._client.load_sequence(sequence_id, data),
         )
 
+    def run(self) -> None:
+        """Start a task to run the sequence loaded by :meth:`send`.
+
+        Returns once the device has started the task.
+
+        Raises:
+            DeviceError: if :meth:`send` loaded no sequence since the last run.
+            RPCResponseError: if the device did not start the task, e.g. as its sequence
+                was removed meanwhile.
+            TimeoutError: if the device did not answer the start. The task is aborted in
+                case the device starts it late.
+        """
+        sequence_id, self._sequence_id = self._sequence_id, None
+        if sequence_id is None:
+            raise DeviceError(f"no sequence was loaded on {self.display_name}")
+        self._task = self._sync.run(ExperimentTask.start(self._client, sequence_id))
+
     def receive(self) -> Readouts:
-        """Wait for the task started by :meth:`run` to finish and collect its results.
+        """Wait for the task started by :meth:`run` to finish and return its results.
 
         Raises:
             TimeoutError: if the task did not finish within the task timeout of its
-                sequence. The task was aborted.
-            DeviceError: if no task was started, or the task was aborted meanwhile.
-            ConnectionError: if the connection was lost before the task ended. The next
-                :meth:`send` aborts the task if it is still active.
+                sequence, counted from this call. The task was aborted.
+            TaskAbortedError: if the task was aborted meanwhile, e.g. by another client or
+                by the device on an error. The error log of the device is logged.
+            DeviceError: if no task was started.
+            ConnectionError: if the connection was lost before the task ended. The device
+                aborts the task then.
         """
         task, self._task = self._task, None
         if task is None:
             raise DeviceError(f"no task was started on {self.display_name}")
         try:
-            self._sync.run(task)
+            end = self._sync.run(asyncio.wait_for(task, self._task_timeout))
         except TimeoutError as e:
-            if e.args:
-                # A call timed out, which its message names
-                raise
-            # start_task raises a bare TimeoutError once its timeout has expired
             raise TimeoutError(
                 f"Task on {self.display_name} did not finish within "
                 f"{self._task_timeout:g}s and was aborted"
             ) from e
-        results = self._sync.run(self._client.get_task_results())
-        if results.log:
-            logger.warning("%s: %s", self.display_name, results.log)
+        except TaskAbortedError as e:
+            self._log_task_log(e.end.result)
+            raise
+        self._log_task_log(end.result)
         # TODO: return the per-shot results once ICON handles them
-        return to_zedboard_readouts(results, self._channel_layout)
+        return to_zedboard_readouts(end.result, self._channel_layout)
+
+    def _log_task_log(self, result: TaskResult) -> None:
+        """Log the errors the device reports for a task, e.g. of failed shots."""
+        if result.log:
+            logger.warning("%s: %s", self.display_name, result.log)
 
 
 _HEADER_MARKER = '"header":'

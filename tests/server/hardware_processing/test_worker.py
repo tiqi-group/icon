@@ -8,7 +8,13 @@ from unittest.mock import MagicMock
 
 import pytest
 import qendra.device_client
-from qendra.device_client import DeviceError
+from qendra.device_client import (
+    DeviceError,
+    TaskAbortedError,
+    TaskEnd,
+    TaskResult,
+    TaskStatus,
+)
 
 from icon.server.data_access.experiment_data import HardwareProcessingError, Readouts
 from icon.server.data_access.models.enums import JobRunStatus
@@ -143,11 +149,24 @@ def _run_worker(
         # Qendra Pulse
         (
             qendra.device_client.RPCResponseError(
-                "exp.setupTask", 1, "Sequence too long"
+                "exp.loadSequence", 1, "Sequence too long"
             ),
             "Sequence too long",
         ),
-        (DeviceError("the task was aborted"), "the task was aborted"),
+        (
+            TaskAbortedError(
+                TaskEnd(
+                    task_id=1,
+                    status=TaskStatus.ABORTED,
+                    sequence_id="scan",
+                    executed_shots=3,
+                    requested_shots=10,
+                    duration_ms=5,
+                    result=TaskResult(data={}, failed={}, log=""),
+                )
+            ),
+            "task 1 (scan) was aborted after 3 / 10 shots",
+        ),
         # The device locked up
         (
             TimeoutError("no response to exp.startTask within 5s"),
