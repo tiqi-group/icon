@@ -16,6 +16,8 @@ LOGGERS: dict[str, dict[str, Any]] = {
         "propagate": False,
     },
     "icon": {"handlers": ["default"], "propagate": False},  # level set at runtime
+    # qendra.device_client, the client of the Qendra devices
+    "qendra": {"handlers": ["default"], "propagate": False},  # level set at runtime
     "tiqi_zedboard": {
         "handlers": ["default"],
     },  # level set at runtime
@@ -70,9 +72,9 @@ def setup_logging(log_level: int) -> None:
     """Configure the logging system for the application.
 
     This function applies the application's logging configuration and sets the log level
-    for the main 'icon' and 'pydase' loggers. The log level should be determined by the
-    caller, typically based on command-line arguments such as '-v' (increase verbosity)
-    or '-q' (decrease verbosity).
+    for the main 'icon', 'qendra' and 'pydase' loggers. The log level should be
+    determined by the caller, typically based on command-line arguments such as '-v'
+    (increase verbosity) or '-q' (decrease verbosity).
 
     Args:
         log_level: The logging level (e.g., logging.DEBUG, logging.INFO,
